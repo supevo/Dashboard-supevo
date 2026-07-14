@@ -14,9 +14,10 @@ zentralen Entscheidungen zusammen und verweist auf die Detaildokumente.
 | `02-tech-stack.md` | Technologieauswahl inkl. Begründung |
 | `03-data-model.md` | Vollständiges Datenmodell (Tabellen, Beziehungen) |
 | `04-role-matrix.md` | Rollen und Berechtigungsmatrix |
-| `05-security-rls.md` | Sicherheitskonzept: RLS, Uploads, Audit, DSGVO |
+| `05-security-rls.md` | Sicherheitskonzept: RLS, Uploads, XSS, CSRF, Rate Limits, Audit, DSGVO |
 | `06-project-structure.md` | Empfohlene Verzeichnis- und Modulstruktur |
-| `07-roadmap-phases.md` | Phasenplan, offene Punkte, technische Schulden |
+| `07-roadmap-phases.md` | Phasenplan (Ziel/Tests/Risiken), MVP-Abgrenzung, offene Punkte |
+| `08-pages-routes.md` | Vollständige Seiten- und Routenstruktur |
 
 ## Zentrale Architekturentscheidungen (Kurzfassung)
 
@@ -25,11 +26,20 @@ zentralen Entscheidungen zusammen und verweist auf die Detaildokumente.
    wird **hart auf Datenbankebene** über PostgreSQL Row Level Security (RLS)
    erzwungen – nicht (nur) in der Anwendung.
 
-2. **Zwei Organisationstypen**
-   Die Agentur ist eine Organisation vom Typ `agency`, jeder Kunde eine
-   Organisation vom Typ `client`. Agenturmitarbeiter arbeiten organisations-
-   übergreifend über Projektzuweisungen; Kunden sehen ausschließlich ihre
-   eigene Organisation und ausschließlich nicht-interne Daten.
+2. **Organisation (Mandant) vs. Kundenunternehmen**
+   Die Agentur ist eine **Organisation** (`organization`, Typ `agency`) – der
+   Mandant. Kunden werden als **Kundenunternehmen** (`client_company`)
+   **innerhalb** einer Organisation geführt. Projekte gehören zu einem
+   Kundenunternehmen. Kundennutzer sind Mitglied der Organisation (Rolle
+   `client`) und über `client_contacts` einem Kundenunternehmen zugeordnet.
+   Damit gilt: Mandantentrennung über `organization_id`, Kundentrennung über
+   `client_company_id`. Mehrere Organisationen (White-Label) sind modellseitig
+   vorbereitet.
+
+   > Hinweis: Dies löst einen früheren Entwurf ab, der jeden Kunden als eigene
+   > Organisation modellierte. Die getrennte `client_company`-Ebene folgt der
+   > vollständigen Spezifikation („Organisationen" und „Kundenunternehmen" als
+   > getrennte Bereiche; Nutzer in mehreren Organisationen möglich).
 
 3. **Zweistufige Autorisierung**
    RLS ist die harte Grenze (Defense in Depth). Zusätzlich prüfen alle
@@ -51,12 +61,12 @@ zentralen Entscheidungen zusammen und verweist auf die Detaildokumente.
 Diese Annahmen liegen dem Entwurf zugrunde. Bitte gegenlesen – Änderungen
 hier wirken sich auf das Datenmodell aus.
 
-- **A1** – Es gibt genau eine Agentur-Organisation (Supevo). Das System ist
-  nicht als White-Label für mehrere Agenturen gedacht. (Falls doch, ist das
-  Modell dank `organizations.type` bereits vorbereitet.)
-- **A2** – Ein Projekt gehört immer **genau einem** Kunden. Projekte über
-  mehrere Kunden hinweg gibt es nicht.
-- **A3** – Ein Kundennutzer gehört zu **genau einer** Kundenorganisation.
+- **A1** – In v1 gibt es eine Agentur-Organisation (Supevo). Mehrere
+  Organisationen (White-Label) sind modellseitig vorbereitet, aber nicht Teil
+  von v1.
+- **A2** – Ein Projekt gehört immer **genau einem** Kundenunternehmen.
+- **A3** – Ein Kundennutzer gehört (über `client_contacts`) zu mindestens einem
+  Kundenunternehmen innerhalb einer Organisation.
 - **A4** – Zeiterfassung ist grundsätzlich intern; einzelne Einträge können
   explizit als kundensichtbar / abrechenbar markiert werden.
 - **A5** – Datenhaltung in der EU ist verpflichtend (DSGVO). Region Frankfurt

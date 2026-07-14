@@ -18,9 +18,10 @@ Die vollständige Architektur liegt unter [`docs/architecture`](docs/architectur
 3. [Technologie-Stack](docs/architecture/02-tech-stack.md)
 4. [Datenmodell](docs/architecture/03-data-model.md)
 5. [Rollen- & Berechtigungsmatrix](docs/architecture/04-role-matrix.md)
-6. [Sicherheit: RLS, Uploads, Audit, DSGVO](docs/architecture/05-security-rls.md)
+6. [Sicherheit: RLS, Uploads, XSS, CSRF, Rate Limits, Audit, DSGVO](docs/architecture/05-security-rls.md)
 7. [Projektstruktur](docs/architecture/06-project-structure.md)
-8. [Phasenplan & offene Punkte](docs/architecture/07-roadmap-phases.md)
+8. [Phasenplan, MVP-Abgrenzung & offene Punkte](docs/architecture/07-roadmap-phases.md)
+9. [Seiten- & Routenstruktur](docs/architecture/08-pages-routes.md)
 
 ## Konventionen
 

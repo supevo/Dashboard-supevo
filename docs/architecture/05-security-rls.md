@@ -1,161 +1,157 @@
-# Sicherheitskonzept: RLS, Uploads, Audit, DSGVO
+# Sicherheitskonzept
 
-## 1. Verteidigung in der Tiefe (Defense in Depth)
+## 1. Verteidigung in der Tiefe
 
 Berechtigungen werden an **zwei** Stellen erzwungen:
 
-1. **Datenbank (RLS)** – harte, nicht umgehbare Grenze. Selbst bei einem Fehler
-   in der Anwendung kann kein Mandant fremde/interne Daten lesen.
+1. **Datenbank (RLS)** – harte, nicht umgehbare Grenze.
 2. **Anwendung (Server Actions / Route Handler)** – zentrales Policy-Modul
-   prüft Berechtigungen vor jeder schreibenden Aktion, liefert verständliche
-   deutsche Fehlermeldungen und protokolliert.
+   validiert (Zod), autorisiert (`can(...)`), führt aus, protokolliert.
 
-Das Frontend prüft ausschließlich zur UI-Steuerung (Buttons aus-/einblenden)
-und ist **niemals** Sicherheitsgrenze.
+Das Frontend prüft nur zur UI-Steuerung, **niemals** als Sicherheitsgrenze.
 
-## 2. RLS-Hilfsfunktionen (`SECURITY DEFINER`)
-
-Zentrale Funktionen kapseln die Zugriffslogik und werden in Policies wieder-
-verwendet. Sie laufen als `SECURITY DEFINER` mit fixiertem `search_path` und
-sind `STABLE`.
+## 2. RLS-Hilfsfunktionen (`SECURITY DEFINER`, `STABLE`, fixierter `search_path`)
 
 ```sql
--- Systemweiter Betreiberzugriff
-create function is_super_admin() returns boolean ...
-  -- true, wenn aktiver Membership-Eintrag mit role = 'super_admin'
-
--- Gehört der aktuelle Nutzer zur Agentur (interne Rolle)?
-create function is_agency_staff() returns boolean ...
-  -- true bei agency_admin | project_manager | employee | freelancer
-
--- Organisationen des aktuellen Nutzers (aktive Memberships)
-create function current_user_org_ids() returns setof uuid ...
-
--- Darf der Nutzer das Projekt überhaupt sehen?
-create function can_access_project(p_project_id uuid) returns boolean ...
-  -- super_admin: true
-  -- agency_admin: true, wenn Projekt zur Agentur-Betreuung gehört
-  -- project_manager/employee/freelancer: Eintrag in project_members
-  -- client: project.organization_id in current_user_org_ids() UND Eintrag in project_members
-  -- guest: nur über explizite Objektfreigabe (separate Prüfung)
-
--- Darf der Nutzer INTERNE Daten des Projekts sehen?
-create function can_see_internal(p_project_id uuid) returns boolean ...
-  -- true nur für Agenturrollen/super_admin mit Projektzugriff
-  -- immer false für client/guest
+is_super_admin() -> boolean
+is_agency_staff() -> boolean                    -- agency_admin|project_manager|employee|freelancer
+current_user_org_ids() -> setof uuid            -- aktive Memberships
+current_user_client_company_ids() -> setof uuid -- über client_contacts
+can_access_project(p_project_id uuid) -> boolean
+can_manage_project(p_project_id uuid) -> boolean -- lead/agency_admin/super_admin
+can_see_internal(p_project_id uuid) -> boolean  -- true nur Agenturrollen; immer false für client/guest
 ```
 
-> Wichtig: RLS-Policies referenzieren `auth.uid()` (die Supabase-User-ID).
-> Der Service-Client umgeht RLS und wird nur serverseitig eingesetzt.
+Alle Funktionen leiten die Identität aus `auth.uid()` ab. Kein Wert stammt aus
+Client-Eingaben.
 
-## 3. Policy-Muster je Tabelle
+## 3. Schutz vor manipulierten Organisations-/Kundenkennungen
 
-Beispielhaft für `task_comments` (analog für files, notes, time_entries):
+**Grundregel:** `organization_id` und `client_company_id` werden **niemals** aus
+dem Request übernommen, um Zugriff zu gewähren. Ablauf:
+
+- Beim Schreiben setzt die Server Action die `organization_id` selbst aus der
+  Session/Membership – ein mitgesendeter Wert wird ignoriert bzw. gegen die
+  erlaubten Werte geprüft (`with check organization_id in (select
+  current_user_org_ids())`).
+- Beim Lesen filtert RLS auf `current_user_org_ids()` bzw.
+  `current_user_client_company_ids()`. Ein untergeschobenes fremdes ID greift
+  ins Leere (0 Zeilen), kein Fehler mit Datenpreisgabe.
+- IDOR-Schutz: ausschließlich User-Client (RLS); Service-Key nie im Client.
+
+## 4. Policy-Muster je Tabelle (Beispiel `comments`)
 
 ```sql
-alter table task_comments enable row level security;
+alter table comments enable row level security;
 
--- SELECT: Zugriff auf Projekt UND (nicht intern ODER darf intern sehen)
-create policy task_comments_select on task_comments
-for select using (
-  can_access_project((select project_id from tasks where tasks.id = task_comments.task_id))
-  and (
-    is_internal = false
-    or can_see_internal((select project_id from tasks where tasks.id = task_comments.task_id))
-  )
+create policy comments_select on comments for select using (
+  can_access_project(project_id)
+  and (is_internal = false or can_see_internal(project_id))
   and deleted_at is null
 );
 
--- INSERT: nur mit Projektzugriff; interne Kommentare nur durch Agenturrollen
-create policy task_comments_insert on task_comments
-for insert with check (
-  can_access_project((select project_id from tasks where tasks.id = task_comments.task_id))
-  and (is_internal = false or can_see_internal(...))
+create policy comments_insert on comments for insert with check (
+  can_access_project(project_id)
   and author_id = auth.uid()
+  and organization_id in (select current_user_org_ids())
+  and (is_internal = false or can_see_internal(project_id))
 );
 
--- UPDATE/DELETE: nur Autor oder project_manager/agency_admin des Projekts
+-- update/delete: nur Autor oder can_manage_project(project_id)
 ```
 
-**Kernaussage**: Die Kombination `is_internal = false OR can_see_internal(...)`
-ist die technische Umsetzung von Anforderung 4 – Kunden sehen interne Daten
-niemals.
+Analog für tasks, files, notes, time_entries, checklists, approvals. Der
+Ausdruck `is_internal = false OR can_see_internal(project_id)` ist die
+technische Umsetzung von „Kunden sehen interne Daten nie".
 
-## 4. Aktivitätsprotokoll (append-only)
+## 5. Serverseitige Rechteprüfung
 
-```sql
-alter table activity_log enable row level security;
+Jede Server Action folgt strikt:
 
--- INSERT für authentifizierte Nutzer erlaubt (actor_id = auth.uid())
-create policy activity_log_insert on activity_log
-for insert with check (actor_id = auth.uid() or is_super_admin());
-
--- KEIN update/delete-Policy -> per Default verboten (Manipulationsschutz)
-
--- SELECT: agency_admin (eigene Agentur) / super_admin
-create policy activity_log_select on activity_log
-for select using (is_super_admin() or (is_agency_staff() and ...));
+```
+1. Authentifizierung prüfen (Session vorhanden?)
+2. Eingaben validieren (Zod-Schema, Feld-Allowlist -> kein Mass Assignment)
+3. Autorisieren: can(user, action, resource) — zentrale Funktion
+4. Ausführen (User-Client -> RLS greift zusätzlich)
+5. Aktivitätsprotokoll schreiben
+6. Verständliche deutsche Antwort/Fehlermeldung
 ```
 
-Systemseitige Einträge (z. B. Login-Events) werden über den Service-Client
-geschrieben. Protokolliert werden mindestens: create/update/delete relevanter
-Entitäten, Rollenänderungen, Freigabeentscheidungen, Uploads/Downloads,
-Login/Logout, Einladungen.
+## 6. WIP-Limits & gleichzeitige Änderungen (serverseitig, nicht optisch)
 
-## 5. Sichere Datei-Uploads
+- **WIP-Limit** wird beim Verschieben in einer DB-Transaktion geprüft: Zähle
+  Aufgaben in der Zielspalte (`SELECT ... FOR UPDATE` auf Spalten-/Boardzeile
+  zur Serialisierung), vergleiche mit `wip_limit` bzw. `wip_limit_per_user`
+  (Zählung je Assignee). Überschreitung → Verschiebung abgelehnt, klare
+  deutsche Fehlermeldung. Zusätzlich als DB-Trigger-Funktion, damit auch direkte
+  DB-Zugriffe geschützt sind.
+- **Lost-Update-Schutz:** `tasks.lock_version` wird bei jedem Update geprüft
+  (`WHERE id = ? AND lock_version = ?`, danach `+1`). Konflikt → 409-artige
+  Meldung, Client lädt neu (optimistische Aktualisierung mit Fehlerkorrektur).
 
-Regeln (serverseitig, nicht verhandelbar):
+## 7. Sichere Datei-Uploads/-Downloads
 
-1. **Kein öffentlicher Bucket.** Downloads ausschließlich über kurzlebige
-   Signed URLs, die serverseitig nach Berechtigungsprüfung erzeugt werden.
-2. **Speicherpfad wird serverseitig erzeugt** – nie vom Client übernommen.
-   Konvention:
-   `org/{organization_id}/project/{project_id}/{yyyy}/{mm}/{uuid}_{sanitized_name}`
-3. **MIME-Typ-Allowlist** je Kontext (z. B. Bilder, PDF, Office, ZIP). Prüfung
-   nicht nur anhand der Dateiendung, sondern über den tatsächlichen Inhalt
-   (Magic Bytes) serverseitig.
-4. **Größenlimit** je Typ/Kontext (z. B. 25 MB Standard, konfigurierbar) –
-   serverseitig **und** über Storage-Policy erzwungen.
-5. **Berechtigung** vor jedem Upload/Download über das Policy-Modul geprüft.
-6. **Dateiname wird bereinigt** (Path-Traversal-, Sonderzeichen-Schutz); der
-   Originalname wird nur als Anzeigefeld gespeichert.
-7. **Checksumme (SHA-256)** zur Integritätsprüfung und Deduplizierung.
-8. **is_internal** entscheidet über Kundensichtbarkeit; interne Dateien sind
-   für `client`/`guest` per RLS + Storage-Policy nicht abrufbar.
-9. **Virenscan** (z. B. ClamAV via Edge Function/Job) als Ausbaustufe
-   dokumentiert (technische Schuld, wenn zunächst nicht umgesetzt).
+1. **Kein öffentlicher Bucket.** Download nur über kurzlebige Signed URLs nach
+   serverseitiger Rechteprüfung.
+2. **Speicherpfad serverseitig erzeugt:**
+   `org/{organization_id}/project/{project_id}/task/{task_id}/{uuid}_{sanitized}`.
+   Nie vom Client übernommen (Path-Traversal-Schutz).
+3. **MIME-Allowlist** je Kontext, geprüft über **Magic Bytes**, nicht nur
+   Endung. Konfigurierbar über `organizations.settings`.
+4. **Größenlimit** serverseitig **und** per Storage-Policy.
+5. **Berechtigung** vor Upload/Download über Policy-Modul.
+6. **Dateiname bereinigt**; Originalname nur als Anzeigefeld.
+7. **Checksumme (SHA-256)** für Integrität/Dedup.
+8. `is_internal` → interne Dateien für `client`/`guest` per RLS + Storage-Policy
+   nicht abrufbar.
+9. **Virenscan** (ClamAV via Job/Edge Function) als Ausbaustufe → technische
+   Schuld bis umgesetzt.
 
-Storage-RLS-Policies auf `storage.objects` prüfen den Pfadpräfix gegen
-`current_user_org_ids()` und die Projektzugehörigkeit.
+Storage-RLS auf `storage.objects` prüft Pfadpräfix gegen
+`current_user_org_ids()` + Projektzugehörigkeit.
 
-## 6. Weitere Sicherheitsrisiken & Gegenmaßnahmen
+## 8. Cross-Site-Scripting (XSS)
+
+- Rich-Text (Beschreibung, Kommentare) wird **serverseitig sanitisiert**
+  (HTML-Allowlist, z. B. `sanitize-html`) **vor** dem Speichern und beim Rendern
+  (DOMPurify). Nur erlaubte Tags/Attribute; keine `script`, `on*`, `javascript:`.
+- React escaped standardmäßig; `dangerouslySetInnerHTML` nur mit sanitisiertem
+  Inhalt.
+- Content-Security-Policy-Header (strikt, keine Inline-Skripte außer per Nonce).
+
+## 9. Cross-Site-Request-Forgery (CSRF)
+
+- Next.js Server Actions prüfen Origin/Same-Site automatisch; Cookies
+  `SameSite=Lax`, `HttpOnly`, `Secure`.
+- Für Custom Route Handler (Uploads/Webhooks): Origin-Prüfung + CSRF-Token bzw.
+  Signaturprüfung bei Webhooks.
+
+## 10. Weitere Angriffsflächen
 
 | Risiko | Gegenmaßnahme |
-|--------|---------------|
-| Mandantenübergreifender Datenabfluss | RLS auf **jeder** Tabelle + automatisierte RLS-Tests je Rolle. |
-| Interne Daten an Kunden | `is_internal`/`is_client_visible` in RLS erzwungen; Default = intern. |
-| Rechteausweitung (Role Escalation) | Rollenänderung nur durch erlaubte Rollen, serverseitig geprüft, auditiert; `agency_admin` darf kein `super_admin` vergeben. |
-| IDOR / direkte Objektzugriffe | Ausschließlich User-Client (RLS); Service-Key nie im Client. |
-| Mass Assignment | Zod-Schemata mit expliziter Feld-Allowlist an jeder Servergrenze. |
-| Service-Role-Key-Leak | Nur in Server-Env; separate `env`-Trennung; nie in `NEXT_PUBLIC_*`. |
-| Audit-Manipulation | `activity_log` append-only (kein UPDATE/DELETE-Policy). |
-| Einladungs-Token-Diebstahl | Nur Token-**Hash** gespeichert, Ablaufzeit, Einmalgebrauch. |
-| Session-Hijacking | Supabase Auth (kurzlebige JWT + Refresh), HttpOnly-Cookies. |
-| Unsichere Fehlermeldungen | Interne Details nur ins Log; Nutzer erhalten generische, deutsche Meldungen. |
+|---|---|
+| **SQL-Injection** | Ausschließlich parametrisierte Queries via Supabase-Client; kein String-Concat; RPC mit typisierten Parametern. |
+| **Open Redirects** | Redirect-Ziele gegen Allowlist relativer Pfade prüfen; keine offenen `next`-Parameter. |
+| **Rate Limits** | Login, Passwort-Reset, Einladungsannahme, Upload, Kommentare pro IP/Nutzer begrenzt (Middleware + Zähler in Postgres/Upstash). Klare Fehlermeldung bei Überschreitung. |
+| **Session** | Supabase Auth (kurzlebige JWT + Refresh), serverseitige Prüfung in Middleware; Logout invalidiert. |
+| **Passwort-Reset** | Einmal-Token mit Ablauf, nur Hash gespeichert, kein User-Enumeration-Leak (immer generische Antwort). |
+| **Einladungslinks** | Nur Token-Hash, Ablauf, Einmalgebrauch, an E-Mail gebunden; Registrierung nur mit gültiger Einladung. |
+| **Rechteausweitung** | Rollenänderung nur durch erlaubte Rollen; Selbst-Höherstufung verboten; `super_admin` nie über UI. |
+| **Mass Assignment** | Zod-Schemata mit expliziter Feld-Allowlist. |
+| **Audit-Manipulation** | `activity_log` append-only (kein UPDATE/DELETE-Policy). |
+| **Secret-Leak** | `SUPABASE_SERVICE_ROLE_KEY` nur serverseitig, nie `NEXT_PUBLIC_*`; `.env` nicht committen. |
 
-## 7. DSGVO / Datenschutz
+## 11. Protokollierung & Fehlermeldungen
 
-- **EU-Datenhaltung** (Supabase EU / Self-Hosting DE).
-- **Auskunft & Löschung**: Export- und Lösch-Workflows je betroffener Person
-  (Recht auf Auskunft/Vergessenwerden) – als eigene Phase eingeplant.
-- **Auftragsverarbeitung**: AV-Vertrag mit Hosting-Anbieter.
-- **Aufbewahrungsfristen**: Aktivitätsprotokoll und Zeiteinträge mit
-  definierter Aufbewahrung; Soft-Delete + spätere harte Löschung.
-- **Datensparsamkeit**: nur notwendige personenbezogene Daten.
+- **Audit** (`activity_log`): create/update/delete, Statuswechsel,
+  Assignee-/Fälligkeitsänderung, Rollenänderung, Freigabeentscheidung,
+  Upload/Download, Login/Logout, Einladung, Zeitkorrektur.
+- **Keine sensiblen Daten** in Logs (keine Passwörter, Tokens, Dateiinhalte).
+- Zentrale Fehlerklassen (`AuthorizationError`, `ValidationError`,
+  `NotFoundError`, `ConflictError`) → **deutsche**, generische Nutzermeldungen;
+  technische Details nur ins Server-Log/Audit.
 
-## 8. Verständliche Fehlermeldungen
+## 12. DSGVO
 
-Zentrale Fehlerklassen (`AuthorizationError`, `ValidationError`,
-`NotFoundError`) werden an der Servergrenze in **deutsche**, nutzerfreundliche
-Meldungen übersetzt. Technische Details (Stacktrace, IDs) landen nur im
-serverseitigen Log/Audit, nie in der Antwort an den Client.
+EU-Datenhaltung; Auskunft/Löschung als eigene Phase; AV-Vertrag;
+Aufbewahrungsfristen für Audit/Zeiten; Datensparsamkeit.

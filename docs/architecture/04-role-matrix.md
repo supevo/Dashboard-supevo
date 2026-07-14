@@ -1,101 +1,93 @@
 # Rollen- und Berechtigungsmatrix
 
-## Rollenmodell
+## Zwei Berechtigungsebenen
 
-Es gibt **zwei Ebenen**:
+1. **Globale Rolle** (`memberships.role`) – je Organisation.
+2. **Projektrolle** (`project_members.role`) – verfeinert im Projektkontext.
 
-1. **Globale Rolle** (`memberships.role`) – gilt für eine Organisation.
-2. **Projektrolle** (`project_members.role`) – gilt für ein konkretes Projekt
-   und kann die globale Rolle im Projektkontext verfeinern (z. B. ist ein
-   `employee` in Projekt A `lead`, in Projekt B `contributor`).
-
-Die effektive Berechtigung ergibt sich aus der Kombination beider Ebenen und
-wird zentral im Policy-Modul (`src/lib/authz`) sowie in RLS-Funktionen
-berechnet.
+Die effektive Berechtigung wird zentral im Policy-Modul (`src/lib/authz`)
+berechnet und in RLS gespiegelt. **Keine verstreuten Rollenprüfungen** – jede
+serverseitige Aktion ruft dieselbe zentrale Funktion `can(user, action,
+resource)` auf.
 
 ## Die sieben Rollen
 
-| Rolle (DE) | Code | Ebene | Kurzbeschreibung |
-|------------|------|-------|------------------|
-| Super Administrator | `super_admin` | systemweit | Betreibt die Plattform; Zugriff über alle Organisationen; verwaltet Agentur-Grundkonfiguration. |
-| Agentur Administrator | `agency_admin` | Agentur | Verwaltet Nutzer, Kunden, alle Projekte der Agentur; voller interner Zugriff. |
-| Projektleiter | `project_manager` | Agentur | Verantwortet zugewiesene Projekte inkl. Mitgliedern, Freigaben, interner Daten. |
-| Mitarbeiter | `employee` | Agentur | Bearbeitet zugewiesene Aufgaben, erfasst Zeit, sieht interne Daten seiner Projekte. |
-| Freelancer | `freelancer` | Agentur (extern) | Wie Mitarbeiter, aber strikter auf zugewiesene Projekte begrenzt; kein Zugriff auf Kunden-/Finanzverwaltung. |
-| Kunde | `client` | Kunde | Sieht ausschließlich eigene Organisation, ausschließlich **nicht-interne** Daten; kommentiert, lädt hoch, erteilt Freigaben. |
-| Gast | `guest` | punktuell | Stark eingeschränkter, meist zeitlich begrenzter Zugriff auf einzelne geteilte Objekte (z. B. eine Freigabe). |
+| Rolle (DE) | Code | Ebene | Kurz |
+|---|---|---|---|
+| Super Administrator | `super_admin` | systemweit | Betrieb/Wartung, org-übergreifend. Nie über UI vergebbar. |
+| Agentur Administrator | `agency_admin` | Organisation | Verwaltet Org, Kunden, Nutzer, alle Projekte, Einstellungen. |
+| Projektleiter | `project_manager` | Organisation | Verantwortet zugewiesene Projekte inkl. interner Daten. |
+| Mitarbeiter | `employee` | Organisation | Bearbeitet zugewiesene Aufgaben, erfasst Zeit. |
+| Freelancer | `freelancer` | Organisation (extern) | Wie Mitarbeiter, strenger begrenzt; keine Kunden-/Finanzverwaltung. |
+| Kunde | `client` | Kunde | Nur eigenes Kundenunternehmen, nur nicht-interne Daten. |
+| Gast | `guest` | punktuell | Sehr eingeschränkt, meist zeitlich begrenzt (z. B. Freigabe-Link). |
 
 ## Grundprinzipien
 
-- **Interne Daten** (`is_internal = true` bzw. `is_client_visible = false`)
-  sind für `client` und `guest` **niemals** sichtbar – hart per RLS.
-- **Agenturrollen** (`agency_admin`, `project_manager`, `employee`,
-  `freelancer`) sehen interne Daten, aber nur in Projekten, denen sie
-  zugewiesen sind (Ausnahme: `agency_admin` sieht alle Agenturprojekte).
-- **`super_admin`** umgeht die Projekt-/Org-Grenzen (systemweite Wartung),
-  bleibt aber vollständig auditiert.
-- **Least Privilege**: Standardrolle für neue Agenturnutzer ist `employee`,
-  nicht Admin.
+- Interne Daten (`is_internal = true` / `is_client_visible = false`) sind für
+  `client`/`guest` **niemals** sichtbar (RLS-hart).
+- **Niemand darf eigene Rechte erhöhen.** Eine Rollenänderung des eigenen
+  Datensatzes auf eine höhere Rolle ist serverseitig verboten.
+- **`super_admin` wird nie über die UI vergeben** – nur per Migration/DB.
+- **Least Privilege**: Standardrolle neuer Agenturnutzer = `employee`.
 
-## Berechtigungsmatrix (Ressource × Rolle × Aktion)
+## Vollständige Matrix (Ressource × Rolle)
 
-Legende: ✔ erlaubt · ✱ eingeschränkt (siehe Fußnote) · ✖ verboten
+Legende: **F**=voll · **P**=eingeschränkt (Fußnote) · **E**=eigene · **–**=kein Zugriff
+Aktionen: C=create, R=read, U=update, D=delete
 
-| Ressource / Aktion | super_admin | agency_admin | project_manager | employee | freelancer | client | guest |
+| Ressource | super_admin | agency_admin | project_manager | employee | freelancer | client | guest |
 |---|---|---|---|---|---|---|---|
-| **Organisationen verwalten** | ✔ | ✱¹ | ✖ | ✖ | ✖ | ✖ | ✖ |
-| **Kunden(-Orgs) anlegen** | ✔ | ✔ | ✖ | ✖ | ✖ | ✖ | ✖ |
-| **Agenturnutzer verwalten** | ✔ | ✔ | ✖ | ✖ | ✖ | ✖ | ✖ |
-| **Rollen zuweisen** | ✔ | ✱² | ✱³ | ✖ | ✖ | ✖ | ✖ |
-| **Kundennutzer einladen** | ✔ | ✔ | ✔ | ✖ | ✖ | ✖ | ✖ |
-| **Projekt anlegen** | ✔ | ✔ | ✔ | ✖ | ✖ | ✖ | ✖ |
-| **Projekt bearbeiten/archivieren** | ✔ | ✔ | ✱⁴ | ✖ | ✖ | ✖ | ✖ |
-| **Projekt sehen** | ✔ | ✔(alle) | ✱⁴ | ✱⁵ | ✱⁵ | ✱⁶ | ✱⁷ |
-| **Projektmitglieder verwalten** | ✔ | ✔ | ✱⁴ | ✖ | ✖ | ✖ | ✖ |
-| **Aufgabe erstellen/bearbeiten** | ✔ | ✔ | ✔ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Aufgabe sehen (intern)** | ✔ | ✔ | ✱⁴ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Aufgabe sehen (kundensichtbar)** | ✔ | ✔ | ✔ | ✔ | ✔ | ✱⁶ | ✱⁷ |
-| **Interner Kommentar (lesen/schreiben)** | ✔ | ✔ | ✱⁴ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Kundensichtbarer Kommentar** | ✔ | ✔ | ✔ | ✔ | ✔ | ✱⁶ | ✱⁷ |
-| **Interne Datei (lesen/hochladen)** | ✔ | ✔ | ✱⁴ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Kundensichtbare Datei** | ✔ | ✔ | ✔ | ✔ | ✔ | ✱⁶ | ✱⁷ |
-| **Interne Notiz** | ✔ | ✔ | ✱⁴ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Zeit erfassen** | ✔ | ✔ | ✔ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Zeiteinträge sehen (intern)** | ✔ | ✔ | ✱⁴ | ✱⁸ | ✱⁸ | ✖ | ✖ |
-| **Zeiteinträge sehen (kundensichtbar)** | ✔ | ✔ | ✔ | ✔ | ✔ | ✱⁶ | ✖ |
-| **Freigabe anfordern** | ✔ | ✔ | ✔ | ✱⁵ | ✱⁵ | ✖ | ✖ |
-| **Freigabe erteilen/ablehnen** | ✔ | ✖ | ✖ | ✖ | ✖ | ✱⁶ | ✱⁷ |
-| **Aktivitätsprotokoll einsehen** | ✔ | ✔(Agentur) | ✱⁴ | ✖ | ✖ | ✖ | ✖ |
+| **Organisationen** | CRUD | RU¹ | R | R | R | – | – |
+| **Kunden (client_companies)** | CRUD | CRUD | R | R | P² | – | – |
+| **Projekte** | CRUD | CRUD | P³ CRUD | R⁴ | R⁴ | R⁵ | R⁶ |
+| **Boards / Spalten** | CRUD | CRUD | P³ CRUD | R⁴ | R⁴ | R⁵ | – |
+| **Aufgaben** | CRUD | CRUD | P³ CRUD | P⁴ CRU | P⁴ CRU | P⁵ CR⁷ | R⁶ |
+| **Kommentare (extern)** | CRUD | CRUD | CRUD | CRU-E | CRU-E | P⁵ CRU-E | R⁶ |
+| **Interne Kommentare** | CRUD | CRUD | P³ CRUD | P⁴ CRU-E | P⁴ CRU-E | – | – |
+| **Dateien (extern)** | CRUD | CRUD | CRUD | CRU-E | CRU-E | P⁵ CR | R⁶ |
+| **Interne Dateien** | CRUD | CRUD | P³ CRUD | P⁴ CRU-E | P⁴ CRU-E | – | – |
+| **Zeiteinträge** | CRUD | CRUD | P³ R + CRUD-E | CRUD-E | CRUD-E | – | – |
+| **Zeiteinträge (kundensichtbar)** | R | R | R | R | R | R⁵ | – |
+| **Freigaben** | CRUD | CRU | CRU | P⁴ C | P⁴ C | P⁵ entscheiden⁸ | P⁶ entscheiden⁸ |
+| **Benutzerverwaltung** | CRUD | CRUD⁹ | P³ (Projektmitglieder) | – | – | – | – |
+| **Rollen ändern** | F | P⁹ | P¹⁰ | – | – | – | – |
+| **Berichte** | F | F (Org) | P³ (eigene Projekte) | E¹¹ | E¹¹ | P⁵ (eigenes Projekt) | – |
+| **Einstellungen** | F | F (Org) | P³ (Projekt) | – | – | – | – |
+| **Aktivitätsprotokoll** | F | R (Org) | P³ (Projekt) | – | – | – | – |
+| **Labels** | CRUD | CRUD | R + zuweisen | R + zuweisen | R + zuweisen | R¹² | – |
 
 ### Fußnoten
 
-1. `agency_admin` verwaltet nur die eigene Agentur-Org und die von ihr
-   angelegten Kundenorganisationen, nicht die Plattform selbst.
-2. `agency_admin` darf keine `super_admin`-Rolle vergeben.
-3. `project_manager` darf Rollen nur **innerhalb eigener Projekte** auf
-   Projektebene (`project_members.role`) setzen, keine globalen Rollen.
-4. `project_manager` nur für Projekte, in denen er/sie `lead` ist bzw.
-   `projects.lead_user_id` gesetzt ist.
-5. `employee`/`freelancer` nur in Projekten, denen sie als `project_members`
-   zugewiesen sind. `freelancer` zusätzlich ohne Zugriff auf Kunden- und
-   Finanzverwaltung.
-6. `client` nur für Projekte der **eigenen** Organisation und nur Datensätze
-   mit `is_internal = false` bzw. `is_client_visible = true`.
-7. `guest` nur für das konkret geteilte Objekt (z. B. eine Freigabe), i. d. R.
-   zeitlich begrenzt; keine Projektnavigation.
-8. Sichtbarkeit interner Zeiteinträge für `employee`/`freelancer` kann auf
-   „eigene Einträge“ begrenzt werden (Konfigurationsentscheidung, siehe
-   offene Punkte).
+1. `agency_admin` bearbeitet nur die **eigene** Organisation, nicht andere Orgs
+   oder Plattformkonfiguration.
+2. `freelancer` sieht Kundenunternehmen nur, soweit es zu einem zugewiesenen
+   Projekt gehört; keine Kundenverwaltung.
+3. `project_manager` nur für Projekte, in denen er/sie `lead` bzw.
+   `projects.lead_user_id` ist.
+4. `employee`/`freelancer` nur in Projekten mit `project_members`-Eintrag;
+   Schreiben nur an zugewiesenen/relevanten Aufgaben.
+5. `client` nur für Projekte der **eigenen** `client_company`, die freigegeben
+   sind (`projects.is_client_visible = true` + `project_members`), und nur
+   Datensätze mit `is_internal = false` / `is_client_visible = true`.
+6. `guest` nur für das konkret geteilte Objekt (z. B. eine Freigabe), i. d. R.
+   zeitlich begrenzt; keine freie Navigation.
+7. `client` darf Aufgaben nur **einreichen** (nicht Board-intern verschieben).
+8. Freigabe erteilen / Änderungen anfordern; bei Ablehnung ist ein Kommentar
+   Pflicht.
+9. `agency_admin` darf Rollen bis `agency_admin` vergeben, **niemals**
+   `super_admin`.
+10. `project_manager` setzt nur **Projektrollen** (`project_members.role`),
+    keine globalen Rollen.
+11. `employee`/`freelancer` sehen in Berichten nur **eigene** Kennzahlen
+    (z. B. eigene Zeiten), sofern nicht projektweit freigegeben.
+12. `client` sieht nur Labels mit `is_client_visible = true`.
 
 ## Ableitung in RLS
 
-Diese Matrix wird in `05-security-rls.md` in konkrete PostgreSQL-Policies und
-`SECURITY DEFINER`-Hilfsfunktionen übersetzt:
+Zentrale `SECURITY DEFINER`-Hilfsfunktionen (Details in `05-security-rls.md`):
+`is_super_admin()`, `is_agency_staff()`, `current_user_org_ids()`,
+`current_user_client_company_ids()`, `can_access_project(uuid)`,
+`can_see_internal(uuid)`, `can_manage_project(uuid)`.
 
-- `is_super_admin()`
-- `is_agency_staff()`
-- `current_user_org_ids()`
-- `can_access_project(p_project_id uuid)`
-- `can_see_internal(p_project_id uuid)`
-
-Jede Zeile der Matrix erhält mindestens einen RLS-Test (siehe Teststrategie).
+Jede Matrixzeile erhält mindestens einen automatisierten RLS-/Authz-Test.

@@ -80,14 +80,17 @@ Rollen im Detail: siehe `04-role-matrix.md`.
 
 ## 5. Kernkonzepte des Domänenmodells
 
-- **Organization** – Mandant. Typ `agency` oder `client`.
-- **Membership** – Verknüpft User ↔ Organization mit einer globalen Rolle.
-- **Project** – Gehört zu einer Kundenorganisation, wird von der Agentur
+- **Organization** – Mandant (Agentur). White-Label-fähig.
+- **Membership** – Verknüpft User ↔ Organization mit einer globalen Rolle. Ein
+  Nutzer kann mehreren Organisationen mit je eigener Rolle angehören.
+- **ClientCompany** – Kundenunternehmen innerhalb einer Organisation.
+- **ClientContact** – Ordnet Kundennutzer einem Kundenunternehmen zu.
+- **Project** – Gehört zu einem Kundenunternehmen, wird von der Agentur
   betreut. Zentrale Zugriffseinheit.
-- **ProjectMember** – Verknüpft User ↔ Project mit optionaler projektbezogener
-  Rolle. Entscheidet, wer welches Projekt sieht.
+- **ProjectMember** – Verknüpft User ↔ Project mit projektbezogener Rolle.
+  Entscheidet, wer welches Projekt sieht.
 - **is_internal** – Sichtbarkeitsgrenze zwischen Agentur und Kunde auf
-  Datensatzebene (Kommentare, Dateien, Notizen, Zeiteinträge).
+  Datensatzebene (Kommentare, Dateien, Notizen, Zeiteinträge, Labels).
 
 ## 6. Abgrenzung (aktuell nicht im Umfang)
 

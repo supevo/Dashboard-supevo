@@ -34,20 +34,28 @@ Dashboard-supevo/
 │  │  ├─ api/                  # Route Handler (Uploads, Webhooks)
 │  │  └─ layout.tsx
 │  ├─ features/                # Fachdomänen (Vertical Slices)
-│  │  ├─ projects/
+│  │  ├─ organizations/        # Orgs, Einstellungen
 │  │  │  ├─ actions.ts         # Server Actions (mit Authz + Audit)
 │  │  │  ├─ queries.ts         # Lesezugriffe (RLS-konform)
 │  │  │  ├─ schema.ts          # Zod-Schemata
 │  │  │  ├─ components/        # UI (deutsche Texte)
 │  │  │  └─ __tests__/
-│  │  ├─ tasks/
-│  │  ├─ comments/
+│  │  ├─ client-companies/     # Kundenunternehmen, Ansprechpartner
+│  │  ├─ memberships/          # Mitglieder, Rollen
+│  │  ├─ invitations/          # Einladungen
+│  │  ├─ projects/
+│  │  ├─ boards/               # Boards + Spalten + WIP-Limits
+│  │  ├─ tasks/                # inkl. Aufgabenmodal
+│  │  ├─ labels/
+│  │  ├─ comments/             # intern/extern, Erwähnungen
 │  │  ├─ files/
-│  │  ├─ notes/
-│  │  ├─ time-tracking/
-│  │  ├─ approvals/
+│  │  ├─ checklists/
+│  │  ├─ time-tracking/        # Aufgabenzeit + Arbeitszeit
+│  │  ├─ approvals/            # Freigaben
+│  │  ├─ notifications/
+│  │  ├─ reports/              # Berichte/Auswertungen
 │  │  ├─ activity-log/
-│  │  ├─ organizations/
+│  │  ├─ dashboard/            # Agentur- & Kunden-Dashboard
 │  │  └─ auth/
 │  ├─ lib/
 │  │  ├─ supabase/

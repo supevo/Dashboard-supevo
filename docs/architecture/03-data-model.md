@@ -1,274 +1,522 @@
 # Datenmodell
 
-Alle Bezeichner in **Englisch**. PostgreSQL/Supabase. Jede mandantenbezogene
-Tabelle trägt `organization_id`. Zeitstempel: `created_at`, `updated_at`
-(UTC, `timestamptz`). Primärschlüssel: `uuid` (`gen_random_uuid()`).
+Alle Bezeichner **Englisch**. PostgreSQL/Supabase. Zeitpunkte technisch in
+**UTC** (`timestamptz`), Anzeige in `Europe/Berlin`. PK: `uuid`
+(`gen_random_uuid()`). Zeitstempel `created_at`/`updated_at` auf allen Tabellen.
 
-## Konventionen
+## Grundkonventionen
 
-- Soft-Delete über `deleted_at timestamptz NULL` bei fachlich relevanten
-  Entitäten (Projekte, Aufgaben, Dateien) – RLS blendet gelöschte Zeilen aus.
-- `is_internal boolean NOT NULL DEFAULT true` auf allen Entitäten mit
-  Sichtbarkeitsgrenze (Kommentare, Dateien, Notizen, Zeiteinträge). **Default
-  = intern** (sicher per Voreinstellung; kundensichtbar ist eine bewusste
-  Entscheidung).
-- Enums als PostgreSQL-`enum`-Typen für stabile, typisierte Wertebereiche.
+- **Mandantentrennung**: Jede fachliche Tabelle trägt `organization_id`
+  (denormalisiert, auch wenn über FKs ableitbar) → einfache, schnelle RLS.
+- **Kundentrennung**: Kundenbezogene Tabellen tragen zusätzlich
+  `client_company_id` bzw. leiten sie über `project_id` ab.
+- **Sichtbarkeit**: `is_internal boolean NOT NULL DEFAULT true` auf allen
+  Entitäten mit Agentur/Kunde-Grenze. Default = intern (sicher per Default).
+- **Soft-Delete**: `deleted_at timestamptz NULL` bei fachlich relevanten
+  Entitäten; RLS blendet gelöschte Zeilen aus.
+- **Optimistische Sperre**: `lock_version integer NOT NULL DEFAULT 0` auf
+  gleichzeitig editierbaren Entitäten (tasks) → Schutz vor Lost Updates.
+- **Löschverhalten (FK)**: `ON DELETE CASCADE` für abhängige Kinddaten
+  (z. B. checklist_items an checklist), `ON DELETE RESTRICT` für referenzielle
+  Stammdaten (z. B. Label an Organisation), `ON DELETE SET NULL` für optionale
+  Referenzen (z. B. assignee an gelöschtem Nutzer). Details je Tabelle.
 
 ## Enum-Typen
 
 ```sql
-create type organization_type as enum ('agency', 'client');
-
-create type app_role as enum (
-  'super_admin', 'agency_admin', 'project_manager',
-  'employee', 'freelancer', 'client', 'guest'
-);
-
-create type membership_status as enum ('invited', 'active', 'suspended');
-
-create type project_status as enum ('planned', 'active', 'on_hold', 'completed', 'archived');
-
-create type project_member_role as enum ('lead', 'contributor', 'viewer', 'client');
-
-create type task_status as enum ('todo', 'in_progress', 'in_review', 'blocked', 'done');
-
-create type task_priority as enum ('low', 'medium', 'high', 'urgent');
-
-create type approval_status as enum ('pending', 'approved', 'rejected', 'changes_requested');
-
-create type activity_action as enum (
-  'create', 'update', 'delete', 'status_change',
-  'role_change', 'login', 'logout', 'file_upload',
-  'file_download', 'approval_request', 'approval_decision', 'invite'
-);
+create type organization_type   as enum ('agency', 'client');
+create type app_role            as enum ('super_admin','agency_admin','project_manager','employee','freelancer','client','guest');
+create type membership_status    as enum ('invited','active','suspended');
+create type project_status       as enum ('planned','active','on_hold','completed','archived');
+create type project_member_role  as enum ('lead','contributor','viewer','client');
+create type task_priority        as enum ('low','medium','high','urgent');
+create type column_key           as enum ('queue','active','review','done','custom');
+create type approval_status      as enum ('pending','approved','rejected','changes_requested');
+create type time_source          as enum ('manual','timer');
+create type work_session_status  as enum ('active','on_break','closed');
+create type notification_type    as enum (
+  'task_assigned','comment_mention','client_comment','internal_question',
+  'task_in_review','task_for_approval','approval_granted','changes_requested',
+  'due_date_reached','task_overdue','file_uploaded');
+create type activity_action      as enum (
+  'create','update','delete','status_change','assignee_change','due_date_change',
+  'role_change','login','logout','file_upload','file_download','comment',
+  'approval_request','approval_decision','invite','archive','time_edit');
 ```
 
-## Tabellen
+---
 
-### organizations
-Der Mandant. Agentur oder Kunde.
+## 1. organizations
+**Zweck:** Mandant (Agentur). Mehrere möglich (White-Label-fähig).
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| name | text NOT NULL | |
-| type | organization_type NOT NULL | `agency` \| `client` |
-| slug | text UNIQUE NOT NULL | für URLs |
-| billing_email | text | |
-| settings | jsonb NOT NULL DEFAULT '{}' | mandantenspezifische Konfiguration |
-| created_at / updated_at | timestamptz | |
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| name | text | ✔ | |
+| type | organization_type | ✔ | i. d. R. `agency` |
+| slug | text | ✔ | für URLs |
+| settings | jsonb | ✔ | DEFAULT `{}` – u. a. Upload-Policy (erlaubte MIME, max. Größe), Zeitzone |
+| created_at/updated_at | timestamptz | ✔ | |
 
-### profiles
-Erweiterung von `auth.users` (1:1). Enthält keine Rolle – Rollen liegen in
-`memberships` (ein User kann perspektivisch mehreren Orgs angehören).
+**Unique:** `slug`. **Indizes:** `slug`. **Löschen:** i. d. R. nicht; harte
+Löschung nur durch super_admin (kaskadiert bewusst nicht automatisch).
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | = `auth.users.id` |
-| full_name | text | |
-| avatar_url | text | |
-| locale | text NOT NULL DEFAULT 'de' | |
-| created_at / updated_at | timestamptz | |
+## 2. profiles
+**Zweck:** Erweiterung von `auth.users` (1:1). Keine Rolle hier.
 
-### memberships
-User ↔ Organization mit globaler Rolle. **Zentrale Autorisierungstabelle.**
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | = `auth.users.id` |
+| full_name | text | | |
+| avatar_url | text | | |
+| locale | text | ✔ | DEFAULT `'de'` |
+| created_at/updated_at | timestamptz | ✔ | |
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| user_id | uuid FK → profiles.id | |
-| organization_id | uuid FK → organizations.id | |
-| role | app_role NOT NULL | globale Rolle in dieser Org |
-| status | membership_status NOT NULL DEFAULT 'invited' | |
-| created_at / updated_at | timestamptz | |
-| | UNIQUE(user_id, organization_id) | |
+**Löschen:** FK zu `auth.users` `ON DELETE CASCADE`.
 
-> `super_admin` wird als Membership in der Agentur-Org mit Rolle `super_admin`
-> geführt und in Policy-Funktionen gesondert behandelt (systemweiter Zugriff).
+## 3. memberships
+**Zweck:** User ↔ Organization + globale Rolle. Zentrale Autorisierungstabelle.
 
-### invitations
-Einladungen für neue Nutzer (Agenturmitarbeiter, Kunden, Gäste).
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| user_id | uuid → profiles.id | ✔ | |
+| organization_id | uuid → organizations.id | ✔ | |
+| role | app_role | ✔ | |
+| status | membership_status | ✔ | DEFAULT `'invited'` |
+| created_at/updated_at | timestamptz | ✔ | |
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | Ziel-Org |
-| email | text NOT NULL | |
-| role | app_role NOT NULL | |
-| token_hash | text NOT NULL | Hash, nie Klartext-Token speichern |
-| invited_by | uuid FK → profiles.id | |
-| expires_at | timestamptz NOT NULL | |
-| accepted_at | timestamptz | |
-| created_at | timestamptz | |
+**Unique:** `(user_id, organization_id)` – ein Nutzer hat pro Org **eine** Rolle.
+**Indizes:** `user_id`, `(organization_id, role)`. **Löschen:** `ON DELETE
+CASCADE` von beiden Seiten. `super_admin` wird nie über die UI vergeben (nur per
+Migration/DB, siehe Sicherheitskonzept).
 
-### projects
-Gehört einer Kundenorganisation; betreut von der Agentur.
+## 4. client_companies
+**Zweck:** Kundenunternehmen innerhalb einer Organisation.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK → organizations.id | **Kunden-Org** (Mandant des Projekts) |
-| name | text NOT NULL | |
-| description | text | |
-| status | project_status NOT NULL DEFAULT 'planned' | |
-| lead_user_id | uuid FK → profiles.id | Projektleiter |
-| start_date / due_date | date | |
-| created_at / updated_at / deleted_at | timestamptz | |
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid → organizations.id | ✔ | |
+| name | text | ✔ | |
+| contact_email | text | | |
+| notes | text | | intern |
+| is_active | boolean | ✔ | DEFAULT `true` |
+| created_at/updated_at/deleted_at | timestamptz | | Soft-Delete |
 
-### project_members
-User ↔ Project. Steuert, wer ein Projekt sieht, und die Projektrolle.
-Ein Kundennutzer ist hier mit `role = 'client'` verknüpft.
+**Unique:** `(organization_id, name)`. **Indizes:** `organization_id`.
+**Löschen:** Soft-Delete; harte Löschung `ON DELETE RESTRICT`, solange Projekte
+existieren.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| project_id | uuid FK → projects.id | |
-| user_id | uuid FK → profiles.id | |
-| role | project_member_role NOT NULL | projektbezogene Rolle |
-| created_at | timestamptz | |
-| | UNIQUE(project_id, user_id) | |
+## 5. client_contacts
+**Zweck:** Ordnet Kundennutzer (Rolle `client`/`guest`) einem Kundenunternehmen zu.
 
-### tasks
-Aufgaben und Unteraufgaben (`parent_task_id`).
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid → organizations.id | ✔ | |
+| client_company_id | uuid → client_companies.id | ✔ | |
+| user_id | uuid → profiles.id | ✔ | |
+| is_primary | boolean | ✔ | DEFAULT `false` – Hauptansprechpartner |
+| created_at | timestamptz | ✔ | |
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | = Projekt-Org (denormalisiert für RLS-Performance) |
-| project_id | uuid FK → projects.id | |
-| parent_task_id | uuid FK → tasks.id NULL | Unteraufgabe |
-| title | text NOT NULL | |
-| description | text | |
-| status | task_status NOT NULL DEFAULT 'todo' | |
-| priority | task_priority NOT NULL DEFAULT 'medium' | |
-| assignee_id | uuid FK → profiles.id NULL | |
-| is_internal | boolean NOT NULL DEFAULT true | kundensichtbar nur wenn false |
-| position | numeric | Sortierung im Board |
-| due_date | date | |
-| created_by | uuid FK → profiles.id | |
-| created_at / updated_at / deleted_at | timestamptz | |
+**Unique:** `(client_company_id, user_id)`. **Indizes:** `user_id`,
+`client_company_id`. **Löschen:** `ON DELETE CASCADE`.
 
-### task_comments
-Kommentare an Aufgaben. `is_internal` = interne Kommunikation.
+## 6. projects
+**Zweck:** Projekt einer Kundenorganisation, betreut von der Agentur.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | |
-| task_id | uuid FK → tasks.id | |
-| author_id | uuid FK → profiles.id | |
-| body | text NOT NULL | |
-| is_internal | boolean NOT NULL DEFAULT true | |
-| created_at / updated_at / deleted_at | timestamptz | |
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid → organizations.id | ✔ | Mandant |
+| client_company_id | uuid → client_companies.id | ✔ | Kunde |
+| name | text | ✔ | |
+| description | text | | |
+| status | project_status | ✔ | DEFAULT `'planned'` |
+| lead_user_id | uuid → profiles.id | | Projektleiter, `ON DELETE SET NULL` |
+| is_client_visible | boolean | ✔ | DEFAULT `false` – erst freigeben |
+| start_date/due_date | date | | |
+| created_by | uuid → profiles.id | ✔ | |
+| created_at/updated_at/deleted_at | timestamptz | | Soft-Delete |
 
-### notes
-Freie Notizen an Projekt oder Aufgabe (polymorph über `entity_type`/`entity_id`
-oder je eigene Spalten – hier explizit gehalten).
+**Indizes:** `organization_id`, `client_company_id`, `(organization_id,status)`.
+**Löschen:** Soft-Delete; Kinddaten (boards, tasks) folgen.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | |
-| project_id | uuid FK NULL | |
-| task_id | uuid FK NULL | |
-| author_id | uuid FK → profiles.id | |
-| body | text NOT NULL | |
-| is_internal | boolean NOT NULL DEFAULT true | |
-| created_at / updated_at / deleted_at | timestamptz | |
+## 7. project_members
+**Zweck:** User ↔ Project + Projektrolle. Steuert Projektsichtbarkeit.
 
-### files
-Metadaten zu Dateien. Der Binärinhalt liegt in Supabase Storage; hier nur
-Metadaten + Speicherpfad.
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| project_id | uuid → projects.id | ✔ | |
+| user_id | uuid → profiles.id | ✔ | |
+| role | project_member_role | ✔ | |
+| created_at | timestamptz | ✔ | |
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | |
-| project_id | uuid FK NULL | |
-| task_id | uuid FK NULL | |
-| uploaded_by | uuid FK → profiles.id | |
-| storage_path | text NOT NULL UNIQUE | serverseitig erzeugt, nie vom Client |
-| file_name | text NOT NULL | Originalname (nur Anzeige) |
-| mime_type | text NOT NULL | serverseitig validiert |
-| size_bytes | bigint NOT NULL | serverseitig validiert |
-| checksum_sha256 | text | Integrität/Deduplizierung |
-| is_internal | boolean NOT NULL DEFAULT true | |
-| created_at / deleted_at | timestamptz | |
+**Unique:** `(project_id, user_id)`. **Indizes:** `user_id`, `project_id`.
+**Löschen:** `ON DELETE CASCADE`.
 
-### time_entries
-Zeiterfassung. Grundsätzlich intern; `is_client_visible` macht Einträge für
-den Kunden sichtbar (z. B. abrechenbare Leistung).
+## 8. boards
+**Zweck:** Kanban-Board eines Projekts. Mindestens eines pro Projekt.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | |
-| project_id | uuid FK → projects.id | |
-| task_id | uuid FK NULL | |
-| user_id | uuid FK → profiles.id | |
-| minutes | integer NOT NULL CHECK (minutes > 0) | |
-| description | text | |
-| is_billable | boolean NOT NULL DEFAULT true | |
-| is_client_visible | boolean NOT NULL DEFAULT false | interne Sicht per Default |
-| entry_date | date NOT NULL | |
-| created_at / updated_at | timestamptz | |
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| project_id | uuid → projects.id | ✔ | |
+| name | text | ✔ | DEFAULT `'Board'` |
+| position | integer | ✔ | |
+| created_at/updated_at | timestamptz | ✔ | |
 
-### approvals
-Freigaben. Verknüpft ein freizugebendes Objekt (Datei/Aufgabe) mit einer
-Kundenentscheidung.
+**Indizes:** `project_id`. **Löschen:** `ON DELETE CASCADE` von project.
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK | Kunden-Org des Projekts |
-| project_id | uuid FK → projects.id | |
-| subject_type | text NOT NULL | 'file' \| 'task' |
-| subject_id | uuid NOT NULL | Referenz auf files/tasks |
-| title | text NOT NULL | |
-| status | approval_status NOT NULL DEFAULT 'pending' | |
-| requested_by | uuid FK → profiles.id | Agentur |
-| decided_by | uuid FK → profiles.id NULL | Kunde/Gast |
-| decision_comment | text | |
-| decided_at | timestamptz | |
-| created_at / updated_at | timestamptz | |
+## 9. board_columns
+**Zweck:** Spalte eines Boards inkl. WIP-Limits. Standard: Warteschlange,
+Aktive Aufgabe, In Überprüfung, Fertig.
 
-### activity_log (append-only)
-Aktivitätsprotokoll. **Nur INSERT** per Policy; kein UPDATE/DELETE.
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| board_id | uuid → boards.id | ✔ | |
+| name | text | ✔ | umbenennbar |
+| column_key | column_key | ✔ | `queue`/`active`/`review`/`done`/`custom` |
+| position | integer | ✔ | Reihenfolge änderbar |
+| wip_limit | integer | | Gesamtlimit (z. B. review = 5) |
+| wip_limit_per_user | integer | | z. B. active = 1 pro Mitarbeiter |
+| is_done_column | boolean | ✔ | DEFAULT `false` |
+| created_at/updated_at | timestamptz | ✔ | |
 
-| Spalte | Typ | Hinweise |
-|--------|-----|----------|
-| id | uuid PK | |
-| organization_id | uuid FK NULL | betroffener Mandant |
-| actor_id | uuid FK → profiles.id NULL | handelnder Nutzer |
-| action | activity_action NOT NULL | |
-| entity_type | text NOT NULL | z. B. 'task', 'file' |
-| entity_id | uuid NULL | |
-| metadata | jsonb NOT NULL DEFAULT '{}' | Kontext (Diff, IP, o. Ä.) |
-| created_at | timestamptz NOT NULL DEFAULT now() | |
+**Unique:** `(board_id, position)` (deferrable) und `(board_id, column_key)` für
+Standard-Keys ≠ custom. **Indizes:** `board_id`. **Löschen:** `ON DELETE
+CASCADE`; Verschieben von Tasks vor Spaltenlöschung erzwingen (Server Action).
 
-## Beziehungsdiagramm (vereinfacht)
+## 10. tasks
+**Zweck:** Aufgabe/Unteraufgabe.
 
-```
-organizations 1───* memberships *───1 profiles(=auth.users)
-organizations 1───* projects
-projects      1───* project_members *───1 profiles
-projects      1───* tasks 1───* task_comments
-tasks         1───* tasks (parent_task_id)
-projects/tasks 1──* files
-projects/tasks 1──* notes
-projects/tasks 1──* time_entries
-projects      1───* approvals ──> (files|tasks)
-*             ───* activity_log (append-only)
-```
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| project_id | uuid → projects.id | ✔ | |
+| board_id | uuid → boards.id | ✔ | |
+| column_id | uuid → board_columns.id | ✔ | aktuelle Spalte |
+| parent_task_id | uuid → tasks.id | | Unteraufgabe, `ON DELETE CASCADE` |
+| title | text | ✔ | |
+| description | text | | Rich Text (sanitisiert gespeichert) |
+| priority | task_priority | ✔ | DEFAULT `'medium'` |
+| created_by | uuid → profiles.id | ✔ | |
+| due_date | date | | |
+| estimated_minutes | integer | | geschätzte Dauer |
+| actual_minutes | integer | ✔ | DEFAULT 0, aus time_entries aggregiert |
+| position | numeric | ✔ | Sortierung in Spalte (Lücken-Strategie) |
+| is_internal | boolean | ✔ | DEFAULT `true` (intern/Kunde) |
+| is_blocked | boolean | ✔ | DEFAULT `false` |
+| is_archived | boolean | ✔ | DEFAULT `false` |
+| lock_version | integer | ✔ | DEFAULT 0 – optimistische Sperre |
+| created_at/updated_at/deleted_at | timestamptz | | Soft-Delete |
 
-## Indizes (Auswahl)
+**Indizes:** `(column_id, position)`, `(project_id, is_internal)`,
+`(organization_id, is_archived)`, `assignee`-Zugriff über task_assignees.
+**Löschen:** Soft-Delete.
+**Status:** wird über die Spalte (`column_key`) abgebildet, nicht redundant
+gespeichert – „In Überprüfung"/„Fertig" ergeben sich aus der Spalte.
 
-- Jede FK-Spalte, insbesondere `organization_id`, `project_id`, `task_id`.
-- Zusammengesetzt: `(organization_id, is_internal)` auf sichtbarkeits-
-  relevanten Tabellen für effiziente RLS-Filterung.
-- `project_members(user_id)` und `memberships(user_id)` für Policy-Funktionen.
+## 11. task_assignees
+**Zweck:** Mehrere Verantwortliche je Aufgabe (n:m).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| task_id | uuid → tasks.id | ✔ | PK-Teil |
+| user_id | uuid → profiles.id | ✔ | PK-Teil |
+| organization_id | uuid | ✔ | |
+| assigned_at | timestamptz | ✔ | |
+
+**PK/Unique:** `(task_id, user_id)`. **Indizes:** `user_id`. **Löschen:**
+`ON DELETE CASCADE` (task), `ON DELETE CASCADE` (user).
+
+## 12. labels
+**Zweck:** Organisationsweite Labels.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| name | text | ✔ | |
+| color | text | ✔ | Hex; Kontrast-geprüft (a11y) |
+| description | text | | |
+| is_active | boolean | ✔ | DEFAULT `true` |
+| is_client_visible | boolean | ✔ | DEFAULT `false` |
+| created_by | uuid → profiles.id | ✔ | |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Unique:** `(organization_id, lower(name))` – eindeutig je Org. **Löschen:**
+harte Löschung erlaubt, aber `task_labels` `ON DELETE CASCADE` – Aufgaben
+bleiben erhalten. Deaktivierte Labels bleiben an bestehenden Tasks sichtbar,
+sind aber nicht neu vergebbar (Server-Prüfung).
+
+## 13. task_labels
+**Zweck:** Aufgabe ↔ Label (n:m).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| task_id | uuid → tasks.id | ✔ | PK-Teil |
+| label_id | uuid → labels.id | ✔ | PK-Teil |
+| organization_id | uuid | ✔ | |
+
+**PK:** `(task_id, label_id)`. **Löschen:** `ON DELETE CASCADE` beidseitig.
+
+## 14. comments
+**Zweck:** Kommentare an Aufgaben (intern/extern).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| project_id | uuid → projects.id | ✔ | für RLS-Effizienz |
+| task_id | uuid → tasks.id | ✔ | |
+| author_id | uuid → profiles.id | ✔ | |
+| body | text | ✔ | Rich Text, sanitisiert |
+| is_internal | boolean | ✔ | DEFAULT `true` |
+| edited_at | timestamptz | | |
+| created_at/deleted_at | timestamptz | | Soft-Delete |
+
+**Indizes:** `(task_id, created_at)`, `(project_id, is_internal)`. **Löschen:**
+Soft-Delete; nur Autor oder PM/Admin (Server-Prüfung).
+
+## 15. comment_mentions
+**Zweck:** Erwähnungen für Benachrichtigungen.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| comment_id | uuid → comments.id | ✔ | PK-Teil |
+| mentioned_user_id | uuid → profiles.id | ✔ | PK-Teil |
+| organization_id | uuid | ✔ | |
+
+**PK:** `(comment_id, mentioned_user_id)`. **Löschen:** `ON DELETE CASCADE`.
+Erwähnbar sind nur Nutzer mit Zugriff auf die Aufgabe (Server-Prüfung); ein
+Kunde kann nie einen internen Nutzer über einen externen Kommentar „aufdecken".
+
+## 16. files
+**Zweck:** Datei-Metadaten (Inhalt in Supabase Storage).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| project_id | uuid → projects.id | ✔ | |
+| task_id | uuid → tasks.id | | optional |
+| uploaded_by | uuid → profiles.id | ✔ | |
+| storage_path | text | ✔ | serverseitig erzeugt; `org/../project/../task/..` |
+| file_name | text | ✔ | Originalname (nur Anzeige) |
+| mime_type | text | ✔ | serverseitig validiert (Magic Bytes) |
+| size_bytes | bigint | ✔ | serverseitig validiert |
+| checksum_sha256 | text | | Integrität/Dedup |
+| is_internal | boolean | ✔ | DEFAULT `true` |
+| created_at/deleted_at | timestamptz | | Soft-Delete |
+
+**Unique:** `storage_path`. **Indizes:** `(task_id)`, `(project_id,is_internal)`.
+**Löschen:** Soft-Delete + späterer Storage-Cleanup-Job. Kein öffentlicher
+Bucket; Download nur über Signed URL nach Rechteprüfung.
+
+## 17. checklists
+**Zweck:** Mehrere Checklisten je Aufgabe.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| task_id | uuid → tasks.id | ✔ | |
+| title | text | ✔ | |
+| position | integer | ✔ | |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Löschen:** `ON DELETE CASCADE` (task) → items folgen.
+
+## 18. checklist_items
+**Zweck:** Eintrag einer Checkliste.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| checklist_id | uuid → checklists.id | ✔ | |
+| content | text | ✔ | |
+| is_done | boolean | ✔ | DEFAULT `false` |
+| position | integer | ✔ | |
+| done_by | uuid → profiles.id | | `ON DELETE SET NULL` |
+| done_at | timestamptz | | |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Indizes:** `(checklist_id, position)`. **Löschen:** `ON DELETE CASCADE`.
+
+## 19. time_entries
+**Zweck:** Aufgaben-/Projektzeit.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| client_company_id | uuid → client_companies.id | ✔ | für Auswertung nach Kunde |
+| project_id | uuid → projects.id | ✔ | |
+| task_id | uuid → tasks.id | | optional |
+| user_id | uuid → profiles.id | ✔ | |
+| started_at | timestamptz | ✔ | UTC |
+| ended_at | timestamptz | | NULL = laufender Timer |
+| duration_minutes | integer | | generiert bei Stopp; CHECK > 0 |
+| description | text | | |
+| is_billable | boolean | ✔ | DEFAULT `true` |
+| is_client_visible | boolean | ✔ | DEFAULT `false` |
+| source | time_source | ✔ | `manual`/`timer` |
+| created_by | uuid → profiles.id | ✔ | |
+| edit_reason | text | | Pflicht bei Fremdkorrektur |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Unique (partiell):** `unique (user_id) where ended_at is null and source =
+'timer'` → **nur ein laufender Timer** je Nutzer. **Überlappungsschutz:**
+Exclusion-Constraint über `tstzrange(started_at, ended_at)` je `user_id` (btree_gist),
+verhindert unbemerkte Überschneidungen. **Indizes:** `(user_id, started_at)`,
+`(project_id)`, `(client_company_id)`. **Löschen:** hart, aber protokolliert.
+
+## 20. work_sessions
+**Zweck:** Arbeitszeit (Ein-/Ausstempeln, Pausen).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| user_id | uuid → profiles.id | ✔ | |
+| clock_in | timestamptz | ✔ | UTC |
+| clock_out | timestamptz | | NULL = laufend |
+| status | work_session_status | ✔ | `active`/`on_break`/`closed` |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Unique (partiell):** `unique (user_id) where clock_out is null` → **nur eine
+laufende Sitzung**. **Indizes:** `(user_id, clock_in)`.
+
+## 21. work_session_breaks
+**Zweck:** Pausen innerhalb einer Arbeitszeitsitzung.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| work_session_id | uuid → work_sessions.id | ✔ | |
+| organization_id | uuid | ✔ | |
+| break_start | timestamptz | ✔ | |
+| break_end | timestamptz | | NULL = laufende Pause |
+| created_at | timestamptz | ✔ | |
+
+**Unique (partiell):** `unique (work_session_id) where break_end is null`.
+**Löschen:** `ON DELETE CASCADE`.
+
+## 22. approvals
+**Zweck:** Kundenfreigaben.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| client_company_id | uuid → client_companies.id | ✔ | |
+| project_id | uuid → projects.id | ✔ | |
+| task_id | uuid → tasks.id | ✔ | freizugebende Aufgabe |
+| title | text | ✔ | |
+| status | approval_status | ✔ | DEFAULT `'pending'` |
+| requested_by | uuid → profiles.id | ✔ | Agentur |
+| decided_by | uuid → profiles.id | | Kunde/Gast |
+| decision_comment | text | | Pflicht bei Ablehnung/Änderung |
+| target_column_id | uuid → board_columns.id | | Auto-Move-Ziel (konfigurierbar) |
+| decided_at | timestamptz | | |
+| created_at/updated_at | timestamptz | ✔ | |
+
+**Indizes:** `(project_id,status)`, `(client_company_id,status)`. **Löschen:**
+`ON DELETE CASCADE` (task).
+
+## 23. notifications
+**Zweck:** In-App-Benachrichtigungen (E-Mail als spätere Ausbaustufe).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| recipient_id | uuid → profiles.id | ✔ | |
+| type | notification_type | ✔ | |
+| title | text | ✔ | deutsch |
+| body | text | | |
+| entity_type | text | ✔ | z. B. 'task','approval' |
+| entity_id | uuid | | Deep-Link-Ziel |
+| is_read | boolean | ✔ | DEFAULT `false` |
+| read_at | timestamptz | | |
+| created_at | timestamptz | ✔ | |
+
+**Indizes:** `(recipient_id, is_read, created_at)`. **Dedup:** eindeutige
+Kombination `(recipient_id, type, entity_id)` innerhalb kurzer Zeit
+(Anwendungslogik) → keine doppelten Benachrichtigungen. **Löschen:** hart
+(einzeln löschbar).
+
+## 24. activity_log (append-only)
+**Zweck:** Aktivitätsprotokoll. Nur INSERT (kein UPDATE/DELETE).
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | | betroffener Mandant |
+| actor_id | uuid → profiles.id | | handelnder Nutzer |
+| action | activity_action | ✔ | |
+| entity_type | text | ✔ | |
+| entity_id | uuid | | |
+| project_id | uuid | | für gefilterte Projektsicht |
+| metadata | jsonb | ✔ | DEFAULT `{}` (Diff, IP, …) |
+| created_at | timestamptz | ✔ | DEFAULT `now()` |
+
+**Indizes:** `(organization_id, created_at)`, `(project_id, created_at)`,
+`(entity_type, entity_id)`. **Löschen:** verboten (Manipulationsschutz);
+Aufbewahrung per Archiv-Job.
+
+## 25. invitations
+**Zweck:** Einladungen (Agentur/Kunde/Gast). Registrierung nur per Einladung.
+
+| Spalte | Typ | Pflicht | Hinweise |
+|---|---|---|---|
+| id | uuid PK | ✔ | |
+| organization_id | uuid | ✔ | |
+| client_company_id | uuid → client_companies.id | | nur bei Kunde/Gast |
+| email | text | ✔ | |
+| role | app_role | ✔ | nie `super_admin` |
+| token_hash | text | ✔ | nur Hash speichern |
+| invited_by | uuid → profiles.id | ✔ | |
+| expires_at | timestamptz | ✔ | |
+| accepted_at | timestamptz | | |
+| revoked_at | timestamptz | | Widerruf |
+| created_at | timestamptz | ✔ | |
+
+**Unique:** aktive Einladung je `(organization_id, lower(email))` (partiell,
+`where accepted_at is null and revoked_at is null`). **Indizes:** `token_hash`,
+`email`. **Löschen:** hart bei Widerruf/Ablauf-Cleanup.
+
+---
+
+## Mandantenfähigkeit – Zuordnung je Tabelle
+
+| Ebene | Trägerspalte | Betroffene Tabellen |
+|---|---|---|
+| Mandant (Agentur) | `organization_id` | **alle** fachlichen Tabellen |
+| Kunde | `client_company_id` (direkt) | client_companies, client_contacts, projects, time_entries, approvals |
+| Kunde (abgeleitet) | über `project_id` → project.client_company_id | tasks, comments, files, checklists, … |
+| Projekt | `project_id` | boards, tasks, comments, files, time_entries, approvals |
+
+**Wie fremder Zugriff verhindert wird (Kurzform, Details in `05`):**
+- Jede Tabelle hat RLS aktiviert; kein Zugriff ohne passende Policy.
+- Policies leiten die erlaubten `organization_id`-Werte **aus der Session**
+  (`auth.uid()` → memberships) ab – **niemals** aus einem vom Client
+  gesendeten Wert. Ein manipuliertes `organization_id` im Request greift daher
+  ins Leere.
+- Kundenzugriff wird zusätzlich über `client_contacts` + `project_members` auf
+  das eigene Kundenunternehmen und freigegebene Projekte begrenzt.
+- Interne Daten (`is_internal = true`) sind für `client`/`guest` per Policy
+  unsichtbar.
 
 ## Generierte Typen
 
-Nach jeder Migration: `supabase gen types typescript` → `src/lib/database.types.ts`.
-Diese Typen sind die Grundlage der typisierten Datenzugriffs-Schicht.
+Nach jeder Migration: `supabase gen types typescript` →
+`src/lib/database.types.ts` als Basis der typisierten Datenzugriffsschicht.
