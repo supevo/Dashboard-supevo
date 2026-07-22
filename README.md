@@ -5,9 +5,54 @@ Kunden. Aufgaben, Kommunikation, Dateien, Freigaben und Zeiterfassung – strikt
 mandantengetrennt, mit serverseitiger Autorisierung und PostgreSQL Row Level
 Security.
 
-> **Status: Phase 0 – Architektur.** Es ist noch kein Anwendungscode
-> implementiert. Zunächst werden Architektur, Datenmodell und Rollenmatrix
-> festgelegt und freigegeben.
+> **Status: Phase 1 – Technisches Fundament umgesetzt.** Architektur ist
+> freigegeben; das Grundgerüst (Next.js, Supabase-Auth, geschützte Routen,
+> rollenbasierte Layouts, erste Migration) steht. Fachmodule folgen phasenweise
+> gemäß [Roadmap](docs/architecture/07-roadmap-phases.md).
+
+## Technologie
+
+Next.js 15 (App Router) · TypeScript (strict) · Tailwind CSS · shadcn-Stil-UI ·
+Supabase (PostgreSQL, Auth, Storage) mit Row Level Security · Zod · Vitest.
+Deployment: Self-Hosting auf Plesk (siehe `docs/architecture/02-tech-stack.md`).
+
+## Installation & Entwicklung
+
+Voraussetzungen: Node.js ≥ 20, Zugriff auf eine (self-hosted) Supabase-Instanz.
+
+```bash
+# 1. Abhängigkeiten installieren
+npm install
+
+# 2. Umgebungsvariablen anlegen
+cp .env.example .env.local
+#   -> Werte für NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
+#      SUPABASE_SERVICE_ROLE_KEY und NEXT_PUBLIC_APP_URL eintragen.
+
+# 3. Datenbankmigration einspielen (Supabase CLI)
+supabase db push          # wendet supabase/migrations/*.sql an
+
+# 4. Entwicklungsserver starten
+npm run dev               # http://localhost:3000
+```
+
+### Erste Nutzer anlegen
+
+Es gibt **keine offene Registrierung**. Konten entstehen ausschließlich über
+Einladungen (`/invite/[token]`). Der erste `agency_admin` und ein
+`super_admin` werden per SQL/Seed direkt in der Datenbank angelegt (der
+`super_admin` ist bewusst nie über die Oberfläche vergebbar).
+
+### Nützliche Skripte
+
+| Befehl | Zweck |
+|--------|-------|
+| `npm run dev` | Entwicklungsserver |
+| `npm run build` | Produktions-Build |
+| `npm run typecheck` | TypeScript-Prüfung (`tsc --noEmit`) |
+| `npm run lint` | ESLint |
+| `npm run test` | Unit-Tests (Vitest) |
+| `npm run format` | Prettier |
 
 ## Dokumentation
 

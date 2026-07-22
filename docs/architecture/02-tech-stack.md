@@ -55,9 +55,12 @@ Zwei Optionen, DSGVO-konform (EU):
 - **Vorteil**: volle Datenhoheit in DE. **Nachteil**: deutlich höherer
   Wartungs- und Sicherheitsaufwand (Updates, Backups, Monitoring selbst).
 
-> **Empfehlung**: Start mit Managed Supabase EU zur schnellen, sicheren
-> Umsetzung; Self-Hosting bleibt möglich, da wir ausschließlich Standard-
-> Supabase-Features nutzen. Entscheidung dokumentieren (siehe Roadmap).
+> **Entscheidung (getroffen)**: **Self-Hosting auf dem Plesk-Server.** Der
+> Supabase-Stack läuft als Docker-Compose auf dem Server (Region DE), Next.js
+> ebenfalls dort (Passenger oder als eigenständiger Node-Prozess hinter dem
+> Plesk-Reverse-Proxy). Wir nutzen ausschließlich Standard-Supabase-Features,
+> sodass ein späterer Wechsel zu Managed möglich bliebe. Betriebsaufgaben
+> (Updates, Backups, Monitoring) liegen damit bei uns – siehe Phase 10.
 
 ## Teststrategie
 

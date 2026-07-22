@@ -161,9 +161,9 @@ solides, sicheres MVP zu erreichen (Modell bleibt erweiterbar):
 
 | # | Punkt | Empfehlung |
 |---|---|---|
-| O1 | Deployment: Managed Supabase EU vs. Self-Hosting Plesk | Managed Supabase EU. |
-| O2 | Interne Zeiteinträge: alle Agenturrollen vs. nur eigene | Mitarbeiter/Freelancer nur eigene. |
-| O3 | „Arbeitszeit"-Modul (Stempeluhr) in v1 nötig? | Falls keine Arbeitszeitpflicht: auf Aufgabenzeit fokussieren, Arbeitszeit optional. |
+| O1 | Deployment | **Entschieden: Self-Hosting auf Plesk** (Supabase-Stack + Next.js via Docker/Passenger, Region DE). |
+| O2 | Interne Zeiteinträge | **Entschieden: alle Agenturrollen dürfen interne Zeiteinträge sehen** (`can_see_internal`-Regel gilt org-weit für Agenturrollen). |
+| O3 | „Arbeitszeit"-Modul (Stempeluhr) | **Entschieden: wird umgesetzt** (work_sessions + Pausen, Phase 6). |
 | O4 | Auto-Move-Ziel nach Freigabe je Projekt/global konfigurierbar | je Projekt, mit sinnvollem Default. |
 | O5 | Gäste: nur Freigabe-Link oder breiterer Lesezugriff? | nur konkretes geteiltes Objekt, zeitlich begrenzt. |
 
