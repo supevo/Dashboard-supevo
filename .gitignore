@@ -27,6 +27,9 @@ yarn-error.log*
 .env
 .env*.local
 .env.local
+# deployment secrets
+deploy/.env.deploy
+.env.deploy
 
 # vercel
 .vercel

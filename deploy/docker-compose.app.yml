@@ -1,0 +1,30 @@
+# =============================================================================
+# Runs the Next.js app as a container. Point it at your (self-hosted) Supabase
+# stack via deploy/.env.deploy. Put this behind the Plesk reverse proxy (HTTPS).
+#
+#   docker compose --env-file deploy/.env.deploy -f deploy/docker-compose.app.yml up -d --build
+# =============================================================================
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    image: supevo-dashboard:latest
+    restart: unless-stopped
+    environment:
+      # Public (also baked in at build time; provided again for runtime).
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      # Server-only secret – never exposed to the browser.
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      # Bind to localhost only; the Plesk reverse proxy terminates TLS and
+      # forwards to this port. Host port 3001 avoids clashing with Supabase
+      # Studio (3000).
+      - '127.0.0.1:3001:3000'
