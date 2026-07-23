@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser, authorize } from '@/lib/authz/authorize';
 import { logActivity } from '@/lib/audit';
+import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -55,15 +56,31 @@ export async function createProjectAction(
     .single();
 
   if (error || !project) {
-    return errorResult(de.errors.INTERNAL);
+    // Diagnose-Hilfe: echten DB-Fehler protokollieren und (vorübergehend)
+    // in der Meldung anzeigen, um die Ursache eindeutig zu bestimmen.
+    logger.error('Projekt anlegen fehlgeschlagen', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    });
+    return errorResult(
+      `Fehler beim Anlegen: ${error?.message ?? 'unbekannt'} [${error?.code ?? '?'}]`,
+    );
   }
 
   // Add the creator as project lead (the default board is created by trigger).
-  await supabase.from('project_members').insert({
+  const { error: memberError } = await supabase.from('project_members').insert({
     project_id: project.id,
     user_id: user.id,
     role: 'lead',
   });
+  if (memberError) {
+    logger.error('project_members Insert fehlgeschlagen', {
+      code: memberError.code,
+      message: memberError.message,
+    });
+  }
 
   await logActivity({
     actorId: user.id,
