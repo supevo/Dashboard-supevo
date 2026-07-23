@@ -9,14 +9,16 @@ import { Button } from '@/components/ui/button';
 export function FileUploader({
   projectId,
   taskId,
+  allowInternal = true,
 }: {
   projectId: string;
   taskId: string;
+  allowInternal?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [isInternal, setIsInternal] = useState(true);
+  const [isInternal, setIsInternal] = useState(allowInternal);
 
   async function upload(file: File) {
     setError(null);
@@ -55,14 +57,16 @@ export function FileUploader({
       className="space-y-2 rounded-md border border-dashed p-4"
     >
       {error && <Alert variant="destructive">{error}</Alert>}
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={isInternal}
-          onChange={(e) => setIsInternal(e.target.checked)}
-        />
-        {de.task.uploadInternal}
-      </label>
+      {allowInternal && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isInternal}
+            onChange={(e) => setIsInternal(e.target.checked)}
+          />
+          {de.task.uploadInternal}
+        </label>
+      )}
       <input
         type="file"
         disabled={pending}

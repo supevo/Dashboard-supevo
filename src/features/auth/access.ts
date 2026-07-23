@@ -56,3 +56,11 @@ export function primaryAgencyOrgId(user: CurrentUser): string | null {
   );
   return membership ? membership.organizationId : null;
 }
+
+/** The organization in which the user holds a client/guest role. */
+export function primaryClientOrgId(user: CurrentUser): string | null {
+  const membership = user.memberships.find(
+    (m) => m.role === 'client' || m.role === 'guest',
+  );
+  return membership ? membership.organizationId : null;
+}

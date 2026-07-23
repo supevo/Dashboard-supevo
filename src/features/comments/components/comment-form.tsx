@@ -14,10 +14,12 @@ export function CommentForm({
   orgId,
   projectId,
   taskId,
+  allowInternal = true,
 }: {
   orgId: string;
   projectId: string;
   taskId: string;
+  allowInternal?: boolean;
 }) {
   const [state, formAction] = useActionState(addCommentAction, idleResult);
   const router = useRouter();
@@ -41,10 +43,14 @@ export function CommentForm({
       <Textarea name="body" placeholder={de.task.addComment} required />
       <p className="text-xs text-muted-foreground">{de.task.mentionHint}</p>
       <div className="flex items-center justify-between">
-        <Select name="isInternal" defaultValue="true" className="h-9 w-auto">
-          <option value="true">{de.task.internalComment}</option>
-          <option value="false">{de.task.externalComment}</option>
-        </Select>
+        {allowInternal ? (
+          <Select name="isInternal" defaultValue="true" className="h-9 w-auto">
+            <option value="true">{de.task.internalComment}</option>
+            <option value="false">{de.task.externalComment}</option>
+          </Select>
+        ) : (
+          <input type="hidden" name="isInternal" value="false" />
+        )}
         <SubmitButton size="sm">{de.task.addComment}</SubmitButton>
       </div>
     </form>

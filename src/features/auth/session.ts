@@ -9,6 +9,7 @@ export {
   hasClientAccess,
   landingPathFor,
   primaryAgencyOrgId,
+  primaryClientOrgId,
 } from './access';
 
 /**

@@ -14,6 +14,8 @@ import { ChecklistSection } from '@/features/checklists/components/checklist-sec
 import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
+import { listProjectApprovals } from '@/features/approvals/queries';
+import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -28,14 +30,16 @@ export default async function TaskDetailPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [comments, files, checklists, orgLabels, taskLabels] =
+  const [comments, files, checklists, orgLabels, taskLabels, approvals] =
     await Promise.all([
       listTaskComments(taskId, user.id),
       listTaskFiles(taskId, user.id),
       listTaskChecklists(taskId),
       listLabels(task.organizationId),
       listTaskLabels(taskId),
+      listProjectApprovals(projectId),
     ]);
+  const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -84,6 +88,32 @@ export default async function TaskDetailPage({
             taskId={taskId}
             assigned={taskLabels}
             available={orgLabels}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.approvals.title}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {taskApprovals.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {taskApprovals.map((a) => (
+                <li key={a.id} className="flex justify-between">
+                  <span>{a.title}</span>
+                  <span className="text-muted-foreground">
+                    {de.approvals[a.status]}
+                    {a.decisionComment ? ` · ${a.decisionComment}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <RequestApprovalForm
+            projectId={projectId}
+            taskId={taskId}
+            defaultTitle={task.title}
           />
         </CardContent>
       </Card>

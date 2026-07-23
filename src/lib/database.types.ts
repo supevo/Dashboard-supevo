@@ -23,6 +23,11 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnKey = 'queue' | 'active' | 'review' | 'done' | 'custom';
 export type TimeSource = 'manual' | 'timer';
 export type WorkSessionStatus = 'active' | 'on_break' | 'closed';
+export type ApprovalStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'changes_requested';
 export type NotificationType =
   | 'task_assigned'
   | 'comment_mention'
@@ -680,6 +685,42 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['work_session_breaks']['Insert']
         >;
+        Relationships: [];
+      };
+      approvals: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          task_id: string;
+          title: string;
+          status: ApprovalStatus;
+          requested_by: string;
+          decided_by: string | null;
+          decision_comment: string | null;
+          target_column_id: string | null;
+          decided_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          task_id: string;
+          title: string;
+          status?: ApprovalStatus;
+          requested_by: string;
+          target_column_id?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['approvals']['Insert']> & {
+          status?: ApprovalStatus;
+          decided_by?: string | null;
+          decision_comment?: string | null;
+          decided_at?: string | null;
+        };
         Relationships: [];
       };
     };

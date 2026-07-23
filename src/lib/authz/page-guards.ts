@@ -1,6 +1,10 @@
 import 'server-only';
 import { redirect } from 'next/navigation';
-import { getCurrentUser, primaryAgencyOrgId } from '@/features/auth/session';
+import {
+  getCurrentUser,
+  primaryAgencyOrgId,
+  primaryClientOrgId,
+} from '@/features/auth/session';
 import type { CurrentUser } from '@/features/auth/access';
 import { isOrgAdmin } from './policies';
 
@@ -26,5 +30,17 @@ export async function requireOrgAdminPage(): Promise<{
 }> {
   const { user, orgId } = await requireAgencyPage();
   if (!isOrgAdmin(user, orgId)) redirect('/forbidden');
+  return { user, orgId };
+}
+
+/** Resolves the current user and their client organization for portal pages. */
+export async function requireClientPage(): Promise<{
+  user: CurrentUser;
+  orgId: string;
+}> {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  const orgId = primaryClientOrgId(user);
+  if (!orgId) redirect('/forbidden');
   return { user, orgId };
 }
