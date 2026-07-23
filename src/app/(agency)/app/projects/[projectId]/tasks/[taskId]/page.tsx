@@ -13,6 +13,8 @@ import { FileItem } from '@/features/files/components/file-item';
 import { ChecklistSection } from '@/features/checklists/components/checklist-section';
 import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
+import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
+import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
 export default async function TaskDetailPage({
@@ -50,7 +52,11 @@ export default async function TaskDetailPage({
           {task.isInternal ? ` · ${de.kanban.internal}` : ''}
           {task.assignees.length > 0 &&
             ` · ${task.assignees.map((a) => a.name).join(', ')}`}
+          {` · ${de.time.taskTime}: ${formatMinutes(task.actualMinutes)}`}
         </p>
+        <div className="mt-3">
+          <StartTimerButton projectId={projectId} taskId={taskId} />
+        </div>
       </div>
 
       {task.description && (

@@ -21,6 +21,8 @@ export type ProjectStatus =
 export type ProjectMemberRole = 'lead' | 'contributor' | 'viewer' | 'client';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnKey = 'queue' | 'active' | 'review' | 'done' | 'custom';
+export type TimeSource = 'manual' | 'timer';
+export type WorkSessionStatus = 'active' | 'on_break' | 'closed';
 export type NotificationType =
   | 'task_assigned'
   | 'comment_mention'
@@ -591,6 +593,93 @@ export interface Database {
           organization_id: string;
         };
         Update: Partial<Database['public']['Tables']['task_labels']['Insert']>;
+        Relationships: [];
+      };
+      time_entries: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          task_id: string | null;
+          user_id: string;
+          started_at: string;
+          ended_at: string | null;
+          duration_minutes: number | null;
+          description: string | null;
+          is_billable: boolean;
+          is_client_visible: boolean;
+          source: TimeSource;
+          created_by: string;
+          edit_reason: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          task_id?: string | null;
+          user_id: string;
+          started_at: string;
+          ended_at?: string | null;
+          duration_minutes?: number | null;
+          description?: string | null;
+          is_billable?: boolean;
+          is_client_visible?: boolean;
+          source?: TimeSource;
+          created_by: string;
+          edit_reason?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['time_entries']['Insert']
+        >;
+        Relationships: [];
+      };
+      work_sessions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          clock_in: string;
+          clock_out: string | null;
+          status: WorkSessionStatus;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          clock_in: string;
+          clock_out?: string | null;
+          status?: WorkSessionStatus;
+        };
+        Update: Partial<
+          Database['public']['Tables']['work_sessions']['Insert']
+        >;
+        Relationships: [];
+      };
+      work_session_breaks: {
+        Row: {
+          id: string;
+          work_session_id: string;
+          organization_id: string;
+          break_start: string;
+          break_end: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          work_session_id: string;
+          organization_id: string;
+          break_start: string;
+          break_end?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['work_session_breaks']['Insert']
+        >;
         Relationships: [];
       };
     };
