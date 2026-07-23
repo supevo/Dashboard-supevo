@@ -14,11 +14,11 @@ selbst gehostetes **Supabase** (Postgres, Auth, Storage, API-Gateway) plus die
                     └─────────────────────────────────────┘
 ```
 
-> **Einfachere Alternative (empfohlen, falls Betrieb schlank bleiben soll):**
-> Managed Supabase in der EU-Region (Frankfurt) statt Self-Hosting. DSGVO-konform
-> über einen AV-Vertrag. Dann entfallen die Schritte 2–4; du trägst nur die
-> Werte aus dem Supabase-Dashboard in `deploy/.env.deploy` ein und deployst nur
-> die App (Schritte 5–8). Der Code bleibt identisch.
+> **Empfohlener, schlankerer Weg → siehe [`README-managed.md`](./README-managed.md):**
+> Managed Supabase (EU/Frankfurt) + Vercel für die App. Kein eigener Server,
+> kein Ops-Aufwand, DSGVO über AV-Vertrag. Der Code ist identisch. Diese
+> Plesk-Anleitung ist nur nötig, wenn du **alles auf eigener Hardware** betreiben
+> musst.
 
 ---
 
