@@ -4,7 +4,12 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { CurrentUser } from './access';
 
 export type { CurrentUser, MembershipInfo } from './access';
-export { hasAgencyAccess, hasClientAccess, landingPathFor } from './access';
+export {
+  hasAgencyAccess,
+  hasClientAccess,
+  landingPathFor,
+  primaryAgencyOrgId,
+} from './access';
 
 /**
  * Loads the authenticated user together with their active memberships.

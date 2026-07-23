@@ -21,6 +21,7 @@ import {
 } from './schema';
 import { getCurrentUser, landingPathFor } from './session';
 import { hashInviteToken } from '@/features/invitations/token';
+import { isInvitationUsable } from '@/features/invitations/validity';
 
 function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   return error.flatten().fieldErrors as Record<string, string[]>;
@@ -151,14 +152,7 @@ export async function acceptInviteAction(
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
-  const now = Date.now();
-  const isValid =
-    invite &&
-    !invite.accepted_at &&
-    !invite.revoked_at &&
-    new Date(invite.expires_at).getTime() > now;
-
-  if (!invite || !isValid) {
+  if (!invite || !isInvitationUsable(invite)) {
     return errorResult(de.errors.invalidInvite);
   }
 
@@ -184,6 +178,7 @@ export async function acceptInviteAction(
   const { error: profileError } = await service.from('profiles').insert({
     id: userId,
     full_name: parsed.data.fullName,
+    email: invite.email,
   });
   const { error: membershipError } = await service.from('memberships').insert({
     user_id: userId,
@@ -197,6 +192,18 @@ export async function acceptInviteAction(
       invitationId: invite.id,
     });
     return errorResult(de.errors.INTERNAL);
+  }
+
+  // Client/guest invitations tied to a client company create the contact link.
+  if (
+    (invite.role === 'client' || invite.role === 'guest') &&
+    invite.client_company_id
+  ) {
+    await service.from('client_contacts').insert({
+      organization_id: invite.organization_id,
+      client_company_id: invite.client_company_id,
+      user_id: userId,
+    });
   }
 
   await service

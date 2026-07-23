@@ -39,3 +39,20 @@ export function landingPathFor(user: CurrentUser): string {
   if (hasClientAccess(user)) return '/portal';
   return '/no-access';
 }
+
+/**
+ * The organization the user administers or works in as agency staff. In v1
+ * there is a single agency organization, so the first agency membership wins.
+ * Returns null for users without any agency membership.
+ */
+export function primaryAgencyOrgId(user: CurrentUser): string | null {
+  const membership = user.memberships.find(
+    (m) =>
+      m.role === 'agency_admin' ||
+      m.role === 'project_manager' ||
+      m.role === 'employee' ||
+      m.role === 'freelancer' ||
+      m.role === 'super_admin',
+  );
+  return membership ? membership.organizationId : null;
+}

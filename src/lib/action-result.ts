@@ -4,7 +4,7 @@
  */
 export type ActionResult =
   | { status: 'idle' }
-  | { status: 'success'; message?: string }
+  | { status: 'success'; message?: string; data?: Record<string, unknown> }
   | {
       status: 'error';
       message: string;
@@ -20,6 +20,9 @@ export function errorResult(
   return { status: 'error', message, fieldErrors };
 }
 
-export function successResult(message?: string): ActionResult {
-  return { status: 'success', message };
+export function successResult(
+  message?: string,
+  data?: Record<string, unknown>,
+): ActionResult {
+  return { status: 'success', message, data };
 }
