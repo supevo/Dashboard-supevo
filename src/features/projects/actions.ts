@@ -56,17 +56,21 @@ export async function createProjectAction(
     .single();
 
   if (error || !project) {
-    // Diagnose-Hilfe: echten DB-Fehler protokollieren und (vorübergehend)
-    // in der Meldung anzeigen, um die Ursache eindeutig zu bestimmen.
+    // Real DB error stays in the server log; the user gets a generic message.
     logger.error('Projekt anlegen fehlgeschlagen', {
       code: error?.code,
       message: error?.message,
       details: error?.details,
       hint: error?.hint,
     });
-    return errorResult(
-      `Fehler beim Anlegen: ${error?.message ?? 'unbekannt'} [${error?.code ?? '?'}]`,
-    );
+    // A row-level-security rejection means the account lacks an active
+    // agency-admin/super-admin membership in this organization.
+    if (error?.code === '42501') {
+      return errorResult(
+        'Dein Konto hat keine Berechtigung, in dieser Organisation Projekte anzulegen. Bitte prüfe deine Mitgliedschaft/Rolle (Admin).',
+      );
+    }
+    return errorResult(de.errors.INTERNAL);
   }
 
   // Add the creator as project lead (the default board is created by trigger).

@@ -1,9 +1,8 @@
 -- =============================================================================
--- Supevo Dashboard – ALLE Migrationen kombiniert (0001–0008)
+-- Supevo Dashboard – ALLE Migrationen kombiniert (0001–0009)
 -- Einmalig im Supabase SQL Editor einfügen und AUSFÜHREN (Run).
--- Legt Tabellen, RLS-Policies, Funktionen und den Storage-Bucket 'files' an.
--- Nur EINMAL ausführen (erneutes Ausführen schlägt fehl, weil Typen/Tabellen
--- dann schon existieren – das ist normal).
+-- Bereits eingespielt? Dann nur die NEUE Migration 0009_diagnostics.sql laufen
+-- lassen (Rest schlägt fehl, weil Objekte schon existieren – das ist ok).
 -- =============================================================================
 
 
@@ -1323,4 +1322,41 @@ $$;
 
 create policy profiles_select_coworkers on public.profiles
   for select using (public.can_view_profile(id));
+
+
+-- ####################################################################
+-- ## 0009_diagnostics.sql
+-- ####################################################################
+
+-- =============================================================================
+-- Migration 0009 – Diagnose-Funktion
+-- whoami() liefert die DB-Sicht auf das aktuell eingeloggte Konto: die
+-- auth.uid(), ob es super_admin/agency_staff ist, und seine Mitgliedschaften.
+-- Damit lässt sich in der App eindeutig prüfen, ob Rolle/Mitgliedschaft stimmen
+-- (Ursache von RLS-Fehlern beim Schreiben).
+-- =============================================================================
+create or replace function public.whoami()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'uid', auth.uid(),
+    'is_super_admin', public.is_super_admin(),
+    'is_agency_staff', public.is_agency_staff(),
+    'memberships', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'organization_id', m.organization_id,
+        'role', m.role,
+        'status', m.status
+      ))
+      from public.memberships m
+      where m.user_id = auth.uid()
+    ), '[]'::jsonb)
+  );
+$$;
+
+grant execute on function public.whoami() to authenticated, anon;
 
