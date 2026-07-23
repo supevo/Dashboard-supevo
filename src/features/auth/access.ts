@@ -22,7 +22,10 @@ export interface CurrentUser {
 
 /** True when the user holds any agency role in any organization. */
 export function hasAgencyAccess(user: CurrentUser): boolean {
-  return user.memberships.some((m) => isAgencyRole(m.role));
+  // super_admin is systemwide and always counts as internal/agency access.
+  return user.memberships.some(
+    (m) => m.role === 'super_admin' || isAgencyRole(m.role),
+  );
 }
 
 /** True when the user holds an external (client/guest) role. */

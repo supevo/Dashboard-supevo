@@ -743,6 +743,19 @@ export interface Database {
         Args: { p_project_id: string };
         Returns: boolean;
       };
+      whoami: {
+        Args: Record<string, never>;
+        Returns: {
+          uid: string | null;
+          is_super_admin: boolean;
+          is_agency_staff: boolean;
+          memberships: {
+            organization_id: string;
+            role: string;
+            status: string;
+          }[];
+        };
+      };
     };
     Enums: {
       app_role: AppRole;
