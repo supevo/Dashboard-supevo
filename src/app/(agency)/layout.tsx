@@ -14,6 +14,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/team', label: de.nav.team },
   { href: '/app/reports', label: de.nav.reports },
+  { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/settings', label: de.nav.settings },
   { href: '/app/profile', label: de.nav.profile },
 ];

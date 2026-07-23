@@ -1,25 +1,58 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getCurrentUser } from '@/features/auth/session';
+import { requireClientPage } from '@/lib/authz/page-guards';
+import { getClientDashboard } from '@/features/dashboard/queries';
+import { de } from '@/lib/i18n/de';
+
+function StatTile({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
 
 export default async function ClientDashboardPage() {
-  const user = await getCurrentUser();
+  const { user } = await requireClientPage();
+  const d = await getClientDashboard();
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Willkommen</h1>
         <p className="text-muted-foreground">
-          Schön, dass Sie da sind, {user?.fullName ?? user?.email}.
+          Schön, dass Sie da sind, {user.fullName ?? user.email}.
         </p>
       </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <StatTile label={de.dashboard.open} value={d.openCount} />
+        <StatTile label={de.dashboard.inProgress} value={d.inProgressCount} />
+        <StatTile label={de.dashboard.toApprove} value={d.toApproveCount} />
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>Kundenportal</CardTitle>
+          <CardTitle>{de.dashboard.completed}</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          Ihre freigegebenen Projekte, Aufgaben und Freigaben erscheinen hier,
-          sobald die entsprechenden Bereiche in den nächsten Phasen aktiviert
-          werden.
+        <CardContent>
+          {d.completedRecent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{de.dashboard.none}</p>
+          ) : (
+            <ul className="divide-y">
+              {d.completedRecent.map((t) => (
+                <li key={t.id} className="py-2 text-sm">
+                  <Link
+                    href={`/portal/tasks/${t.id}`}
+                    className="text-primary hover:underline"
+                  >
+                    {t.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -89,8 +89,8 @@ export async function requestApprovalAction(
       type: 'task_for_approval' as const,
       title: 'Neue Freigabe angefordert',
       body: title,
-      entityType: 'approval',
-      entityId: approval.id,
+      entityType: 'task',
+      entityId: taskId,
     })),
     user.id,
   );
@@ -186,8 +186,8 @@ export async function decideApprovalAction(
             ? 'Freigabe erteilt'
             : 'Änderungen angefordert',
         body: comment || null,
-        entityType: 'approval',
-        entityId: approvalId,
+        entityType: 'task',
+        entityId: approval.task_id,
       },
     ],
     user.id,

@@ -44,6 +44,16 @@ export function formatBerlinDateTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** Today's calendar date (YYYY-MM-DD) in Europe/Berlin. */
+export function berlinToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now);
+}
+
 /** Returns the UTC ISO instant for the start of "today" in Europe/Berlin. */
 export function startOfBerlinDayUtc(now: Date = new Date()): string {
   // Get the Berlin calendar date for `now`.

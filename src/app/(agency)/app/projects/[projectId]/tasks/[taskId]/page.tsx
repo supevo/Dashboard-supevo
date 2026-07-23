@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getTaskDetail } from '@/features/tasks/queries';
+import { listProjectMembers } from '@/features/projects/queries';
+import { AssigneePicker } from '@/features/tasks/components/assignee-picker';
 import { listTaskComments } from '@/features/comments/queries';
 import { listTaskFiles } from '@/features/files/queries';
 import { listTaskChecklists } from '@/features/checklists/queries';
@@ -39,6 +41,7 @@ export default async function TaskDetailPage({
       listTaskLabels(taskId),
       listProjectApprovals(projectId),
     ]);
+  const members = await listProjectMembers(projectId);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
@@ -76,6 +79,20 @@ export default async function TaskDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Verantwortliche</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AssigneePicker
+            projectId={projectId}
+            taskId={taskId}
+            assignees={task.assignees}
+            members={members}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
