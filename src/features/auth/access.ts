@@ -22,7 +22,9 @@ export interface CurrentUser {
 
 /** True when the user holds any agency role in any organization. */
 export function hasAgencyAccess(user: CurrentUser): boolean {
-  return user.memberships.some((m) => isAgencyRole(m.role));
+  return user.memberships.some(
+    (m) => m.role === 'super_admin' || isAgencyRole(m.role),
+  );
 }
 
 /** True when the user holds an external (client/guest) role. */
