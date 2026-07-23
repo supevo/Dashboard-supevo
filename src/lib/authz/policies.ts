@@ -26,7 +26,8 @@ export type Permission =
   | { type: 'member.reactivate'; orgId: string; targetUserId: string }
   | { type: 'clientCompany.manage'; orgId: string }
   | { type: 'clientContact.manage'; orgId: string }
-  | { type: 'invitation.manage'; orgId: string };
+  | { type: 'invitation.manage'; orgId: string }
+  | { type: 'project.create'; orgId: string };
 
 /** True when the user holds the super_admin role in any organization. */
 export function isSuperAdmin(user: CurrentUser): boolean {
@@ -69,6 +70,16 @@ export function can(user: CurrentUser, permission: Permission): boolean {
     case 'organization.viewActivity':
     case 'member.list':
       return isOrgAdmin(user, permission.orgId);
+
+    case 'project.create': {
+      // Agency admins and project managers may create projects.
+      const role = roleInOrg(user, permission.orgId);
+      return (
+        isSuperAdmin(user) ||
+        role === 'agency_admin' ||
+        role === 'project_manager'
+      );
+    }
 
     case 'member.changeRole': {
       const granterRole = roleInOrg(user, permission.orgId);

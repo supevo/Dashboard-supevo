@@ -12,6 +12,15 @@ import type { AppRole } from './authz/roles';
 
 export type OrganizationType = 'agency' | 'client';
 export type MembershipStatus = 'invited' | 'active' | 'suspended';
+export type ProjectStatus =
+  | 'planned'
+  | 'active'
+  | 'on_hold'
+  | 'completed'
+  | 'archived';
+export type ProjectMemberRole = 'lead' | 'contributor' | 'viewer' | 'client';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type ColumnKey = 'queue' | 'active' | 'review' | 'done' | 'custom';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -24,7 +33,16 @@ export type ActivityAction =
   | 'invite_revoke'
   | 'invite_resend'
   | 'member_deactivate'
-  | 'member_reactivate';
+  | 'member_reactivate'
+  | 'archive'
+  | 'assignee_change'
+  | 'due_date_change'
+  | 'file_upload'
+  | 'file_download'
+  | 'comment'
+  | 'approval_request'
+  | 'approval_decision'
+  | 'time_edit';
 
 export interface Database {
   public: {
@@ -192,14 +210,206 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['activity_log']['Insert']>;
         Relationships: [];
       };
+      projects: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          description: string | null;
+          status: ProjectStatus;
+          lead_user_id: string | null;
+          is_client_visible: boolean;
+          start_date: string | null;
+          due_date: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          description?: string | null;
+          status?: ProjectStatus;
+          lead_user_id?: string | null;
+          is_client_visible?: boolean;
+          start_date?: string | null;
+          due_date?: string | null;
+          created_by: string;
+        };
+        Update: Partial<Database['public']['Tables']['projects']['Insert']> & {
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      project_members: {
+        Row: {
+          id: string;
+          project_id: string;
+          user_id: string;
+          role: ProjectMemberRole;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          user_id: string;
+          role: ProjectMemberRole;
+        };
+        Update: Partial<
+          Database['public']['Tables']['project_members']['Insert']
+        >;
+        Relationships: [];
+      };
+      boards: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string;
+          name: string;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id: string;
+          name?: string;
+          position?: number;
+        };
+        Update: Partial<Database['public']['Tables']['boards']['Insert']>;
+        Relationships: [];
+      };
+      board_columns: {
+        Row: {
+          id: string;
+          organization_id: string;
+          board_id: string;
+          name: string;
+          column_key: ColumnKey;
+          position: number;
+          wip_limit: number | null;
+          wip_limit_per_user: number | null;
+          is_done_column: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          board_id: string;
+          name: string;
+          column_key?: ColumnKey;
+          position: number;
+          wip_limit?: number | null;
+          wip_limit_per_user?: number | null;
+          is_done_column?: boolean;
+        };
+        Update: Partial<
+          Database['public']['Tables']['board_columns']['Insert']
+        >;
+        Relationships: [];
+      };
+      tasks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string;
+          board_id: string;
+          column_id: string;
+          parent_task_id: string | null;
+          title: string;
+          description: string | null;
+          priority: TaskPriority;
+          created_by: string;
+          due_date: string | null;
+          estimated_minutes: number | null;
+          actual_minutes: number;
+          position: number;
+          is_internal: boolean;
+          is_blocked: boolean;
+          is_archived: boolean;
+          lock_version: number;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id: string;
+          board_id: string;
+          column_id: string;
+          parent_task_id?: string | null;
+          title: string;
+          description?: string | null;
+          priority?: TaskPriority;
+          created_by: string;
+          due_date?: string | null;
+          estimated_minutes?: number | null;
+          actual_minutes?: number;
+          position?: number;
+          is_internal?: boolean;
+          is_blocked?: boolean;
+          is_archived?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
+          lock_version?: number;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      task_assignees: {
+        Row: {
+          task_id: string;
+          user_id: string;
+          organization_id: string;
+          assigned_at: string;
+        };
+        Insert: {
+          task_id: string;
+          user_id: string;
+          organization_id: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['task_assignees']['Insert']
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      move_task: {
+        Args: {
+          p_task_id: string;
+          p_target_column_id: string;
+          p_new_position: number;
+          p_expected_lock_version: number;
+        };
+        Returns: undefined;
+      };
+      can_access_project: {
+        Args: { p_project_id: string };
+        Returns: boolean;
+      };
+      can_manage_project: {
+        Args: { p_project_id: string };
+        Returns: boolean;
+      };
+    };
     Enums: {
       app_role: AppRole;
       organization_type: OrganizationType;
       membership_status: MembershipStatus;
       activity_action: ActivityAction;
+      project_status: ProjectStatus;
+      project_member_role: ProjectMemberRole;
+      task_priority: TaskPriority;
+      column_key: ColumnKey;
     };
     CompositeTypes: Record<string, never>;
   };
