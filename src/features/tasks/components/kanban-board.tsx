@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { moveTaskAction } from '@/features/tasks/actions';
 import { AddTaskInline } from './add-task-inline';
@@ -229,7 +230,12 @@ export function KanbanBoard({
                       canManage && 'cursor-grab active:cursor-grabbing',
                     )}
                   >
-                    <div className="text-sm font-medium">{task.title}</div>
+                    <Link
+                      href={`/app/projects/${projectId}/tasks/${task.id}`}
+                      className="text-sm font-medium hover:underline"
+                    >
+                      {task.title}
+                    </Link>
                     <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
                       {task.isInternal && (
                         <span className="rounded bg-slate-200 px-1 py-0.5 text-slate-700">

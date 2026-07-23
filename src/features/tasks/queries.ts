@@ -2,6 +2,70 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { ColumnKey, TaskPriority } from '@/lib/database.types';
 
+export interface TaskDetail {
+  id: string;
+  organizationId: string;
+  projectId: string;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  isInternal: boolean;
+  isBlocked: boolean;
+  dueDate: string | null;
+  estimatedMinutes: number | null;
+  actualMinutes: number;
+  lockVersion: number;
+  assignees: TaskAssignee[];
+  canManage: boolean;
+}
+
+/** Loads a single task the user can access, with assignees and manage flag. */
+export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data: task } = await supabase
+    .from('tasks')
+    .select(
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, due_date, estimated_minutes, actual_minutes, lock_version',
+    )
+    .eq('id', taskId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (!task) return null;
+
+  const { data: assigneeRows } = await supabase
+    .from('task_assignees')
+    .select('user_id')
+    .eq('task_id', taskId);
+  const ids = (assigneeRows ?? []).map((a) => a.user_id);
+  const { data: profiles } = ids.length
+    ? await supabase.from('profiles').select('id, full_name').in('id', ids)
+    : { data: [] };
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.id, p.full_name ?? ''] as const),
+  );
+
+  const { data: canManage } = await supabase.rpc('can_manage_project', {
+    p_project_id: task.project_id,
+  });
+
+  return {
+    id: task.id,
+    organizationId: task.organization_id,
+    projectId: task.project_id,
+    title: task.title,
+    description: task.description,
+    priority: task.priority,
+    isInternal: task.is_internal,
+    isBlocked: task.is_blocked,
+    dueDate: task.due_date,
+    estimatedMinutes: task.estimated_minutes,
+    actualMinutes: task.actual_minutes,
+    lockVersion: task.lock_version,
+    assignees: ids.map((id) => ({ userId: id, name: nameById.get(id) ?? '' })),
+    canManage: canManage === true,
+  };
+}
+
 export interface TaskAssignee {
   userId: string;
   name: string;

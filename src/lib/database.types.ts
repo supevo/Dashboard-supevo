@@ -21,6 +21,18 @@ export type ProjectStatus =
 export type ProjectMemberRole = 'lead' | 'contributor' | 'viewer' | 'client';
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnKey = 'queue' | 'active' | 'review' | 'done' | 'custom';
+export type NotificationType =
+  | 'task_assigned'
+  | 'comment_mention'
+  | 'client_comment'
+  | 'internal_question'
+  | 'task_in_review'
+  | 'task_for_approval'
+  | 'approval_granted'
+  | 'changes_requested'
+  | 'due_date_reached'
+  | 'task_overdue'
+  | 'file_uploaded';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -380,6 +392,167 @@ export interface Database {
         >;
         Relationships: [];
       };
+      comments: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string;
+          task_id: string;
+          author_id: string;
+          body: string;
+          is_internal: boolean;
+          edited_at: string | null;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id: string;
+          task_id: string;
+          author_id: string;
+          body: string;
+          is_internal?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['comments']['Insert']> & {
+          edited_at?: string | null;
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      comment_mentions: {
+        Row: {
+          comment_id: string;
+          mentioned_user_id: string;
+          organization_id: string;
+        };
+        Insert: {
+          comment_id: string;
+          mentioned_user_id: string;
+          organization_id: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['comment_mentions']['Insert']
+        >;
+        Relationships: [];
+      };
+      files: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string;
+          task_id: string | null;
+          uploaded_by: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          checksum_sha256: string | null;
+          is_internal: boolean;
+          created_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id: string;
+          task_id?: string | null;
+          uploaded_by: string;
+          storage_path: string;
+          file_name: string;
+          mime_type: string;
+          size_bytes: number;
+          checksum_sha256?: string | null;
+          is_internal?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['files']['Insert']> & {
+          deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      checklists: {
+        Row: {
+          id: string;
+          organization_id: string;
+          task_id: string;
+          title: string;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          task_id: string;
+          title: string;
+          position?: number;
+        };
+        Update: Partial<Database['public']['Tables']['checklists']['Insert']>;
+        Relationships: [];
+      };
+      checklist_items: {
+        Row: {
+          id: string;
+          organization_id: string;
+          checklist_id: string;
+          content: string;
+          is_done: boolean;
+          position: number;
+          done_by: string | null;
+          done_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          checklist_id: string;
+          content: string;
+          is_done?: boolean;
+          position?: number;
+          done_by?: string | null;
+          done_at?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['checklist_items']['Insert']
+        > & {
+          done_by?: string | null;
+          done_at?: string | null;
+        };
+        Relationships: [];
+      };
+      notifications: {
+        Row: {
+          id: string;
+          organization_id: string;
+          recipient_id: string;
+          type: NotificationType;
+          title: string;
+          body: string | null;
+          entity_type: string;
+          entity_id: string | null;
+          is_read: boolean;
+          read_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          recipient_id: string;
+          type: NotificationType;
+          title: string;
+          body?: string | null;
+          entity_type: string;
+          entity_id?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['notifications']['Insert']
+        > & {
+          is_read?: boolean;
+          read_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -410,6 +583,7 @@ export interface Database {
       project_member_role: ProjectMemberRole;
       task_priority: TaskPriority;
       column_key: ColumnKey;
+      notification_type: NotificationType;
     };
     CompositeTypes: Record<string, never>;
   };
