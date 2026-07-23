@@ -1,0 +1,158 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { z } from 'zod';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { requireUser } from '@/lib/authz/authorize';
+import { logActivity } from '@/lib/audit';
+import { de } from '@/lib/i18n/de';
+import {
+  type ActionResult,
+  errorResult,
+  successResult,
+} from '@/lib/action-result';
+import { archiveTaskSchema, createTaskSchema, moveTaskSchema } from './schema';
+
+function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
+  return error.flatten().fieldErrors as Record<string, string[]>;
+}
+
+/** Maps a move_task() database exception to a user-facing German message. */
+function moveErrorMessage(dbMessage: string): string {
+  if (dbMessage.includes('WIP_LIMIT_TOTAL')) return de.kanban.wipLimitTotal;
+  if (dbMessage.includes('WIP_LIMIT_USER')) return de.kanban.wipLimitUser;
+  if (dbMessage.includes('LOCK_CONFLICT')) return de.kanban.lockConflict;
+  if (dbMessage.includes('FORBIDDEN')) return de.errors.FORBIDDEN;
+  if (dbMessage.includes('INVALID_COLUMN')) return de.kanban.invalidColumn;
+  if (dbMessage.includes('TASK_NOT_FOUND')) return de.errors.NOT_FOUND;
+  return de.errors.INTERNAL;
+}
+
+export async function createTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = createTaskSchema.safeParse({
+    projectId: formData.get('projectId'),
+    columnId: formData.get('columnId'),
+    title: formData.get('title'),
+    priority: formData.get('priority') ?? 'medium',
+    isInternal: formData.get('isInternal') ?? 'true',
+  });
+  if (!parsed.success) {
+    return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
+  }
+  const { projectId, columnId, title, priority, isInternal } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Resolve org + board from the target column (RLS still guards the insert).
+  const { data: column } = await supabase
+    .from('board_columns')
+    .select('id, board_id, organization_id')
+    .eq('id', columnId)
+    .maybeSingle();
+  if (!column) return errorResult(de.errors.NOT_FOUND);
+
+  const { data: maxRow } = await supabase
+    .from('tasks')
+    .select('position')
+    .eq('column_id', columnId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = (maxRow?.position ?? 0) + 1000;
+
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .insert({
+      organization_id: column.organization_id,
+      project_id: projectId,
+      board_id: column.board_id,
+      column_id: columnId,
+      title,
+      priority,
+      is_internal: isInternal === 'true',
+      created_by: user.id,
+      position: nextPosition,
+    })
+    .select('id')
+    .single();
+
+  if (error || !task) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: column.organization_id,
+    action: 'create',
+    entityType: 'task',
+    entityId: task.id,
+    metadata: { title },
+  });
+
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult('Aufgabe erstellt.');
+}
+
+/** Moves a task to another column. WIP limits and optimistic locking are
+ *  enforced atomically inside the move_task() database function. */
+export async function moveTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = moveTaskSchema.safeParse({
+    taskId: formData.get('taskId'),
+    targetColumnId: formData.get('targetColumnId'),
+    newPosition: formData.get('newPosition'),
+    expectedLockVersion: formData.get('expectedLockVersion'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { taskId, targetColumnId, newPosition, expectedLockVersion } =
+    parsed.data;
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  const { error } = await supabase.rpc('move_task', {
+    p_task_id: taskId,
+    p_target_column_id: targetColumnId,
+    p_new_position: newPosition,
+    p_expected_lock_version: expectedLockVersion,
+  });
+
+  if (error) {
+    return errorResult(moveErrorMessage(error.message));
+  }
+
+  revalidatePath('/app/projects');
+  return successResult('Aufgabe verschoben.');
+}
+
+export async function archiveTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = archiveTaskSchema.safeParse({ taskId: formData.get('taskId') });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ is_archived: true }, { count: 'exact' })
+    .eq('id', parsed.data.taskId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'archive',
+    entityType: 'task',
+    entityId: parsed.data.taskId,
+  });
+
+  return successResult('Aufgabe archiviert.');
+}

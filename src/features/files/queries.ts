@@ -1,0 +1,44 @@
+import 'server-only';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+
+export interface FileView {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  isInternal: boolean;
+  uploadedBy: string;
+  createdAt: string;
+  canDelete: boolean;
+}
+
+const PREVIEWABLE = new Set(['image/', 'video/', 'application/pdf']);
+
+export function isPreviewable(mime: string): boolean {
+  return [...PREVIEWABLE].some((p) => mime.startsWith(p));
+}
+
+/** Lists files for a task. RLS hides internal files from clients. */
+export async function listTaskFiles(
+  taskId: string,
+  currentUserId: string,
+): Promise<FileView[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('files')
+    .select('id, file_name, mime_type, size_bytes, is_internal, uploaded_by, created_at')
+    .eq('task_id', taskId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false });
+
+  return (data ?? []).map((f) => ({
+    id: f.id,
+    fileName: f.file_name,
+    mimeType: f.mime_type,
+    sizeBytes: f.size_bytes,
+    isInternal: f.is_internal,
+    uploadedBy: f.uploaded_by,
+    createdAt: f.created_at,
+    canDelete: f.uploaded_by === currentUserId,
+  }));
+}
