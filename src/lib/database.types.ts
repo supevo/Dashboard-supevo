@@ -553,6 +553,46 @@ export interface Database {
         };
         Relationships: [];
       };
+      labels: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          color: string;
+          description: string | null;
+          is_active: boolean;
+          is_client_visible: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          color: string;
+          description?: string | null;
+          is_active?: boolean;
+          is_client_visible?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['labels']['Insert']>;
+        Relationships: [];
+      };
+      task_labels: {
+        Row: {
+          task_id: string;
+          label_id: string;
+          organization_id: string;
+        };
+        Insert: {
+          task_id: string;
+          label_id: string;
+          organization_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['task_labels']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

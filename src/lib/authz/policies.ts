@@ -27,7 +27,8 @@ export type Permission =
   | { type: 'clientCompany.manage'; orgId: string }
   | { type: 'clientContact.manage'; orgId: string }
   | { type: 'invitation.manage'; orgId: string }
-  | { type: 'project.create'; orgId: string };
+  | { type: 'project.create'; orgId: string }
+  | { type: 'label.manage'; orgId: string };
 
 /** True when the user holds the super_admin role in any organization. */
 export function isSuperAdmin(user: CurrentUser): boolean {
@@ -65,6 +66,7 @@ export function can(user: CurrentUser, permission: Permission): boolean {
     case 'clientCompany.manage':
     case 'clientContact.manage':
     case 'invitation.manage':
+    case 'label.manage':
       return isOrgAdmin(user, permission.orgId);
 
     case 'organization.viewActivity':

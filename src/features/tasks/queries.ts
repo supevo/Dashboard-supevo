@@ -71,6 +71,12 @@ export interface TaskAssignee {
   name: string;
 }
 
+export interface BoardTaskLabel {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface BoardTask {
   id: string;
   title: string;
@@ -82,6 +88,7 @@ export interface BoardTask {
   position: number;
   lockVersion: number;
   assignees: TaskAssignee[];
+  labels: BoardTaskLabel[];
 }
 
 export interface BoardColumn {
@@ -156,6 +163,30 @@ export async function getBoardView(
     }
   }
 
+  // Labels per task (RLS hides client-invisible labels from clients).
+  const labelsByTask = new Map<string, BoardTaskLabel[]>();
+  if (taskIds.length > 0) {
+    const { data: taskLabels } = await supabase
+      .from('task_labels')
+      .select('task_id, label_id')
+      .in('task_id', taskIds);
+    const labelIds = [...new Set((taskLabels ?? []).map((r) => r.label_id))];
+    if (labelIds.length > 0) {
+      const { data: labels } = await supabase
+        .from('labels')
+        .select('id, name, color')
+        .in('id', labelIds);
+      const labelById = new Map((labels ?? []).map((l) => [l.id, l] as const));
+      for (const tl of taskLabels ?? []) {
+        const label = labelById.get(tl.label_id);
+        if (!label) continue;
+        const list = labelsByTask.get(tl.task_id) ?? [];
+        list.push({ id: label.id, name: label.name, color: label.color });
+        labelsByTask.set(tl.task_id, list);
+      }
+    }
+  }
+
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -177,6 +208,7 @@ export async function getBoardView(
         position: t.position,
         lockVersion: t.lock_version,
         assignees: assigneesByTask.get(t.id) ?? [],
+        labels: labelsByTask.get(t.id) ?? [],
       })),
   }));
 

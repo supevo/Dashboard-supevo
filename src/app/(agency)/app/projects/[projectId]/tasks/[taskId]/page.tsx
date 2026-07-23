@@ -11,6 +11,8 @@ import { CommentItem } from '@/features/comments/components/comment-item';
 import { FileUploader } from '@/features/files/components/file-uploader';
 import { FileItem } from '@/features/files/components/file-item';
 import { ChecklistSection } from '@/features/checklists/components/checklist-section';
+import { listLabels, listTaskLabels } from '@/features/labels/queries';
+import { LabelPicker } from '@/features/labels/components/label-picker';
 import { de } from '@/lib/i18n/de';
 
 export default async function TaskDetailPage({
@@ -24,11 +26,14 @@ export default async function TaskDetailPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [comments, files, checklists] = await Promise.all([
-    listTaskComments(taskId, user.id),
-    listTaskFiles(taskId, user.id),
-    listTaskChecklists(taskId),
-  ]);
+  const [comments, files, checklists, orgLabels, taskLabels] =
+    await Promise.all([
+      listTaskComments(taskId, user.id),
+      listTaskFiles(taskId, user.id),
+      listTaskChecklists(taskId),
+      listLabels(task.organizationId),
+      listTaskLabels(taskId),
+    ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -61,6 +66,21 @@ export default async function TaskDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.labels.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LabelPicker
+            orgId={task.organizationId}
+            projectId={projectId}
+            taskId={taskId}
+            assigned={taskLabels}
+            available={orgLabels}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

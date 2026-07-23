@@ -1,7 +1,9 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
+import { buttonVariants } from '@/components/ui/button';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage() {
@@ -18,6 +20,20 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <OrganizationForm orgId={org.id} name={org.name} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.labels.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/app/settings/labels"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            {de.labels.manage}
+          </Link>
         </CardContent>
       </Card>
     </div>

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
+import { LabelChip } from '@/components/ui/label-chip';
 import type { BoardColumn, BoardTask, BoardView } from '@/features/tasks/queries';
 import type { TaskPriority } from '@/lib/database.types';
 
@@ -48,9 +49,21 @@ export function KanbanBoard({
   // Filters
   const [assignee, setAssignee] = useState('all');
   const [priority, setPriority] = useState('all');
+  const [labelFilter, setLabelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [onlyOverdue, setOnlyOverdue] = useState(false);
   const [onlyBlocked, setOnlyBlocked] = useState(false);
+
+  // Distinct labels present on the board, for the filter dropdown.
+  const availableLabels = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; color: string }>();
+    for (const col of board.columns) {
+      for (const task of col.tasks) {
+        for (const l of task.labels) map.set(l.id, l);
+      }
+    }
+    return [...map.values()];
+  }, [board.columns]);
 
   const matchesFilters = useMemo(
     () =>
@@ -60,6 +73,11 @@ export function KanbanBoard({
           return false;
         if (onlyOverdue && !isOverdue(task.dueDate)) return false;
         if (onlyBlocked && !task.isBlocked) return false;
+        if (
+          labelFilter !== 'all' &&
+          !task.labels.some((l) => l.id === labelFilter)
+        )
+          return false;
         if (assignee === 'unassigned' && task.assignees.length > 0) return false;
         if (
           assignee !== 'all' &&
@@ -69,7 +87,7 @@ export function KanbanBoard({
           return false;
         return true;
       },
-    [assignee, priority, search, onlyOverdue, onlyBlocked],
+    [assignee, priority, labelFilter, search, onlyOverdue, onlyBlocked],
   );
 
   function findTask(taskId: string): BoardTask | undefined {
@@ -171,6 +189,22 @@ export function KanbanBoard({
             </option>
           ))}
         </Select>
+        {availableLabels.length > 0 && (
+          <Select
+            value={labelFilter}
+            onChange={(e) => setLabelFilter(e.target.value)}
+            className="h-9 w-auto"
+          >
+            <option value="all">
+              {de.labels.filterLabel}: {de.kanban.all}
+            </option>
+            {availableLabels.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
+        )}
         <label className="flex items-center gap-1 text-sm">
           <input
             type="checkbox"
@@ -237,6 +271,9 @@ export function KanbanBoard({
                       {task.title}
                     </Link>
                     <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                      {task.labels.map((l) => (
+                        <LabelChip key={l.id} name={l.name} color={l.color} />
+                      ))}
                       {task.isInternal && (
                         <span className="rounded bg-slate-200 px-1 py-0.5 text-slate-700">
                           {de.kanban.internal}
