@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
@@ -32,11 +33,16 @@ export async function GET(
     .maybeSingle();
 
   // RLS returns no row when the user may not see this (internal/foreign) file.
+  // This is the authorization gate; the signed URL is only minted afterwards.
   if (!file) {
     return NextResponse.json({ error: de.errors.NOT_FOUND }, { status: 404 });
   }
 
-  const { data: signed, error } = await supabase.storage
+  // Mint the signed URL with the service client. Storage read policies are
+  // agency-only; the access decision above (files-table RLS) already enforced
+  // internal-visibility, so clients still get their own client-visible files.
+  const service = createSupabaseServiceClient();
+  const { data: signed, error } = await service.storage
     .from(BUCKET)
     .createSignedUrl(file.storage_path, SIGNED_URL_TTL_SECONDS, {
       download: true,

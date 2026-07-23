@@ -8,9 +8,22 @@ import {
   buildStoragePath,
   sanitizeFileName,
 } from '@/lib/files/validation';
+import { rateLimit } from '@/lib/rate-limit';
+import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
 const BUCKET = 'files';
+
+/** Rejects cross-site POSTs by comparing the Origin header to the app URL. */
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return true; // Non-browser / same-origin navigations omit it.
+  try {
+    return new URL(origin).host === new URL(env.NEXT_PUBLIC_APP_URL).host;
+  } catch {
+    return false;
+  }
+}
 
 const ERROR_MESSAGES: Record<string, string> = {
   EMPTY: 'Die Datei ist leer.',
@@ -19,9 +32,22 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+  }
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
+  }
+
+  // Basic per-user upload rate limit (30/minute).
+  const limit = rateLimit(`upload:${user.id}`, 30, 60_000);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: de.errors.RATE_LIMITED },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+    );
   }
 
   const form = await request.formData();
