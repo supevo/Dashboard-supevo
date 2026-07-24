@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getCurrentUser } from '@/features/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AvatarUploader } from '@/features/profile/components/avatar-uploader';
+import { ProfileForm } from '@/features/profile/components/profile-form';
 import { de } from '@/lib/i18n/de';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -42,14 +43,14 @@ export default async function ProfilePage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>{user.fullName ?? user.email}</CardTitle>
+          <CardTitle>Angaben</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>
-            <span className="text-muted-foreground">E-Mail: </span>
-            {user.email}
-          </p>
-          <div>
+        <CardContent className="space-y-4">
+          <ProfileForm
+            fullName={user.fullName ?? ''}
+            email={user.email}
+          />
+          <div className="border-t pt-3 text-sm">
             <span className="text-muted-foreground">Rollen: </span>
             {user.memberships
               .map((m) => ROLE_LABELS[m.role] ?? m.role)

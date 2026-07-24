@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { moveTaskAction } from '@/features/tasks/actions';
 import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
@@ -56,9 +56,8 @@ export function KanbanBoard({
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
-  const [didDrag, setDidDrag] = useState(false);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [dragOver, setDragOver] = useState<{
     columnId: string;
     taskId: string;
@@ -367,16 +366,11 @@ export function KanbanBoard({
                     role="button"
                     tabIndex={0}
                     draggable={canDrag}
-                    onDragStart={() => {
-                      setDidDrag(true);
-                      setDragTaskId(task.id);
+                    onPointerDown={(e) => {
+                      pointerStart.current = { x: e.clientX, y: e.clientY };
                     }}
-                    onDragEnd={() => {
-                      // Reset after the click event would have fired, so a
-                      // drag never triggers navigation.
-                      setTimeout(() => setDidDrag(false), 0);
-                      setDragOver(null);
-                    }}
+                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragEnd={() => setDragOver(null)}
                     onDragOver={(e) => {
                       if (!canDrag || !dragTaskId || dragTaskId === task.id)
                         return;
@@ -387,11 +381,20 @@ export function KanbanBoard({
                       setDragOver({ columnId: col.id, taskId: task.id, after });
                     }}
                     onDrop={(e) => canDrag && handleDropOnTask(e, col.id, task.id)}
-                    onClick={() => {
-                      if (didDrag) return;
-                      router.push(
-                        `${basePath}/${projectId}/tasks/${task.id}`,
-                      );
+                    onClick={(e) => {
+                      // Distinguish a real click from the click that fires at
+                      // the end of a drag by how far the pointer travelled.
+                      const start = pointerStart.current;
+                      if (
+                        start &&
+                        Math.hypot(
+                          e.clientX - start.x,
+                          e.clientY - start.y,
+                        ) > 6
+                      ) {
+                        return;
+                      }
+                      router.push(`${basePath}/${projectId}/tasks/${task.id}`);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -467,46 +470,39 @@ export function KanbanBoard({
           );
         })}
 
-        {/* Archive column: last position, greyed out, review-only, collapsible. */}
-        {board.archived.length > 0 && (
-          <div
-            className={cn(
-              'flex shrink-0 flex-col rounded-lg bg-muted/30 p-2 opacity-70',
-              archiveOpen ? 'w-72' : 'w-44',
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => setArchiveOpen((v) => !v)}
-              className="mb-2 flex items-center justify-between gap-2 px-1 text-left"
-            >
-              <span className="text-sm font-semibold text-muted-foreground">
-                {de.kanban.archive} ({board.archived.length})
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {archiveOpen ? de.kanban.collapse : de.kanban.expand}
-              </span>
-            </button>
-            {archiveOpen && (
-              <div className="flex-1 space-y-2">
-                {board.archived.map((task) => (
-                  <button
-                    key={task.id}
-                    type="button"
-                    onClick={() =>
-                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
-                    }
-                    className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
-                  >
-                    <div className="text-sm font-medium text-muted-foreground line-through">
-                      {task.title}
-                    </div>
-                  </button>
-                ))}
-              </div>
+        {/* Archive column: last position, greyed out, review-only. */}
+        <div className="flex w-72 shrink-0 flex-col rounded-lg border border-dashed bg-muted/20 p-2 opacity-80">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <span className="text-sm font-semibold text-muted-foreground">
+              {de.kanban.archive}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {board.archived.length}
+            </span>
+          </div>
+          <div className="flex-1 space-y-2">
+            {board.archived.length === 0 ? (
+              <p className="px-1 text-xs text-muted-foreground">
+                {de.kanban.archiveEmpty}
+              </p>
+            ) : (
+              board.archived.map((task) => (
+                <button
+                  key={task.id}
+                  type="button"
+                  onClick={() =>
+                    router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                  }
+                  className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
+                >
+                  <div className="text-sm font-medium text-muted-foreground line-through">
+                    {task.title}
+                  </div>
+                </button>
+              ))
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

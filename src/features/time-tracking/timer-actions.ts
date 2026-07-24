@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { hasAgencyAccess } from '@/features/auth/access';
 import { logActivity } from '@/lib/audit';
 import { minutesBetween } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
@@ -71,13 +73,20 @@ export async function startTaskTimerAction(
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
   const user = await requireUser();
+  // Time tracking is an agency-internal tool. Access to the project is verified
+  // via RLS in resolveProject below; agency membership is verified here.
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
   const supabase = await createSupabaseServerClient();
   const project = await resolveProject(supabase, parsed.data.projectId);
   if (!project) return errorResult(de.errors.FORBIDDEN);
 
   await stopRunningTimer(supabase, user.id);
 
-  const { error } = await supabase.from('time_entries').insert({
+  // Insert with the service client: the time_entries RLS requires
+  // is_agency_staff(), which does not include super_admin. Access + role are
+  // already checked above, so this is safe.
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('time_entries').insert({
     organization_id: project.organizationId,
     client_company_id: project.clientCompanyId,
     project_id: parsed.data.projectId,
@@ -137,6 +146,7 @@ export async function addManualEntryAction(
   const d = parsed.data;
 
   const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
   const supabase = await createSupabaseServerClient();
   const project = await resolveProject(supabase, d.projectId);
   if (!project) return errorResult(de.errors.FORBIDDEN);
@@ -144,7 +154,8 @@ export async function addManualEntryAction(
   const startIso = new Date(d.startedAt).toISOString();
   const endIso = new Date(d.endedAt).toISOString();
 
-  const { error } = await supabase.from('time_entries').insert({
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('time_entries').insert({
     organization_id: project.organizationId,
     client_company_id: project.clientCompanyId,
     project_id: d.projectId,

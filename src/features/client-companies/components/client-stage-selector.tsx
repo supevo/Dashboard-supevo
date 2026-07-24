@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { setActiveStageAction } from '@/features/tasks/actions';
+import { setClientStageAction } from '@/features/client-companies/stage-actions';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Alert } from '@/components/ui/alert';
@@ -10,18 +10,17 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * Lets a manager pick the active-task Stage (1 or 2), i.e. how many tasks may
- * be "Aktive Aufgabe" at once. `currentStage` is derived from that column's
- * WIP limit (null → treated as Stage 2).
+ * Client-level Stage picker (1 or 2). Applies the active-task WIP limit to all
+ * of the client's projects. `currentStage` is derived from those projects.
  */
-export function StageSelector({
-  projectId,
+export function ClientStageSelector({
+  clientCompanyId,
   currentStage,
 }: {
-  projectId: string;
+  clientCompanyId: string;
   currentStage: number;
 }) {
-  const [state, formAction] = useActionState(setActiveStageAction, idleResult);
+  const [state, formAction] = useActionState(setClientStageAction, idleResult);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,10 +33,15 @@ export function StageSelector({
       {state.status === 'error' && (
         <Alert variant="destructive">{state.message}</Alert>
       )}
+      {state.status === 'success' && <Alert>{state.message}</Alert>}
       <div className="flex gap-2">
         {[1, 2].map((stage) => (
           <form key={stage} action={formAction}>
-            <input type="hidden" name="projectId" value={projectId} />
+            <input
+              type="hidden"
+              name="clientCompanyId"
+              value={clientCompanyId}
+            />
             <input type="hidden" name="stage" value={stage} />
             <Button
               type="submit"

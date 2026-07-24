@@ -26,12 +26,15 @@ export function Avatar({
   hasAvatar,
   size = 'md',
   className,
+  bust,
 }: {
   userId: string;
   name: string;
   hasAvatar: boolean;
   size?: keyof typeof SIZES;
   className?: string;
+  /** Cache-busting token; change it to force the browser to reload the image. */
+  bust?: number;
 }) {
   const base = cn(
     'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 font-medium text-primary',
@@ -43,7 +46,7 @@ export function Avatar({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={`/api/profiles/${userId}/avatar`}
+        src={`/api/profiles/${userId}/avatar${bust ? `?v=${bust}` : ''}`}
         alt={name}
         title={name}
         className={cn(base, 'object-cover')}

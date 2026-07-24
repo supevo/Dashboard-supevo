@@ -4,10 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import {
   getClientCompany,
+  getClientStage,
   listClientContacts,
 } from '@/features/client-companies/queries';
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
+import { ClientStageSelector } from '@/features/client-companies/components/client-stage-selector';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -21,7 +23,10 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const contacts = await listClientContacts(orgId, clientCompanyId);
+  const [contacts, stage] = await Promise.all([
+    listClientContacts(orgId, clientCompanyId),
+    getClientStage(clientCompanyId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -38,6 +43,18 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.kanban.stage}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ClientStageSelector
+            clientCompanyId={clientCompanyId}
+            currentStage={stage}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

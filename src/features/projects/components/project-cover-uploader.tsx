@@ -2,25 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Avatar } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
 import { de } from '@/lib/i18n/de';
 
-/** Uploads a profile picture and refreshes so the new avatar appears. */
-export function AvatarUploader({
-  userId,
-  name,
-  hasAvatar,
-}: {
-  userId: string;
-  name: string;
-  hasAvatar: boolean;
-}) {
+/** Compact cover-image control shown on the project page for managers. */
+export function ProjectCoverUploader({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  // Cache-busting key so the <img> reloads after a successful upload.
   const [version, setVersion] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   async function upload(file: File) {
     setError(null);
@@ -28,7 +20,7 @@ export function AvatarUploader({
     try {
       const fd = new FormData();
       fd.set('file', file);
-      const res = await fetch('/api/profiles/avatar', {
+      const res = await fetch(`/api/projects/${projectId}/cover`, {
         method: 'POST',
         body: fd,
       });
@@ -36,6 +28,7 @@ export function AvatarUploader({
       if (!res.ok || !json.ok) {
         setError(json.error ?? de.task.uploadError);
       } else {
+        setFailed(false);
         setVersion((v) => v + 1);
         router.refresh();
       }
@@ -47,31 +40,41 @@ export function AvatarUploader({
   }
 
   return (
-    <div className="flex items-center gap-4">
-      <Avatar
-        userId={userId}
-        name={name}
-        hasAvatar={hasAvatar || version > 0}
-        size="lg"
-        bust={version}
-      />
-      <div className="space-y-2">
-        {error && <Alert variant="destructive">{error}</Alert>}
-        <label>
+    <div className="flex items-center gap-3">
+      <div
+        className={cn(
+          'flex h-16 w-24 items-center justify-center overflow-hidden rounded-md border bg-muted',
+        )}
+      >
+        {failed ? (
+          <span className="text-xs text-muted-foreground">
+            {de.projects.noCover}
+          </span>
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/projects/${projectId}/cover?v=${version}`}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={() => setFailed(true)}
+          />
+        )}
+      </div>
+      <div className="space-y-1">
+        <label className="block cursor-pointer text-sm text-primary hover:underline">
+          {pending ? de.common.loading : de.projects.setCover}
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             disabled={pending}
-            className="block text-sm"
+            className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) void upload(file);
             }}
           />
         </label>
-        <p className="text-xs text-muted-foreground">
-          {pending ? de.common.loading : 'PNG, JPG, WebP oder GIF · max. 5 MB'}
-        </p>
+        {error && <Alert variant="destructive">{error}</Alert>}
       </div>
     </div>
   );
