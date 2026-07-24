@@ -13,11 +13,17 @@ import { logger } from '@/lib/logger';
  * sending is a logged no-op so the app keeps working without email.
  */
 
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+}
+
 interface SendEmailInput {
   to: string | string[];
   subject: string;
   html: string;
   text?: string;
+  attachments?: EmailAttachment[];
 }
 
 function fromAddress(): string | null {
@@ -74,6 +80,10 @@ async function sendViaSmtp(
       subject: input.subject,
       html: input.html,
       text: input.text,
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      })),
     });
     return true;
   } catch (e) {
@@ -99,6 +109,10 @@ async function sendViaResend(
         subject: input.subject,
         html: input.html,
         text: input.text,
+        attachments: input.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content.toString('base64'),
+        })),
       }),
     });
     if (!res.ok) {

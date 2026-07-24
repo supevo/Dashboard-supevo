@@ -47,7 +47,7 @@ export async function createDraftInvoice(params: {
   clientCompanyId: string;
   membership: ClientMembership;
   settings: BillingSettings | null;
-  createdBy: string;
+  createdBy: string | null;
   refDate?: Date;
 }): Promise<{ invoiceId: string } | { error: string }> {
   const { supabase, orgId, clientCompanyId, membership, settings, createdBy } =

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { buttonVariants } from '@/components/ui/button';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { getBillingSettings } from '@/features/billing/queries';
 import { BillingSettingsForm } from '@/features/billing/components/billing-settings-form';
@@ -30,6 +31,26 @@ export default async function BillingSettingsPage() {
         </CardHeader>
         <CardContent>
           <BillingSettingsForm orgId={orgId} settings={settings} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SEPA-Lastschrift</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Erzeugt eine SEPA-Datei (pain.008) mit allen offenen
+            Lastschrift-Rechnungen zum Import in dein Bank-Programm. Voraussetzung:
+            Firmenname, IBAN und Gläubiger-ID sind hinterlegt und die
+            betreffenden Kunden haben ein SEPA-Mandat.
+          </p>
+          <a
+            href="/api/billing/sepa"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            SEPA-Datei erzeugen
+          </a>
         </CardContent>
       </Card>
     </div>
