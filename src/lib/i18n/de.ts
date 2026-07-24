@@ -287,6 +287,10 @@ export const de = {
     upload: 'Datei hochladen',
     uploadInternal: 'Interne Datei (nur Agentur)',
     download: 'Herunterladen',
+    preview: 'Öffnen',
+    previewError: 'Vorschau konnte nicht geladen werden.',
+    previewUnavailable:
+      'Für diesen Dateityp ist keine Vorschau verfügbar. Bitte herunterladen.',
     noComments: 'Noch keine Kommentare.',
     noFiles: 'Noch keine Dateien.',
     noChecklists: 'Noch keine Checklisten.',
@@ -303,6 +307,7 @@ export const de = {
     cancel: 'Abbrechen',
     loading: 'Wird geladen …',
     backToLogin: 'Zurück zur Anmeldung',
+    close: 'Schließen',
   },
 } as const;
 
