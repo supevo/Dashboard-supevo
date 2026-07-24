@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { moveTaskAction } from '@/features/tasks/actions';
 import { AddTaskInline } from './add-task-inline';
 import { idleResult } from '@/lib/action-result';
@@ -42,9 +42,17 @@ export function KanbanBoard({
   members: Member[];
   canManage: boolean;
 }) {
+  const router = useRouter();
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [didDrag, setDidDrag] = useState(false);
+
+  // Sync in freshly loaded server data (e.g. a newly added task) without
+  // requiring a manual page refresh.
+  useEffect(() => {
+    setColumns(board.columns);
+  }, [board]);
 
   // Filters
   const [assignee, setAssignee] = useState('all');
@@ -256,21 +264,40 @@ export function KanbanBoard({
                 {visibleTasks.map((task) => (
                   <div
                     key={task.id}
+                    role="button"
+                    tabIndex={0}
                     draggable={canManage}
-                    onDragStart={() => setDragTaskId(task.id)}
+                    onDragStart={() => {
+                      setDidDrag(true);
+                      setDragTaskId(task.id);
+                    }}
+                    onDragEnd={() => {
+                      // Reset after the click event would have fired, so a
+                      // drag never triggers navigation.
+                      setTimeout(() => setDidDrag(false), 0);
+                    }}
+                    onClick={() => {
+                      if (didDrag) return;
+                      router.push(
+                        `/app/projects/${projectId}/tasks/${task.id}`,
+                      );
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(
+                          `/app/projects/${projectId}/tasks/${task.id}`,
+                        );
+                      }
+                    }}
                     className={cn(
-                      'rounded-md border-l-4 bg-background p-2 shadow-sm',
+                      'cursor-pointer rounded-md border-l-4 bg-background p-2 shadow-sm transition hover:shadow-md',
                       PRIORITY_CLASS[task.priority],
-                      canManage && 'cursor-grab active:cursor-grabbing',
+                      canManage && 'active:cursor-grabbing',
                     )}
                   >
-                    <Link
-                      href={`/app/projects/${projectId}/tasks/${task.id}`}
-                      className="text-sm font-medium hover:underline"
-                    >
-                      {task.title}
-                    </Link>
-                    <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                    <div className="text-sm font-medium">{task.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                       {task.labels.map((l) => (
                         <LabelChip key={l.id} name={l.name} color={l.color} />
                       ))}
@@ -297,6 +324,14 @@ export function KanbanBoard({
                           {a.name || '—'}
                         </span>
                       ))}
+                      {task.attachmentCount > 0 && (
+                        <span
+                          className="ml-auto flex items-center gap-0.5 text-muted-foreground"
+                          title={de.kanban.attachments}
+                        >
+                          📎 {task.attachmentCount}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

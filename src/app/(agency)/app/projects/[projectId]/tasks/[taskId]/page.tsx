@@ -16,6 +16,7 @@ import { ChecklistSection } from '@/features/checklists/components/checklist-sec
 import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
+import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -66,19 +67,18 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      {task.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.task.description}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: task.description }}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Briefing</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BriefingEditor
+            projectId={projectId}
+            taskId={taskId}
+            description={task.description}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

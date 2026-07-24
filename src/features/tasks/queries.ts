@@ -89,6 +89,7 @@ export interface BoardTask {
   lockVersion: number;
   assignees: TaskAssignee[];
   labels: BoardTaskLabel[];
+  attachmentCount: number;
 }
 
 export interface BoardColumn {
@@ -187,6 +188,23 @@ export async function getBoardView(
     }
   }
 
+  // Attachment counts per task.
+  const attachmentsByTask = new Map<string, number>();
+  if (taskIds.length > 0) {
+    const { data: files } = await supabase
+      .from('files')
+      .select('task_id')
+      .in('task_id', taskIds)
+      .is('deleted_at', null);
+    for (const f of files ?? []) {
+      if (!f.task_id) continue;
+      attachmentsByTask.set(
+        f.task_id,
+        (attachmentsByTask.get(f.task_id) ?? 0) + 1,
+      );
+    }
+  }
+
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -209,6 +227,7 @@ export async function getBoardView(
         lockVersion: t.lock_version,
         assignees: assigneesByTask.get(t.id) ?? [],
         labels: labelsByTask.get(t.id) ?? [],
+        attachmentCount: attachmentsByTask.get(t.id) ?? 0,
       })),
   }));
 

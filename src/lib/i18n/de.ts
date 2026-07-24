@@ -149,6 +149,7 @@ export const de = {
     overdue: 'Überfällig',
     blocked: 'Blockiert',
     internal: 'Intern',
+    attachments: 'Anhänge',
     wipLimitTotal:
       'Verschiebung nicht möglich: Das Limit dieser Spalte ist erreicht.',
     wipLimitUser:
