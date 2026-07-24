@@ -10,7 +10,9 @@ import { InviteContactForm } from '@/features/client-companies/components/invite
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { getBillingSettings } from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
+import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
+import { InvoicesSection } from '@/features/billing/components/invoices-section';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -24,10 +26,11 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const [contacts, membership, billingSettings] = await Promise.all([
+  const [contacts, membership, billingSettings, invoices] = await Promise.all([
     listClientContacts(orgId, clientCompanyId),
     getClientMembership(clientCompanyId),
     getBillingSettings(orgId),
+    listClientInvoices(clientCompanyId),
   ]);
 
   return (
@@ -56,6 +59,18 @@ export default async function ClientDetailPage({
             clientCompanyId={clientCompanyId}
             membership={membership}
             settings={billingSettings}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Rechnungen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <InvoicesSection
+            clientCompanyId={clientCompanyId}
+            invoices={invoices}
           />
         </CardContent>
       </Card>
