@@ -49,7 +49,9 @@ export async function GET(
   }
   if (!blob) return new NextResponse(null, { status: 404 });
 
-  return new NextResponse(blob, {
+  // Return a Buffer (not the Blob) so the body streams reliably on all runtimes.
+  const bytes = Buffer.from(await blob.arrayBuffer());
+  return new NextResponse(bytes, {
     status: 200,
     headers: {
       'Content-Type': blob.type || 'image/jpeg',

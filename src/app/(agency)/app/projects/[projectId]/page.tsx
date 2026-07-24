@@ -5,6 +5,7 @@ import { getProject, listProjectMembers } from '@/features/projects/queries';
 import { getBoardView } from '@/features/tasks/queries';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
+import { EditableProjectTitle } from '@/features/projects/components/editable-project-title';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -33,7 +34,13 @@ export default async function ProjectDetailPage({
           >
             ← {de.projects.back}
           </Link>
-          <h1 className="mt-2 text-2xl font-bold">{project.name}</h1>
+          <div className="mt-2">
+            <EditableProjectTitle
+              projectId={projectId}
+              name={project.name}
+              canManage={project.canManage}
+            />
+          </div>
           <p className="text-sm text-muted-foreground">
             {de.projectStatus[project.status]}
             {project.isClientVisible

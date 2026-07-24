@@ -5,7 +5,7 @@ import { de } from '@/lib/i18n/de';
 import { Button } from '@/components/ui/button';
 
 /**
- * Lightweight preview overlay. Fetches a short-lived inline signed URL and
+ * Lightweight preview overlay. Streams the file bytes from our raw endpoint and
  * renders images, PDFs and videos in place. Anything else offers a download.
  */
 export function FilePreviewModal({
@@ -19,23 +19,8 @@ export function FilePreviewModal({
   mimeType: string;
   onClose: () => void;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetch(`/api/files/${fileId}/url?disposition=inline`)
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then((json: { url: string }) => {
-        if (active) setUrl(json.url);
-      })
-      .catch(() => {
-        if (active) setError(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [fileId]);
+  const src = `/api/files/${fileId}/raw`;
 
   // Close on Escape.
   useEffect(() => {
@@ -80,21 +65,23 @@ export function FilePreviewModal({
           <p className="p-6 text-sm text-muted-foreground">
             {de.task.previewError}
           </p>
-        ) : !url ? (
-          <p className="p-6 text-sm text-muted-foreground">
-            {de.common.loading}
-          </p>
         ) : isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={url}
+            src={src}
             alt={fileName}
+            onError={() => setError(true)}
             className="max-h-full max-w-full object-contain"
           />
         ) : isPdf ? (
-          <iframe src={url} title={fileName} className="h-full w-full" />
+          <iframe src={src} title={fileName} className="h-full w-full" />
         ) : isVideo ? (
-          <video src={url} controls className="max-h-full max-w-full" />
+          <video
+            src={src}
+            controls
+            onError={() => setError(true)}
+            className="max-h-full max-w-full"
+          />
         ) : (
           <p className="p-6 text-sm text-muted-foreground">
             {de.task.previewUnavailable}

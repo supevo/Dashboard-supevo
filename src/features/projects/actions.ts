@@ -155,6 +155,52 @@ export async function updateProjectAction(
   return successResult('Projekt aktualisiert.');
 }
 
+const renameProjectSchema = z.object({
+  projectId: z.string().uuid(),
+  name: z.string().trim().min(2, 'Mindestens 2 Zeichen.').max(160),
+});
+
+/** Renames a project. Used by the inline (click-to-edit) title. */
+export async function renameProjectAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = renameProjectSchema.safeParse({
+    projectId: formData.get('projectId'),
+    name: formData.get('name'),
+  });
+  if (!parsed.success) {
+    return errorResult(
+      parsed.error.flatten().fieldErrors.name?.[0] ?? de.errors.VALIDATION,
+    );
+  }
+  const { projectId, name } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  // RLS (can_manage_project) is the hard guard.
+  const { error, count } = await supabase
+    .from('projects')
+    .update({ name }, { count: 'exact' })
+    .eq('id', projectId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'project',
+    entityId: projectId,
+    metadata: { field: 'name' },
+  });
+
+  revalidatePath(`/app/projects/${projectId}`);
+  revalidatePath('/app/projects');
+  return successResult('Projektname gespeichert.');
+}
+
 export async function archiveProjectAction(
   _prev: ActionResult,
   formData: FormData,

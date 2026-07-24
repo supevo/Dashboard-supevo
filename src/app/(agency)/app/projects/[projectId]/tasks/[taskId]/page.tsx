@@ -91,18 +91,6 @@ export default async function TaskDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>{de.task.checklists}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChecklistSection
-                ctx={{ orgId: task.organizationId, projectId, taskId }}
-                checklists={checklists}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>{de.task.files}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -123,6 +111,18 @@ export default async function TaskDetailPage({
                   ))}
                 </ul>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.task.checklists}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChecklistSection
+                ctx={{ orgId: task.organizationId, projectId, taskId }}
+                checklists={checklists}
+              />
             </CardContent>
           </Card>
 
