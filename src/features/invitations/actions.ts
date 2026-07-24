@@ -21,6 +21,8 @@ import {
   createInvitationSchema,
   invitationIdSchema,
 } from '@/features/invitations/schema';
+import { sendEmail } from '@/lib/email/send';
+import { renderEmail } from '@/lib/email/templates';
 
 const INVITE_TTL_DAYS = 7;
 
@@ -30,6 +32,24 @@ function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
 
 function inviteUrl(rawToken: string): string {
   return `${env.NEXT_PUBLIC_APP_URL}/invite/${rawToken}`;
+}
+
+/** Sends the invitation link by email (no-op when email is not configured). */
+async function sendInviteEmail(email: string, url: string): Promise<void> {
+  const { html, text } = renderEmail({
+    heading: 'Sie wurden zum Supevo Dashboard eingeladen',
+    intro:
+      'Sie haben eine Einladung erhalten. Klicken Sie auf den Button, um Ihren Zugang einzurichten.',
+    bodyLines: ['Der Einladungslink ist 7 Tage gültig.'],
+    ctaLabel: 'Einladung annehmen',
+    ctaUrl: url,
+  });
+  await sendEmail({
+    to: email,
+    subject: 'Ihre Einladung zum Supevo Dashboard',
+    html,
+    text,
+  });
 }
 
 /** Creates an invitation and returns a shareable link (email sending is a
@@ -92,8 +112,11 @@ export async function createInvitationAction(
     metadata: { email, role },
   });
 
+  const url = inviteUrl(rawToken);
+  await sendInviteEmail(email, url);
+
   revalidatePath('/app/team');
-  return successResult('Einladung erstellt.', { inviteUrl: inviteUrl(rawToken) });
+  return successResult('Einladung erstellt.', { inviteUrl: url });
 }
 
 /** Revokes an open invitation. */
@@ -155,13 +178,15 @@ export async function resendInvitationAction(
   ).toISOString();
 
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from('invitations')
     .update({ token_hash: hashInviteToken(rawToken), expires_at: expiresAt })
     .eq('id', invitationId)
     .eq('organization_id', orgId)
     .is('accepted_at', null)
-    .is('revoked_at', null);
+    .is('revoked_at', null)
+    .select('email')
+    .maybeSingle();
 
   if (error) return errorResult(de.errors.INTERNAL);
 
@@ -173,8 +198,9 @@ export async function resendInvitationAction(
     entityId: invitationId,
   });
 
+  const url = inviteUrl(rawToken);
+  if (updated?.email) await sendInviteEmail(updated.email, url);
+
   revalidatePath('/app/team');
-  return successResult('Neuer Einladungslink erstellt.', {
-    inviteUrl: inviteUrl(rawToken),
-  });
+  return successResult('Neuer Einladungslink erstellt.', { inviteUrl: url });
 }
