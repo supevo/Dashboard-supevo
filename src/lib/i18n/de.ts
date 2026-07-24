@@ -113,6 +113,7 @@ export const de = {
   projects: {
     title: 'Projekte',
     create: 'Projekt anlegen',
+    newProject: 'Neues Projekt',
     name: 'Projektname',
     description: 'Beschreibung',
     client: 'Kundenunternehmen',
@@ -121,6 +122,8 @@ export const de = {
     clientVisible: 'Für Kunde sichtbar',
     internalOnly: 'Nur intern',
     back: 'Zurück zu den Projekten',
+    setCover: 'Titelbild ändern',
+    noCover: 'Kein Bild',
   },
   projectStatus: {
     planned: 'Geplant',
@@ -160,6 +163,7 @@ export const de = {
       'Die aktive Spalte ist voll (Stage-Limit erreicht). Die Aufgabe wurde an den Anfang der Warteschlange gelegt.',
     archive: 'Archiv',
     archiveHint: 'Nur zur Ansicht',
+    archiveEmpty: 'Keine archivierten Aufgaben.',
     expand: 'Aufklappen',
     collapse: 'Zuklappen',
     wipLimitTotal:

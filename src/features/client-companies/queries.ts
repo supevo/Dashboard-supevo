@@ -57,6 +57,37 @@ export async function getClientCompany(
   };
 }
 
+/**
+ * Derives the client's current Stage from its projects' active-task columns.
+ * All of a client's projects are kept in sync, so the first non-null WIP limit
+ * wins; defaults to 2 when nothing is set yet or the client has no projects.
+ */
+export async function getClientStage(clientCompanyId: string): Promise<number> {
+  const supabase = await createSupabaseServerClient();
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('client_company_id', clientCompanyId)
+    .is('deleted_at', null);
+  const projectIds = (projects ?? []).map((p) => p.id);
+  if (projectIds.length === 0) return 2;
+
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id')
+    .in('project_id', projectIds);
+  const boardIds = (boards ?? []).map((b) => b.id);
+  if (boardIds.length === 0) return 2;
+
+  const { data: columns } = await supabase
+    .from('board_columns')
+    .select('wip_limit')
+    .in('board_id', boardIds)
+    .eq('column_key', 'active');
+  const withLimit = (columns ?? []).find((c) => c.wip_limit != null);
+  return withLimit?.wip_limit ?? 2;
+}
+
 export interface ClientContactRow {
   id: string;
   userId: string;

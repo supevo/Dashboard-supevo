@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { signOutAction } from '@/features/auth/actions';
-import { SubmitButton } from '@/components/ui/submit-button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
 
 export interface NavItem {
@@ -11,16 +10,22 @@ export interface NavItem {
 
 interface AppShellProps {
   navItems: NavItem[];
+  menuItems: UserMenuItem[];
   areaLabel: string;
+  userId: string;
   userName: string;
+  hasAvatar: boolean;
   children: React.ReactNode;
 }
 
-/** Shared authenticated shell with sidebar navigation and a logout control. */
+/** Shared authenticated shell with sidebar navigation and a user menu. */
 export function AppShell({
   navItems,
+  menuItems,
   areaLabel,
+  userId,
   userName,
+  hasAvatar,
   children,
 }: AppShellProps) {
   return (
@@ -45,14 +50,14 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b bg-card px-6 py-3">
           <span className="text-sm text-muted-foreground">{areaLabel}</span>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
-            <span className="text-sm font-medium">{userName}</span>
-            <form action={signOutAction}>
-              <SubmitButton variant="outline" size="sm">
-                {de.auth.logout}
-              </SubmitButton>
-            </form>
+            <UserMenu
+              userId={userId}
+              name={userName}
+              hasAvatar={hasAvatar}
+              items={menuItems}
+            />
           </div>
         </header>
         <main className="flex-1 p-6">{children}</main>
