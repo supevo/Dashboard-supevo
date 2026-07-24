@@ -36,6 +36,20 @@ export default async function SettingsPage() {
           </Link>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Firma &amp; Rechnung</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/app/settings/billing"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            Rechnungseinstellungen
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

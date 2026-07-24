@@ -23,6 +23,14 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type ColumnKey = 'queue' | 'active' | 'review' | 'done' | 'custom';
 export type TimeSource = 'manual' | 'timer';
 export type WorkSessionStatus = 'active' | 'on_break' | 'closed';
+export type MembershipPaymentMethod = 'sepa' | 'transfer';
+export type MembershipBillingStatus = 'active' | 'paused' | 'canceled';
+export type InvoiceStatus =
+  | 'draft'
+  | 'finalized'
+  | 'sent'
+  | 'paid'
+  | 'void';
 export type ApprovalStatus =
   | 'pending'
   | 'approved'
@@ -723,6 +731,160 @@ export interface Database {
         };
         Relationships: [];
       };
+      billing_settings: {
+        Row: {
+          organization_id: string;
+          company_name: string | null;
+          address_line1: string | null;
+          address_line2: string | null;
+          postal_code: string | null;
+          city: string | null;
+          country: string;
+          vat_id: string | null;
+          tax_number: string | null;
+          contact_email: string | null;
+          phone: string | null;
+          website: string | null;
+          iban: string | null;
+          bic: string | null;
+          bank_name: string | null;
+          creditor_id: string | null;
+          logo_path: string | null;
+          invoice_prefix: string;
+          invoice_next_number: number;
+          invoice_reset_yearly: boolean;
+          invoice_number_year: number | null;
+          invoice_number_padding: number;
+          default_tax_rate: number;
+          small_business: boolean;
+          payment_terms_text: string;
+          invoice_footer: string | null;
+          stage1_name: string;
+          stage1_net_cents: number;
+          stage2_name: string;
+          stage2_net_cents: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+        } & Partial<
+          Omit<
+            Database['public']['Tables']['billing_settings']['Row'],
+            'organization_id' | 'created_at' | 'updated_at'
+          >
+        >;
+        Update: Partial<
+          Database['public']['Tables']['billing_settings']['Insert']
+        >;
+        Relationships: [];
+      };
+      client_memberships: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          stage: number;
+          custom_name: string | null;
+          custom_net_cents: number | null;
+          interval_months: number;
+          billing_day: number;
+          payment_method: MembershipPaymentMethod;
+          status: MembershipBillingStatus;
+          start_date: string;
+          next_invoice_date: string | null;
+          auto_send: boolean;
+          mandate_reference: string | null;
+          mandate_date: string | null;
+          debtor_iban: string | null;
+          debtor_bic: string | null;
+          billing_name: string | null;
+          billing_address_line1: string | null;
+          billing_address_line2: string | null;
+          billing_postal_code: string | null;
+          billing_city: string | null;
+          billing_country: string;
+          billing_vat_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          client_company_id: string;
+        } & Partial<
+          Omit<
+            Database['public']['Tables']['client_memberships']['Row'],
+            'id' | 'organization_id' | 'client_company_id' | 'created_at' | 'updated_at'
+          >
+        >;
+        Update: Partial<
+          Database['public']['Tables']['client_memberships']['Insert']
+        >;
+        Relationships: [];
+      };
+      invoices: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          membership_id: string | null;
+          invoice_number: string | null;
+          status: InvoiceStatus;
+          issue_date: string | null;
+          service_period_start: string | null;
+          service_period_end: string | null;
+          due_date: string | null;
+          currency: string;
+          net_cents: number;
+          tax_rate: number;
+          tax_cents: number;
+          gross_cents: number;
+          payment_method: MembershipPaymentMethod | null;
+          pdf_path: string | null;
+          notes: string | null;
+          sent_at: string | null;
+          paid_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          client_company_id: string;
+        } & Partial<
+          Omit<
+            Database['public']['Tables']['invoices']['Row'],
+            'id' | 'organization_id' | 'client_company_id' | 'created_at' | 'updated_at'
+          >
+        >;
+        Update: Partial<Database['public']['Tables']['invoices']['Insert']>;
+        Relationships: [];
+      };
+      invoice_items: {
+        Row: {
+          id: string;
+          invoice_id: string;
+          position: number;
+          description: string;
+          quantity: number;
+          unit_net_cents: number;
+          tax_rate: number;
+          net_cents: number;
+        };
+        Insert: {
+          invoice_id: string;
+          description: string;
+        } & Partial<
+          Omit<
+            Database['public']['Tables']['invoice_items']['Row'],
+            'id' | 'invoice_id' | 'description'
+          >
+        >;
+        Update: Partial<
+          Database['public']['Tables']['invoice_items']['Insert']
+        >;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -767,6 +929,9 @@ export interface Database {
       task_priority: TaskPriority;
       column_key: ColumnKey;
       notification_type: NotificationType;
+      membership_payment_method: MembershipPaymentMethod;
+      membership_billing_status: MembershipBillingStatus;
+      invoice_status: InvoiceStatus;
     };
     CompositeTypes: Record<string, never>;
   };
