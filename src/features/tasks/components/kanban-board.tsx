@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { LabelChip } from '@/components/ui/label-chip';
+import { Avatar } from '@/components/ui/avatar';
 import type { BoardColumn, BoardTask, BoardView } from '@/features/tasks/queries';
 import type { TaskPriority } from '@/lib/database.types';
 
@@ -435,8 +436,14 @@ export function KanbanBoard({
                       {task.assignees.map((a) => (
                         <span
                           key={a.userId}
-                          className="rounded bg-primary/10 px-1 py-0.5 text-primary"
+                          className="flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary"
                         >
+                          <Avatar
+                            userId={a.userId}
+                            name={a.name || '—'}
+                            hasAvatar={a.hasAvatar}
+                            size="sm"
+                          />
                           {a.name || '—'}
                         </span>
                       ))}

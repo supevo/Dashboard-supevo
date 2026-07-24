@@ -43,6 +43,9 @@ export const de = {
     notifications: 'Benachrichtigungen',
     approvals: 'Freigaben',
   },
+  profile: {
+    picture: 'Profilbild',
+  },
   errors: {
     UNAUTHENTICATED: 'Bitte melde dich an, um fortzufahren.',
     FORBIDDEN: 'Du hast keine Berechtigung für diese Aktion.',
