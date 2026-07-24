@@ -12,11 +12,7 @@ export interface FileView {
   canDelete: boolean;
 }
 
-const PREVIEWABLE = new Set(['image/', 'video/', 'application/pdf']);
-
-export function isPreviewable(mime: string): boolean {
-  return [...PREVIEWABLE].some((p) => mime.startsWith(p));
-}
+export { isPreviewable } from '@/features/files/preview';
 
 /** Lists files for a task. RLS hides internal files from clients. */
 export async function listTaskFiles(

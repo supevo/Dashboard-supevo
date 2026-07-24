@@ -1,12 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
+import { createSignedFileUrl } from '@/lib/files/storage';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
-
-const BUCKET = 'files';
-const SIGNED_URL_TTL_SECONDS = 60;
 
 /**
  * Secure download: verifies the caller can read the file row (RLS enforces
@@ -38,16 +35,8 @@ export async function GET(
     return NextResponse.json({ error: de.errors.NOT_FOUND }, { status: 404 });
   }
 
-  // Mint the signed URL with the service client. Storage read policies are
-  // agency-only; the access decision above (files-table RLS) already enforced
-  // internal-visibility, so clients still get their own client-visible files.
-  const service = createSupabaseServiceClient();
-  const { data: signed, error } = await service.storage
-    .from(BUCKET)
-    .createSignedUrl(file.storage_path, SIGNED_URL_TTL_SECONDS, {
-      download: true,
-    });
-  if (error || !signed) {
+  const url = await createSignedFileUrl(supabase, file.storage_path, 'attachment');
+  if (!url) {
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }
 
@@ -59,5 +48,5 @@ export async function GET(
     entityId: fileId,
   });
 
-  return NextResponse.redirect(signed.signedUrl);
+  return NextResponse.redirect(url);
 }
