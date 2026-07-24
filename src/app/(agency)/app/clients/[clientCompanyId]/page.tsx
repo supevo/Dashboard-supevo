@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import {
   getClientCompany,
-  getClientStage,
   listClientContacts,
 } from '@/features/client-companies/queries';
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
-import { ClientStageSelector } from '@/features/client-companies/components/client-stage-selector';
+import { getBillingSettings } from '@/features/billing/queries';
+import { getClientMembership } from '@/features/billing/membership';
+import { MembershipForm } from '@/features/billing/components/membership-form';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -23,9 +24,10 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const [contacts, stage] = await Promise.all([
+  const [contacts, membership, billingSettings] = await Promise.all([
     listClientContacts(orgId, clientCompanyId),
-    getClientStage(clientCompanyId),
+    getClientMembership(clientCompanyId),
+    getBillingSettings(orgId),
   ]);
 
   return (
@@ -46,12 +48,14 @@ export default async function ClientDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>{de.kanban.stage}</CardTitle>
+          <CardTitle>Mitgliedschaft</CardTitle>
         </CardHeader>
         <CardContent>
-          <ClientStageSelector
+          <MembershipForm
+            orgId={orgId}
             clientCompanyId={clientCompanyId}
-            currentStage={stage}
+            membership={membership}
+            settings={billingSettings}
           />
         </CardContent>
       </Card>
