@@ -235,6 +235,8 @@ export const de = {
     noProjects: 'Es sind noch keine Projekte freigegeben.',
     tasks: 'Aufgaben',
     noTasks: 'Keine Aufgaben vorhanden.',
+    reorderHint:
+      'Ziehen Sie Aufgaben, um die Bearbeitungsreihenfolge festzulegen.',
     open: 'Öffnen',
     back: 'Zurück',
     feedback: 'Feedback',
