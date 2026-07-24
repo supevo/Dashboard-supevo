@@ -47,7 +47,7 @@ export default async function TaskDetailPage({
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <Link
           href={`/app/projects/${projectId}`}
@@ -59,8 +59,6 @@ export default async function TaskDetailPage({
         <p className="text-sm text-muted-foreground">
           {de.priority[task.priority]}
           {task.isInternal ? ` · ${de.kanban.internal}` : ''}
-          {task.assignees.length > 0 &&
-            ` · ${task.assignees.map((a) => a.name).join(', ')}`}
           {` · ${de.time.taskTime}: ${formatMinutes(task.actualMinutes)}`}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -75,130 +73,142 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Briefing</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BriefingEditor
-            projectId={projectId}
-            taskId={taskId}
-            description={task.description}
-          />
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Main column: content work */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Briefing</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BriefingEditor
+                projectId={projectId}
+                taskId={taskId}
+                description={task.description}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Verantwortliche</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AssigneePicker
-            projectId={projectId}
-            taskId={taskId}
-            assignees={task.assignees}
-            members={members}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.task.checklists}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChecklistSection
+                ctx={{ orgId: task.organizationId, projectId, taskId }}
+                checklists={checklists}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.labels.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LabelPicker
-            orgId={task.organizationId}
-            projectId={projectId}
-            taskId={taskId}
-            assigned={taskLabels}
-            available={orgLabels}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.task.files}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <FileUploader projectId={projectId} taskId={taskId} />
+              {files.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {de.task.noFiles}
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {files.map((f) => (
+                    <FileItem
+                      key={f.id}
+                      file={f}
+                      projectId={projectId}
+                      taskId={taskId}
+                    />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.approvals.title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {taskApprovals.length > 0 && (
-            <ul className="space-y-1 text-sm">
-              {taskApprovals.map((a) => (
-                <li key={a.id} className="flex justify-between">
-                  <span>{a.title}</span>
-                  <span className="text-muted-foreground">
-                    {de.approvals[a.status]}
-                    {a.decisionComment ? ` · ${a.decisionComment}` : ''}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <RequestApprovalForm
-            projectId={projectId}
-            taskId={taskId}
-            defaultTitle={task.title}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.task.comments}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <CommentForm
+                orgId={task.organizationId}
+                projectId={projectId}
+                taskId={taskId}
+              />
+              {comments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {de.task.noComments}
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {comments.map((c) => (
+                    <CommentItem key={c.id} comment={c} />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.task.checklists}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChecklistSection
-            ctx={{ orgId: task.organizationId, projectId, taskId }}
-            checklists={checklists}
-          />
-        </CardContent>
-      </Card>
+        {/* Nebenblock: responsibilities, labels & approvals */}
+        <aside className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Verantwortliche</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AssigneePicker
+                projectId={projectId}
+                taskId={taskId}
+                assignees={task.assignees}
+                members={members}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.task.files}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <FileUploader projectId={projectId} taskId={taskId} />
-          {files.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{de.task.noFiles}</p>
-          ) : (
-            <ul className="divide-y">
-              {files.map((f) => (
-                <FileItem
-                  key={f.id}
-                  file={f}
-                  projectId={projectId}
-                  taskId={taskId}
-                />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.labels.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LabelPicker
+                orgId={task.organizationId}
+                projectId={projectId}
+                taskId={taskId}
+                assigned={taskLabels}
+                available={orgLabels}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.task.comments}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <CommentForm
-            orgId={task.organizationId}
-            projectId={projectId}
-            taskId={taskId}
-          />
-          {comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{de.task.noComments}</p>
-          ) : (
-            <div className="space-y-2">
-              {comments.map((c) => (
-                <CommentItem key={c.id} comment={c} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.approvals.title}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {taskApprovals.length > 0 && (
+                <ul className="space-y-1 text-sm">
+                  {taskApprovals.map((a) => (
+                    <li key={a.id} className="flex justify-between gap-2">
+                      <span>{a.title}</span>
+                      <span className="text-muted-foreground">
+                        {de.approvals[a.status]}
+                        {a.decisionComment ? ` · ${a.decisionComment}` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <RequestApprovalForm
+                projectId={projectId}
+                taskId={taskId}
+                defaultTitle={task.title}
+              />
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
     </div>
   );
 }

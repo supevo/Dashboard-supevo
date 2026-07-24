@@ -39,10 +39,16 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     .eq('task_id', taskId);
   const ids = (assigneeRows ?? []).map((a) => a.user_id);
   const { data: profiles } = ids.length
-    ? await supabase.from('profiles').select('id, full_name').in('id', ids)
+    ? await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .in('id', ids)
     : { data: [] };
   const nameById = new Map(
     (profiles ?? []).map((p) => [p.id, p.full_name ?? ''] as const),
+  );
+  const avatarById = new Map(
+    (profiles ?? []).map((p) => [p.id, Boolean(p.avatar_url)] as const),
   );
 
   const { data: canManage } = await supabase.rpc('can_manage_project', {
@@ -63,7 +69,11 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     estimatedMinutes: task.estimated_minutes,
     actualMinutes: task.actual_minutes,
     lockVersion: task.lock_version,
-    assignees: ids.map((id) => ({ userId: id, name: nameById.get(id) ?? '' })),
+    assignees: ids.map((id) => ({
+      userId: id,
+      name: nameById.get(id) ?? '',
+      hasAvatar: avatarById.get(id) ?? false,
+    })),
     canManage: canManage === true,
   };
 }
@@ -71,6 +81,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
 export interface TaskAssignee {
   userId: string;
   name: string;
+  hasAvatar: boolean;
 }
 
 export interface BoardTaskLabel {
@@ -170,14 +181,21 @@ export async function getBoardView(
     const userIds = [...new Set((assignees ?? []).map((a) => a.user_id))];
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('id, full_name')
+      .select('id, full_name, avatar_url')
       .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
     const nameById = new Map(
       (profiles ?? []).map((p) => [p.id, p.full_name ?? ''] as const),
     );
+    const avatarById = new Map(
+      (profiles ?? []).map((p) => [p.id, Boolean(p.avatar_url)] as const),
+    );
     for (const a of assignees ?? []) {
       const list = assigneesByTask.get(a.task_id) ?? [];
-      list.push({ userId: a.user_id, name: nameById.get(a.user_id) ?? '' });
+      list.push({
+        userId: a.user_id,
+        name: nameById.get(a.user_id) ?? '',
+        hasAvatar: avatarById.get(a.user_id) ?? false,
+      });
       assigneesByTask.set(a.task_id, list);
     }
   }

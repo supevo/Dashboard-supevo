@@ -9,6 +9,7 @@ import {
 import { idleResult } from '@/lib/action-result';
 import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
+import { Avatar } from '@/components/ui/avatar';
 import type { TaskAssignee } from '@/features/tasks/queries';
 
 interface Member {
@@ -52,6 +53,12 @@ export function AssigneePicker({
             key={a.userId}
             className="inline-flex items-center gap-1 rounded bg-primary/10 px-2 py-0.5 text-xs text-primary"
           >
+            <Avatar
+              userId={a.userId}
+              name={a.name || '—'}
+              hasAvatar={a.hasAvatar}
+              size="sm"
+            />
             {a.name || '—'}
             <form action={unassignAction} className="inline">
               <input type="hidden" name="projectId" value={projectId} />
