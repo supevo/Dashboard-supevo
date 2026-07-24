@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { moveTaskAction } from '@/features/tasks/actions';
+import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
@@ -36,17 +37,30 @@ export function KanbanBoard({
   board,
   members,
   canManage,
+  reorderOnly = false,
+  basePath = '/app/projects',
 }: {
   projectId: string;
   board: BoardView;
   members: Member[];
   canManage: boolean;
+  /** Allow drag-reordering WITHIN a column without full management rights
+   *  (e.g. clients setting their processing order). No cross-column moves. */
+  reorderOnly?: boolean;
+  /** Route prefix for opening a task, e.g. '/app/projects' or '/portal/projects'. */
+  basePath?: string;
 }) {
   const router = useRouter();
+  const canDrag = canManage || reorderOnly;
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [didDrag, setDidDrag] = useState(false);
+  const [dragOver, setDragOver] = useState<{
+    columnId: string;
+    taskId: string;
+    after: boolean;
+  } | null>(null);
 
   // Sync in freshly loaded server data (e.g. a newly added task) without
   // requiring a manual page refresh.
@@ -106,40 +120,62 @@ export function KanbanBoard({
     return undefined;
   }
 
-  async function handleDrop(targetColumnId: string) {
-    const taskId = dragTaskId;
-    setDragTaskId(null);
-    if (!taskId) return;
+  /**
+   * Moves `taskId` into `targetColumnId` at `insertIndex` (index within the
+   * target column's tasks, excluding the moving task). Handles both
+   * cross-column moves and same-column reordering; persists via move_task,
+   * which stores a fractional position so order survives reloads.
+   */
+  async function moveTo(
+    taskId: string,
+    targetColumnId: string,
+    insertIndex: number,
+  ) {
     const task = findTask(taskId);
-    if (!task || task.columnId === targetColumnId) return;
+    if (!task) return;
+
+    // Reorder-only mode (clients): never change a task's column/status.
+    if (reorderOnly && task.columnId !== targetColumnId) return;
+
+    const targetCol = columns.find((c) => c.id === targetColumnId);
+    if (!targetCol) return;
+
+    const others = targetCol.tasks
+      .filter((t) => t.id !== taskId)
+      .sort((a, b) => a.position - b.position);
+    const idx = Math.max(0, Math.min(insertIndex, others.length));
+
+    // Same column and same slot → nothing to do.
+    if (task.columnId === targetColumnId) {
+      const currentIdx = others.findIndex((t) => t.position > task.position);
+      const currentSlot = currentIdx === -1 ? others.length : currentIdx;
+      if (currentSlot === idx) return;
+    }
+
+    const newPosition = computeInsertPosition(
+      others.map((t) => t.position),
+      idx,
+    );
 
     const previous = columns;
-    const newPosition =
-      Math.max(
-        0,
-        ...columns
-          .find((c) => c.id === targetColumnId)!
-          .tasks.map((t) => t.position),
-      ) + 1000;
+    const moved: BoardTask = {
+      ...task,
+      columnId: targetColumnId,
+      position: newPosition,
+      lockVersion: task.lockVersion + 1,
+    };
 
-    // Optimistic move.
+    // Optimistic update: remove from old column, insert into target, re-sort.
     setColumns((cols) =>
       cols.map((col) => {
-        if (col.id === task.columnId) {
+        if (col.id === task.columnId && col.id !== targetColumnId) {
           return { ...col, tasks: col.tasks.filter((t) => t.id !== taskId) };
         }
         if (col.id === targetColumnId) {
+          const kept = col.tasks.filter((t) => t.id !== taskId);
           return {
             ...col,
-            tasks: [
-              ...col.tasks,
-              {
-                ...task,
-                columnId: targetColumnId,
-                position: newPosition,
-                lockVersion: task.lockVersion + 1,
-              },
-            ],
+            tasks: [...kept, moved].sort((a, b) => a.position - b.position),
           };
         }
         return col;
@@ -158,6 +194,44 @@ export function KanbanBoard({
       setColumns(previous); // roll back
       setError(result.message);
     }
+  }
+
+  /** Drop over a card: insert before or after it depending on the cursor. */
+  function handleDropOnTask(
+    e: DragEvent,
+    targetColumnId: string,
+    targetTaskId: string,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const taskId = dragTaskId;
+    setDragTaskId(null);
+    setDragOver(null);
+    if (!taskId || taskId === targetTaskId) return;
+
+    const targetCol = columns.find((c) => c.id === targetColumnId);
+    if (!targetCol) return;
+    const others = targetCol.tasks
+      .filter((t) => t.id !== taskId)
+      .sort((a, b) => a.position - b.position);
+    const baseIndex = others.findIndex((t) => t.id === targetTaskId);
+    if (baseIndex === -1) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY - rect.top > rect.height / 2;
+    void moveTo(taskId, targetColumnId, after ? baseIndex + 1 : baseIndex);
+  }
+
+  /** Drop over the column background: append to the end of the column. */
+  function handleDropOnColumn(targetColumnId: string) {
+    const taskId = dragTaskId;
+    setDragTaskId(null);
+    setDragOver(null);
+    if (!taskId) return;
+    const targetCol = columns.find((c) => c.id === targetColumnId);
+    if (!targetCol) return;
+    const count = targetCol.tasks.filter((t) => t.id !== taskId).length;
+    void moveTo(taskId, targetColumnId, count);
   }
 
   return (
@@ -234,14 +308,17 @@ export function KanbanBoard({
       {/* Board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((col) => {
-          const visibleTasks = col.tasks.filter(matchesFilters);
+          const visibleTasks = col.tasks
+            .filter(matchesFilters)
+            .slice()
+            .sort((a, b) => a.position - b.position);
           const atLimit =
             col.wipLimit != null && col.tasks.length >= col.wipLimit;
           return (
             <div
               key={col.id}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(col.id)}
+              onDragOver={(e) => canDrag && e.preventDefault()}
+              onDrop={() => canDrag && handleDropOnColumn(col.id)}
               className="flex w-72 shrink-0 flex-col rounded-lg bg-muted/50 p-2"
             >
               <div className="mb-2 flex items-center justify-between px-1">
@@ -266,7 +343,7 @@ export function KanbanBoard({
                     key={task.id}
                     role="button"
                     tabIndex={0}
-                    draggable={canManage}
+                    draggable={canDrag}
                     onDragStart={() => {
                       setDidDrag(true);
                       setDragTaskId(task.id);
@@ -275,25 +352,42 @@ export function KanbanBoard({
                       // Reset after the click event would have fired, so a
                       // drag never triggers navigation.
                       setTimeout(() => setDidDrag(false), 0);
+                      setDragOver(null);
                     }}
+                    onDragOver={(e) => {
+                      if (!canDrag || !dragTaskId || dragTaskId === task.id)
+                        return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const after = e.clientY - rect.top > rect.height / 2;
+                      setDragOver({ columnId: col.id, taskId: task.id, after });
+                    }}
+                    onDrop={(e) => canDrag && handleDropOnTask(e, col.id, task.id)}
                     onClick={() => {
                       if (didDrag) return;
                       router.push(
-                        `/app/projects/${projectId}/tasks/${task.id}`,
+                        `${basePath}/${projectId}/tasks/${task.id}`,
                       );
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         router.push(
-                          `/app/projects/${projectId}/tasks/${task.id}`,
+                          `${basePath}/${projectId}/tasks/${task.id}`,
                         );
                       }
                     }}
                     className={cn(
                       'cursor-pointer rounded-md border-l-4 bg-background p-2 shadow-sm transition hover:shadow-md',
                       PRIORITY_CLASS[task.priority],
-                      canManage && 'active:cursor-grabbing',
+                      canDrag && 'active:cursor-grabbing',
+                      dragOver?.taskId === task.id &&
+                        !dragOver.after &&
+                        'shadow-[inset_0_2px_0_0_hsl(var(--primary))]',
+                      dragOver?.taskId === task.id &&
+                        dragOver.after &&
+                        'shadow-[inset_0_-2px_0_0_hsl(var(--primary))]',
                     )}
                   >
                     <div className="text-sm font-medium">{task.title}</div>

@@ -6,7 +6,7 @@ import { getProject } from '@/features/projects/queries';
 import { getBoardView } from '@/features/tasks/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
-import { LabelChip } from '@/components/ui/label-chip';
+import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectPage({
@@ -61,31 +61,22 @@ export default async function PortalProjectPage({
           <CardTitle>{de.portal.tasks}</CardTitle>
         </CardHeader>
         <CardContent>
-          {tasks.length === 0 ? (
+          {tasks.length === 0 || !board ? (
             <p className="text-sm text-muted-foreground">{de.portal.noTasks}</p>
           ) : (
-            <ul className="divide-y">
-              {tasks.map((t) => (
-                <li key={t.id} className="flex items-center justify-between py-3">
-                  <div>
-                    <Link
-                      href={`/portal/projects/${projectId}/tasks/${t.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {t.title}
-                    </Link>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {t.labels.map((l) => (
-                        <LabelChip key={l.id} name={l.name} color={l.color} />
-                      ))}
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {t.columnName}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="mb-3 text-sm text-muted-foreground">
+                {de.portal.reorderHint}
+              </p>
+              <KanbanBoard
+                projectId={projectId}
+                board={board}
+                members={[]}
+                canManage={false}
+                reorderOnly
+                basePath="/portal/projects"
+              />
+            </>
           )}
         </CardContent>
       </Card>
