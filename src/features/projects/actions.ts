@@ -41,6 +41,11 @@ export async function createProjectAction(
   authorize(user, { type: 'project.create', orgId });
 
   const supabase = await createSupabaseServerClient();
+  // Ensure this client's session (and thus auth.uid() for the write) is loaded
+  // and refreshed before the insert. Without this the write can run with a
+  // missing/expired token even though reads worked, causing an RLS rejection.
+  await supabase.auth.getUser();
+
   const { data: project, error } = await supabase
     .from('projects')
     .insert({
@@ -63,11 +68,16 @@ export async function createProjectAction(
       details: error?.details,
       hint: error?.hint,
     });
-    // A row-level-security rejection means the account lacks an active
-    // agency-admin/super-admin membership in this organization.
+    // A row-level-security rejection: show the write-path auth context so we
+    // can confirm whether auth.uid() is present during the insert.
     if (error?.code === '42501') {
+      const { data: who } = await supabase.rpc('whoami');
       return errorResult(
-        'Dein Konto hat keine Berechtigung, in dieser Organisation Projekte anzulegen. Bitte prüfe deine Mitgliedschaft/Rolle (Admin).',
+        `RLS-Ablehnung. Schreib-Kontext: uid=${
+          (who as { uid?: string } | null)?.uid ?? 'null'
+        }, is_super_admin=${
+          (who as { is_super_admin?: boolean } | null)?.is_super_admin ?? 'null'
+        }`,
       );
     }
     return errorResult(de.errors.INTERNAL);
