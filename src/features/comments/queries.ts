@@ -7,6 +7,7 @@ export interface CommentView {
   isInternal: boolean;
   authorId: string;
   authorName: string;
+  authorHasAvatar: boolean;
   createdAt: string;
   editedAt: string | null;
   canEdit: boolean;
@@ -30,10 +31,13 @@ export async function listTaskComments(
   const authorIds = [...new Set(comments.map((c) => c.author_id))];
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, full_name')
+    .select('id, full_name, avatar_url')
     .in('id', authorIds);
   const nameById = new Map(
     (profiles ?? []).map((p) => [p.id, p.full_name ?? '—'] as const),
+  );
+  const avatarById = new Map(
+    (profiles ?? []).map((p) => [p.id, Boolean(p.avatar_url)] as const),
   );
 
   return comments.map((c) => ({
@@ -42,6 +46,7 @@ export async function listTaskComments(
     isInternal: c.is_internal,
     authorId: c.author_id,
     authorName: nameById.get(c.author_id) ?? '—',
+    authorHasAvatar: avatarById.get(c.author_id) ?? false,
     createdAt: c.created_at,
     editedAt: c.edited_at,
     canEdit: c.author_id === currentUserId,

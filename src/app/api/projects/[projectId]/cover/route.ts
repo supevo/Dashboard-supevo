@@ -62,7 +62,8 @@ export async function GET(
   }
   if (!blob) return new NextResponse(null, { status: 404 });
 
-  return new NextResponse(blob, {
+  const bytes = Buffer.from(await blob.arrayBuffer());
+  return new NextResponse(bytes, {
     status: 200,
     headers: {
       'Content-Type': blob.type || 'image/jpeg',
@@ -127,16 +128,31 @@ export async function POST(
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  // Service client: fixed-path upsert (overwrite) bypasses the storage
-  // insert-only RLS; the manager check above is the authorization gate.
-  const { error } = await createSupabaseServiceClient()
-    .storage.from(FILES_BUCKET)
-    .upload(coverPath(project.organization_id, projectId), bytes, {
-      contentType: file.type,
-      upsert: true,
-    });
-  if (error) {
-    return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
+  const path = coverPath(project.organization_id, projectId);
+
+  // Prefer the service client (fixed-path upsert/overwrite bypasses the
+  // insert-only storage RLS). If it is unavailable (service key not set),
+  // fall back to the caller's own client — this succeeds for a first upload
+  // (INSERT policy); replacing an existing cover then needs the service key.
+  let uploadError: string | null = null;
+  try {
+    const { error } = await createSupabaseServiceClient()
+      .storage.from(FILES_BUCKET)
+      .upload(path, bytes, { contentType: file.type, upsert: true });
+    uploadError = error?.message ?? null;
+  } catch (e) {
+    uploadError = (e as Error).message;
+  }
+
+  if (uploadError) {
+    logger.warn('cover.upload.service_failed', { error: uploadError });
+    const { error } = await supabase.storage
+      .from(FILES_BUCKET)
+      .upload(path, bytes, { contentType: file.type, upsert: true });
+    if (error) {
+      logger.error('cover.upload.fallback_failed', { error: error.message });
+      return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
+    }
   }
 
   // A random token invalidates any cached image so the new cover shows.
