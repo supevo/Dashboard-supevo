@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -41,43 +42,34 @@ export async function createProjectAction(
   authorize(user, { type: 'project.create', orgId });
 
   const supabase = await createSupabaseServerClient();
-  // Ensure this client's session (and thus auth.uid() for the write) is loaded
-  // and refreshed before the insert. Without this the write can run with a
-  // missing/expired token even though reads worked, causing an RLS rejection.
-  await supabase.auth.getUser();
 
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert({
-      organization_id: orgId,
-      client_company_id: clientCompanyId,
-      name,
-      description: description || null,
-      status: 'active',
-      lead_user_id: user.id,
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
+  // Generate the id client-side and insert WITHOUT a RETURNING (.select()).
+  // The projects SELECT policy calls can_access_project(id), which re-queries
+  // the projects table; as a STABLE function it cannot see the just-inserted
+  // row within the same statement, so RETURNING the row would fail RLS (42501)
+  // even though the INSERT WITH CHECK passes. Avoiding RETURNING sidesteps this.
+  const projectId = randomUUID();
+  const { error } = await supabase.from('projects').insert({
+    id: projectId,
+    organization_id: orgId,
+    client_company_id: clientCompanyId,
+    name,
+    description: description || null,
+    status: 'active',
+    lead_user_id: user.id,
+    created_by: user.id,
+  });
 
-  if (error || !project) {
-    // Real DB error stays in the server log; the user gets a generic message.
+  if (error) {
     logger.error('Projekt anlegen fehlgeschlagen', {
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
     });
-    // A row-level-security rejection: show the write-path auth context so we
-    // can confirm whether auth.uid() is present during the insert.
-    if (error?.code === '42501') {
-      const { data: who } = await supabase.rpc('whoami');
+    if (error.code === '42501') {
       return errorResult(
-        `RLS-Ablehnung. Schreib-Kontext: uid=${
-          (who as { uid?: string } | null)?.uid ?? 'null'
-        }, is_super_admin=${
-          (who as { is_super_admin?: boolean } | null)?.is_super_admin ?? 'null'
-        }`,
+        'Dein Konto hat keine Berechtigung, in dieser Organisation Projekte anzulegen. Bitte prüfe deine Mitgliedschaft/Rolle (Admin).',
       );
     }
     return errorResult(de.errors.INTERNAL);
@@ -85,7 +77,7 @@ export async function createProjectAction(
 
   // Add the creator as project lead (the default board is created by trigger).
   const { error: memberError } = await supabase.from('project_members').insert({
-    project_id: project.id,
+    project_id: projectId,
     user_id: user.id,
     role: 'lead',
   });
@@ -101,12 +93,12 @@ export async function createProjectAction(
     organizationId: orgId,
     action: 'create',
     entityType: 'project',
-    entityId: project.id,
+    entityId: projectId,
     metadata: { name },
   });
 
   revalidatePath('/app/projects');
-  return successResult('Projekt angelegt.', { projectId: project.id });
+  return successResult('Projekt angelegt.', { projectId });
 }
 
 export async function updateProjectAction(
