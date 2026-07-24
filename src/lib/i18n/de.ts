@@ -150,6 +150,15 @@ export const de = {
     blocked: 'Blockiert',
     internal: 'Intern',
     attachments: 'Anhänge',
+    stage: 'Stage',
+    stageHint:
+      'Stage legt fest, wie viele Aufgaben gleichzeitig „Aktive Aufgabe" sein dürfen (Stage 1 = eine, Stage 2 = zwei).',
+    stageOverflow:
+      'Die aktive Spalte ist voll (Stage-Limit erreicht). Die Aufgabe wurde an den Anfang der Warteschlange gelegt.',
+    archive: 'Archiv',
+    archiveHint: 'Nur zur Ansicht',
+    expand: 'Aufklappen',
+    collapse: 'Zuklappen',
     wipLimitTotal:
       'Verschiebung nicht möglich: Das Limit dieser Spalte ist erreicht.',
     wipLimitUser:

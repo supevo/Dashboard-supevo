@@ -54,6 +54,8 @@ export function KanbanBoard({
   const canDrag = canManage || reorderOnly;
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [didDrag, setDidDrag] = useState(false);
   const [dragOver, setDragOver] = useState<{
@@ -140,6 +142,24 @@ export function KanbanBoard({
     const targetCol = columns.find((c) => c.id === targetColumnId);
     if (!targetCol) return;
 
+    // Stage limit: if the active column is full, don't reject — reroute the
+    // task to the TOP of the queue so nothing is silently blocked.
+    if (
+      targetCol.columnKey === 'active' &&
+      task.columnId !== targetColumnId &&
+      targetCol.wipLimit != null
+    ) {
+      const activeCount = targetCol.tasks.filter((t) => t.id !== taskId).length;
+      if (activeCount >= targetCol.wipLimit) {
+        const queue = columns.find((c) => c.columnKey === 'queue');
+        if (queue) {
+          await moveTo(taskId, queue.id, 0);
+          setNotice(de.kanban.stageOverflow);
+          return;
+        }
+      }
+    }
+
     const others = targetCol.tasks
       .filter((t) => t.id !== taskId)
       .sort((a, b) => a.position - b.position);
@@ -182,6 +202,7 @@ export function KanbanBoard({
       }),
     );
     setError(null);
+    setNotice(null);
 
     const fd = new FormData();
     fd.set('taskId', taskId);
@@ -237,6 +258,7 @@ export function KanbanBoard({
   return (
     <div className="space-y-4">
       {error && <Alert variant="destructive">{error}</Alert>}
+      {notice && <Alert>{notice}</Alert>}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
@@ -437,6 +459,47 @@ export function KanbanBoard({
             </div>
           );
         })}
+
+        {/* Archive column: last position, greyed out, review-only, collapsible. */}
+        {board.archived.length > 0 && (
+          <div
+            className={cn(
+              'flex shrink-0 flex-col rounded-lg bg-muted/30 p-2 opacity-70',
+              archiveOpen ? 'w-72' : 'w-44',
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => setArchiveOpen((v) => !v)}
+              className="mb-2 flex items-center justify-between gap-2 px-1 text-left"
+            >
+              <span className="text-sm font-semibold text-muted-foreground">
+                {de.kanban.archive} ({board.archived.length})
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {archiveOpen ? de.kanban.collapse : de.kanban.expand}
+              </span>
+            </button>
+            {archiveOpen && (
+              <div className="flex-1 space-y-2">
+                {board.archived.map((task) => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    onClick={() =>
+                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                    }
+                    className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
+                  >
+                    <div className="text-sm font-medium text-muted-foreground line-through">
+                      {task.title}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
