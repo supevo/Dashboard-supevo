@@ -60,6 +60,64 @@ export async function updateTaskBriefingAction(
   return successResult('Briefing gespeichert.');
 }
 
+const setStageSchema = z.object({
+  projectId: z.string().uuid(),
+  stage: z.coerce.number().int().min(1).max(2),
+});
+
+/**
+ * Sets the project's "Stage" — the WIP limit of the active-task column
+ * ('Aktive Aufgabe'). Stage 1 allows one active task, Stage 2 allows two.
+ * The move_task function then blocks activating more than the limit; the board
+ * additionally reroutes overflow to the top of the queue.
+ */
+export async function setActiveStageAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = setStageSchema.safeParse({
+    projectId: formData.get('projectId'),
+    stage: formData.get('stage'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, stage } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id')
+    .eq('project_id', projectId);
+  const boardIds = (boards ?? []).map((b) => b.id);
+  if (boardIds.length === 0) return errorResult(de.errors.NOT_FOUND);
+
+  // RLS (board_columns_write → can_manage_project) restricts this to managers.
+  const { error, count } = await supabase
+    .from('board_columns')
+    .update(
+      { wip_limit: stage, wip_limit_per_user: null },
+      { count: 'exact' },
+    )
+    .in('board_id', boardIds)
+    .eq('column_key', 'active');
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'project',
+    entityId: projectId,
+    metadata: { field: 'stage', stage },
+  });
+
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult(`Stage ${stage} aktiviert.`);
+}
+
 /** Maps a move_task() database exception to a user-facing German message. */
 function moveErrorMessage(dbMessage: string): string {
   if (dbMessage.includes('WIP_LIMIT_TOTAL')) return de.kanban.wipLimitTotal;
@@ -172,19 +230,45 @@ export async function moveTaskAction(
   return successResult('Aufgabe verschoben.');
 }
 
+const setArchivedSchema = z.object({
+  taskId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  archived: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true'),
+});
+
 export async function archiveTaskAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const parsed = archiveTaskSchema.safeParse({ taskId: formData.get('taskId') });
-  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const parsed = setArchivedSchema.safeParse({
+    taskId: formData.get('taskId'),
+    projectId: formData.get('projectId'),
+    archived: formData.get('archived') ?? 'true',
+  });
+  if (!parsed.success) {
+    // Backwards-compatible path: taskId only → archive.
+    const legacy = archiveTaskSchema.safeParse({
+      taskId: formData.get('taskId'),
+    });
+    if (!legacy.success) return errorResult(de.errors.VALIDATION);
+    return setArchived(legacy.data.taskId, null, true);
+  }
+  return setArchived(parsed.data.taskId, parsed.data.projectId, parsed.data.archived);
+}
 
+async function setArchived(
+  taskId: string,
+  projectId: string | null,
+  archived: boolean,
+): Promise<ActionResult> {
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
   const { error, count } = await supabase
     .from('tasks')
-    .update({ is_archived: true }, { count: 'exact' })
-    .eq('id', parsed.data.taskId);
+    .update({ is_archived: archived }, { count: 'exact' })
+    .eq('id', taskId);
 
   if (error) return errorResult(de.errors.INTERNAL);
   if (!count) return errorResult(de.errors.FORBIDDEN);
@@ -194,8 +278,15 @@ export async function archiveTaskAction(
     organizationId: null,
     action: 'archive',
     entityType: 'task',
-    entityId: parsed.data.taskId,
+    entityId: taskId,
+    metadata: { archived },
   });
 
-  return successResult('Aufgabe archiviert.');
+  if (projectId) {
+    revalidatePath(`/app/projects/${projectId}`);
+    revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  }
+  return successResult(
+    archived ? 'Aufgabe archiviert.' : 'Aufgabe wiederhergestellt.',
+  );
 }

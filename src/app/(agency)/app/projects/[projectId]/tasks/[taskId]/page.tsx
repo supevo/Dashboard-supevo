@@ -17,6 +17,7 @@ import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
+import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -62,8 +63,15 @@ export default async function TaskDetailPage({
             ` · ${task.assignees.map((a) => a.name).join(', ')}`}
           {` · ${de.time.taskTime}: ${formatMinutes(task.actualMinutes)}`}
         </p>
-        <div className="mt-3">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <StartTimerButton projectId={projectId} taskId={taskId} />
+          {task.canManage && (
+            <ArchiveTaskButton
+              projectId={projectId}
+              taskId={taskId}
+              isArchived={task.isArchived}
+            />
+          )}
         </div>
       </div>
 

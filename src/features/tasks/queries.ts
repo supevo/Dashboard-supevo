@@ -11,6 +11,7 @@ export interface TaskDetail {
   priority: TaskPriority;
   isInternal: boolean;
   isBlocked: boolean;
+  isArchived: boolean;
   dueDate: string | null;
   estimatedMinutes: number | null;
   actualMinutes: number;
@@ -25,7 +26,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, due_date, estimated_minutes, actual_minutes, lock_version',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_archived, due_date, estimated_minutes, actual_minutes, lock_version',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -57,6 +58,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     priority: task.priority,
     isInternal: task.is_internal,
     isBlocked: task.is_blocked,
+    isArchived: task.is_archived,
     dueDate: task.due_date,
     estimatedMinutes: task.estimated_minutes,
     actualMinutes: task.actual_minutes,
@@ -106,6 +108,8 @@ export interface BoardColumn {
 export interface BoardView {
   boardId: string;
   columns: BoardColumn[];
+  /** Archived tasks, shown in a read-only "Archiv" column. */
+  archived: BoardTask[];
 }
 
 /** Loads the first board of a project with its columns and active tasks.
@@ -142,7 +146,21 @@ export async function getBoardView(
     .is('deleted_at', null)
     .order('position', { ascending: true });
 
-  const taskIds = (tasks ?? []).map((t) => t.id);
+  const { data: archivedRows } = await supabase
+    .from('tasks')
+    .select(
+      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version',
+    )
+    .eq('board_id', board.id)
+    .eq('is_archived', true)
+    .is('deleted_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(100);
+
+  const taskIds = [
+    ...(tasks ?? []).map((t) => t.id),
+    ...(archivedRows ?? []).map((t) => t.id),
+  ];
   const assigneesByTask = new Map<string, TaskAssignee[]>();
   if (taskIds.length > 0) {
     const { data: assignees } = await supabase
@@ -205,6 +223,22 @@ export async function getBoardView(
     }
   }
 
+  type TaskRow = NonNullable<typeof tasks>[number];
+  const toBoardTask = (t: TaskRow): BoardTask => ({
+    id: t.id,
+    title: t.title,
+    priority: t.priority,
+    isInternal: t.is_internal,
+    isBlocked: t.is_blocked,
+    dueDate: t.due_date,
+    columnId: t.column_id,
+    position: t.position,
+    lockVersion: t.lock_version,
+    assignees: assigneesByTask.get(t.id) ?? [],
+    labels: labelsByTask.get(t.id) ?? [],
+    attachmentCount: attachmentsByTask.get(t.id) ?? 0,
+  });
+
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({
     id: c.id,
     name: c.name,
@@ -213,23 +247,10 @@ export async function getBoardView(
     wipLimit: c.wip_limit,
     wipLimitPerUser: c.wip_limit_per_user,
     isDoneColumn: c.is_done_column,
-    tasks: (tasks ?? [])
-      .filter((t) => t.column_id === c.id)
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        priority: t.priority,
-        isInternal: t.is_internal,
-        isBlocked: t.is_blocked,
-        dueDate: t.due_date,
-        columnId: t.column_id,
-        position: t.position,
-        lockVersion: t.lock_version,
-        assignees: assigneesByTask.get(t.id) ?? [],
-        labels: labelsByTask.get(t.id) ?? [],
-        attachmentCount: attachmentsByTask.get(t.id) ?? 0,
-      })),
+    tasks: (tasks ?? []).filter((t) => t.column_id === c.id).map(toBoardTask),
   }));
 
-  return { boardId: board.id, columns: columnsOut };
+  const archived = (archivedRows ?? []).map(toBoardTask);
+
+  return { boardId: board.id, columns: columnsOut, archived };
 }

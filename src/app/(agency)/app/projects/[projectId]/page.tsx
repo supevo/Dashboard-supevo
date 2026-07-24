@@ -8,6 +8,7 @@ import {
 } from '@/features/projects/queries';
 import { getBoardView } from '@/features/tasks/queries';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
+import { StageSelector } from '@/features/tasks/components/stage-selector';
 import { ProjectSettingsForm } from '@/features/projects/components/project-settings-form';
 import { de } from '@/lib/i18n/de';
 
@@ -44,6 +45,23 @@ export default async function ProjectDetailPage({
             : ` · ${de.projects.internalOnly}`}
         </p>
       </div>
+
+      {project.canManage && board && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.kanban.stage}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StageSelector
+              projectId={projectId}
+              currentStage={
+                board.columns.find((c) => c.columnKey === 'active')?.wipLimit ??
+                2
+              }
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {board ? (
         <KanbanBoard
