@@ -17,6 +17,49 @@ function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   return error.flatten().fieldErrors as Record<string, string[]>;
 }
 
+const updateBriefingSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  description: z.string().max(20000).optional().or(z.literal('')),
+});
+
+/** Updates a task's briefing (description). Stored as plain text and always
+ *  rendered escaped, so no HTML injection is possible. */
+export async function updateTaskBriefingAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = updateBriefingSchema.safeParse({
+    projectId: formData.get('projectId'),
+    taskId: formData.get('taskId'),
+    description: formData.get('description') ?? '',
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, taskId, description } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ description: description ? description : null }, { count: 'exact' })
+    .eq('id', taskId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { field: 'briefing' },
+  });
+
+  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  return successResult('Briefing gespeichert.');
+}
+
 /** Maps a move_task() database exception to a user-facing German message. */
 function moveErrorMessage(dbMessage: string): string {
   if (dbMessage.includes('WIP_LIMIT_TOTAL')) return de.kanban.wipLimitTotal;

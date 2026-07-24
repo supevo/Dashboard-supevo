@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { signOutAction } from '@/features/auth/actions';
 import { SubmitButton } from '@/components/ui/submit-button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { de } from '@/lib/i18n/de';
 
 export interface NavItem {
@@ -45,6 +46,7 @@ export function AppShell({
         <header className="flex items-center justify-between border-b bg-card px-6 py-3">
           <span className="text-sm text-muted-foreground">{areaLabel}</span>
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             <span className="text-sm font-medium">{userName}</span>
             <form action={signOutAction}>
               <SubmitButton variant="outline" size="sm">
