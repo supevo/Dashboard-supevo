@@ -319,6 +319,8 @@ export const de = {
       'Erwähnung: @[Name](Benutzer-ID). Erwähnte Personen werden benachrichtigt.',
     uploadError: 'Upload fehlgeschlagen.',
     backToBoard: 'Zurück zum Board',
+    dueDate: 'Fälligkeitsdatum',
+    noDueDate: 'Kein Fälligkeitsdatum',
   },
   common: {
     save: 'Speichern',

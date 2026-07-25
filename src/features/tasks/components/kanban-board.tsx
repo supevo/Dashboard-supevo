@@ -431,9 +431,20 @@ export function KanbanBoard({
                           {de.kanban.blocked}
                         </span>
                       )}
-                      {isOverdue(task.dueDate) && (
-                        <span className="rounded bg-amber-100 px-1 py-0.5 text-amber-800">
-                          {de.kanban.overdue}
+                      {task.dueDate && (
+                        <span
+                          className={cn(
+                            'rounded px-1 py-0.5',
+                            isOverdue(task.dueDate)
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-slate-100 text-slate-600',
+                          )}
+                        >
+                          📅{' '}
+                          {new Date(task.dueDate).toLocaleDateString('de-DE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                          })}
                         </span>
                       )}
                       {task.assignees.map((a) => (

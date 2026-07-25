@@ -38,6 +38,12 @@ export function AddTaskInline({
         required
         className="h-8 text-sm"
       />
+      <Input
+        name="dueDate"
+        type="date"
+        title={de.task.dueDate}
+        className="h-8 text-sm"
+      />
       <SubmitButton variant="ghost" size="sm" className="w-full">
         + {de.kanban.addTask}
       </SubmitButton>
