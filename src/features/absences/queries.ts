@@ -81,6 +81,35 @@ export async function listTeamAbsences(): Promise<Absence[]> {
   return withNames((data ?? []) as AbsenceRow[]);
 }
 
+export interface ActiveAbsence {
+  type: AbsenceType;
+  endDate: string;
+}
+
+/**
+ * Map of userId → their currently active approved absence (today within range).
+ * Used to flag people who are away in planning views. RLS-scoped.
+ */
+export async function getCurrentAbsenceByUser(): Promise<
+  Map<string, ActiveAbsence>
+> {
+  const supabase = await createSupabaseServerClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await supabase
+    .from('absences')
+    .select('user_id, type, end_date')
+    .eq('status', 'approved')
+    .lte('start_date', today)
+    .gte('end_date', today);
+  const map = new Map<string, ActiveAbsence>();
+  for (const r of data ?? []) {
+    if (!map.has(r.user_id)) {
+      map.set(r.user_id, { type: r.type, endDate: r.end_date });
+    }
+  }
+  return map;
+}
+
 /** All pending requests in the org (for admins to decide). */
 export async function listPendingAbsences(): Promise<Absence[]> {
   const supabase = await createSupabaseServerClient();

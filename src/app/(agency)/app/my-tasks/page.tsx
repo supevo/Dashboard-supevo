@@ -7,8 +7,13 @@ import {
   type AgendaTask,
   type DueBucket,
 } from '@/features/agenda/queries';
+import { listTeamAbsences } from '@/features/absences/queries';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
+
+function fmtDay(iso: string): string {
+  return iso.split('-').reverse().slice(0, 2).join('.');
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -58,10 +63,16 @@ const BUCKET_ACCENT: Record<DueBucket, string> = {
 
 export default async function MyTasksPage() {
   const { user } = await requireAgencyPage();
-  const [mine, upcoming] = await Promise.all([
+  const [mine, upcoming, teamAbsences] = await Promise.all([
     getMyTasks(user.id),
     getUpcomingDeadlines(),
+    listTeamAbsences(),
   ]);
+  // Absences overlapping the next 14 days, for the deadline column.
+  const horizon = new Date();
+  horizon.setUTCDate(horizon.getUTCDate() + 14);
+  const horizonIso = horizon.toISOString().slice(0, 10);
+  const upcomingAbsences = teamAbsences.filter((a) => a.startDate <= horizonIso);
 
   const totalMine = BUCKET_ORDER.reduce((n, b) => n + mine[b].length, 0);
 
@@ -107,6 +118,19 @@ export default async function MyTasksPage() {
             <CardTitle>{de.agenda.upcoming}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {upcomingAbsences.length > 0 && (
+              <div className="space-y-1 rounded-md bg-amber-50 p-2 dark:bg-amber-950/30">
+                <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  {de.agenda.absent}
+                </div>
+                {upcomingAbsences.map((a) => (
+                  <div key={a.id} className="text-xs text-amber-800 dark:text-amber-200">
+                    🌴 {a.userName} · {de.absence.types[a.type]} ·{' '}
+                    {fmtDay(a.startDate)}–{fmtDay(a.endDate)}
+                  </div>
+                ))}
+              </div>
+            )}
             {upcoming.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 {de.agenda.noUpcoming}
