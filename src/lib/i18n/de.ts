@@ -123,6 +123,7 @@ export const de = {
     clientVisible: 'Für Kunde sichtbar',
     internalOnly: 'Nur intern',
     back: 'Zurück zu den Projekten',
+    settings: 'Projekteinstellungen',
     setCover: 'Titelbild ändern',
     noCover: 'Kein Bild',
   },
