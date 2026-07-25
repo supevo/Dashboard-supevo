@@ -160,6 +160,7 @@ export const de = {
     overdue: 'Überfällig',
     blocked: 'Blockiert',
     internal: 'Intern',
+    clientVisibleShort: 'Sichtbar',
     attachments: 'Anhänge',
     stage: 'Stage',
     stageHint:
@@ -363,6 +364,14 @@ export const de = {
     backToBoard: 'Zurück zum Board',
     dueDate: 'Fälligkeitsdatum',
     noDueDate: 'Kein Fälligkeitsdatum',
+    visibility: 'Sichtbarkeit',
+    internal: 'Intern (nur Agentur)',
+    clientVisible: 'Für Kunde sichtbar',
+    visibilityHint:
+      'Interne Aufgaben sieht nur die Agentur. „Für Kunde sichtbar" erscheint im Kundenportal.',
+    makeVisible: 'Für Kunde sichtbar machen',
+    makeInternal: 'Auf intern setzen',
+    visibilitySaved: 'Sichtbarkeit gespeichert.',
   },
   common: {
     save: 'Speichern',
