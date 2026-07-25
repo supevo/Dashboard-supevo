@@ -57,6 +57,7 @@ export function KanbanBoard({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
+  const [archiveCollapsed, setArchiveCollapsed] = useState(true);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [dragOver, setDragOver] = useState<{
     columnId: string;
@@ -488,39 +489,70 @@ export function KanbanBoard({
           );
         })}
 
-        {/* Archive column: last position, greyed out, review-only. */}
-        <div className="flex w-72 shrink-0 flex-col rounded-lg border border-dashed bg-muted/20 p-2 opacity-80">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-sm font-semibold text-muted-foreground">
-              {de.kanban.archive}
-            </span>
+        {/* Archive column: last position, greyed out, review-only.
+            Collapsible in width to save horizontal space. */}
+        {archiveCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setArchiveCollapsed(false)}
+            title={`${de.kanban.archive} (${board.archived.length})`}
+            className="flex w-10 shrink-0 flex-col items-center gap-2 rounded-lg border border-dashed bg-muted/20 py-3 opacity-80 hover:opacity-100"
+          >
+            <span className="text-xs text-muted-foreground">▸</span>
             <span className="text-xs text-muted-foreground">
               {board.archived.length}
             </span>
-          </div>
-          <div className="flex-1 space-y-2">
-            {board.archived.length === 0 ? (
-              <p className="px-1 text-xs text-muted-foreground">
-                {de.kanban.archiveEmpty}
-              </p>
-            ) : (
-              board.archived.map((task) => (
+            <span
+              className="text-sm font-semibold text-muted-foreground [writing-mode:vertical-rl]"
+              style={{ transform: 'rotate(180deg)' }}
+            >
+              {de.kanban.archive}
+            </span>
+          </button>
+        ) : (
+          <div className="flex w-72 shrink-0 flex-col rounded-lg border border-dashed bg-muted/20 p-2 opacity-80">
+            <div className="mb-2 flex items-center justify-between px-1">
+              <span className="text-sm font-semibold text-muted-foreground">
+                {de.kanban.archive}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {board.archived.length}
+                </span>
                 <button
-                  key={task.id}
                   type="button"
-                  onClick={() =>
-                    router.push(`${basePath}/${projectId}/tasks/${task.id}`)
-                  }
-                  className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
+                  onClick={() => setArchiveCollapsed(true)}
+                  title={de.kanban.collapse}
+                  className="rounded px-1 text-muted-foreground hover:bg-muted"
                 >
-                  <div className="text-sm font-medium text-muted-foreground line-through">
-                    {task.title}
-                  </div>
+                  ◂
                 </button>
-              ))
-            )}
+              </div>
+            </div>
+            <div className="flex-1 space-y-2">
+              {board.archived.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground">
+                  {de.kanban.archiveEmpty}
+                </p>
+              ) : (
+                board.archived.map((task) => (
+                  <button
+                    key={task.id}
+                    type="button"
+                    onClick={() =>
+                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                    }
+                    className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
+                  >
+                    <div className="text-sm font-medium text-muted-foreground line-through">
+                      {task.title}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

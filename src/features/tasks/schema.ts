@@ -4,6 +4,7 @@ export const createTaskSchema = z.object({
   projectId: z.string().uuid(),
   columnId: z.string().uuid(),
   title: z.string().min(1, 'Bitte gib einen Titel ein.').max(200),
+  description: z.string().max(20000).optional().or(z.literal('')),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   isInternal: z.enum(['true', 'false']).default('true'),
   dueDate: z
