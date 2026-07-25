@@ -14,6 +14,8 @@ import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
 import { ClientChat } from '@/features/chat/components/client-chat';
+import { RequestsSection } from '@/features/requests/components/requests-section';
+import { listClientRequests } from '@/features/requests/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -27,12 +29,14 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const [contacts, membership, billingSettings, invoices] = await Promise.all([
-    listClientContacts(orgId, clientCompanyId),
-    getClientMembership(clientCompanyId),
-    getBillingSettings(orgId),
-    listClientInvoices(clientCompanyId),
-  ]);
+  const [contacts, membership, billingSettings, invoices, requests] =
+    await Promise.all([
+      listClientContacts(orgId, clientCompanyId),
+      getClientMembership(clientCompanyId),
+      getBillingSettings(orgId),
+      listClientInvoices(clientCompanyId),
+      listClientRequests(clientCompanyId),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -49,6 +53,18 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.requests.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RequestsSection
+            clientCompanyId={clientCompanyId}
+            requests={requests}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

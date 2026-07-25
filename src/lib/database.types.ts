@@ -345,6 +345,34 @@ export interface Database {
         >;
         Relationships: [];
       };
+      client_requests: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          submitted_by: string | null;
+          body: string;
+          suggestions: { title: string; description: string; priority: TaskPriority }[];
+          status: 'new' | 'processed' | 'dismissed';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string;
+          submitted_by: string;
+          body: string;
+          suggestions?: { title: string; description: string; priority: TaskPriority }[];
+          status?: 'new' | 'processed' | 'dismissed';
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_requests']['Insert']
+        >;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;

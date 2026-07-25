@@ -8,6 +8,7 @@ import { listProjectApprovals } from '@/features/approvals/queries';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { AddClientTask } from '@/features/tasks/components/add-client-task';
+import { SubmitRequestForm } from '@/features/requests/components/submit-request-form';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectPage({
@@ -60,7 +61,10 @@ export default async function PortalProjectPage({
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>{de.portal.tasks}</CardTitle>
-          <AddClientTask projectId={projectId} />
+          <div className="flex gap-2">
+            <SubmitRequestForm projectId={projectId} />
+            <AddClientTask projectId={projectId} />
+          </div>
         </CardHeader>
         <CardContent>
           {tasks.length === 0 || !board ? (
