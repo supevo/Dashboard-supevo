@@ -48,6 +48,28 @@ export function sanitizeRichText(dirty: string): string {
   return sanitizeHtml(dirty, OPTIONS).trim();
 }
 
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+};
+
+/**
+ * Replaces @[Name](userId) mention tokens with a highlighted, readable form so
+ * readers see "@Name" instead of the raw token. The display name is HTML-escaped;
+ * `<strong>` is on the sanitizer allowlist. Run AFTER sanitizeRichText.
+ */
+export function renderMentions(html: string): string {
+  return html.replace(
+    /@\[([^\]]+)\]\((?:[0-9a-fA-F-]{36})\)/g,
+    (_full, name: string) => {
+      const safe = name.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c] ?? c);
+      return `<strong>@${safe}</strong>`;
+    },
+  );
+}
+
 /** Extracts @mentions of the form @[Name](userId) from raw text/HTML. */
 export function extractMentionUserIds(text: string): string[] {
   const ids = new Set<string>();

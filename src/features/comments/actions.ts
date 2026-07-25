@@ -5,7 +5,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
 import { logActivity } from '@/lib/audit';
 import { createNotifications } from '@/features/notifications/create';
-import { sanitizeRichText, extractMentionUserIds } from '@/lib/sanitize';
+import {
+  sanitizeRichText,
+  extractMentionUserIds,
+  renderMentions,
+} from '@/lib/sanitize';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -35,6 +39,9 @@ export async function addCommentAction(
   const user = await requireUser();
   const cleanBody = sanitizeRichText(body);
   if (!cleanBody) return errorResult(de.errors.VALIDATION);
+  // Extract mentions from the raw token form, then store the prettified body.
+  const mentionedIds = extractMentionUserIds(body);
+  const storedBody = renderMentions(cleanBody);
 
   const supabase = await createSupabaseServerClient();
   const { data: comment, error } = await supabase
@@ -44,7 +51,7 @@ export async function addCommentAction(
       project_id: projectId,
       task_id: taskId,
       author_id: user.id,
-      body: cleanBody,
+      body: storedBody,
       is_internal: isInternal === 'true',
     })
     .select('id')
@@ -53,7 +60,6 @@ export async function addCommentAction(
   if (error || !comment) return errorResult(de.errors.FORBIDDEN);
 
   // Mentions -> mention rows + notifications (never notify self).
-  const mentionedIds = extractMentionUserIds(body);
   if (mentionedIds.length > 0) {
     await supabase.from('comment_mentions').insert(
       mentionedIds.map((uid) => ({
@@ -101,11 +107,12 @@ export async function editCommentAction(
   await requireUser();
   const cleanBody = sanitizeRichText(parsed.data.body);
   if (!cleanBody) return errorResult(de.errors.VALIDATION);
+  const storedBody = renderMentions(cleanBody);
 
   const supabase = await createSupabaseServerClient();
   const { error, count } = await supabase
     .from('comments')
-    .update({ body: cleanBody, edited_at: new Date().toISOString() }, { count: 'exact' })
+    .update({ body: storedBody, edited_at: new Date().toISOString() }, { count: 'exact' })
     .eq('id', parsed.data.commentId);
 
   if (error) return errorResult(de.errors.INTERNAL);

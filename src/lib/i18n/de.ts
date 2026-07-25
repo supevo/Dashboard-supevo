@@ -361,6 +361,8 @@ export const de = {
     add: 'Hinzufügen',
     mentionHint:
       'Erwähnung: @[Name](Benutzer-ID). Erwähnte Personen werden benachrichtigt.',
+    mentionHintShort:
+      '@ eingeben, um jemanden zu erwähnen – die Person wird benachrichtigt.',
     uploadError: 'Upload fehlgeschlagen.',
     backToBoard: 'Zurück zum Board',
     dueDate: 'Fälligkeitsdatum',

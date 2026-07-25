@@ -137,6 +137,7 @@ export default async function TaskDetailPage({
                 orgId={task.organizationId}
                 projectId={projectId}
                 taskId={taskId}
+                members={members}
               />
               {comments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
