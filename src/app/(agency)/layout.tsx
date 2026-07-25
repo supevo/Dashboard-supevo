@@ -25,6 +25,7 @@ const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/settings', label: de.nav.settings },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },
+  { href: '/app/diagnostics', label: de.nav.diagnostics },
 ];
 
 export default async function AgencyLayout({
