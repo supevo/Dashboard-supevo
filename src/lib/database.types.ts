@@ -262,6 +262,28 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['ai_briefings']['Insert']>;
         Relationships: [];
       };
+      employee_skills: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string;
+          name: string;
+          level: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id: string;
+          name: string;
+          level?: number;
+        };
+        Update: Partial<
+          Database['public']['Tables']['employee_skills']['Insert']
+        >;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;

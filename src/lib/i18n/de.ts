@@ -48,6 +48,15 @@ export const de = {
   profile: {
     picture: 'Profilbild',
   },
+  skills: {
+    title: 'Fähigkeiten',
+    hint: 'Trage deine Fähigkeiten mit einem Level von 0 bis 10 ein (z. B. Grafikdesign 6/10). Die KI nutzt das für passende Aufgabenvorschläge.',
+    empty: 'Noch keine Fähigkeiten eingetragen.',
+    namePlaceholder: 'Fähigkeit (z. B. Grafikdesign)',
+    level: 'Level',
+    add: 'Hinzufügen',
+    remove: 'Entfernen',
+  },
   errors: {
     UNAUTHENTICATED: 'Bitte melde dich an, um fortzufahren.',
     FORBIDDEN: 'Du hast keine Berechtigung für diese Aktion.',

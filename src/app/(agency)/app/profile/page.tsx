@@ -3,6 +3,8 @@ import { getCurrentUser } from '@/features/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AvatarUploader } from '@/features/profile/components/avatar-uploader';
 import { ProfileForm } from '@/features/profile/components/profile-form';
+import { SkillsSection } from '@/features/skills/components/skills-section';
+import { listMySkills } from '@/features/skills/queries';
 import { de } from '@/lib/i18n/de';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,6 +27,8 @@ export default async function ProfilePage() {
     .select('avatar_url')
     .eq('id', user.id)
     .maybeSingle();
+
+  const skills = await listMySkills(user.id);
 
   return (
     <div className="space-y-6">
@@ -56,6 +60,14 @@ export default async function ProfilePage() {
               .map((m) => ROLE_LABELS[m.role] ?? m.role)
               .join(', ') || '—'}
           </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.skills.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SkillsSection skills={skills} />
         </CardContent>
       </Card>
     </div>
