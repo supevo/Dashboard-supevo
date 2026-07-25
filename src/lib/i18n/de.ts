@@ -46,6 +46,7 @@ export const de = {
     approvals: 'Freigaben',
     diagnostics: 'Diagnose',
     templates: 'Vorlagen',
+    menu: 'Menü',
   },
   profile: {
     picture: 'Profilbild',
