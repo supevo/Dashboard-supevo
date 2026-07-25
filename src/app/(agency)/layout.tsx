@@ -13,6 +13,7 @@ import { de } from '@/lib/i18n/de';
 const NAV_ITEMS: NavItem[] = [
   { href: '/app', label: de.nav.dashboard },
   { href: '/app/my-tasks', label: de.nav.agenda },
+  { href: '/app/calendar', label: de.nav.calendar },
   { href: '/app/projects', label: de.nav.projects },
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/team', label: de.nav.team },

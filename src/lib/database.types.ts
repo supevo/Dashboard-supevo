@@ -374,6 +374,38 @@ export interface Database {
         >;
         Relationships: [];
       };
+      calendar_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          event_date: string;
+          start_time: string | null;
+          end_time: string | null;
+          client_company_id: string | null;
+          location: string | null;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title: string;
+          event_date: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          client_company_id?: string | null;
+          location?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['calendar_events']['Insert']
+        >;
+        Relationships: [];
+      };
       absences: {
         Row: {
           id: string;
