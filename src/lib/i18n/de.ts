@@ -340,6 +340,7 @@ export const de = {
     subtitle: 'Deine zugewiesenen Aufgaben nach Fälligkeit – plus kommende Team-Termine.',
     myTasks: 'Meine Aufgaben',
     upcoming: 'Kommende Termine (14 Tage)',
+    absent: 'Abwesend',
     noTasks: 'Dir sind aktuell keine offenen Aufgaben zugewiesen.',
     noUpcoming: 'Keine Termine in den nächsten 14 Tagen.',
     buckets: {

@@ -7,6 +7,10 @@ import {
   type WorkloadLevel,
 } from '@/features/workload/queries';
 import { TeamBriefingCard } from '@/features/team-briefing/components/team-briefing-card';
+import {
+  getCurrentAbsenceByUser,
+  type ActiveAbsence,
+} from '@/features/absences/queries';
 import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -48,7 +52,13 @@ function Count({ value, warn }: { value: number; warn?: boolean }) {
   );
 }
 
-function MemberRow({ m }: { m: MemberWorkload }) {
+function MemberRow({
+  m,
+  absence,
+}: {
+  m: MemberWorkload;
+  absence?: ActiveAbsence;
+}) {
   const name = m.fullName ?? m.email ?? '—';
   return (
     <tr className="border-b last:border-0">
@@ -61,7 +71,20 @@ function MemberRow({ m }: { m: MemberWorkload }) {
             size="md"
           />
           <div className="min-w-0">
-            <div className="truncate font-medium">{name}</div>
+            <div className="flex items-center gap-2">
+              <span className="truncate font-medium">{name}</span>
+              {absence && (
+                <span
+                  className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700"
+                  title={`${de.absence.types[absence.type]} bis ${absence.endDate
+                    .split('-')
+                    .reverse()
+                    .join('.')}`}
+                >
+                  🌴 {de.absence.types[absence.type]}
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted-foreground">
               {de.roles[m.role]}
             </div>
@@ -98,7 +121,10 @@ function MemberRow({ m }: { m: MemberWorkload }) {
 
 export default async function WorkloadPage() {
   const { orgId } = await requireAgencyPage();
-  const { members, counts } = await getWorkloadOverview(orgId);
+  const [{ members, counts }, absenceByUser] = await Promise.all([
+    getWorkloadOverview(orgId),
+    getCurrentAbsenceByUser(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -145,7 +171,11 @@ export default async function WorkloadPage() {
                 </thead>
                 <tbody>
                   {members.map((m) => (
-                    <MemberRow key={m.userId} m={m} />
+                    <MemberRow
+                      key={m.userId}
+                      m={m}
+                      absence={absenceByUser.get(m.userId)}
+                    />
                   ))}
                 </tbody>
               </table>
