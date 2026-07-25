@@ -237,6 +237,31 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['activity_log']['Insert']>;
         Relationships: [];
       };
+      ai_briefings: {
+        Row: {
+          id: string;
+          user_id: string;
+          briefing_date: string;
+          summary: string;
+          priorities: { title: string; reason: string }[];
+          next_move: string | null;
+          notes: string[];
+          model: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          briefing_date: string;
+          summary: string;
+          priorities?: { title: string; reason: string }[];
+          next_move?: string | null;
+          notes?: string[];
+          model?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['ai_briefings']['Insert']>;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;
