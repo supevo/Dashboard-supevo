@@ -6,6 +6,7 @@ import {
   type MemberWorkload,
   type WorkloadLevel,
 } from '@/features/workload/queries';
+import { TeamBriefingCard } from '@/features/team-briefing/components/team-briefing-card';
 import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -105,6 +106,8 @@ export default async function WorkloadPage() {
         <h1 className="text-2xl font-bold">{de.workload.title}</h1>
         <p className="text-sm text-muted-foreground">{de.workload.subtitle}</p>
       </div>
+
+      <TeamBriefingCard />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatTile label={de.workload.level.red} value={counts.red} />
