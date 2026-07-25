@@ -103,6 +103,8 @@ export interface BoardTask {
   assignees: TaskAssignee[];
   labels: BoardTaskLabel[];
   attachmentCount: number;
+  /** Whole days the task has sat in its current column (null for done cards). */
+  agingDays: number | null;
 }
 
 export interface BoardColumn {
@@ -150,7 +152,7 @@ export async function getBoardView(
   const { data: tasks } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version',
+      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at',
     )
     .eq('board_id', board.id)
     .eq('is_archived', false)
@@ -160,7 +162,7 @@ export async function getBoardView(
   const { data: archivedRows } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version',
+      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at',
     )
     .eq('board_id', board.id)
     .eq('is_archived', true)
@@ -241,8 +243,14 @@ export async function getBoardView(
     }
   }
 
+  const daysSince = (iso: string | null): number | null => {
+    if (!iso) return null;
+    const ms = Date.now() - new Date(iso).getTime();
+    return ms > 0 ? Math.floor(ms / 86_400_000) : 0;
+  };
+
   type TaskRow = NonNullable<typeof tasks>[number];
-  const toBoardTask = (t: TaskRow): BoardTask => ({
+  const toBoardTask = (t: TaskRow, withAging: boolean): BoardTask => ({
     id: t.id,
     title: t.title,
     priority: t.priority,
@@ -255,6 +263,7 @@ export async function getBoardView(
     assignees: assigneesByTask.get(t.id) ?? [],
     labels: labelsByTask.get(t.id) ?? [],
     attachmentCount: attachmentsByTask.get(t.id) ?? 0,
+    agingDays: withAging ? daysSince(t.column_entered_at) : null,
   });
 
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({
@@ -265,10 +274,13 @@ export async function getBoardView(
     wipLimit: c.wip_limit,
     wipLimitPerUser: c.wip_limit_per_user,
     isDoneColumn: c.is_done_column,
-    tasks: (tasks ?? []).filter((t) => t.column_id === c.id).map(toBoardTask),
+    // Aging is only meaningful for in-progress work, not the done column.
+    tasks: (tasks ?? [])
+      .filter((t) => t.column_id === c.id)
+      .map((t) => toBoardTask(t, !c.is_done_column)),
   }));
 
-  const archived = (archivedRows ?? []).map(toBoardTask);
+  const archived = (archivedRows ?? []).map((t) => toBoardTask(t, false));
 
   return { boardId: board.id, columns: columnsOut, archived };
 }

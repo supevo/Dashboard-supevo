@@ -33,6 +33,11 @@ function isOverdue(dueDate: string | null): boolean {
   return new Date(dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 
+// Aging thresholds: how many days a card may sit in a column before it is
+// flagged amber, then red.
+const AGING_AMBER_DAYS = 5;
+const AGING_RED_DAYS = 10;
+
 export function KanbanBoard({
   projectId,
   board,
@@ -437,6 +442,19 @@ export function KanbanBoard({
                       {task.isBlocked && (
                         <span className="rounded bg-red-100 px-1 py-0.5 text-red-700">
                           {de.kanban.blocked}
+                        </span>
+                      )}
+                      {task.agingDays !== null && task.agingDays >= AGING_AMBER_DAYS && (
+                        <span
+                          className={cn(
+                            'rounded px-1 py-0.5',
+                            task.agingDays >= AGING_RED_DAYS
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-700',
+                          )}
+                          title={`${de.kanban.agingTitle}: ${task.agingDays} ${de.kanban.days}`}
+                        >
+                          ⏳ {task.agingDays} {de.kanban.days}
                         </span>
                       )}
                       {task.dueDate && (
