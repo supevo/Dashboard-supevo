@@ -56,6 +56,7 @@ export default async function AgencyLayout({
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}
+      searchEnabled
     >
       {children}
     </AppShell>

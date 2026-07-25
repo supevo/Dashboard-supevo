@@ -306,6 +306,12 @@ export const de = {
       dismissed: 'Verworfen',
     },
   },
+  search: {
+    placeholder: 'Suchen …',
+    hint: 'Kunden, Projekte und Aufgaben durchsuchen.',
+    loading: 'Suche läuft …',
+    empty: 'Nichts gefunden.',
+  },
   recap: {
     title: 'Wochenrückblick (Kunde)',
     hint: 'KI-Entwurf aus der Wochenaktivität. Prüfen, anpassen und erst dann an den Kunden senden.',
