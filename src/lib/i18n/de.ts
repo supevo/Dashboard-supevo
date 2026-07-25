@@ -271,6 +271,10 @@ export const de = {
   },
   recurring: {
     title: 'Wiederkehrende Aufgaben',
+    asOption: 'Wiederkehrend',
+    asOptionHint:
+      'Statt einer einzelnen Aufgabe wird eine Vorlage angelegt, aus der automatisch neue Aufgaben in der Warteschlange entstehen.',
+    manageHint: 'Hier verwaltest du bestehende wiederkehrende Aufgaben. Neue legst du direkt beim Erstellen einer Aufgabe an („Wiederkehrend" ankreuzen).',
     hint: 'Vorlagen, aus denen automatisch neue Aufgaben entstehen (z. B. Monatsreport). Neue Aufgaben landen in der Warteschlange.',
     empty: 'Noch keine wiederkehrenden Aufgaben.',
     frequency: 'Rhythmus',
