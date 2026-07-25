@@ -273,7 +273,7 @@ export async function createClientTaskAction(
 
   revalidatePath(`/portal/projects/${projectId}`);
   revalidatePath(`/app/projects/${projectId}`);
-  return successResult('Aufgabe hinzugefügt.');
+  return successResult('Aufgabe hinzugefügt.', { taskId: task.id });
 }
 
 /** Maps a move_task() database exception to a user-facing German message. */
