@@ -307,6 +307,11 @@ export const de = {
       dismissed: 'Verworfen',
     },
   },
+  report: {
+    title: 'Monatsreport',
+    hint: 'Erledigte Aufgaben und geleistete Zeit des gewählten Monats als PDF.',
+    download: 'PDF herunterladen',
+  },
   agenda: {
     title: 'Meine Aufgaben',
     subtitle: 'Deine zugewiesenen Aufgaben nach Fälligkeit – plus kommende Team-Termine.',
