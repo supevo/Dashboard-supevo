@@ -20,6 +20,7 @@ import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
 import { VisibilityEditor } from '@/features/tasks/components/visibility-editor';
+import { EditableTaskTitle } from '@/features/tasks/components/editable-task-title';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -57,7 +58,14 @@ export default async function TaskDetailPage({
         >
           ← {de.task.backToBoard}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{task.title}</h1>
+        <div className="mt-2">
+          <EditableTaskTitle
+            projectId={projectId}
+            taskId={taskId}
+            title={task.title}
+            canManage={task.canManage}
+          />
+        </div>
         <p className="text-sm text-muted-foreground">
           {de.priority[task.priority]}
           {task.isInternal ? ` · ${de.kanban.internal}` : ''}

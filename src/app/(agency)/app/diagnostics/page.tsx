@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { aiSelfTest } from '@/lib/ai/complete';
 
 /**
  * Verifies that SUPABASE_SERVICE_ROLE_KEY is really the service/secret key.
@@ -37,6 +38,7 @@ export default async function DiagnosticsPage() {
   const supabase = await createSupabaseServerClient();
   const { data: dbView, error } = await supabase.rpc('whoami');
   const serviceKey = await checkServiceKey();
+  const ai = await aiSelfTest();
 
   return (
     <div className="space-y-6">
@@ -61,6 +63,32 @@ export default async function DiagnosticsPage() {
             funktionieren. Fehlerhaft = in Vercel ist unter{' '}
             <code>SUPABASE_SERVICE_ROLE_KEY</code> nicht der geheime
             Service-/Secret-Schlüssel (<code>sb_secret_…</code>) hinterlegt.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>KI (Morgen-Briefing)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ai.ok ? (
+            <p className="text-sm font-medium text-emerald-600">
+              ✅ KI erreichbar über {ai.provider} ({ai.model}). Antwort:{' '}
+              {`„${ai.sample}“`}
+            </p>
+          ) : (
+            <p className="text-sm text-destructive">
+              ❌ KI-Aufruf fehlgeschlagen
+              {ai.provider ? ` (${ai.provider}${ai.model ? `, ${ai.model}` : ''})` : ''}
+              : {ai.error}
+            </p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Muss grün sein, damit das Morgen-Briefing Text erzeugt. Rot = der
+            KI-Schlüssel (<code>GEMINI_API_KEY</code>) fehlt/ist ungültig, das
+            Modell (<code>AI_MODEL</code>) ist nicht verfügbar, oder ein Kontingent
+            ist erschöpft.
           </p>
         </CardContent>
       </Card>

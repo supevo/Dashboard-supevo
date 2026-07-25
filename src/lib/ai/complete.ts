@@ -99,6 +99,70 @@ async function completeClaude(
 }
 
 /**
+ * Runs a minimal live call against the active provider and surfaces the raw
+ * error message (for the diagnostics page). Unlike completeText it does NOT
+ * swallow errors, so the exact cause (bad key, model, quota) is visible.
+ */
+export async function aiSelfTest(): Promise<{
+  ok: boolean;
+  provider?: string;
+  model?: string;
+  sample?: string;
+  error?: string;
+}> {
+  const gKey = googleKey();
+  const aKey = anthropicKey();
+  if (!gKey && !aKey) return { ok: false, error: 'Kein API-Schlüssel gesetzt.' };
+
+  if (gKey) {
+    const model = process.env.AI_MODEL || DEFAULT_GEMINI_MODEL;
+    try {
+      const { GoogleGenAI } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: gKey });
+      const res = await ai.models.generateContent({
+        model,
+        contents: 'Antworte nur mit dem Wort OK.',
+        config: { maxOutputTokens: 20, thinkingConfig: { thinkingBudget: 0 } },
+      });
+      const text = (res.text ?? '').trim();
+      if (!text) return { ok: false, provider: 'gemini', model, error: 'Leere Antwort vom Modell.' };
+      return { ok: true, provider: 'gemini', model, sample: text.slice(0, 40) };
+    } catch (e) {
+      return {
+        ok: false,
+        provider: 'gemini',
+        model,
+        error: e instanceof Error ? e.message : String(e),
+      };
+    }
+  }
+
+  const model = process.env.AI_MODEL || DEFAULT_CLAUDE_MODEL;
+  try {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk');
+    const client = new Anthropic();
+    const msg = await client.messages.create({
+      model,
+      max_tokens: 20,
+      messages: [{ role: 'user', content: 'Antworte nur mit dem Wort OK.' }],
+    });
+    const text = msg.content
+      .map((b) => (b.type === 'text' ? b.text : ''))
+      .join('')
+      .trim();
+    if (!text) return { ok: false, provider: 'anthropic', model, error: 'Leere Antwort vom Modell.' };
+    return { ok: true, provider: 'anthropic', model, sample: text.slice(0, 40) };
+  } catch (e) {
+    return {
+      ok: false,
+      provider: 'anthropic',
+      model,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
+/**
  * Generates a completion via the configured provider. Returns null when AI is
  * disabled or the call fails, so callers can fall back gracefully.
  */
