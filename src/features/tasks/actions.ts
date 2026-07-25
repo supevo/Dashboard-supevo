@@ -62,6 +62,49 @@ export async function updateTaskBriefingAction(
   return successResult('Briefing gespeichert.');
 }
 
+const renameTaskSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  title: z.string().trim().min(2, 'Bitte gib einen Titel ein.').max(200),
+});
+
+/** Renames a task. RLS (can_manage_project) is the guard. */
+export async function renameTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = renameTaskSchema.safeParse({
+    projectId: formData.get('projectId'),
+    taskId: formData.get('taskId'),
+    title: formData.get('title'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, taskId, title } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ title }, { count: 'exact' })
+    .eq('id', taskId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { field: 'title' },
+  });
+
+  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult('Aufgabe umbenannt.');
+}
+
 const updateDueDateSchema = z.object({
   projectId: z.string().uuid(),
   taskId: z.string().uuid(),
