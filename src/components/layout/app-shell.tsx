@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { BrowserNotifications } from '@/components/layout/browser-notifications';
 import { CommandPalette } from '@/components/layout/command-palette';
+import { MobileNav } from '@/components/layout/mobile-nav';
 import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
 
@@ -52,9 +53,14 @@ export function AppShell({
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b bg-card px-6 py-3">
-          <span className="text-sm text-muted-foreground">{areaLabel}</span>
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between gap-2 border-b bg-card px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <MobileNav navItems={navItems} areaLabel={areaLabel} />
+            <span className="truncate text-sm text-muted-foreground">
+              {areaLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
             {searchEnabled && <CommandPalette />}
             <BrowserNotifications />
             <ThemeToggle />
@@ -66,7 +72,7 @@ export function AppShell({
             />
           </div>
         </header>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
