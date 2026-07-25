@@ -33,6 +33,7 @@ export const de = {
   },
   nav: {
     dashboard: 'Übersicht',
+    agenda: 'Meine Aufgaben',
     projects: 'Projekte',
     time: 'Zeiterfassung',
     clients: 'Kunden',
@@ -304,6 +305,21 @@ export const de = {
       new: 'Neu',
       processed: 'Übernommen',
       dismissed: 'Verworfen',
+    },
+  },
+  agenda: {
+    title: 'Meine Aufgaben',
+    subtitle: 'Deine zugewiesenen Aufgaben nach Fälligkeit – plus kommende Team-Termine.',
+    myTasks: 'Meine Aufgaben',
+    upcoming: 'Kommende Termine (14 Tage)',
+    noTasks: 'Dir sind aktuell keine offenen Aufgaben zugewiesen.',
+    noUpcoming: 'Keine Termine in den nächsten 14 Tagen.',
+    buckets: {
+      overdue: 'Überfällig',
+      today: 'Heute',
+      week: 'Diese Woche',
+      later: 'Später',
+      none: 'Ohne Termin',
     },
   },
   search: {
