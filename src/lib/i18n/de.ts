@@ -159,6 +159,8 @@ export const de = {
     taskTitle: 'Aufgabentitel',
     addTask: 'Hinzufügen',
     quickAddHint: 'Enter zum Anlegen · ⋯ für mehr Optionen · Esc schließt',
+    agingTitle: 'Liegt seit',
+    days: 'T',
     visibility: 'Sichtbarkeit',
     filterAssignee: 'Verantwortlicher',
     filterPriority: 'Priorität',

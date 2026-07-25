@@ -529,6 +529,7 @@ export interface Database {
           is_blocked: boolean;
           is_archived: boolean;
           lock_version: number;
+          column_entered_at: string;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
