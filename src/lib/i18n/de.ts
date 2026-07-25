@@ -43,6 +43,7 @@ export const de = {
     profile: 'Profil',
     notifications: 'Benachrichtigungen',
     approvals: 'Freigaben',
+    diagnostics: 'Diagnose',
   },
   profile: {
     picture: 'Profilbild',
