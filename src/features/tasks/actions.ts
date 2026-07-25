@@ -170,6 +170,7 @@ export async function createTaskAction(
     projectId: formData.get('projectId'),
     columnId: formData.get('columnId'),
     title: formData.get('title'),
+    description: formData.get('description') ?? '',
     priority: formData.get('priority') ?? 'medium',
     isInternal: formData.get('isInternal') ?? 'true',
     dueDate: formData.get('dueDate') ?? '',
@@ -177,7 +178,7 @@ export async function createTaskAction(
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { projectId, columnId, title, priority, isInternal, dueDate } =
+  const { projectId, columnId, title, description, priority, isInternal, dueDate } =
     parsed.data;
 
   const user = await requireUser();
@@ -208,6 +209,7 @@ export async function createTaskAction(
       board_id: column.board_id,
       column_id: columnId,
       title,
+      description: description ? description : null,
       priority,
       is_internal: isInternal === 'true',
       due_date: dueDate ? dueDate : null,
