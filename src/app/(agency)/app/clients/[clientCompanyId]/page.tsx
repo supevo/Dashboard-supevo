@@ -17,6 +17,7 @@ import { ClientChat } from '@/features/chat/components/client-chat';
 import { RequestsSection } from '@/features/requests/components/requests-section';
 import { listClientRequests } from '@/features/requests/queries';
 import { RecapSection } from '@/features/recap/components/recap-section';
+import { MonthlyReport } from '@/features/reports/components/monthly-report';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -54,6 +55,15 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.report.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MonthlyReport clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
