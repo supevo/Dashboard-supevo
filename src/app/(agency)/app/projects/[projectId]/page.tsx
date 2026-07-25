@@ -6,6 +6,7 @@ import { getBoardView } from '@/features/tasks/queries';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
 import { EditableProjectTitle } from '@/features/projects/components/editable-project-title';
+import { ProjectSettingsButton } from '@/features/projects/components/project-settings-button';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -34,12 +35,13 @@ export default async function ProjectDetailPage({
           >
             ← {de.projects.back}
           </Link>
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-2">
             <EditableProjectTitle
               projectId={projectId}
               name={project.name}
               canManage={project.canManage}
             />
+            {project.canManage && <ProjectSettingsButton project={project} />}
           </div>
           <p className="text-sm text-muted-foreground">
             {de.projectStatus[project.status]}

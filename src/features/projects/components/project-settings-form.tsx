@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import {
   archiveProjectAction,
   updateProjectAction,
@@ -26,15 +26,24 @@ const STATUSES = [
 export function ProjectSettingsForm({
   orgId,
   project,
+  onSaved,
 }: {
   orgId: string;
   project: ProjectDetail;
+  /** Called after a successful save or archive (e.g. to refresh/close). */
+  onSaved?: () => void;
 }) {
   const [state, formAction] = useActionState(updateProjectAction, idleResult);
   const [archiveState, archiveAction] = useActionState(
     archiveProjectAction,
     idleResult,
   );
+
+  useEffect(() => {
+    if (state.status === 'success' || archiveState.status === 'success') {
+      onSaved?.();
+    }
+  }, [state.status, archiveState.status, onSaved]);
 
   return (
     <div className="space-y-4">
