@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
 // Personal items live in the top-right user menu.
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
+  { href: '/app/templates', label: de.nav.templates },
   { href: '/app/settings', label: de.nav.settings },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },

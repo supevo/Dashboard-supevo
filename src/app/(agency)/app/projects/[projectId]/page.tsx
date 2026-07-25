@@ -10,6 +10,8 @@ import { ProjectSettingsButton } from '@/features/projects/components/project-se
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RecurringTasksSection } from '@/features/recurring/components/recurring-tasks-section';
 import { listRecurringTasks } from '@/features/recurring/queries';
+import { ApplyTemplate } from '@/features/templates/components/apply-template';
+import { listProjectTemplates } from '@/features/templates/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -27,9 +29,12 @@ export default async function ProjectDetailPage({
     getBoardView(projectId),
     listProjectMembers(projectId),
   ]);
-  const recurring = project.canManage
-    ? await listRecurringTasks(projectId)
-    : [];
+  const [recurring, templates] = project.canManage
+    ? await Promise.all([
+        listRecurringTasks(projectId),
+        listProjectTemplates(),
+      ])
+    : [[], []];
 
   return (
     <div className="space-y-6">
@@ -70,6 +75,17 @@ export default async function ProjectDetailPage({
         />
       ) : (
         <p className="text-sm text-muted-foreground">Kein Board vorhanden.</p>
+      )}
+
+      {project.canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.templates.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ApplyTemplate projectId={projectId} templates={templates} />
+          </CardContent>
+        </Card>
       )}
 
       {project.canManage && (
