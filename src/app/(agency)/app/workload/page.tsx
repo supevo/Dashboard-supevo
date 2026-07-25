@@ -1,0 +1,158 @@
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar } from '@/components/ui/avatar';
+import { requireAgencyPage } from '@/lib/authz/page-guards';
+import {
+  getWorkloadOverview,
+  type MemberWorkload,
+  type WorkloadLevel,
+} from '@/features/workload/queries';
+import { formatMinutes } from '@/lib/time';
+import { de } from '@/lib/i18n/de';
+import { cn } from '@/lib/utils';
+
+const LEVEL_DOT: Record<WorkloadLevel, string> = {
+  red: 'bg-red-500',
+  yellow: 'bg-amber-500',
+  green: 'bg-emerald-500',
+  idle: 'bg-muted-foreground/40',
+};
+
+function LevelBadge({ level }: { level: WorkloadLevel }) {
+  return (
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <span className={cn('h-2.5 w-2.5 rounded-full', LEVEL_DOT[level])} />
+      <span className="text-sm">{de.workload.level[level]}</span>
+    </span>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-lg border bg-card p-4">
+      <div className="text-2xl font-bold">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </div>
+  );
+}
+
+/** Emphasize overdue counts so they stand out in the row. */
+function Count({ value, warn }: { value: number; warn?: boolean }) {
+  if (value === 0) {
+    return <span className="text-muted-foreground">0</span>;
+  }
+  return (
+    <span className={warn ? 'font-semibold text-red-600' : 'font-medium'}>
+      {value}
+    </span>
+  );
+}
+
+function MemberRow({ m }: { m: MemberWorkload }) {
+  const name = m.fullName ?? m.email ?? '—';
+  return (
+    <tr className="border-b last:border-0">
+      <td className="py-2">
+        <div className="flex items-center gap-2">
+          <Avatar
+            userId={m.userId}
+            name={name}
+            hasAvatar={m.hasAvatar}
+            size="md"
+          />
+          <div className="min-w-0">
+            <div className="truncate font-medium">{name}</div>
+            <div className="text-xs text-muted-foreground">
+              {de.roles[m.role]}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.activeTasks} />
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.inProgress} />
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.review} />
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.overdue} warn />
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.blocked} warn />
+      </td>
+      <td className="py-2 text-center">
+        <Count value={m.dueSoon} />
+      </td>
+      <td className="py-2 text-right text-muted-foreground">
+        {formatMinutes(m.weekMinutes)}
+      </td>
+      <td className="py-2 pl-4">
+        <LevelBadge level={m.level} />
+      </td>
+    </tr>
+  );
+}
+
+export default async function WorkloadPage() {
+  const { orgId } = await requireAgencyPage();
+  const { members, counts } = await getWorkloadOverview(orgId);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">{de.workload.title}</h1>
+        <p className="text-sm text-muted-foreground">{de.workload.subtitle}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatTile label={de.workload.level.red} value={counts.red} />
+        <StatTile label={de.workload.level.yellow} value={counts.yellow} />
+        <StatTile label={de.workload.level.green} value={counts.green} />
+        <StatTile label={de.workload.level.idle} value={counts.idle} />
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.workload.member}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{de.workload.none}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-xs text-muted-foreground">
+                    <th className="py-2 text-left">{de.workload.member}</th>
+                    <th className="py-2 text-center">{de.workload.active}</th>
+                    <th className="py-2 text-center">
+                      {de.workload.inProgress}
+                    </th>
+                    <th className="py-2 text-center">{de.workload.review}</th>
+                    <th className="py-2 text-center">{de.workload.overdue}</th>
+                    <th className="py-2 text-center">{de.workload.blocked}</th>
+                    <th className="py-2 text-center">{de.workload.dueSoon}</th>
+                    <th className="py-2 text-right">{de.workload.weekTime}</th>
+                    <th className="py-2 pl-4 text-left">
+                      {de.workload.status}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.map((m) => (
+                    <MemberRow key={m.userId} m={m} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            {de.workload.legend}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
