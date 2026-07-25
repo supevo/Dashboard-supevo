@@ -877,6 +877,7 @@ export interface Database {
           decision_comment: string | null;
           target_column_id: string | null;
           decided_at: string | null;
+          last_reminder_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -896,6 +897,7 @@ export interface Database {
           decided_by?: string | null;
           decision_comment?: string | null;
           decided_at?: string | null;
+          last_reminder_at?: string | null;
         };
         Relationships: [];
       };
