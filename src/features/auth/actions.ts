@@ -27,6 +27,30 @@ function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   return error.flatten().fieldErrors as Record<string, string[]>;
 }
 
+/**
+ * Finds an existing auth user by email (case-insensitive) via the admin API.
+ * Used to recover from a partially-created account so invitation acceptance is
+ * idempotent. Pages through the user list; fine for the expected user counts.
+ */
+async function findAuthUserByEmail(
+  service: ReturnType<typeof createSupabaseServiceClient>,
+  email: string,
+): Promise<{ id: string } | null> {
+  const target = email.toLowerCase();
+  const perPage = 200;
+  for (let page = 1; page <= 20; page++) {
+    const { data, error } = await service.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (error || !data) return null;
+    const match = data.users.find((u) => u.email?.toLowerCase() === target);
+    if (match) return { id: match.id };
+    if (data.users.length < perPage) break;
+  }
+  return null;
+}
+
 /** Sign in with email + password. Redirects to a safe landing route. */
 export async function signInAction(
   _prev: ActionResult,
@@ -167,7 +191,10 @@ export async function acceptInviteAction(
     return errorResult(de.errors.invalidInvite);
   }
 
-  // Create the auth user (email pre-confirmed via invitation).
+  // Create the auth user (email pre-confirmed via invitation). If one already
+  // exists for this email (e.g. an orphan from an earlier failed attempt),
+  // adopt it so the whole acceptance stays idempotent.
+  let userId: string;
   const { data: created, error: createError } =
     await service.auth.admin.createUser({
       email: invite.email,
@@ -176,45 +203,92 @@ export async function acceptInviteAction(
       user_metadata: { full_name: parsed.data.fullName },
     });
 
-  if (createError || !created.user) {
-    logger.error('Konto-Erstellung aus Einladung fehlgeschlagen', {
-      invitationId: invite.id,
-      reason: createError?.message,
-    });
-    return errorResult(de.errors.INTERNAL);
+  if (created?.user) {
+    userId = created.user.id;
+  } else {
+    const existing = await findAuthUserByEmail(service, invite.email);
+    if (!existing) {
+      logger.error('Konto-Erstellung aus Einladung fehlgeschlagen', {
+        invitationId: invite.id,
+        reason: createError?.message,
+      });
+      return errorResult(de.errors.INTERNAL);
+    }
+    // Genuine duplicate: the account already belongs to this organization.
+    const { data: existingMembership } = await service
+      .from('memberships')
+      .select('id')
+      .eq('user_id', existing.id)
+      .eq('organization_id', invite.organization_id)
+      .maybeSingle();
+    if (existingMembership) {
+      logger.warn('Einladung: Konto existiert bereits in der Organisation', {
+        invitationId: invite.id,
+      });
+      return errorResult(de.errors.accountExists);
+    }
+    // Orphan account from a failed attempt: set the chosen password and adopt.
+    const { error: updateError } = await service.auth.admin.updateUserById(
+      existing.id,
+      {
+        password: parsed.data.password,
+        email_confirm: true,
+        user_metadata: { full_name: parsed.data.fullName },
+      },
+    );
+    if (updateError) {
+      logger.error('Konto-Übernahme aus Einladung fehlgeschlagen', {
+        invitationId: invite.id,
+        reason: updateError.message,
+      });
+      return errorResult(de.errors.INTERNAL);
+    }
+    userId = existing.id;
   }
 
-  const userId = created.user.id;
-
-  const { error: profileError } = await service.from('profiles').insert({
-    id: userId,
-    full_name: parsed.data.fullName,
-    email: invite.email,
-  });
-  const { error: membershipError } = await service.from('memberships').insert({
-    user_id: userId,
-    organization_id: invite.organization_id,
-    role: invite.role,
-    status: 'active',
-  });
+  // Upsert profile + membership so a retry never fails on a duplicate row.
+  const { error: profileError } = await service.from('profiles').upsert(
+    { id: userId, full_name: parsed.data.fullName, email: invite.email },
+    { onConflict: 'id' },
+  );
+  const { error: membershipError } = await service.from('memberships').upsert(
+    {
+      user_id: userId,
+      organization_id: invite.organization_id,
+      role: invite.role,
+      status: 'active',
+    },
+    { onConflict: 'user_id,organization_id' },
+  );
 
   if (profileError || membershipError) {
     logger.error('Profil/Mitgliedschaft aus Einladung fehlgeschlagen', {
       invitationId: invite.id,
+      profileError: profileError?.message,
+      membershipError: membershipError?.message,
     });
     return errorResult(de.errors.INTERNAL);
   }
 
-  // Client/guest invitations tied to a client company create the contact link.
+  // Client/guest invitations tied to a client company create the contact link
+  // (guarded so a retry does not create a duplicate contact row).
   if (
     (invite.role === 'client' || invite.role === 'guest') &&
     invite.client_company_id
   ) {
-    await service.from('client_contacts').insert({
-      organization_id: invite.organization_id,
-      client_company_id: invite.client_company_id,
-      user_id: userId,
-    });
+    const { data: existingContact } = await service
+      .from('client_contacts')
+      .select('id')
+      .eq('client_company_id', invite.client_company_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!existingContact) {
+      await service.from('client_contacts').insert({
+        organization_id: invite.organization_id,
+        client_company_id: invite.client_company_id,
+        user_id: userId,
+      });
+    }
   }
 
   await service

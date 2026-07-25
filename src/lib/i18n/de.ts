@@ -58,6 +58,8 @@ export const de = {
     INTERNAL: 'Es ist ein unerwarteter Fehler aufgetreten.',
     invalidCredentials: 'E-Mail oder Passwort ist falsch.',
     invalidInvite: 'Diese Einladung ist ungültig oder abgelaufen.',
+    accountExists:
+      'Mit dieser E-Mail besteht bereits ein Konto. Bitte über die Anmeldeseite einloggen oder das Passwort zurücksetzen.',
     passwordsDoNotMatch: 'Die Passwörter stimmen nicht überein.',
     noAccess:
       'Dein Konto ist noch keiner Organisation zugeordnet. Bitte wende dich an deine Administration.',
