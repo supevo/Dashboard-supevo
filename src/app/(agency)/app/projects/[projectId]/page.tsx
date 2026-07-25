@@ -7,6 +7,9 @@ import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
 import { EditableProjectTitle } from '@/features/projects/components/editable-project-title';
 import { ProjectSettingsButton } from '@/features/projects/components/project-settings-button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RecurringTasksSection } from '@/features/recurring/components/recurring-tasks-section';
+import { listRecurringTasks } from '@/features/recurring/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -24,6 +27,9 @@ export default async function ProjectDetailPage({
     getBoardView(projectId),
     listProjectMembers(projectId),
   ]);
+  const recurring = project.canManage
+    ? await listRecurringTasks(projectId)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -64,6 +70,17 @@ export default async function ProjectDetailPage({
         />
       ) : (
         <p className="text-sm text-muted-foreground">Kein Board vorhanden.</p>
+      )}
+
+      {project.canManage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.recurring.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecurringTasksSection projectId={projectId} items={recurring} />
+          </CardContent>
+        </Card>
       )}
     </div>
   );

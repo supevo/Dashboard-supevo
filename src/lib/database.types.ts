@@ -305,6 +305,46 @@ export interface Database {
         >;
         Relationships: [];
       };
+      recurring_tasks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          project_id: string;
+          column_id: string;
+          title: string;
+          description: string | null;
+          priority: TaskPriority;
+          is_internal: boolean;
+          frequency: 'weekly' | 'monthly';
+          weekday: number | null;
+          day_of_month: number | null;
+          next_run_date: string;
+          active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          project_id: string;
+          column_id: string;
+          title: string;
+          description?: string | null;
+          priority?: TaskPriority;
+          is_internal?: boolean;
+          frequency: 'weekly' | 'monthly';
+          weekday?: number | null;
+          day_of_month?: number | null;
+          next_run_date: string;
+          active?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['recurring_tasks']['Insert']
+        >;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;
