@@ -7,6 +7,7 @@ import { getBoardView } from '@/features/tasks/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
+import { AddClientTask } from '@/features/tasks/components/add-client-task';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectPage({
@@ -57,12 +58,17 @@ export default async function PortalProjectPage({
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>{de.portal.tasks}</CardTitle>
+          <AddClientTask projectId={projectId} />
         </CardHeader>
         <CardContent>
           {tasks.length === 0 || !board ? (
-            <p className="text-sm text-muted-foreground">{de.portal.noTasks}</p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {de.portal.noTasks}
+              </p>
+            </div>
           ) : (
             <>
               <p className="mb-3 text-sm text-muted-foreground">
