@@ -1,9 +1,5 @@
 import 'server-only';
-import {
-  getAnthropicClient,
-  briefingModel,
-  messageText,
-} from '@/lib/ai/anthropic';
+import { completeText } from '@/lib/ai/complete';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 import type { BriefingContext, BriefingTask } from './context';
@@ -126,19 +122,18 @@ function extractJson(raw: string): string {
 export async function generateBriefing(
   ctx: BriefingContext,
 ): Promise<GeneratedBriefing | null> {
-  const client = getAnthropicClient();
-  if (!client) return null;
+  const result = await completeText({
+    system: SYSTEM_PROMPT,
+    prompt: renderContext(ctx),
+    maxTokens: 1024,
+  });
+  if (!result) return null;
 
-  const model = briefingModel();
   try {
-    const message = await client.messages.create({
-      model,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: renderContext(ctx) }],
-    });
-    const text = messageText(message);
-    const parsed = JSON.parse(extractJson(text)) as Record<string, unknown>;
+    const parsed = JSON.parse(extractJson(result.text)) as Record<
+      string,
+      unknown
+    >;
 
     const summary =
       typeof parsed.summary === 'string' ? parsed.summary.trim() : '';
@@ -153,10 +148,10 @@ export async function generateBriefing(
           ? nextMoveRaw.trim()
           : null,
       notes: coerceStringArray(parsed.notes),
-      model,
+      model: result.model,
     };
   } catch (error) {
-    logger.error('briefing generation failed', {
+    logger.error('briefing parsing failed', {
       error: error instanceof Error ? error.message : String(error),
     });
     return null;

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/features/auth/session';
 import { hasAgencyAccess } from '@/features/auth/access';
-import { isAiEnabled } from '@/lib/ai/anthropic';
+import { isAiEnabled } from '@/lib/ai/complete';
 import {
   getOrCreateTodayBriefing,
   createTodayBriefing,
