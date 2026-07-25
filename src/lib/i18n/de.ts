@@ -306,6 +306,15 @@ export const de = {
       dismissed: 'Verworfen',
     },
   },
+  recap: {
+    title: 'Wochenrückblick (Kunde)',
+    hint: 'KI-Entwurf aus der Wochenaktivität. Prüfen, anpassen und erst dann an den Kunden senden.',
+    createDraft: 'Entwurf erstellen',
+    draft: 'Entwurf',
+    send: 'An Kunden senden',
+    noActivity:
+      'Diese Woche gab es keine kundensichtbare Aktivität. Kein automatischer Rückblick – ggf. laufende Betreuung erwähnen oder überspringen.',
+  },
   teamBriefing: {
     title: 'KI-Wochenüberblick',
     subtitle: 'Engpässe, Überfälliges und Empfehlungen fürs Team.',
