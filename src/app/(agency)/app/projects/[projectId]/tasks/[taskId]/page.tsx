@@ -16,6 +16,7 @@ import { ChecklistSection } from '@/features/checklists/components/checklist-sec
 import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
+import { getRunningTimer } from '@/features/time-tracking/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
@@ -47,6 +48,7 @@ export default async function TaskDetailPage({
       listProjectApprovals(projectId),
     ]);
   const members = await listProjectMembers(projectId);
+  const runningTimer = await getRunningTimer(user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
@@ -72,7 +74,11 @@ export default async function TaskDetailPage({
           {` · ${de.time.taskTime}: ${formatMinutes(task.actualMinutes)}`}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <StartTimerButton projectId={projectId} taskId={taskId} />
+          <StartTimerButton
+            projectId={projectId}
+            taskId={taskId}
+            runningForThisTask={runningTimer?.taskId === taskId}
+          />
           {task.canManage && (
             <ArchiveTaskButton
               projectId={projectId}

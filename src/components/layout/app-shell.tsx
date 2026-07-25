@@ -3,6 +3,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { BrowserNotifications } from '@/components/layout/browser-notifications';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { MobileNav } from '@/components/layout/mobile-nav';
+import { RunningTimer } from '@/components/layout/running-timer';
 import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
 
@@ -61,6 +62,7 @@ export function AppShell({
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            {searchEnabled && <RunningTimer />}
             {searchEnabled && <CommandPalette />}
             <BrowserNotifications />
             <ThemeToggle />
