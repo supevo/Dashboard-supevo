@@ -284,6 +284,27 @@ export interface Database {
         >;
         Relationships: [];
       };
+      client_chat_messages: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          author_id: string;
+          body: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_chat_messages']['Insert']
+        >;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;

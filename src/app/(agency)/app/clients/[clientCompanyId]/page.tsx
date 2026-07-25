@@ -13,6 +13,7 @@ import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
+import { ClientChat } from '@/features/chat/components/client-chat';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -48,6 +49,16 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.chat.title}</CardTitle>
+          <p className="text-sm text-muted-foreground">{de.chat.subtitle}</p>
+        </CardHeader>
+        <CardContent>
+          <ClientChat clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

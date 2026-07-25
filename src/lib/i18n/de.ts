@@ -260,6 +260,13 @@ export const de = {
       'Sobald der API-Schlüssel (ANTHROPIC_API_KEY) hinterlegt ist, erscheint hier jeden Morgen deine persönliche Zusammenfassung.',
     error: 'Das Briefing konnte nicht geladen werden.',
   },
+  chat: {
+    title: 'Interner Chat',
+    subtitle: 'Nur für das Agentur-Team sichtbar – der Kunde sieht das nicht.',
+    empty: 'Noch keine Nachrichten. Schreibt die erste.',
+    placeholder: 'Nachricht schreiben … (Enter sendet, Shift+Enter neue Zeile)',
+    send: 'Senden',
+  },
   workload: {
     title: 'Auslastung',
     subtitle: 'Wer hat gerade viel zu tun – und wer hat Luft.',
