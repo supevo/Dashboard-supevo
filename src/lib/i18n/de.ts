@@ -50,12 +50,11 @@ export const de = {
   },
   skills: {
     title: 'Fähigkeiten',
-    hint: 'Trage deine Fähigkeiten mit einem Level von 0 bis 10 ein (z. B. Grafikdesign 6/10). Die KI nutzt das für passende Aufgabenvorschläge.',
-    empty: 'Noch keine Fähigkeiten eingetragen.',
-    namePlaceholder: 'Fähigkeit (z. B. Grafikdesign)',
+    hint: 'Lege dein Level je Fähigkeit fest (0–10). Die KI nutzt das für passende Aufgabenvorschläge.',
+    barHint:
+      'Auf einen Balken klicken, um das Level zu setzen. Erneut auf das aktive Level klicken setzt es zurück.',
+    other: 'Weitere',
     level: 'Level',
-    add: 'Hinzufügen',
-    remove: 'Entfernen',
   },
   errors: {
     UNAUTHENTICATED: 'Bitte melde dich an, um fortzufahren.',
