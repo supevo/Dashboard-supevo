@@ -72,12 +72,21 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
 
   const briefing = state.kind === 'ready' ? state.briefing : null;
 
+  // Time-aware greeting (Morgen/Tag/Abend) based on the viewer's local time.
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 11
+      ? 'Guten Morgen'
+      : hour < 18
+        ? 'Guten Tag'
+        : 'Guten Abend';
+
   return (
     <Card className="border-primary/30 bg-primary/5">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div>
           <CardTitle>
-            {de.briefing.greeting}
+            {greeting}
             {firstName ? `, ${firstName}` : ''} 👋
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">

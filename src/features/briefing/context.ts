@@ -17,7 +17,10 @@ export interface BriefingTask {
 
 export interface BriefingContext {
   today: string;
+  /** The employee's own active assigned tasks. */
   tasks: BriefingTask[];
+  /** Unassigned tasks the employee could pick up (upcoming/overdue/queue). */
+  available: BriefingTask[];
   counts: {
     active: number;
     inProgress: number;
@@ -30,7 +33,9 @@ export interface BriefingContext {
 }
 
 /** Days ahead (inclusive) that still count as "soon" for the briefing. */
-const SOON_WINDOW_DAYS = 3;
+const SOON_WINDOW_DAYS = 7;
+/** Cap on how many unassigned tasks to surface. */
+const MAX_AVAILABLE = 12;
 
 function addDays(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
@@ -38,10 +43,27 @@ function addDays(isoDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+const DUE_RANK = { overdue: 0, today: 1, soon: 2 } as const;
+const PRIO_RANK: Record<TaskPriority, number> = {
+  urgent: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+};
+
+function byUrgency(a: BriefingTask, b: BriefingTask): number {
+  const da = a.dueState ? DUE_RANK[a.dueState] : 3;
+  const db = b.dueState ? DUE_RANK[b.dueState] : 3;
+  if (da !== db) return da - db;
+  return PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
+}
+
 /**
  * Gathers the calling employee's task situation for the morning briefing.
  * Uses the RLS-scoped server client, so it only ever sees tasks the user may
- * access. Returns the user's active assigned tasks plus roll-up counts.
+ * access. Returns the user's own active tasks, roll-up counts, and unassigned
+ * tasks they could pick up (so upcoming deadlines surface even with an empty
+ * personal queue).
  */
 export async function gatherBriefingContext(
   userId: string,
@@ -50,22 +72,10 @@ export async function gatherBriefingContext(
   const today = berlinToday();
   const soonCutoff = addDays(today, SOON_WINDOW_DAYS);
 
-  const { data: columns } = await supabase
-    .from('board_columns')
-    .select('id, column_key');
-  const keyByColumn = new Map(
-    (columns ?? []).map((c) => [c.id, c.column_key] as const),
-  );
-
-  const { data: mine } = await supabase
-    .from('task_assignees')
-    .select('task_id')
-    .eq('user_id', userId);
-  const myTaskIds = [...new Set((mine ?? []).map((m) => m.task_id))];
-
   const empty: BriefingContext = {
     today,
     tasks: [],
+    available: [],
     counts: {
       active: 0,
       inProgress: 0,
@@ -76,17 +86,36 @@ export async function gatherBriefingContext(
       dueSoon: 0,
     },
   };
-  if (myTaskIds.length === 0) return empty;
 
+  const { data: columns } = await supabase
+    .from('board_columns')
+    .select('id, column_key');
+  const keyByColumn = new Map(
+    (columns ?? []).map((c) => [c.id, c.column_key] as const),
+  );
+
+  // All active, accessible tasks (RLS-scoped).
   const { data: taskRows } = await supabase
     .from('tasks')
     .select('id, title, project_id, priority, column_id, due_date, is_blocked')
-    .in('id', myTaskIds)
     .eq('is_archived', false)
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .limit(1000);
   if (!taskRows || taskRows.length === 0) return empty;
 
-  // Project + client names for context.
+  const taskIds = taskRows.map((t) => t.id);
+
+  // Assignments: which tasks are mine, and which are assigned to anyone.
+  const { data: assignees } = await supabase
+    .from('task_assignees')
+    .select('task_id, user_id')
+    .in('task_id', taskIds);
+  const myTaskIds = new Set(
+    (assignees ?? []).filter((a) => a.user_id === userId).map((a) => a.task_id),
+  );
+  const assignedTaskIds = new Set((assignees ?? []).map((a) => a.task_id));
+
+  // Project + client names.
   const projectIds = [...new Set(taskRows.map((t) => t.project_id))];
   const { data: projects } = await supabase
     .from('projects')
@@ -109,32 +138,21 @@ export async function gatherBriefingContext(
 
   const counts = { ...empty.counts };
   const tasks: BriefingTask[] = [];
+  const available: BriefingTask[] = [];
 
   for (const t of taskRows) {
     const columnKey = keyByColumn.get(t.column_id) ?? 'custom';
-    if (columnKey === 'done') continue; // finished — leave it out
-
-    counts.active++;
-    if (columnKey === 'active') counts.inProgress++;
-    if (columnKey === 'review') counts.review++;
-    if (t.is_blocked) counts.blocked++;
+    if (columnKey === 'done') continue;
 
     let dueState: BriefingTask['dueState'] = null;
     if (t.due_date) {
-      if (t.due_date < today) {
-        dueState = 'overdue';
-        counts.overdue++;
-      } else if (t.due_date === today) {
-        dueState = 'today';
-        counts.dueToday++;
-      } else if (t.due_date <= soonCutoff) {
-        dueState = 'soon';
-        counts.dueSoon++;
-      }
+      if (t.due_date < today) dueState = 'overdue';
+      else if (t.due_date === today) dueState = 'today';
+      else if (t.due_date <= soonCutoff) dueState = 'soon';
     }
 
     const project = projectById.get(t.project_id);
-    tasks.push({
+    const entry: BriefingTask = {
       title: t.title,
       projectName: project?.name ?? '—',
       clientName: project
@@ -145,23 +163,25 @@ export async function gatherBriefingContext(
       dueDate: t.due_date,
       isBlocked: t.is_blocked,
       dueState,
-    });
+    };
+
+    if (myTaskIds.has(t.id)) {
+      counts.active++;
+      if (columnKey === 'active') counts.inProgress++;
+      if (columnKey === 'review') counts.review++;
+      if (t.is_blocked) counts.blocked++;
+      if (dueState === 'overdue') counts.overdue++;
+      else if (dueState === 'today') counts.dueToday++;
+      else if (dueState === 'soon') counts.dueSoon++;
+      tasks.push(entry);
+    } else if (!assignedTaskIds.has(t.id)) {
+      // Unassigned: surface only if it needs attention (dated) or is queued.
+      if (dueState || columnKey === 'queue') available.push(entry);
+    }
   }
 
-  // Most urgent first: overdue → today → soon → undated; then by priority.
-  const dueRank = { overdue: 0, today: 1, soon: 2 } as const;
-  const prioRank: Record<TaskPriority, number> = {
-    urgent: 0,
-    high: 1,
-    medium: 2,
-    low: 3,
-  };
-  tasks.sort((a, b) => {
-    const da = a.dueState ? dueRank[a.dueState] : 3;
-    const db = b.dueState ? dueRank[b.dueState] : 3;
-    if (da !== db) return da - db;
-    return prioRank[a.priority] - prioRank[b.priority];
-  });
+  tasks.sort(byUrgency);
+  available.sort(byUrgency);
 
-  return { today, tasks, counts };
+  return { today, tasks, available: available.slice(0, MAX_AVAILABLE), counts };
 }
