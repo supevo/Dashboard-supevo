@@ -41,17 +41,30 @@ function renderContext(ctx: BriefingContext): string {
   }
   // Cap the list so the prompt stays small and cheap.
   for (const t of ctx.tasks.slice(0, 25)) {
-    const bits = [
-      `Priorität ${PRIORITY_LABEL[t.priority]}`,
-      t.projectName ? `Projekt ${t.projectName}` : null,
-      t.clientName ? `Kunde ${t.clientName}` : null,
-      t.dueState ? DUE_LABEL[t.dueState] : null,
-      t.dueDate ? `Termin ${t.dueDate}` : null,
-      t.isBlocked ? 'blockiert' : null,
-    ].filter(Boolean);
-    lines.push(`- ${t.title} (${bits.join(', ')})`);
+    lines.push(`- ${t.title} (${taskBits(t).join(', ')})`);
+  }
+
+  if (ctx.available.length > 0) {
+    lines.push('');
+    lines.push(
+      'Unbesetzte Aufgaben (niemandem zugewiesen – könnten übernommen werden):',
+    );
+    for (const t of ctx.available) {
+      lines.push(`- ${t.title} (${taskBits(t).join(', ')})`);
+    }
   }
   return lines.join('\n');
+}
+
+function taskBits(t: BriefingTask): string[] {
+  return [
+    `Priorität ${PRIORITY_LABEL[t.priority]}`,
+    t.projectName ? `Projekt ${t.projectName}` : null,
+    t.clientName ? `Kunde ${t.clientName}` : null,
+    t.dueState ? DUE_LABEL[t.dueState] : null,
+    t.dueDate ? `Termin ${t.dueDate}` : null,
+    t.isBlocked ? 'blockiert' : null,
+  ].filter((x): x is string => Boolean(x));
 }
 
 const SYSTEM_PROMPT = `Du bist der persönliche Assistent eines Mitarbeiters einer deutschen Marketing-Agentur.
@@ -72,7 +85,9 @@ Regeln:
 - Immer auf Deutsch, Du-Form, knapp und konkret.
 - "priorities": 2 bis 4 Einträge, die wirklich wichtigsten zuerst (überfällig/heute fällig/blockiert vor dem Rest).
 - Erfinde keine Aufgaben, Termine oder Fakten. Nutze nur die gelieferten Daten.
-- Bei sehr wenigen oder keinen Aufgaben: ehrlich bleiben, kurz halten, ggf. proaktiven Vorschlag machen.
+- WICHTIG: Wenn es offene Aufgaben oder anstehende Termine gibt (auch bald fällige), benenne sie konkret. Sage NICHT "nichts Dringendes", solange es offene oder terminierte Aufgaben gibt.
+- Gibt es "Unbesetzte Aufgaben", schlage – wenn sinnvoll (z. B. naher Termin) – vor, eine davon zu übernehmen, und nenne sie beim Namen.
+- Nur wenn es wirklich keine eigenen und keine unbesetzten Aufgaben gibt: ehrlich sagen, dass gerade nichts ansteht, und kurz zum Vorausplanen anregen.
 - "notes": 0 bis 3 Einträge. Wenn nichts Wichtiges, leeres Array.`;
 
 function coerceStringArray(value: unknown): string[] {
