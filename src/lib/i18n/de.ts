@@ -230,6 +230,22 @@ export const de = {
     open: 'Offene Aufgaben',
     none: '–',
   },
+  briefing: {
+    title: 'Dein Morgen-Briefing',
+    greeting: 'Guten Morgen',
+    subtitle: 'Von der KI zusammengestellt – dein Plan für heute.',
+    priorities: 'Deine Prioritäten',
+    nextMove: 'Der schlaue nächste Schachzug',
+    notes: 'Hinweise',
+    refresh: 'Neu erstellen',
+    loading: 'Dein Briefing wird erstellt …',
+    empty: 'Aktuell gibt es nichts Dringendes. Ein guter Moment, um vorauszuplanen.',
+    generatedAt: 'Erstellt um',
+    disabledTitle: 'KI-Briefing nicht aktiviert',
+    disabledHint:
+      'Sobald der API-Schlüssel (ANTHROPIC_API_KEY) hinterlegt ist, erscheint hier jeden Morgen deine persönliche Zusammenfassung.',
+    error: 'Das Briefing konnte nicht geladen werden.',
+  },
   approvals: {
     title: 'Freigaben',
     request: 'Freigabe anfordern',

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getAgencyDashboard } from '@/features/dashboard/queries';
+import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { formatMinutes, formatBerlinDateTime } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -26,6 +27,10 @@ export default async function AgencyDashboardPage() {
           Willkommen zurück, {user.fullName ?? user.email}.
         </p>
       </div>
+
+      <MorningBriefing
+        firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
+      />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />
