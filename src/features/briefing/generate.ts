@@ -34,6 +34,13 @@ function renderContext(ctx: BriefingContext): string {
       `${ctx.counts.blocked} blockiert, ${ctx.counts.overdue} überfällig, ` +
       `${ctx.counts.dueToday} heute fällig, ${ctx.counts.dueSoon} bald fällig.`,
   );
+  if (ctx.skills.length > 0) {
+    lines.push('');
+    lines.push(
+      'Deine Fähigkeiten (Level 0–10): ' +
+        ctx.skills.map((s) => `${s.name} ${s.level}/10`).join(', '),
+    );
+  }
   lines.push('');
   lines.push('Aufgaben (wichtigste zuerst):');
   if (ctx.tasks.length === 0) {
@@ -87,6 +94,7 @@ Regeln:
 - Erfinde keine Aufgaben, Termine oder Fakten. Nutze nur die gelieferten Daten.
 - WICHTIG: Wenn es offene Aufgaben oder anstehende Termine gibt (auch bald fällige), benenne sie konkret. Sage NICHT "nichts Dringendes", solange es offene oder terminierte Aufgaben gibt.
 - Gibt es "Unbesetzte Aufgaben", schlage – wenn sinnvoll (z. B. naher Termin) – vor, eine davon zu übernehmen, und nenne sie beim Namen.
+- Nutze die Fähigkeiten des Mitarbeiters: Passt eine unbesetzte Aufgabe zu einer Stärke (hohes Level), empfiehl gezielt, dass er sie übernimmt (z. B. "Der Flyer-Entwurf passt zu deiner Grafikdesign-Stärke"). Erwähne die Fähigkeit nur, wenn sie wirklich zur Aufgabe passt.
 - Nur wenn es wirklich keine eigenen und keine unbesetzten Aufgaben gibt: ehrlich sagen, dass gerade nichts ansteht, und kurz zum Vorausplanen anregen.
 - "notes": 0 bis 3 Einträge. Wenn nichts Wichtiges, leeres Array.`;
 

@@ -15,12 +15,19 @@ export interface BriefingTask {
   dueState: 'overdue' | 'today' | 'soon' | null;
 }
 
+export interface BriefingSkill {
+  name: string;
+  level: number;
+}
+
 export interface BriefingContext {
   today: string;
   /** The employee's own active assigned tasks. */
   tasks: BriefingTask[];
   /** Unassigned tasks the employee could pick up (upcoming/overdue/queue). */
   available: BriefingTask[];
+  /** The employee's self-reported skills (for matching available tasks). */
+  skills: BriefingSkill[];
   counts: {
     active: number;
     inProgress: number;
@@ -72,10 +79,22 @@ export async function gatherBriefingContext(
   const today = berlinToday();
   const soonCutoff = addDays(today, SOON_WINDOW_DAYS);
 
+  // The employee's skills (best first). Missing table degrades to no skills.
+  const { data: skillRows } = await supabase
+    .from('employee_skills')
+    .select('name, level')
+    .eq('user_id', userId)
+    .order('level', { ascending: false });
+  const skills: BriefingSkill[] = (skillRows ?? []).map((s) => ({
+    name: s.name,
+    level: s.level,
+  }));
+
   const empty: BriefingContext = {
     today,
     tasks: [],
     available: [],
+    skills,
     counts: {
       active: 0,
       inProgress: 0,
@@ -183,5 +202,11 @@ export async function gatherBriefingContext(
   tasks.sort(byUrgency);
   available.sort(byUrgency);
 
-  return { today, tasks, available: available.slice(0, MAX_AVAILABLE), counts };
+  return {
+    today,
+    tasks,
+    available: available.slice(0, MAX_AVAILABLE),
+    skills,
+    counts,
+  };
 }
