@@ -4,18 +4,23 @@ import { logger } from '@/lib/logger';
 /**
  * Provider-agnostic text completion for the app's AI features.
  *
- * Two interchangeable backends, selected by whichever API key is configured:
- *   1. Google Gemini  — set GEMINI_API_KEY (or GOOGLE_AI_API_KEY).
- *   2. Anthropic Claude — set ANTHROPIC_API_KEY.
- * Gemini wins if both are set. Without any key, isAiEnabled() is false and
- * callers skip AI generation entirely, so the app runs without configuration.
+ * Three interchangeable backends, selected by whichever API key is configured:
+ *   1. OpenAI          — set OPENAI_API_KEY.
+ *   2. Google Gemini   — set GEMINI_API_KEY (or GOOGLE_AI_API_KEY).
+ *   3. Anthropic Claude — set ANTHROPIC_API_KEY.
  *
- * The model is overridable via AI_MODEL. Defaults are cheap models suited to a
- * frequent per-employee briefing.
+ * When several keys are set, OpenAI wins, then Gemini, then Anthropic. Override
+ * the choice with AI_PROVIDER = openai | gemini | anthropic. Without any key,
+ * isAiEnabled() is false and callers skip AI generation entirely.
+ *
+ * The model is overridable via AI_MODEL (must match the active provider).
  */
 
+const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 const DEFAULT_CLAUDE_MODEL = 'claude-opus-5';
+
+export type AiProvider = 'openai' | 'gemini' | 'anthropic';
 
 export interface CompleteInput {
   system: string;
@@ -28,6 +33,9 @@ export interface CompleteResult {
   model: string;
 }
 
+function openaiKey(): string | null {
+  return process.env.OPENAI_API_KEY || null;
+}
 function googleKey(): string | null {
   return (
     process.env.GEMINI_API_KEY ||
@@ -36,20 +44,58 @@ function googleKey(): string | null {
     null
   );
 }
-
 function anthropicKey(): string | null {
   return process.env.ANTHROPIC_API_KEY || null;
 }
 
 export function isAiEnabled(): boolean {
-  return Boolean(googleKey() || anthropicKey());
+  return Boolean(openaiKey() || googleKey() || anthropicKey());
 }
 
-/** Returns a short label of the active provider/model, for display/debugging. */
-export function aiModelLabel(): string | null {
-  if (googleKey()) return process.env.AI_MODEL || DEFAULT_GEMINI_MODEL;
-  if (anthropicKey()) return process.env.AI_MODEL || DEFAULT_CLAUDE_MODEL;
+/** Resolves the active provider from AI_PROVIDER or the first available key. */
+export function activeProvider(): AiProvider | null {
+  const forced = process.env.AI_PROVIDER?.trim().toLowerCase();
+  if (forced === 'openai' && openaiKey()) return 'openai';
+  if (forced === 'gemini' && googleKey()) return 'gemini';
+  if (forced === 'anthropic' && anthropicKey()) return 'anthropic';
+  if (openaiKey()) return 'openai';
+  if (googleKey()) return 'gemini';
+  if (anthropicKey()) return 'anthropic';
   return null;
+}
+
+function modelFor(provider: AiProvider): string {
+  const override = process.env.AI_MODEL?.trim();
+  if (override) return override;
+  if (provider === 'openai') return DEFAULT_OPENAI_MODEL;
+  if (provider === 'gemini') return DEFAULT_GEMINI_MODEL;
+  return DEFAULT_CLAUDE_MODEL;
+}
+
+/** Short label of the active provider/model, for display/debugging. */
+export function aiModelLabel(): string | null {
+  const p = activeProvider();
+  return p ? `${p}:${modelFor(p)}` : null;
+}
+
+async function completeOpenAI(
+  apiKey: string,
+  { system, prompt, maxTokens = 1024 }: CompleteInput,
+): Promise<CompleteResult | null> {
+  const { default: OpenAI } = await import('openai');
+  const client = new OpenAI({ apiKey });
+  const model = modelFor('openai');
+  const res = await client.chat.completions.create({
+    model,
+    max_tokens: maxTokens,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: prompt },
+    ],
+  });
+  const text = res.choices[0]?.message?.content ?? '';
+  return text ? { text, model } : null;
 }
 
 async function completeGemini(
@@ -58,8 +104,7 @@ async function completeGemini(
 ): Promise<CompleteResult | null> {
   const { GoogleGenAI } = await import('@google/genai');
   const ai = new GoogleGenAI({ apiKey });
-  const model = process.env.AI_MODEL || DEFAULT_GEMINI_MODEL;
-
+  const model = modelFor('gemini');
   const response = await ai.models.generateContent({
     model,
     contents: prompt,
@@ -67,24 +112,21 @@ async function completeGemini(
       systemInstruction: system,
       responseMimeType: 'application/json',
       maxOutputTokens: maxTokens,
-      // Disable "thinking" on Flash: this is a simple summarization task, and
-      // thinking would otherwise consume the output-token budget.
       thinkingConfig: { thinkingBudget: 0 },
     },
   });
-
   const text = response.text ?? '';
-  if (!text) return null;
-  return { text, model };
+  return text ? { text, model } : null;
 }
 
-async function completeClaude(
-  { system, prompt, maxTokens = 1024 }: CompleteInput,
-): Promise<CompleteResult | null> {
+async function completeClaude({
+  system,
+  prompt,
+  maxTokens = 1024,
+}: CompleteInput): Promise<CompleteResult | null> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic();
-  const model = process.env.AI_MODEL || DEFAULT_CLAUDE_MODEL;
-
+  const model = modelFor('anthropic');
   const message = await client.messages.create({
     model,
     max_tokens: maxTokens,
@@ -94,14 +136,33 @@ async function completeClaude(
   const text = message.content
     .map((b) => (b.type === 'text' ? b.text : ''))
     .join('');
-  if (!text) return null;
-  return { text, model };
+  return text ? { text, model } : null;
 }
 
 /**
- * Runs a minimal live call against the active provider and surfaces the raw
- * error message (for the diagnostics page). Unlike completeText it does NOT
- * swallow errors, so the exact cause (bad key, model, quota) is visible.
+ * Generates a completion via the active provider. Returns null when AI is
+ * disabled or the call fails, so callers can fall back gracefully.
+ */
+export async function completeText(
+  input: CompleteInput,
+): Promise<CompleteResult | null> {
+  try {
+    const provider = activeProvider();
+    if (provider === 'openai') return await completeOpenAI(openaiKey()!, input);
+    if (provider === 'gemini') return await completeGemini(googleKey()!, input);
+    if (provider === 'anthropic') return await completeClaude(input);
+    return null;
+  } catch (error) {
+    logger.error('ai completion failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+/**
+ * Minimal live call against the active provider that surfaces the raw error
+ * (for the diagnostics page). Unlike completeText it does NOT swallow errors.
  */
 export async function aiSelfTest(): Promise<{
   ok: boolean;
@@ -110,75 +171,50 @@ export async function aiSelfTest(): Promise<{
   sample?: string;
   error?: string;
 }> {
-  const gKey = googleKey();
-  const aKey = anthropicKey();
-  if (!gKey && !aKey) return { ok: false, error: 'Kein API-Schlüssel gesetzt.' };
+  const provider = activeProvider();
+  if (!provider) return { ok: false, error: 'Kein API-Schlüssel gesetzt.' };
+  const model = modelFor(provider);
+  const probe = 'Antworte nur mit dem Wort OK.';
 
-  if (gKey) {
-    const model = process.env.AI_MODEL || DEFAULT_GEMINI_MODEL;
-    try {
+  try {
+    let text = '';
+    if (provider === 'openai') {
+      const { default: OpenAI } = await import('openai');
+      const client = new OpenAI({ apiKey: openaiKey()! });
+      const res = await client.chat.completions.create({
+        model,
+        max_tokens: 20,
+        messages: [{ role: 'user', content: probe }],
+      });
+      text = res.choices[0]?.message?.content ?? '';
+    } else if (provider === 'gemini') {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: gKey });
+      const ai = new GoogleGenAI({ apiKey: googleKey()! });
       const res = await ai.models.generateContent({
         model,
-        contents: 'Antworte nur mit dem Wort OK.',
+        contents: probe,
         config: { maxOutputTokens: 20, thinkingConfig: { thinkingBudget: 0 } },
       });
-      const text = (res.text ?? '').trim();
-      if (!text) return { ok: false, provider: 'gemini', model, error: 'Leere Antwort vom Modell.' };
-      return { ok: true, provider: 'gemini', model, sample: text.slice(0, 40) };
-    } catch (e) {
-      return {
-        ok: false,
-        provider: 'gemini',
+      text = res.text ?? '';
+    } else {
+      const { default: Anthropic } = await import('@anthropic-ai/sdk');
+      const client = new Anthropic();
+      const msg = await client.messages.create({
         model,
-        error: e instanceof Error ? e.message : String(e),
-      };
+        max_tokens: 20,
+        messages: [{ role: 'user', content: probe }],
+      });
+      text = msg.content.map((b) => (b.type === 'text' ? b.text : '')).join('');
     }
-  }
-
-  const model = process.env.AI_MODEL || DEFAULT_CLAUDE_MODEL;
-  try {
-    const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic();
-    const msg = await client.messages.create({
-      model,
-      max_tokens: 20,
-      messages: [{ role: 'user', content: 'Antworte nur mit dem Wort OK.' }],
-    });
-    const text = msg.content
-      .map((b) => (b.type === 'text' ? b.text : ''))
-      .join('')
-      .trim();
-    if (!text) return { ok: false, provider: 'anthropic', model, error: 'Leere Antwort vom Modell.' };
-    return { ok: true, provider: 'anthropic', model, sample: text.slice(0, 40) };
+    text = text.trim();
+    if (!text) return { ok: false, provider, model, error: 'Leere Antwort vom Modell.' };
+    return { ok: true, provider, model, sample: text.slice(0, 40) };
   } catch (e) {
     return {
       ok: false,
-      provider: 'anthropic',
+      provider,
       model,
       error: e instanceof Error ? e.message : String(e),
     };
-  }
-}
-
-/**
- * Generates a completion via the configured provider. Returns null when AI is
- * disabled or the call fails, so callers can fall back gracefully.
- */
-export async function completeText(
-  input: CompleteInput,
-): Promise<CompleteResult | null> {
-  try {
-    const gKey = googleKey();
-    if (gKey) return await completeGemini(gKey, input);
-    const aKey = anthropicKey();
-    if (aKey) return await completeClaude(input);
-    return null;
-  } catch (error) {
-    logger.error('ai completion failed', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
   }
 }
