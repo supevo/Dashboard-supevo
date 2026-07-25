@@ -146,13 +146,24 @@ export async function acceptInviteAction(
   const service = createSupabaseServiceClient();
   const tokenHash = hashInviteToken(parsed.data.token);
 
-  const { data: invite } = await service
+  const { data: invite, error: lookupError } = await service
     .from('invitations')
     .select('*')
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
+  if (lookupError) {
+    logger.error('Einladungs-Lookup (Annahme) fehlgeschlagen', {
+      reason: lookupError.message,
+    });
+    return errorResult(de.errors.invalidInvite);
+  }
   if (!invite || !isInvitationUsable(invite)) {
+    logger.warn('Einladung bei Annahme ungültig', {
+      found: Boolean(invite),
+      accepted: Boolean(invite?.accepted_at),
+      revoked: Boolean(invite?.revoked_at),
+    });
     return errorResult(de.errors.invalidInvite);
   }
 

@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 import type { AppRole } from '@/lib/authz/roles';
 import { hashInviteToken } from './token';
 import { isInvitationUsable } from './validity';
@@ -23,18 +24,35 @@ export async function getValidInvitationByToken(
   if (!rawToken || rawToken.length < 20) return null;
 
   const service = createSupabaseServiceClient();
-  const { data: invite } = await service
+  const { data: invite, error } = await service
     .from('invitations')
     .select('id, email, organization_id, accepted_at, revoked_at, expires_at')
     .eq('token_hash', hashInviteToken(rawToken))
     .maybeSingle();
 
-  if (!isInvitationUsable(invite)) return null;
+  if (error) {
+    // A permission error here usually means SUPABASE_SERVICE_ROLE_KEY is not
+    // the real service/secret key (RLS blocks the read). Surface it in logs.
+    logger.error('Einladungs-Lookup fehlgeschlagen', { reason: error.message });
+    return null;
+  }
+  if (!invite) {
+    logger.warn('Einladung nicht gefunden (Token stimmt nicht überein)');
+    return null;
+  }
+  if (!isInvitationUsable(invite)) {
+    logger.warn('Einladung nicht mehr gültig', {
+      accepted: Boolean(invite.accepted_at),
+      revoked: Boolean(invite.revoked_at),
+      expiresAt: invite.expires_at,
+    });
+    return null;
+  }
 
   return {
-    id: invite!.id,
-    email: invite!.email,
-    organizationId: invite!.organization_id,
+    id: invite.id,
+    email: invite.email,
+    organizationId: invite.organization_id,
   };
 }
 

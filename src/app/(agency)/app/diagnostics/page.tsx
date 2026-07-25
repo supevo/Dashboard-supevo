@@ -1,6 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
+
+/**
+ * Verifies that SUPABASE_SERVICE_ROLE_KEY is really the service/secret key.
+ * The admin auth API only works with a true service-role key; a publishable/
+ * anon key returns an error here. This is the same privilege the invitation
+ * lookup and other server-only features depend on.
+ */
+async function checkServiceKey(): Promise<{ ok: boolean; message: string }> {
+  try {
+    const service = createSupabaseServiceClient();
+    const { error } = await service.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+    });
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: 'Service-Schlüssel funktioniert.' };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Unbekannter Fehler',
+    };
+  }
+}
 
 /**
  * Support/diagnostics page: shows the app-side and DB-side view of the current
@@ -12,10 +36,34 @@ export default async function DiagnosticsPage() {
 
   const supabase = await createSupabaseServerClient();
   const { data: dbView, error } = await supabase.rpc('whoami');
+  const serviceKey = await checkServiceKey();
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Diagnose</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Service-Schlüssel (Server)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {serviceKey.ok ? (
+            <p className="text-sm font-medium text-emerald-600">
+              ✅ {serviceKey.message}
+            </p>
+          ) : (
+            <p className="text-sm text-destructive">
+              ❌ Service-Schlüssel funktioniert nicht: {serviceKey.message}
+            </p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Muss grün sein, damit Einladungen, Profilbilder und das KI-Briefing
+            funktionieren. Fehlerhaft = in Vercel ist unter{' '}
+            <code>SUPABASE_SERVICE_ROLE_KEY</code> nicht der geheime
+            Service-/Secret-Schlüssel (<code>sb_secret_…</code>) hinterlegt.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
