@@ -288,6 +288,13 @@ export const de = {
       'Samstag',
     ],
   },
+  teamBriefing: {
+    title: 'KI-Wochenüberblick',
+    subtitle: 'Engpässe, Überfälliges und Empfehlungen fürs Team.',
+    empty: 'Aktuell keine besonderen Auffälligkeiten im Team.',
+    risks: 'Risiken & Engpässe',
+    recommendations: 'Empfehlungen',
+  },
   chat: {
     title: 'Interner Chat',
     subtitle: 'Nur für das Agentur-Team sichtbar – der Kunde sieht das nicht.',
