@@ -158,6 +158,7 @@ export const de = {
     newTask: 'Neue Aufgabe',
     taskTitle: 'Aufgabentitel',
     addTask: 'Hinzufügen',
+    quickAddHint: 'Enter zum Anlegen · ⋯ für mehr Optionen · Esc schließt',
     visibility: 'Sichtbarkeit',
     filterAssignee: 'Verantwortlicher',
     filterPriority: 'Priorität',
