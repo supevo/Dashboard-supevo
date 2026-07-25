@@ -11,9 +11,11 @@ import { SubmitButton } from '@/components/ui/submit-button';
 export function StartTimerButton({
   projectId,
   taskId,
+  runningForThisTask = false,
 }: {
   projectId: string;
   taskId: string;
+  runningForThisTask?: boolean;
 }) {
   const [state, action] = useActionState(startTaskTimerAction, idleResult);
   const router = useRouter();
@@ -21,6 +23,15 @@ export function StartTimerButton({
   useEffect(() => {
     if (state.status === 'success') router.refresh();
   }, [state, router]);
+
+  if (runningForThisTask) {
+    return (
+      <span className="inline-flex items-center gap-2 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+        <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden />
+        {de.time.timerRunning}
+      </span>
+    );
+  }
 
   return (
     <div className="space-y-2">

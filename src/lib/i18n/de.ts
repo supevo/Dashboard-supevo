@@ -442,6 +442,7 @@ export const de = {
     runningTimer: 'Laufender Timer',
     startTimer: 'Timer starten',
     stopTimer: 'Timer stoppen',
+    timerRunning: 'Timer läuft',
     noTimer: 'Kein Timer aktiv.',
     manualEntry: 'Manueller Eintrag',
     project: 'Projekt',
