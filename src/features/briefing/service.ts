@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { berlinToday } from '@/lib/time';
 import { logger } from '@/lib/logger';
-import { isAiEnabled } from '@/lib/ai/anthropic';
+import { isAiEnabled } from '@/lib/ai/complete';
 import { gatherBriefingContext } from './context';
 import { generateBriefing, type BriefingPriority } from './generate';
 
