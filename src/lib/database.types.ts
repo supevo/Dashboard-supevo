@@ -47,7 +47,8 @@ export type NotificationType =
   | 'changes_requested'
   | 'due_date_reached'
   | 'task_overdue'
-  | 'file_uploaded';
+  | 'file_uploaded'
+  | 'absence';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -371,6 +372,38 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['client_requests']['Insert']
         >;
+        Relationships: [];
+      };
+      absences: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          type: 'urlaub' | 'krank' | 'sonstiges';
+          start_date: string;
+          end_date: string;
+          note: string | null;
+          status: 'pending' | 'approved' | 'rejected';
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_comment: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          type?: 'urlaub' | 'krank' | 'sonstiges';
+          start_date: string;
+          end_date: string;
+          note?: string | null;
+          status?: 'pending' | 'approved' | 'rejected';
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_comment?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['absences']['Insert']>;
         Relationships: [];
       };
       project_templates: {
