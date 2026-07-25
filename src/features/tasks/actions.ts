@@ -60,6 +60,53 @@ export async function updateTaskBriefingAction(
   return successResult('Briefing gespeichert.');
 }
 
+const updateDueDateSchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  dueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional()
+    .or(z.literal('')),
+});
+
+/** Sets or clears a task's due date. RLS (can_manage_project) is the guard. */
+export async function updateTaskDueDateAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = updateDueDateSchema.safeParse({
+    projectId: formData.get('projectId'),
+    taskId: formData.get('taskId'),
+    dueDate: formData.get('dueDate') ?? '',
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, taskId, dueDate } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ due_date: dueDate ? dueDate : null }, { count: 'exact' })
+    .eq('id', taskId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { field: 'due_date', dueDate: dueDate || null },
+  });
+
+  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult('Fälligkeitsdatum gespeichert.');
+}
+
 /** Maps a move_task() database exception to a user-facing German message. */
 function moveErrorMessage(dbMessage: string): string {
   if (dbMessage.includes('WIP_LIMIT_TOTAL')) return de.kanban.wipLimitTotal;
@@ -81,11 +128,13 @@ export async function createTaskAction(
     title: formData.get('title'),
     priority: formData.get('priority') ?? 'medium',
     isInternal: formData.get('isInternal') ?? 'true',
+    dueDate: formData.get('dueDate') ?? '',
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { projectId, columnId, title, priority, isInternal } = parsed.data;
+  const { projectId, columnId, title, priority, isInternal, dueDate } =
+    parsed.data;
 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
@@ -117,6 +166,7 @@ export async function createTaskAction(
       title,
       priority,
       is_internal: isInternal === 'true',
+      due_date: dueDate ? dueDate : null,
       created_by: user.id,
       position: nextPosition,
     })
