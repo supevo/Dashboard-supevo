@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 import {
@@ -149,6 +151,129 @@ export async function updateTaskVisibilityAction(
   revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
   revalidatePath(`/app/projects/${projectId}`);
   return successResult('Sichtbarkeit gespeichert.');
+}
+
+const createClientTaskSchema = z.object({
+  projectId: z.string().uuid(),
+  title: z.string().min(1, 'Bitte gib einen Titel ein.').max(200),
+  description: z.string().max(20000).optional().or(z.literal('')),
+});
+
+/**
+ * Lets a client (portal) add a task to a project they can access. Kept separate
+ * from createTaskAction: the client form only has title + briefing, the task is
+ * always client-visible (is_internal = false), and it is created via the service
+ * client because RLS reserves task inserts for agency staff. Access is verified
+ * in-code first (the RLS-scoped read only returns projects the user may see).
+ */
+export async function createClientTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = createClientTaskSchema.safeParse({
+    projectId: formData.get('projectId'),
+    title: formData.get('title'),
+    description: formData.get('description') ?? '',
+  });
+  if (!parsed.success) {
+    return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
+  }
+  const { projectId, title, description } = parsed.data;
+
+  const user = await requireUser();
+
+  // Access check via RLS: the user must be able to see the project.
+  const supabase = await createSupabaseServerClient();
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id, organization_id')
+    .eq('id', projectId)
+    .maybeSingle();
+  if (!project) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+
+  const { data: board } = await service
+    .from('boards')
+    .select('id')
+    .eq('project_id', projectId)
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!board) return errorResult(de.errors.INTERNAL);
+
+  const { data: columns } = await service
+    .from('board_columns')
+    .select('id, column_key, position')
+    .eq('board_id', board.id)
+    .order('position', { ascending: true });
+  // Prefer the "queue" column; fall back to the first column.
+  const target =
+    (columns ?? []).find((c) => c.column_key === 'queue') ?? (columns ?? [])[0];
+  if (!target) return errorResult(de.errors.INTERNAL);
+
+  const { data: maxRow } = await service
+    .from('tasks')
+    .select('position')
+    .eq('column_id', target.id)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = (maxRow?.position ?? 0) + 1000;
+
+  const { data: task, error } = await service
+    .from('tasks')
+    .insert({
+      organization_id: project.organization_id,
+      project_id: projectId,
+      board_id: board.id,
+      column_id: target.id,
+      title,
+      description: description ? description : null,
+      priority: 'medium',
+      is_internal: false,
+      created_by: user.id,
+      position: nextPosition,
+    })
+    .select('id')
+    .single();
+  if (error || !task) return errorResult(de.errors.INTERNAL);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: project.organization_id,
+    action: 'create',
+    entityType: 'task',
+    entityId: task.id,
+    metadata: { title, source: 'client' },
+  });
+
+  // Alert the agency staff on this project so client requests are not missed.
+  const { data: members } = await service
+    .from('project_members')
+    .select('user_id')
+    .eq('project_id', projectId);
+  const recipients = (members ?? [])
+    .map((m) => m.user_id)
+    .filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: project.organization_id,
+        recipientId,
+        type: 'client_comment' as const,
+        title: 'Neue Aufgabe vom Kunden',
+        body: title,
+        entityType: 'task',
+        entityId: task.id,
+      })),
+      user.id,
+    );
+  }
+
+  revalidatePath(`/portal/projects/${projectId}`);
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult('Aufgabe hinzugefügt.');
 }
 
 /** Maps a move_task() database exception to a user-facing German message. */
