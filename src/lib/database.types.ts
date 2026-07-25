@@ -373,6 +373,38 @@ export interface Database {
         >;
         Relationships: [];
       };
+      project_templates: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          tasks: {
+            title: string;
+            description: string;
+            priority: TaskPriority;
+            is_internal: boolean;
+          }[];
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          tasks?: {
+            title: string;
+            description: string;
+            priority: TaskPriority;
+            is_internal: boolean;
+          }[];
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['project_templates']['Insert']
+        >;
+        Relationships: [];
+      };
       projects: {
         Row: {
           id: string;
