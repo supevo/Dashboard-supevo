@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { BrowserNotifications } from '@/components/layout/browser-notifications';
+import { CommandPalette } from '@/components/layout/command-palette';
 import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
 
@@ -16,6 +17,7 @@ interface AppShellProps {
   userId: string;
   userName: string;
   hasAvatar: boolean;
+  searchEnabled?: boolean;
   children: React.ReactNode;
 }
 
@@ -27,6 +29,7 @@ export function AppShell({
   userId,
   userName,
   hasAvatar,
+  searchEnabled = false,
   children,
 }: AppShellProps) {
   return (
@@ -52,6 +55,7 @@ export function AppShell({
         <header className="flex items-center justify-between border-b bg-card px-6 py-3">
           <span className="text-sm text-muted-foreground">{areaLabel}</span>
           <div className="flex items-center gap-3">
+            {searchEnabled && <CommandPalette />}
             <BrowserNotifications />
             <ThemeToggle />
             <UserMenu
