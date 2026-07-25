@@ -107,6 +107,50 @@ export async function updateTaskDueDateAction(
   return successResult('Fälligkeitsdatum gespeichert.');
 }
 
+const updateVisibilitySchema = z.object({
+  projectId: z.string().uuid(),
+  taskId: z.string().uuid(),
+  isInternal: z.union([z.literal('true'), z.literal('false')]),
+});
+
+/** Toggles whether a task is internal (agency-only) or visible to the client.
+ *  RLS (can_manage_project) is the guard. */
+export async function updateTaskVisibilityAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = updateVisibilitySchema.safeParse({
+    projectId: formData.get('projectId'),
+    taskId: formData.get('taskId'),
+    isInternal: formData.get('isInternal'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, taskId, isInternal } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ is_internal: isInternal === 'true' }, { count: 'exact' })
+    .eq('id', taskId);
+
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { field: 'is_internal', isInternal: isInternal === 'true' },
+  });
+
+  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/app/projects/${projectId}`);
+  return successResult('Sichtbarkeit gespeichert.');
+}
+
 /** Maps a move_task() database exception to a user-facing German message. */
 function moveErrorMessage(dbMessage: string): string {
   if (dbMessage.includes('WIP_LIMIT_TOTAL')) return de.kanban.wipLimitTotal;

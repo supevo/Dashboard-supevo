@@ -6,6 +6,7 @@ import { createTaskAction } from '@/features/tasks/actions';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
 
 export function AddTaskInline({
@@ -31,7 +32,6 @@ export function AddTaskInline({
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="columnId" value={columnId} />
       <input type="hidden" name="priority" value="medium" />
-      <input type="hidden" name="isInternal" value="true" />
       <Input
         name="title"
         placeholder={de.kanban.taskTitle}
@@ -44,6 +44,16 @@ export function AddTaskInline({
         title={de.task.dueDate}
         className="h-8 text-sm"
       />
+      <Select
+        name="isInternal"
+        defaultValue="true"
+        title={de.task.visibility}
+        aria-label={de.task.visibility}
+        className="h-8 text-sm"
+      >
+        <option value="true">{de.task.internal}</option>
+        <option value="false">{de.task.clientVisible}</option>
+      </Select>
       <SubmitButton variant="ghost" size="sm" className="w-full">
         + {de.kanban.addTask}
       </SubmitButton>

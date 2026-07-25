@@ -421,11 +421,18 @@ export function KanbanBoard({
                       {task.labels.map((l) => (
                         <LabelChip key={l.id} name={l.name} color={l.color} />
                       ))}
-                      {task.isInternal && (
-                        <span className="rounded bg-slate-200 px-1 py-0.5 text-slate-700">
-                          {de.kanban.internal}
-                        </span>
-                      )}
+                      {/* Visibility badges are only meaningful in the agency
+                          board; the portal already shows client-visible tasks only. */}
+                      {!reorderOnly &&
+                        (task.isInternal ? (
+                          <span className="rounded bg-slate-200 px-1 py-0.5 text-slate-700">
+                            {de.kanban.internal}
+                          </span>
+                        ) : (
+                          <span className="rounded bg-emerald-100 px-1 py-0.5 text-emerald-700">
+                            👁 {de.kanban.clientVisibleShort}
+                          </span>
+                        ))}
                       {task.isBlocked && (
                         <span className="rounded bg-red-100 px-1 py-0.5 text-red-700">
                           {de.kanban.blocked}

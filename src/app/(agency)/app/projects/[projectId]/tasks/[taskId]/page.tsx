@@ -19,6 +19,7 @@ import { StartTimerButton } from '@/features/time-tracking/components/start-time
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
+import { VisibilityEditor } from '@/features/tasks/components/visibility-editor';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -154,6 +155,25 @@ export default async function TaskDetailPage({
 
         {/* Nebenblock: responsibilities, labels & approvals */}
         <aside className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.task.visibility}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {task.canManage ? (
+                <VisibilityEditor
+                  projectId={projectId}
+                  taskId={taskId}
+                  isInternal={task.isInternal}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {task.isInternal ? de.task.internal : de.task.clientVisible}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>{de.task.dueDate}</CardTitle>
