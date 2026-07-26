@@ -309,5 +309,10 @@ export async function acceptInviteAction(
     password: parsed.data.password,
   });
 
-  return successResult();
+  // Redirect server-side rather than returning success and letting the client
+  // navigate. After a server action Next re-renders the invite page, whose
+  // invitation is now consumed (accepted_at set) and would flash the
+  // "invalid or expired" alert; a server redirect skips that stale render.
+  // The root route resolves the correct landing path from the fresh session.
+  redirect('/');
 }

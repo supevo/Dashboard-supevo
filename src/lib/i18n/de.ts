@@ -26,6 +26,8 @@ export const de = {
     resetPasswordSubmit: 'Passwort speichern',
     inviteTitle: 'Konto einrichten',
     inviteHint: 'Vervollständige dein Konto, um beizutreten.',
+    inviteAlreadyAccepted:
+      'Diese Einladung wurde bereits angenommen. Bitte melde dich mit deinen Zugangsdaten an.',
     fullName: 'Vollständiger Name',
     acceptInvite: 'Konto erstellen',
     genericResetSent:

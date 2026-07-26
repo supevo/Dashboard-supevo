@@ -56,6 +56,38 @@ export async function getValidInvitationByToken(
   };
 }
 
+export type InvitationView =
+  | { status: 'valid'; email: string }
+  | { status: 'accepted' }
+  | { status: 'invalid' };
+
+/**
+ * Resolves the display state of an invitation link for the accept page:
+ * usable ('valid'), already consumed ('accepted' → point the user to login),
+ * or genuinely unusable ('invalid' → revoked/expired/unknown token).
+ */
+export async function getInvitationViewByToken(
+  rawToken: string,
+): Promise<InvitationView> {
+  if (!rawToken || rawToken.length < 20) return { status: 'invalid' };
+
+  const service = createSupabaseServiceClient();
+  const { data: invite, error } = await service
+    .from('invitations')
+    .select('email, accepted_at, revoked_at, expires_at')
+    .eq('token_hash', hashInviteToken(rawToken))
+    .maybeSingle();
+
+  if (error) {
+    logger.error('Einladungs-Lookup fehlgeschlagen', { reason: error.message });
+    return { status: 'invalid' };
+  }
+  if (!invite) return { status: 'invalid' };
+  if (invite.accepted_at && !invite.revoked_at) return { status: 'accepted' };
+  if (!isInvitationUsable(invite)) return { status: 'invalid' };
+  return { status: 'valid', email: invite.email };
+}
+
 export interface OpenInvitation {
   id: string;
   email: string;
