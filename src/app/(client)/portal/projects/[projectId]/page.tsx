@@ -84,6 +84,7 @@ export default async function PortalProjectPage({
                 members={[]}
                 canManage={false}
                 reorderOnly
+                allowColumnMove
                 basePath="/portal/projects"
               />
             </>

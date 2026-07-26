@@ -2,8 +2,6 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getClientDashboard } from '@/features/dashboard/queries';
-import { getPortalMembership } from '@/features/billing/portal';
-import { PortalMembership } from '@/features/billing/components/portal-membership';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -17,10 +15,7 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export default async function ClientDashboardPage() {
   const { user } = await requireClientPage();
-  const [d, membershipView] = await Promise.all([
-    getClientDashboard(),
-    getPortalMembership(),
-  ]);
+  const d = await getClientDashboard();
 
   return (
     <div className="space-y-6">
@@ -36,17 +31,6 @@ export default async function ClientDashboardPage() {
         <StatTile label={de.dashboard.inProgress} value={d.inProgressCount} />
         <StatTile label={de.dashboard.toApprove} value={d.toApproveCount} />
       </div>
-
-      {membershipView && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Mitgliedschaft</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PortalMembership view={membershipView} />
-          </CardContent>
-        </Card>
-      )}
 
       <Card>
         <CardHeader>
