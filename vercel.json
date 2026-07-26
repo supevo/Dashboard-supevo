@@ -13,6 +13,14 @@
     {
       "path": "/api/cron/approval-reminders",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/award-snapshot",
+      "schedule": "0 4 1 * *"
+    },
+    {
+      "path": "/api/cron/pulse-reminders",
+      "schedule": "0 8 * * 5"
     }
   ]
 }

@@ -49,7 +49,9 @@ export type NotificationType =
   | 'task_overdue'
   | 'file_uploaded'
   | 'absence'
-  | 'kudos';
+  | 'kudos'
+  | 'award'
+  | 'pulse_reminder';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -396,6 +398,36 @@ export interface Database {
           points?: number;
         };
         Update: Partial<Database['public']['Tables']['kudos']['Insert']>;
+        Relationships: [];
+      };
+      award_snapshots: {
+        Row: {
+          id: string;
+          organization_id: string;
+          year: number;
+          month: number;
+          month_label: string;
+          overall: Record<string, unknown> | null;
+          quality: Record<string, unknown> | null;
+          reliability: Record<string, unknown> | null;
+          team: Record<string, unknown> | null;
+          rows: Record<string, unknown>[];
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          year: number;
+          month: number;
+          month_label: string;
+          overall?: unknown;
+          quality?: unknown;
+          reliability?: unknown;
+          team?: unknown;
+          rows?: unknown;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['award_snapshots']['Insert']>;
         Relationships: [];
       };
       calendar_feed_tokens: {
