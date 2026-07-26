@@ -18,6 +18,8 @@ import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
 import { getRunningTimer } from '@/features/time-tracking/queries';
+import { TaskRating } from '@/features/ratings/components/task-rating';
+import { getTaskRating } from '@/features/ratings/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
@@ -50,6 +52,8 @@ export default async function TaskDetailPage({
     ]);
   const members = await listProjectMembers(projectId);
   const runningTimer = await getRunningTimer(user.id);
+  const rating = await getTaskRating(taskId, user.id);
+  const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
@@ -219,6 +223,20 @@ export default async function TaskDetailPage({
                   <AutoAssignButton projectId={projectId} taskId={taskId} />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.rating.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TaskRating
+                projectId={projectId}
+                taskId={taskId}
+                summary={rating}
+                canRate={!isAssignee}
+              />
             </CardContent>
           </Card>
 
