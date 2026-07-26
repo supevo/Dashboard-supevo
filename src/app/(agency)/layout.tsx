@@ -6,6 +6,8 @@ import {
   hasAgencyAccess,
   hasClientAccess,
 } from '@/features/auth/session';
+import { primaryAgencyOrgId } from '@/features/auth/access';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { de } from '@/lib/i18n/de';
 
@@ -23,6 +25,11 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/absences', label: de.nav.absence },
   { href: '/app/workload', label: de.nav.workload },
   { href: '/app/reports', label: de.nav.reports },
+];
+
+// Leadership-only entries appended for org admins.
+const ADMIN_NAV_ITEMS: NavItem[] = [
+  { href: '/app/cockpit', label: de.nav.cockpit },
 ];
 
 // Personal items live in the top-right user menu.
@@ -55,9 +62,15 @@ export default async function AgencyLayout({
     .eq('id', user.id)
     .maybeSingle();
 
+  const orgId = primaryAgencyOrgId(user);
+  const navItems =
+    orgId && isOrgAdmin(user, orgId)
+      ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS]
+      : NAV_ITEMS;
+
   return (
     <AppShell
-      navItems={NAV_ITEMS}
+      navItems={navItems}
       menuItems={MENU_ITEMS}
       areaLabel="Agenturbereich"
       userId={user.id}
