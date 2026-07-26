@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { computeAwards, type AwardWinner, type PersonScore } from '@/features/awards/engine';
+import { listHallOfFame } from '@/features/awards/queries';
 import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -76,14 +77,23 @@ export default async function AwardsPage({
   const prev = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
   const next = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // Hall of Fame: overall winners of the last few completed months.
-  const hofMonths = [1, 2, 3].map((d) => shiftMonth(curYear, curMonth, -d));
-  const hofResults = await Promise.all(
-    hofMonths.map((h) => computeAwards(orgId, h.year, h.month)),
-  );
-  const hof = hofResults
-    .map((a) => ({ monthLabel: a.monthLabel, overall: a.overall }))
-    .filter((h): h is { monthLabel: string; overall: AwardWinner } => h.overall !== null);
+  // Hall of Fame: prefer the frozen snapshots (stable). Before any snapshot
+  // exists (feature just shipped), fall back to a live computation of the last
+  // completed months so the section is not empty.
+  const snapshots = await listHallOfFame(orgId, 6);
+  let hof: { monthLabel: string; overall: AwardWinner }[] = snapshots.map((s) => ({
+    monthLabel: s.monthLabel,
+    overall: s.overall,
+  }));
+  if (hof.length === 0) {
+    const hofMonths = [1, 2, 3].map((d) => shiftMonth(curYear, curMonth, -d));
+    const hofResults = await Promise.all(
+      hofMonths.map((h) => computeAwards(orgId, h.year, h.month)),
+    );
+    hof = hofResults
+      .map((a) => ({ monthLabel: a.monthLabel, overall: a.overall }))
+      .filter((h): h is { monthLabel: string; overall: AwardWinner } => h.overall !== null);
+  }
 
   const myRow: PersonScore | undefined = awards.rows.find((r) => r.userId === user.id);
 

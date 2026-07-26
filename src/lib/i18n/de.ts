@@ -251,6 +251,8 @@ export const de = {
     file_uploaded: 'Datei hochgeladen',
     absence: 'Abwesenheit',
     kudos: 'Kudos',
+    award: 'Auszeichnung',
+    pulse_reminder: 'Stimmungs-Erinnerung',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',
