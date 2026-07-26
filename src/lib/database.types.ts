@@ -285,6 +285,40 @@ export interface Database {
         >;
         Relationships: [];
       };
+      leads: {
+        Row: {
+          id: string;
+          organization_id: string;
+          contact_name: string;
+          company: string | null;
+          email: string | null;
+          phone: string | null;
+          source: string | null;
+          note: string | null;
+          estimated_value_cents: number | null;
+          status: 'new' | 'contacted' | 'offer' | 'won' | 'lost';
+          assigned_to: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          contact_name: string;
+          company?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          source?: string | null;
+          note?: string | null;
+          estimated_value_cents?: number | null;
+          status?: 'new' | 'contacted' | 'offer' | 'won' | 'lost';
+          assigned_to?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['leads']['Insert']>;
+        Relationships: [];
+      };
       work_preferences: {
         Row: {
           id: string;
