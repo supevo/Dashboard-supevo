@@ -96,6 +96,49 @@ export async function submitClientRequestAction(
   return successResult('Briefing gesendet. Wir melden uns.');
 }
 
+const editSchema = z.object({
+  requestId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  body: z.string().trim().min(5, 'Bitte beschreibe dein Anliegen.').max(20000),
+});
+
+/**
+ * The client edits their own briefing (while it is still "new"). RLS enforces
+ * ownership + status; the AI suggestions are regenerated from the new text.
+ */
+export async function editClientRequestAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = editSchema.safeParse({
+    requestId: formData.get('requestId'),
+    projectId: formData.get('projectId'),
+    body: formData.get('body'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { requestId, projectId, body } = parsed.data;
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('client_requests')
+    .update({ body }, { count: 'exact' })
+    .eq('id', requestId)
+    .eq('status', 'new');
+  if (error) return errorResult(de.errors.FORBIDDEN);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  // Refresh AI suggestions from the edited text (best-effort, service client).
+  const suggestions = await generateTaskSuggestions(body);
+  await createSupabaseServiceClient()
+    .from('client_requests')
+    .update({ suggestions })
+    .eq('id', requestId);
+
+  revalidatePath(`/portal/projects/${projectId}`);
+  return successResult('Briefing aktualisiert.');
+}
+
 const acceptSchema = z.object({
   clientCompanyId: z.string().uuid(),
   requestId: z.string().uuid(),

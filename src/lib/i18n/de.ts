@@ -321,6 +321,9 @@ export const de = {
     accept: 'Übernehmen',
     dismiss: 'Verwerfen',
     reopen: 'Wieder öffnen',
+    edit: 'Bearbeiten',
+    saveEdit: 'Änderungen speichern',
+    myTitle: 'Meine Briefings',
     status: {
       new: 'Neu',
       processed: 'Übernommen',
