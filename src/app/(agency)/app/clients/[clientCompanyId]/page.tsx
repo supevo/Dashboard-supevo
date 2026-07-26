@@ -14,7 +14,6 @@ import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
-import { ClientChat } from '@/features/chat/components/client-chat';
 import { RequestsSection } from '@/features/requests/components/requests-section';
 import { listClientRequests } from '@/features/requests/queries';
 import { RecapSection } from '@/features/recap/components/recap-section';
@@ -154,16 +153,6 @@ export default async function ClientDetailPage({
             clientCompanyId={clientCompanyId}
             requests={requests}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.chat.title}</CardTitle>
-          <p className="text-sm text-muted-foreground">{de.chat.subtitle}</p>
-        </CardHeader>
-        <CardContent>
-          <ClientChat clientCompanyId={clientCompanyId} />
         </CardContent>
       </Card>
 
