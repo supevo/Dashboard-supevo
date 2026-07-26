@@ -7,6 +7,9 @@ import {
   type WorkloadLevel,
 } from '@/features/workload/queries';
 import { TeamBriefingCard } from '@/features/team-briefing/components/team-briefing-card';
+import { PulseSummaryCard } from '@/features/pulse/components/pulse-summary';
+import { getPulseSummary } from '@/features/pulse/queries';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import {
   getCurrentAbsenceByUser,
   type ActiveAbsence,
@@ -139,10 +142,12 @@ function MemberRow({
 }
 
 export default async function WorkloadPage() {
-  const { orgId } = await requireAgencyPage();
-  const [{ members, counts }, absenceByUser] = await Promise.all([
+  const { user, orgId } = await requireAgencyPage();
+  const admin = isOrgAdmin(user, orgId);
+  const [{ members, counts }, absenceByUser, pulse] = await Promise.all([
     getWorkloadOverview(orgId),
     getCurrentAbsenceByUser(),
+    admin ? getPulseSummary(orgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -153,6 +158,8 @@ export default async function WorkloadPage() {
       </div>
 
       <TeamBriefingCard />
+
+      {pulse && <PulseSummaryCard summary={pulse} />}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <AmpelTile label={de.workload.level.red} value={counts.red} level="red" />

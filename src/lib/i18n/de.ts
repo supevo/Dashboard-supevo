@@ -369,6 +369,18 @@ export const de = {
       none: 'Ohne Termin',
     },
   },
+  pulse: {
+    title: 'Wie war deine Woche?',
+    subtitle: 'Kurzes Stimmungsbild – hilft der Leitung, das Team zu unterstützen.',
+    commentPlaceholder: 'Optional: Was lief gut, was drückt? (anonym an die Leitung)',
+    anonymous: 'Kommentar ist anonym.',
+    submit: 'Absenden',
+    update: 'Aktualisieren',
+    summaryTitle: 'Team-Stimmung',
+    summaryHint: 'Anonym aggregiert – keine Einzelpersonen sichtbar.',
+    responses: 'Rückmeldungen',
+    anonComments: 'Anonyme Kommentare (diese Woche)',
+  },
   kudos: {
     title: 'Anerkennung',
     subtitle: 'Gebt euch gegenseitig Kudos – sammelt Punkte und Badges fürs Team.',
