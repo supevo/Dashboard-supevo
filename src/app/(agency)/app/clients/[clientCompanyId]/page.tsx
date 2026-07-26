@@ -22,6 +22,8 @@ import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { getSatisfactionSummary } from '@/features/satisfaction/queries';
 import { SatisfactionSummaryCard } from '@/features/satisfaction/components/satisfaction-summary';
+import { listMarketingReports } from '@/features/marketing-reports/queries';
+import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -43,6 +45,7 @@ export default async function ClientDetailPage({
     requests,
     healthMap,
     satisfaction,
+    marketingReports,
   ] = await Promise.all([
     listClientContacts(orgId, clientCompanyId),
     getClientMembership(clientCompanyId),
@@ -51,6 +54,7 @@ export default async function ClientDetailPage({
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
     getSatisfactionSummary(clientCompanyId),
+    listMarketingReports(clientCompanyId),
   ]);
 
   return (
@@ -81,6 +85,18 @@ export default async function ClientDetailPage({
         </CardHeader>
         <CardContent>
           <MonthlyReport clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.marketingReport.agencyTitle}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ReportsManager
+            clientCompanyId={clientCompanyId}
+            reports={marketingReports}
+          />
         </CardContent>
       </Card>
 
