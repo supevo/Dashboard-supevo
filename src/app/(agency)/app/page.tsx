@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getAgencyDashboard } from '@/features/dashboard/queries';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
+import { PulseWidget } from '@/features/pulse/components/pulse-widget';
+import { getMyPulse } from '@/features/pulse/queries';
 import { formatMinutes, formatBerlinDateTime } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -17,7 +19,10 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export default async function AgencyDashboardPage() {
   const { user } = await requireAgencyPage();
-  const d = await getAgencyDashboard(user.id);
+  const [d, myPulse] = await Promise.all([
+    getAgencyDashboard(user.id),
+    getMyPulse(user.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -31,6 +36,8 @@ export default async function AgencyDashboardPage() {
       <MorningBriefing
         firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
       />
+
+      <PulseWidget initial={myPulse} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />

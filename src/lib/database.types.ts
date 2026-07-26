@@ -286,6 +286,28 @@ export interface Database {
         >;
         Relationships: [];
       };
+      pulse_checks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          week_start: string;
+          mood: number;
+          comment: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          week_start: string;
+          mood: number;
+          comment?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['pulse_checks']['Insert']>;
+        Relationships: [];
+      };
       kudos: {
         Row: {
           id: string;
