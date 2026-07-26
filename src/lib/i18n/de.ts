@@ -469,6 +469,16 @@ export const de = {
     responses: 'Rückmeldungen',
     anonComments: 'Anonyme Kommentare (diese Woche)',
   },
+  satisfaction: {
+    title: 'Wie zufrieden sind Sie?',
+    subtitle: 'Ihre Bewertung dieses Monats (1–5 Sterne) – hilft uns, besser zu werden.',
+    commentPlaceholder: 'Optional: Was lief gut, was können wir verbessern?',
+    submit: 'Bewertung abgeben',
+    update: 'Bewertung aktualisieren',
+    empty: 'Noch keine Bewertungen von diesem Kunden.',
+    avgHint: 'Ø aus {n} Monat(en)',
+    agencyTitle: 'Kunden-Zufriedenheit',
+  },
   kudos: {
     title: 'Anerkennung',
     subtitle: 'Gebt euch gegenseitig Kudos – sammelt Punkte und Badges fürs Team.',
