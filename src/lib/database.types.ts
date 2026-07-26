@@ -782,6 +782,7 @@ export interface Database {
           is_archived: boolean;
           lock_version: number;
           column_entered_at: string;
+          reopen_count: number;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
