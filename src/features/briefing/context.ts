@@ -4,6 +4,8 @@ import { berlinToday } from '@/lib/time';
 import type { ColumnKey, TaskPriority } from '@/lib/database.types';
 
 export interface BriefingTask {
+  id: string;
+  projectId: string;
   title: string;
   projectName: string;
   clientName: string | null;
@@ -172,6 +174,8 @@ export async function gatherBriefingContext(
 
     const project = projectById.get(t.project_id);
     const entry: BriefingTask = {
+      id: t.id,
+      projectId: t.project_id,
       title: t.title,
       projectName: project?.name ?? '—',
       clientName: project
