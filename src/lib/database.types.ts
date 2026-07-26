@@ -51,7 +51,8 @@ export type NotificationType =
   | 'absence'
   | 'kudos'
   | 'award'
-  | 'pulse_reminder';
+  | 'pulse_reminder'
+  | 'inquiry';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -486,6 +487,77 @@ export interface Database {
           created_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['marketing_reports']['Insert']>;
+        Relationships: [];
+      };
+      inquiry_endpoints: {
+        Row: {
+          client_company_id: string;
+          organization_id: string;
+          token: string;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          client_company_id: string;
+          organization_id: string;
+          token?: string;
+          enabled?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['inquiry_endpoints']['Insert']>;
+        Relationships: [];
+      };
+      web_inquiries: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string | null;
+          email: string | null;
+          phone: string | null;
+          subject: string | null;
+          message: string | null;
+          source: string | null;
+          payload: Record<string, unknown>;
+          status: 'new' | 'called' | 'mailed' | 'done';
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          name?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          subject?: string | null;
+          message?: string | null;
+          source?: string | null;
+          payload?: unknown;
+          status?: 'new' | 'called' | 'mailed' | 'done';
+        };
+        Update: Partial<Database['public']['Tables']['web_inquiries']['Insert']>;
+        Relationships: [];
+      };
+      inquiry_comments: {
+        Row: {
+          id: string;
+          inquiry_id: string;
+          organization_id: string;
+          client_company_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          inquiry_id: string;
+          organization_id: string;
+          client_company_id: string;
+          author_id?: string | null;
+          body: string;
+        };
+        Update: Partial<Database['public']['Tables']['inquiry_comments']['Insert']>;
         Relationships: [];
       };
       calendar_feed_tokens: {

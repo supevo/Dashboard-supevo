@@ -7,6 +7,8 @@ import {
   hasClientAccess,
 } from '@/features/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getMyClientCompany } from '@/features/satisfaction/queries';
+import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
 import { de } from '@/lib/i18n/de';
 
 const NAV_ITEMS: NavItem[] = [
@@ -43,9 +45,21 @@ export default async function ClientLayout({
     .eq('id', user.id)
     .maybeSingle();
 
+  // Show the inquiries inbox only when the agency has enabled it for this client.
+  const company = await getMyClientCompany();
+  const inquiriesEnabled = company
+    ? await isInquiryInboxEnabled(company.clientCompanyId)
+    : false;
+  const navItems: NavItem[] = inquiriesEnabled
+    ? [
+        ...NAV_ITEMS,
+        { href: '/portal/inquiries', label: de.nav.inquiries },
+      ]
+    : NAV_ITEMS;
+
   return (
     <AppShell
-      navItems={NAV_ITEMS}
+      navItems={navItems}
       menuItems={MENU_ITEMS}
       areaLabel="Kundenportal"
       userId={user.id}

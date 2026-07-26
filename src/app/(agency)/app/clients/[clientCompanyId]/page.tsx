@@ -24,6 +24,10 @@ import { getSatisfactionSummary } from '@/features/satisfaction/queries';
 import { SatisfactionSummaryCard } from '@/features/satisfaction/components/satisfaction-summary';
 import { listMarketingReports } from '@/features/marketing-reports/queries';
 import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
+import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
+import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
+import { InquiryList } from '@/features/inquiries/components/inquiry-list';
+import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -46,6 +50,8 @@ export default async function ClientDetailPage({
     healthMap,
     satisfaction,
     marketingReports,
+    inquiryEndpoint,
+    inquiries,
   ] = await Promise.all([
     listClientContacts(orgId, clientCompanyId),
     getClientMembership(clientCompanyId),
@@ -55,6 +61,8 @@ export default async function ClientDetailPage({
     getClientHealthMap(orgId),
     getSatisfactionSummary(clientCompanyId),
     listMarketingReports(clientCompanyId),
+    getInquiryEndpoint(clientCompanyId),
+    listInquiries(clientCompanyId),
   ]);
 
   return (
@@ -97,6 +105,20 @@ export default async function ClientDetailPage({
             clientCompanyId={clientCompanyId}
             reports={marketingReports}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.inquiries.agencyTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <InquirySettings
+            clientCompanyId={clientCompanyId}
+            endpoint={inquiryEndpoint}
+            baseUrl={env.NEXT_PUBLIC_APP_URL}
+          />
+          <InquiryList inquiries={inquiries} />
         </CardContent>
       </Card>
 
