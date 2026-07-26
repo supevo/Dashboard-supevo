@@ -9,6 +9,8 @@ import { DecideApprovalForm } from '@/features/approvals/components/decide-appro
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { AddClientTask } from '@/features/tasks/components/add-client-task';
 import { SubmitRequestForm } from '@/features/requests/components/submit-request-form';
+import { MyRequests } from '@/features/requests/components/my-requests';
+import { listMyRequests } from '@/features/requests/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectPage({
@@ -17,14 +19,15 @@ export default async function PortalProjectPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  await requireClientPage();
+  const { user } = await requireClientPage();
 
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, approvals] = await Promise.all([
+  const [board, approvals, myRequests] = await Promise.all([
     getBoardView(projectId),
     listProjectApprovals(projectId),
+    listMyRequests(projectId, user.id),
   ]);
 
   // Flatten client-visible tasks (RLS already removed internal ones).
@@ -91,6 +94,17 @@ export default async function PortalProjectPage({
           )}
         </CardContent>
       </Card>
+
+      {myRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.requests.myTitle}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MyRequests projectId={projectId} requests={myRequests} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

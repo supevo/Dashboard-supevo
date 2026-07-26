@@ -14,6 +14,34 @@ export interface ClientRequest {
   createdAt: string;
 }
 
+export interface MyRequest {
+  id: string;
+  body: string;
+  status: 'new' | 'processed' | 'dismissed';
+  createdAt: string;
+}
+
+/** Lists the current client's own briefings for a project (for editing). */
+export async function listMyRequests(
+  projectId: string,
+  userId: string,
+): Promise<MyRequest[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('client_requests')
+    .select('id, body, status, created_at')
+    .eq('project_id', projectId)
+    .eq('submitted_by', userId)
+    .order('created_at', { ascending: false })
+    .limit(20);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    body: r.body,
+    status: r.status,
+    createdAt: r.created_at,
+  }));
+}
+
 /** Lists a client company's briefings/requests for the agency. RLS-scoped. */
 export async function listClientRequests(
   clientCompanyId: string,
