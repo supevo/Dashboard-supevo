@@ -367,6 +367,18 @@ export const de = {
       none: 'Ohne Termin',
     },
   },
+  clientHealth: {
+    title: 'Erledigungs-Ampel (Monat)',
+    completed: 'Erledigt',
+    overdue: 'Überfällig',
+    open: 'Offen',
+    level: {
+      green: 'Gut versorgt',
+      yellow: 'Solide',
+      red: 'Zu wenig erledigt',
+      idle: 'Keine Aktivität',
+    },
+  },
   leads: {
     title: 'Leads',
     subtitle: 'Kundenanfragen und Interessenten durch die Pipeline führen.',

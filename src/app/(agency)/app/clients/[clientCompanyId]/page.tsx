@@ -18,6 +18,8 @@ import { RequestsSection } from '@/features/requests/components/requests-section
 import { listClientRequests } from '@/features/requests/queries';
 import { RecapSection } from '@/features/recap/components/recap-section';
 import { MonthlyReport } from '@/features/reports/components/monthly-report';
+import { getClientHealthMap } from '@/features/clients/health';
+import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -31,13 +33,14 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const [contacts, membership, billingSettings, invoices, requests] =
+  const [contacts, membership, billingSettings, invoices, requests, healthMap] =
     await Promise.all([
       listClientContacts(orgId, clientCompanyId),
       getClientMembership(clientCompanyId),
       getBillingSettings(orgId),
       listClientInvoices(clientCompanyId),
       listClientRequests(clientCompanyId),
+      getClientHealthMap(orgId),
     ]);
 
   return (
@@ -49,7 +52,13 @@ export default async function ClientDetailPage({
         >
           ← {de.clients.back}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{company.name}</h1>
+        <div className="mt-2 flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{company.name}</h1>
+          <ClientHealthDot
+            health={healthMap.get(clientCompanyId)}
+            showLabel
+          />
+        </div>
         <p className="text-sm text-muted-foreground">
           {company.contactEmail ?? '—'} ·{' '}
           {company.isActive ? de.clients.active : de.clients.inactive}

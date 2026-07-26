@@ -3,11 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { listClientCompanies } from '@/features/client-companies/queries';
 import { CreateClientForm } from '@/features/client-companies/components/create-client-form';
+import { getClientHealthMap } from '@/features/clients/health';
+import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientsPage() {
   const { orgId } = await requireOrgAdminPage();
-  const companies = await listClientCompanies(orgId);
+  const [companies, healthMap] = await Promise.all([
+    listClientCompanies(orgId),
+    getClientHealthMap(orgId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -38,15 +43,18 @@ export default async function ClientsPage() {
                   key={c.id}
                   className="flex items-center justify-between py-3"
                 >
-                  <div>
-                    <Link
-                      href={`/app/clients/${c.id}`}
-                      className="font-medium text-primary hover:underline"
-                    >
-                      {c.name}
-                    </Link>
-                    <div className="text-xs text-muted-foreground">
-                      {c.contactEmail ?? '—'}
+                  <div className="flex items-center gap-2">
+                    <ClientHealthDot health={healthMap.get(c.id)} />
+                    <div>
+                      <Link
+                        href={`/app/clients/${c.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {c.name}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">
+                        {c.contactEmail ?? '—'}
+                      </div>
                     </div>
                   </div>
                   <span className="text-xs text-muted-foreground">
