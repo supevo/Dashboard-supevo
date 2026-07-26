@@ -7,6 +7,8 @@ import { SkillsSection } from '@/features/skills/components/skills-section';
 import { listMySkills } from '@/features/skills/queries';
 import { PreferencesSection } from '@/features/preferences/components/preferences-section';
 import { listMyPreferences } from '@/features/preferences/queries';
+import { getKudosStats } from '@/features/kudos/queries';
+import { badgeLabel, levelForPoints } from '@/features/kudos/badges';
 import { de } from '@/lib/i18n/de';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -30,10 +32,12 @@ export default async function ProfilePage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const [skills, preferences] = await Promise.all([
+  const [skills, preferences, kudos] = await Promise.all([
     listMySkills(user.id),
     listMyPreferences(user.id),
+    getKudosStats(user.id),
   ]);
+  const { level, next } = levelForPoints(kudos.totalPoints);
 
   return (
     <div className="space-y-6">
@@ -67,6 +71,38 @@ export default async function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader>
+          <CardTitle>🏆 {de.kudos.myKudos}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-6">
+            <div>
+              <div className="text-2xl font-bold">Level {level}</div>
+              <div className="text-xs text-muted-foreground">
+                {kudos.totalPoints} / {next} {de.kudos.points}
+              </div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold">{kudos.count}</div>
+              <div className="text-xs text-muted-foreground">{de.kudos.received}</div>
+            </div>
+            {kudos.badges.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {kudos.badges.map((b) => (
+                  <span
+                    key={b}
+                    className="rounded-full bg-background px-2 py-1 text-xs"
+                  >
+                    {badgeLabel(b)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>

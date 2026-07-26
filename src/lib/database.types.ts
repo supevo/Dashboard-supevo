@@ -48,7 +48,8 @@ export type NotificationType =
   | 'due_date_reached'
   | 'task_overdue'
   | 'file_uploaded'
-  | 'absence';
+  | 'absence'
+  | 'kudos';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -283,6 +284,29 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['employee_skills']['Insert']
         >;
+        Relationships: [];
+      };
+      kudos: {
+        Row: {
+          id: string;
+          organization_id: string;
+          from_user_id: string;
+          to_user_id: string;
+          badge: string;
+          message: string | null;
+          points: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          from_user_id: string;
+          to_user_id: string;
+          badge: string;
+          message?: string | null;
+          points?: number;
+        };
+        Update: Partial<Database['public']['Tables']['kudos']['Insert']>;
         Relationships: [];
       };
       calendar_feed_tokens: {
