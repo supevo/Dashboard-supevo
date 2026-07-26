@@ -389,6 +389,14 @@ export const de = {
     avgStars: 'Ø Sterne',
     onTime: 'Pünktlich',
     kudos: 'Kudos',
+    myStanding: 'Dein Zwischenstand',
+    revealHint:
+      'Die Gesamtwertung und die Sieger werden erst zum Monatsende enthüllt – so bleibt es fair (Bewertungen kommen laufend rein).',
+    yourScore: 'Dein Score',
+    hallOfFame: 'Hall of Fame',
+    hofHint: 'Die Sieger der letzten Monate.',
+    hofEmpty: 'Noch keine abgeschlossenen Monate.',
+    ongoing: 'läuft noch',
   },
   effort: {
     title: 'Aufwand',
