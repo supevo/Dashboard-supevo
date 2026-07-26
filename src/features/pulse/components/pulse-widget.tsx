@@ -7,6 +7,7 @@ import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 
@@ -37,6 +38,12 @@ export function PulseWidget({
       </CardHeader>
       <CardContent>
         <form action={action} className="space-y-3">
+          {state.status === 'success' && state.message && (
+            <Alert variant="success">{state.message}</Alert>
+          )}
+          {state.status === 'error' && (
+            <Alert variant="destructive">{state.message}</Alert>
+          )}
           <input type="hidden" name="mood" value={mood} />
           <div className="flex gap-2">
             {MOODS.map((m) => (
