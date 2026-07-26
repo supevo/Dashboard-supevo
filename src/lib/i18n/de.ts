@@ -371,6 +371,15 @@ export const de = {
       none: 'Ohne Termin',
     },
   },
+  coaching: {
+    myTitle: 'Dein Chef-Feedback',
+    mySubtitle: 'Kurzes, persönliches Wochen-Feedback von der KI-Leitung.',
+    getMine: 'Feedback holen',
+    teamTitle: 'KI-Eskalation',
+    teamSubtitle: 'Worauf du diese Woche beim Team achten solltest.',
+    getTeam: 'KI-Analyse',
+    none: 'Aktuell nichts Auffälliges.',
+  },
   cockpit: {
     title: 'Cockpit',
     subtitle: 'Leitungs-Überblick: Leistung, Punkte und Ziele je Mitarbeiter.',
