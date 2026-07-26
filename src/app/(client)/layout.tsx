@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
   { href: '/portal/projects', label: de.nav.projects },
   { href: '/portal/approvals', label: de.nav.approvals },
+  { href: '/portal/membership', label: de.nav.membership },
   { href: '/portal/invoices', label: 'Rechnungen' },
 ];
 

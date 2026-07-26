@@ -47,6 +47,7 @@ export const de = {
     profile: 'Profil',
     notifications: 'Benachrichtigungen',
     approvals: 'Freigaben',
+    membership: 'Mitgliedschaft',
     diagnostics: 'Diagnose',
     templates: 'Vorlagen',
     menu: 'Menü',
@@ -64,7 +65,7 @@ export const de = {
   },
   preferences: {
     title: 'Lieblingsarbeit',
-    hint: 'Zeig mit Herzen, was du am liebsten machst (1–5). Die KI berücksichtigt das bei der Aufgabenverteilung.',
+    hint: 'Zeig mit Herzen, was du am liebsten machst (1–10). Die KI berücksichtigt das bei der Aufgabenverteilung.',
     barHint:
       'Auf ein Herz klicken, um die Vorliebe zu setzen. Erneut auf das aktive Herz klicken setzt sie zurück.',
   },
@@ -520,7 +521,7 @@ export const de = {
     noTasks: 'Keine Aufgaben vorhanden.',
     addTask: 'Aufgabe hinzufügen',
     reorderHint:
-      'Ziehen Sie Aufgaben, um die Bearbeitungsreihenfolge festzulegen.',
+      'Ziehen Sie Aufgaben, um sie zwischen den Spalten zu verschieben oder die Reihenfolge festzulegen.',
     open: 'Öffnen',
     back: 'Zurück',
     feedback: 'Feedback',

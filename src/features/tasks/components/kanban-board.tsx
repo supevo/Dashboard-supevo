@@ -44,6 +44,7 @@ export function KanbanBoard({
   members,
   canManage,
   reorderOnly = false,
+  allowColumnMove = false,
   basePath = '/app/projects',
 }: {
   projectId: string;
@@ -51,8 +52,10 @@ export function KanbanBoard({
   members: Member[];
   canManage: boolean;
   /** Allow drag-reordering WITHIN a column without full management rights
-   *  (e.g. clients setting their processing order). No cross-column moves. */
+   *  (e.g. clients setting their processing order). */
   reorderOnly?: boolean;
+  /** In reorderOnly mode, also allow moving cards BETWEEN columns (clients). */
+  allowColumnMove?: boolean;
   /** Route prefix for opening a task, e.g. '/app/projects' or '/portal/projects'. */
   basePath?: string;
 }) {
@@ -142,8 +145,10 @@ export function KanbanBoard({
     const task = findTask(taskId);
     if (!task) return;
 
-    // Reorder-only mode (clients): never change a task's column/status.
-    if (reorderOnly && task.columnId !== targetColumnId) return;
+    // Reorder-only mode without cross-column rights: keep the task's column.
+    if (reorderOnly && !allowColumnMove && task.columnId !== targetColumnId) {
+      return;
+    }
 
     const targetCol = columns.find((c) => c.id === targetColumnId);
     if (!targetCol) return;

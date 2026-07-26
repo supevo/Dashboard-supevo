@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { setPreferenceLevel } from '@/features/preferences/actions';
 import { cn } from '@/lib/utils';
 
-const HEARTS = [1, 2, 3, 4, 5];
+const HEARTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /**
  * A work-preference row with 5 clickable hearts. Clicking heart n sets the
@@ -42,10 +42,10 @@ export function HeartRating({
             key={n}
             type="button"
             onClick={() => choose(n)}
-            aria-label={`${name}: ${n} von 5`}
-            title={`${n}/5`}
+            aria-label={`${name}: ${n} von 10`}
+            title={`${n}/10`}
             className={cn(
-              'text-lg leading-none transition-transform hover:scale-110',
+              'text-base leading-none transition-transform hover:scale-110',
               n <= level ? 'text-rose-500' : 'text-muted-foreground/30',
             )}
           >

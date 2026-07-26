@@ -160,7 +160,7 @@ export async function autoAssignTaskAction(
         ? c.skills.map((s) => `${s.name} ${s.level}/10`).join(', ')
         : 'keine';
       const pr = c.prefs.length
-        ? c.prefs.map((p) => `${p.name} ${p.level}/5`).join(', ')
+        ? c.prefs.map((p) => `${p.name} ${p.level}/10`).join(', ')
         : 'keine';
       return `- id=${c.userId} | ${c.name} | Faehigkeiten: ${sk} | Lieblingsarbeit: ${pr} | offene Aufgaben: ${c.openTasks}${c.absent ? ' | ABWESEND' : ''}`;
     });

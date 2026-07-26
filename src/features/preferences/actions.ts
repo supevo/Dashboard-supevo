@@ -16,7 +16,7 @@ export async function setPreferenceLevel(
 ): Promise<void> {
   const cleanName = name.trim().slice(0, 60);
   if (!cleanName) return;
-  const lvl = Math.max(0, Math.min(5, Math.round(level)));
+  const lvl = Math.max(0, Math.min(10, Math.round(level)));
 
   const user = await requireUser();
   const orgId = primaryAgencyOrgId(user);
