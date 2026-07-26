@@ -12,6 +12,8 @@ import { RecurringTasksSection } from '@/features/recurring/components/recurring
 import { listRecurringTasks } from '@/features/recurring/queries';
 import { ApplyTemplate } from '@/features/templates/components/apply-template';
 import { listProjectTemplates } from '@/features/templates/queries';
+import { getProjectHealthMap } from '@/features/clients/health';
+import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -20,14 +22,15 @@ export default async function ProjectDetailPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
-  await requireAgencyPage();
+  const { orgId } = await requireAgencyPage();
 
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, members] = await Promise.all([
+  const [board, members, healthMap] = await Promise.all([
     getBoardView(projectId),
     listProjectMembers(projectId),
+    getProjectHealthMap(orgId),
   ]);
   const [recurring, templates] = project.canManage
     ? await Promise.all([
@@ -52,6 +55,7 @@ export default async function ProjectDetailPage({
               name={project.name}
               canManage={project.canManage}
             />
+            <ClientHealthDot health={healthMap.get(projectId)} showLabel />
             {project.canManage && <ProjectSettingsButton project={project} />}
           </div>
           <p className="text-sm text-muted-foreground">

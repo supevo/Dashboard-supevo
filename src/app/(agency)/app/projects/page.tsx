@@ -5,15 +5,18 @@ import { listProjects } from '@/features/projects/queries';
 import { listClientCompanies } from '@/features/client-companies/queries';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { ProjectCover } from '@/features/projects/components/project-cover';
+import { getProjectHealthMap } from '@/features/clients/health';
+import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectsPage() {
   const { user, orgId } = await requireAgencyPage();
   const canCreate = can(user, { type: 'project.create', orgId });
 
-  const [projects, companies] = await Promise.all([
+  const [projects, companies, healthMap] = await Promise.all([
     listProjects(orgId),
     canCreate ? listClientCompanies(orgId) : Promise.resolve([]),
+    getProjectHealthMap(orgId),
   ]);
   const companyName = new Map(companies.map((c) => [c.id, c.name]));
 
@@ -42,7 +45,10 @@ export default async function ProjectsPage() {
                 className="h-32 w-full"
               />
               <div className="p-3">
-                <p className="font-medium group-hover:text-primary">{p.name}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium group-hover:text-primary">{p.name}</p>
+                  <ClientHealthDot health={healthMap.get(p.id)} />
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {companyName.get(p.clientCompanyId) ?? ''} ·{' '}
                   {de.projectStatus[p.status]}

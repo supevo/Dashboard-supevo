@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { requireOrgAdminPage } from '@/lib/authz/page-guards';
+import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { listClientCompanies } from '@/features/client-companies/queries';
 import { CreateClientForm } from '@/features/client-companies/components/create-client-form';
 import { getClientHealthMap } from '@/features/clients/health';
@@ -8,7 +9,8 @@ import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientsPage() {
-  const { orgId } = await requireOrgAdminPage();
+  const { user, orgId } = await requireAgencyPage();
+  const isAdmin = isOrgAdmin(user, orgId);
   const [companies, healthMap] = await Promise.all([
     listClientCompanies(orgId),
     getClientHealthMap(orgId),
@@ -18,14 +20,16 @@ export default async function ClientsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{de.clients.title}</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.create}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CreateClientForm orgId={orgId} />
-        </CardContent>
-      </Card>
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.clients.create}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CreateClientForm orgId={orgId} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
