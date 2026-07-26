@@ -5,6 +5,7 @@ import { getCalendarData } from '@/features/calendar/queries';
 import { listClientCompanies } from '@/features/client-companies/queries';
 import { NewEventButton } from '@/features/calendar/components/new-event-button';
 import { EventList } from '@/features/calendar/components/event-list';
+import { IcalSubscribe } from '@/features/calendar/components/ical-subscribe';
 import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -188,6 +189,15 @@ export default async function CalendarPage({
         </CardHeader>
         <CardContent>
           <EventList events={monthEvents} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.calendar.subscribe}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <IcalSubscribe />
         </CardContent>
       </Card>
     </div>
