@@ -11,6 +11,7 @@ const PUBLIC_PREFIXES = [
   '/invite',
   '/auth',
   '/no-access',
+  '/api/inquiries', // public webhook, authenticated by secret URL token
 ];
 
 function isPublicPath(pathname: string): boolean {
