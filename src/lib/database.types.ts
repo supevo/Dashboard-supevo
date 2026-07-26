@@ -285,6 +285,24 @@ export interface Database {
         >;
         Relationships: [];
       };
+      calendar_feed_tokens: {
+        Row: {
+          user_id: string;
+          organization_id: string;
+          token: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          organization_id: string;
+          token?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['calendar_feed_tokens']['Insert']
+        >;
+        Relationships: [];
+      };
       leads: {
         Row: {
           id: string;

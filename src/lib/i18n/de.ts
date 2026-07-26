@@ -406,6 +406,16 @@ export const de = {
     legendEvent: 'Kundentermin',
     legendAbsence: 'Abwesenheit',
     legendDeadline: 'Aufgaben-Deadline',
+    subscribe: 'In Google/Apple/Outlook abonnieren',
+    icalHint:
+      'Abonniere Termine und Abwesenheiten schreibgeschützt in deinem Kalender. Der Link ist geheim – nur mit ihm sind die Daten sichtbar.',
+    icalShow: 'Abo-Link anzeigen',
+    icalCopy: 'Kopieren',
+    icalCopied: 'Kopiert ✓',
+    icalRegenerate: 'Link neu erzeugen (alten ungültig machen)',
+    icalStep1: 'Google Kalender → „Weitere Kalender" → „Per URL".',
+    icalStep2: 'Den kopierten Link einfügen und hinzufügen.',
+    icalStep3: 'Aktualisiert sich automatisch (Google alle paar Stunden).',
   },
   absence: {
     title: 'Abwesenheit',
