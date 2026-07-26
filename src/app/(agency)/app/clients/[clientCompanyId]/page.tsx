@@ -20,6 +20,8 @@ import { RecapSection } from '@/features/recap/components/recap-section';
 import { MonthlyReport } from '@/features/reports/components/monthly-report';
 import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
+import { getSatisfactionSummary } from '@/features/satisfaction/queries';
+import { SatisfactionSummaryCard } from '@/features/satisfaction/components/satisfaction-summary';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDetailPage({
@@ -33,15 +35,23 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  const [contacts, membership, billingSettings, invoices, requests, healthMap] =
-    await Promise.all([
-      listClientContacts(orgId, clientCompanyId),
-      getClientMembership(clientCompanyId),
-      getBillingSettings(orgId),
-      listClientInvoices(clientCompanyId),
-      listClientRequests(clientCompanyId),
-      getClientHealthMap(orgId),
-    ]);
+  const [
+    contacts,
+    membership,
+    billingSettings,
+    invoices,
+    requests,
+    healthMap,
+    satisfaction,
+  ] = await Promise.all([
+    listClientContacts(orgId, clientCompanyId),
+    getClientMembership(clientCompanyId),
+    getBillingSettings(orgId),
+    listClientInvoices(clientCompanyId),
+    listClientRequests(clientCompanyId),
+    getClientHealthMap(orgId),
+    getSatisfactionSummary(clientCompanyId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -71,6 +81,15 @@ export default async function ClientDetailPage({
         </CardHeader>
         <CardContent>
           <MonthlyReport clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.satisfaction.agencyTitle}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SatisfactionSummaryCard summary={satisfaction} />
         </CardContent>
       </Card>
 

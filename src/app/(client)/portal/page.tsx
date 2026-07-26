@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getClientDashboard } from '@/features/dashboard/queries';
+import { getMyClientCompany, getMySatisfaction } from '@/features/satisfaction/queries';
+import { SatisfactionWidget } from '@/features/satisfaction/components/satisfaction-widget';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -16,6 +18,10 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 export default async function ClientDashboardPage() {
   const { user } = await requireClientPage();
   const d = await getClientDashboard();
+  const company = await getMyClientCompany();
+  const mySatisfaction = company
+    ? await getMySatisfaction(company.clientCompanyId)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -31,6 +37,8 @@ export default async function ClientDashboardPage() {
         <StatTile label={de.dashboard.inProgress} value={d.inProgressCount} />
         <StatTile label={de.dashboard.toApprove} value={d.toApproveCount} />
       </div>
+
+      {company ? <SatisfactionWidget initial={mySatisfaction} /> : null}
 
       <Card>
         <CardHeader>

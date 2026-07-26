@@ -430,6 +430,30 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['award_snapshots']['Insert']>;
         Relationships: [];
       };
+      client_satisfaction: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          month: string;
+          rating: number;
+          comment: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          month: string;
+          rating: number;
+          comment?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['client_satisfaction']['Insert']>;
+        Relationships: [];
+      };
       calendar_feed_tokens: {
         Row: {
           user_id: string;
