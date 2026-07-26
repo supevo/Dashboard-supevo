@@ -371,6 +371,13 @@ export const de = {
       none: 'Ohne Termin',
     },
   },
+  rating: {
+    title: 'Ergebnis-Bewertung',
+    from: 'aus',
+    none: 'noch nicht bewertet',
+    hint: 'Bewerte das Ergebnis (1–10). Fließt in die Qualität für die Monatsauszeichnung ein.',
+    ownTask: 'Eigene Aufgaben können nicht bewertet werden.',
+  },
   coaching: {
     myTitle: 'Dein Chef-Feedback',
     mySubtitle: 'Kurzes, persönliches Wochen-Feedback von der KI-Leitung.',

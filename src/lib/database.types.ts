@@ -286,6 +286,26 @@ export interface Database {
         >;
         Relationships: [];
       };
+      task_ratings: {
+        Row: {
+          id: string;
+          organization_id: string;
+          task_id: string;
+          rater_user_id: string;
+          stars: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          task_id: string;
+          rater_user_id: string;
+          stars: number;
+        };
+        Update: Partial<Database['public']['Tables']['task_ratings']['Insert']>;
+        Relationships: [];
+      };
       objectives: {
         Row: {
           id: string;
