@@ -5,6 +5,8 @@ import { AvatarUploader } from '@/features/profile/components/avatar-uploader';
 import { ProfileForm } from '@/features/profile/components/profile-form';
 import { SkillsSection } from '@/features/skills/components/skills-section';
 import { listMySkills } from '@/features/skills/queries';
+import { PreferencesSection } from '@/features/preferences/components/preferences-section';
+import { listMyPreferences } from '@/features/preferences/queries';
 import { de } from '@/lib/i18n/de';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -28,7 +30,10 @@ export default async function ProfilePage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const skills = await listMySkills(user.id);
+  const [skills, preferences] = await Promise.all([
+    listMySkills(user.id),
+    listMyPreferences(user.id),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -62,14 +67,24 @@ export default async function ProfilePage() {
           </div>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.skills.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SkillsSection skills={skills} />
-        </CardContent>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.skills.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SkillsSection skills={skills} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>❤️ {de.preferences.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PreferencesSection preferences={preferences} />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

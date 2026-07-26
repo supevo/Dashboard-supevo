@@ -285,6 +285,28 @@ export interface Database {
         >;
         Relationships: [];
       };
+      work_preferences: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string;
+          name: string;
+          level: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id: string;
+          name: string;
+          level?: number;
+        };
+        Update: Partial<
+          Database['public']['Tables']['work_preferences']['Insert']
+        >;
+        Relationships: [];
+      };
       client_chat_messages: {
         Row: {
           id: string;

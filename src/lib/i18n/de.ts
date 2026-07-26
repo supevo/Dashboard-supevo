@@ -61,6 +61,12 @@ export const de = {
     other: 'Weitere',
     level: 'Level',
   },
+  preferences: {
+    title: 'Lieblingsarbeit',
+    hint: 'Zeig mit Herzen, was du am liebsten machst (1–5). Die KI berücksichtigt das bei der Aufgabenverteilung.',
+    barHint:
+      'Auf ein Herz klicken, um die Vorliebe zu setzen. Erneut auf das aktive Herz klicken setzt sie zurück.',
+  },
   errors: {
     UNAUTHENTICATED: 'Bitte melde dich an, um fortzufahren.',
     FORBIDDEN: 'Du hast keine Berechtigung für diese Aktion.',
@@ -521,6 +527,7 @@ export const de = {
   },
   task: {
     details: 'Aufgabe',
+    autoAssign: 'KI: passende Person zuordnen',
     description: 'Beschreibung',
     comments: 'Kommentare',
     files: 'Dateien',

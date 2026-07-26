@@ -5,6 +5,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getTaskDetail } from '@/features/tasks/queries';
 import { listProjectMembers } from '@/features/projects/queries';
 import { AssigneePicker } from '@/features/tasks/components/assignee-picker';
+import { AutoAssignButton } from '@/features/tasks/components/auto-assign-button';
 import { listTaskComments } from '@/features/comments/queries';
 import { listTaskFiles } from '@/features/files/queries';
 import { listTaskChecklists } from '@/features/checklists/queries';
@@ -213,6 +214,11 @@ export default async function TaskDetailPage({
                 assignees={task.assignees}
                 members={members}
               />
+              {task.canManage && (
+                <div className="mt-3 border-t pt-3">
+                  <AutoAssignButton projectId={projectId} taskId={taskId} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
