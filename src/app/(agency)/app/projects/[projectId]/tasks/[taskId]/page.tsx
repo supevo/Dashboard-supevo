@@ -20,6 +20,8 @@ import { StartTimerButton } from '@/features/time-tracking/components/start-time
 import { getRunningTimer } from '@/features/time-tracking/queries';
 import { TaskRating } from '@/features/ratings/components/task-rating';
 import { getTaskRating } from '@/features/ratings/queries';
+import { EffortPanel } from '@/features/estimate/components/effort-panel';
+import { getTaskActualMinutes } from '@/features/estimate/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
@@ -53,6 +55,7 @@ export default async function TaskDetailPage({
   const members = await listProjectMembers(projectId);
   const runningTimer = await getRunningTimer(user.id);
   const rating = await getTaskRating(taskId, user.id);
+  const actualMinutes = await getTaskActualMinutes(taskId);
   const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
@@ -223,6 +226,21 @@ export default async function TaskDetailPage({
                   <AutoAssignButton projectId={projectId} taskId={taskId} />
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.effort.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EffortPanel
+                projectId={projectId}
+                taskId={taskId}
+                estimatedMinutes={task.estimatedMinutes}
+                actualMinutes={actualMinutes}
+                canManage={task.canManage}
+              />
             </CardContent>
           </Card>
 

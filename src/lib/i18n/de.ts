@@ -371,6 +371,15 @@ export const de = {
       none: 'Ohne Termin',
     },
   },
+  effort: {
+    title: 'Aufwand',
+    estimated: 'Geschätzt',
+    actual: 'Erfasst',
+    aiEstimate: 'KI schätzt',
+    inTime: 'In Zeit ✓',
+    slightlyOver: 'Leicht drüber',
+    over: 'Über Schätzung',
+  },
   rating: {
     title: 'Ergebnis-Bewertung',
     from: 'aus',
