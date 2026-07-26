@@ -560,6 +560,46 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['inquiry_comments']['Insert']>;
         Relationships: [];
       };
+      chat_channels: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          description: string | null;
+          is_archived: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          description?: string | null;
+          is_archived?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['chat_channels']['Insert']>;
+        Relationships: [];
+      };
+      chat_channel_messages: {
+        Row: {
+          id: string;
+          channel_id: string;
+          organization_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          channel_id: string;
+          organization_id: string;
+          author_id?: string | null;
+          body: string;
+        };
+        Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
+        Relationships: [];
+      };
       calendar_feed_tokens: {
         Row: {
           user_id: string;
