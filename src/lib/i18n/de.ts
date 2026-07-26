@@ -417,8 +417,8 @@ export const de = {
     ownTask: 'Eigene Aufgaben können nicht bewertet werden.',
   },
   coaching: {
-    myTitle: 'Dein Chef-Feedback',
-    mySubtitle: 'Kurzes, persönliches Wochen-Feedback von der KI-Leitung.',
+    myTitle: 'Dein Feedback',
+    mySubtitle: 'Kurzes, persönliches Wochen-Feedback von der KI.',
     getMine: 'Feedback holen',
     teamTitle: 'KI-Eskalation',
     teamSubtitle: 'Worauf du diese Woche beim Team achten solltest.',
