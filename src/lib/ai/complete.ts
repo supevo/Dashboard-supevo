@@ -17,7 +17,9 @@ import { logger } from '@/lib/logger';
  */
 
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
-const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+// gemini-2.5-flash is no longer available to new API projects; 2.0-flash is
+// the current broadly-available flash model. Override via AI_MODEL if needed.
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 const DEFAULT_CLAUDE_MODEL = 'claude-opus-5';
 
 export type AiProvider = 'openai' | 'gemini' | 'anthropic';
