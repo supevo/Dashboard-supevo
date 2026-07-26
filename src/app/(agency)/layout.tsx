@@ -11,25 +11,22 @@ import { isOrgAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { de } from '@/lib/i18n/de';
 
-// Primary workspace navigation (left sidebar).
+// Primary workspace navigation (left sidebar) — visible to all agency staff.
 const NAV_ITEMS: NavItem[] = [
   { href: '/app', label: de.nav.dashboard },
-  { href: '/app/my-tasks', label: de.nav.agenda },
   { href: '/app/calendar', label: de.nav.calendar },
   { href: '/app/projects', label: de.nav.projects },
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/leads', label: de.nav.leads },
-  { href: '/app/team', label: de.nav.team },
   { href: '/app/kudos', label: de.nav.kudos },
   { href: '/app/awards', label: de.nav.awards },
-  { href: '/app/goals', label: de.nav.goals },
-  { href: '/app/absences', label: de.nav.absence },
-  { href: '/app/workload', label: de.nav.workload },
   { href: '/app/reports', label: de.nav.reports },
 ];
 
-// Leadership-only entries appended for org admins.
+// Leadership-only entries appended for org admins (and super admins).
 const ADMIN_NAV_ITEMS: NavItem[] = [
+  { href: '/app/team', label: de.nav.team },
+  { href: '/app/workload', label: de.nav.workload },
   { href: '/app/cockpit', label: de.nav.cockpit },
 ];
 
@@ -37,6 +34,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
   { href: '/app/templates', label: de.nav.templates },
+  { href: '/app/absences', label: de.nav.absence },
   { href: '/app/settings', label: de.nav.settings },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },

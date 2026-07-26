@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getAgencyDashboard } from '@/features/dashboard/queries';
+import { getWorkStatus } from '@/features/time-tracking/queries';
+import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { PulseWidget } from '@/features/pulse/components/pulse-widget';
 import { getMyPulse } from '@/features/pulse/queries';
@@ -19,19 +21,25 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 }
 
 export default async function AgencyDashboardPage() {
-  const { user } = await requireAgencyPage();
-  const [d, myPulse] = await Promise.all([
+  const { user, orgId } = await requireAgencyPage();
+  const [d, myPulse, workStatus] = await Promise.all([
     getAgencyDashboard(user.id),
     getMyPulse(user.id),
+    getWorkStatus(user.id),
   ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">{de.nav.dashboard}</h1>
-        <p className="text-muted-foreground">
-          Willkommen zurück, {user.fullName ?? user.email}.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{de.nav.dashboard}</h1>
+          <p className="text-muted-foreground">
+            Willkommen zurück, {user.fullName ?? user.email}.
+          </p>
+        </div>
+        <div className="w-full rounded-lg border bg-card p-3 sm:w-auto sm:min-w-[280px]">
+          <WorkClock orgId={orgId} status={workStatus} />
+        </div>
       </div>
 
       <MorningBriefing

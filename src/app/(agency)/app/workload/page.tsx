@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
-import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import {
   getWorkloadOverview,
   type MemberWorkload,
@@ -142,7 +142,7 @@ function MemberRow({
 }
 
 export default async function WorkloadPage() {
-  const { user, orgId } = await requireAgencyPage();
+  const { user, orgId } = await requireOrgAdminPage();
   const admin = isOrgAdmin(user, orgId);
   const [{ members, counts }, absenceByUser, pulse] = await Promise.all([
     getWorkloadOverview(orgId),

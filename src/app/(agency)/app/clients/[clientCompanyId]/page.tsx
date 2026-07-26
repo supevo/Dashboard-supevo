@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { requireOrgAdminPage } from '@/lib/authz/page-guards';
+import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import {
   getClientCompany,
   listClientContacts,
@@ -36,16 +37,14 @@ export default async function ClientDetailPage({
   params: Promise<{ clientCompanyId: string }>;
 }) {
   const { clientCompanyId } = await params;
-  const { orgId } = await requireOrgAdminPage();
+  const { user, orgId } = await requireAgencyPage();
+  const isAdmin = isOrgAdmin(user, orgId);
 
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
+  // Data every agency staffer may see.
   const [
-    contacts,
-    membership,
-    billingSettings,
-    invoices,
     requests,
     healthMap,
     satisfaction,
@@ -53,10 +52,6 @@ export default async function ClientDetailPage({
     inquiryEndpoint,
     inquiries,
   ] = await Promise.all([
-    listClientContacts(orgId, clientCompanyId),
-    getClientMembership(clientCompanyId),
-    getBillingSettings(orgId),
-    listClientInvoices(clientCompanyId),
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
     getSatisfactionSummary(clientCompanyId),
@@ -64,6 +59,16 @@ export default async function ClientDetailPage({
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
   ]);
+
+  // Billing / contacts are admin-only.
+  const [contacts, membership, billingSettings, invoices] = isAdmin
+    ? await Promise.all([
+        listClientContacts(orgId, clientCompanyId),
+        getClientMembership(clientCompanyId),
+        getBillingSettings(orgId),
+        listClientInvoices(clientCompanyId),
+      ])
+    : [[], null, null, []];
 
   return (
     <div className="space-y-6">
@@ -162,64 +167,68 @@ export default async function ClientDetailPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Mitgliedschaft</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MembershipForm
-            orgId={orgId}
-            clientCompanyId={clientCompanyId}
-            membership={membership}
-            settings={billingSettings}
-          />
-        </CardContent>
-      </Card>
+      {isAdmin && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Mitgliedschaft</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MembershipForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                membership={membership}
+                settings={billingSettings}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Rechnungen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <InvoicesSection
-            clientCompanyId={clientCompanyId}
-            invoices={invoices}
-          />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Rechnungen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InvoicesSection
+                clientCompanyId={clientCompanyId}
+                invoices={invoices}
+              />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.inviteContact}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.clients.inviteContact}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.contacts}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {contacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {de.clients.noContacts}
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {contacts.map((c) => (
-                <ContactRow
-                  key={c.id}
-                  orgId={orgId}
-                  clientCompanyId={clientCompanyId}
-                  contact={c}
-                />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.clients.contacts}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contacts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {de.clients.noContacts}
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {contacts.map((c) => (
+                    <ContactRow
+                      key={c.id}
+                      orgId={orgId}
+                      clientCompanyId={clientCompanyId}
+                      contact={c}
+                    />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
