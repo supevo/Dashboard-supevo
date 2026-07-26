@@ -454,6 +454,40 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['client_satisfaction']['Insert']>;
         Relationships: [];
       };
+      marketing_reports: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          period_label: string;
+          period_start: string;
+          ranking: string | null;
+          sea: string | null;
+          inquiries: string | null;
+          summary: string | null;
+          screenshots: { url: string; caption?: string }[];
+          published: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          period_label: string;
+          period_start: string;
+          ranking?: string | null;
+          sea?: string | null;
+          inquiries?: string | null;
+          summary?: string | null;
+          screenshots?: unknown;
+          published?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['marketing_reports']['Insert']>;
+        Relationships: [];
+      };
       calendar_feed_tokens: {
         Row: {
           user_id: string;
