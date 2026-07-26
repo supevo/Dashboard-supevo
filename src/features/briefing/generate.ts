@@ -7,6 +7,8 @@ import type { BriefingContext, BriefingTask } from './context';
 export interface BriefingPriority {
   title: string;
   reason: string;
+  /** Resolved task id when the priority matches one of the context tasks. */
+  taskId?: string | null;
 }
 
 export interface GeneratedBriefing {
@@ -107,7 +109,26 @@ function coerceStringArray(value: unknown): string[] {
     .slice(0, 3);
 }
 
-function coercePriorities(value: unknown): BriefingPriority[] {
+/** Best-effort match of a free-form priority title back to a real task id. */
+function matchTaskId(title: string, ctx: BriefingContext): string | null {
+  const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+  const t = norm(title);
+  if (!t) return null;
+  const pool = [...ctx.tasks, ...ctx.available];
+  // Exact title match first, then substring either direction.
+  const exact = pool.find((task) => norm(task.title) === t);
+  if (exact) return exact.id;
+  const partial = pool.find((task) => {
+    const nt = norm(task.title);
+    return nt.includes(t) || t.includes(nt);
+  });
+  return partial?.id ?? null;
+}
+
+function coercePriorities(
+  value: unknown,
+  ctx: BriefingContext,
+): BriefingPriority[] {
   if (!Array.isArray(value)) return [];
   const out: BriefingPriority[] = [];
   for (const item of value) {
@@ -118,6 +139,7 @@ function coercePriorities(value: unknown): BriefingPriority[] {
         out.push({
           title: title.trim(),
           reason: typeof reason === 'string' ? reason.trim() : '',
+          taskId: matchTaskId(title, ctx),
         });
       }
     }
@@ -165,7 +187,7 @@ export async function generateBriefing(
     const nextMoveRaw = parsed.nextMove ?? parsed.next_move;
     return {
       summary,
-      priorities: coercePriorities(parsed.priorities),
+      priorities: coercePriorities(parsed.priorities, ctx),
       nextMove:
         typeof nextMoveRaw === 'string' && nextMoveRaw.trim()
           ? nextMoveRaw.trim()

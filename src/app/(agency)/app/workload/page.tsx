@@ -31,11 +31,30 @@ function LevelBadge({ level }: { level: WorkloadLevel }) {
   );
 }
 
-function StatTile({ label, value }: { label: string; value: number | string }) {
+function AmpelTile({
+  label,
+  value,
+  level,
+}: {
+  label: string;
+  value: number;
+  level: WorkloadLevel;
+}) {
   return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
+      <span
+        className={cn(
+          'h-5 w-5 shrink-0 rounded-full ring-4',
+          level === 'red' && 'bg-red-500 ring-red-500/20',
+          level === 'yellow' && 'bg-amber-500 ring-amber-500/20',
+          level === 'green' && 'bg-emerald-500 ring-emerald-500/20',
+          level === 'idle' && 'bg-muted-foreground/40 ring-muted-foreground/10',
+        )}
+      />
+      <div>
+        <div className="text-2xl font-bold leading-none">{value}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+      </div>
     </div>
   );
 }
@@ -136,10 +155,18 @@ export default async function WorkloadPage() {
       <TeamBriefingCard />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label={de.workload.level.red} value={counts.red} />
-        <StatTile label={de.workload.level.yellow} value={counts.yellow} />
-        <StatTile label={de.workload.level.green} value={counts.green} />
-        <StatTile label={de.workload.level.idle} value={counts.idle} />
+        <AmpelTile label={de.workload.level.red} value={counts.red} level="red" />
+        <AmpelTile
+          label={de.workload.level.yellow}
+          value={counts.yellow}
+          level="yellow"
+        />
+        <AmpelTile
+          label={de.workload.level.green}
+          value={counts.green}
+          level="green"
+        />
+        <AmpelTile label={de.workload.level.idle} value={counts.idle} level="idle" />
       </div>
 
       <Card>

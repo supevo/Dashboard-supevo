@@ -83,27 +83,39 @@ export function TeamBriefingCard() {
           <>
             <p>{briefing.summary}</p>
             {briefing.risks.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {de.teamBriefing.risks}
                 </div>
-                <ul className="list-disc space-y-0.5 pl-5">
+                <div className="space-y-1.5">
                   {briefing.risks.map((r, i) => (
-                    <li key={i}>{r}</li>
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+                    >
+                      <span>⚠️</span>
+                      <span>{r}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
             {briefing.recommendations.length > 0 && (
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="text-xs font-semibold uppercase tracking-wide text-primary">
                   {de.teamBriefing.recommendations}
                 </div>
-                <ul className="list-disc space-y-0.5 pl-5">
+                <div className="space-y-1.5">
                   {briefing.recommendations.map((r, i) => (
-                    <li key={i}>{r}</li>
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 rounded-md bg-primary/5 px-2.5 py-1.5"
+                    >
+                      <span>💡</span>
+                      <span>{r}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
           </>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { de } from '@/lib/i18n/de';
@@ -8,6 +9,7 @@ import { de } from '@/lib/i18n/de';
 interface Priority {
   title: string;
   reason: string;
+  taskId?: string | null;
 }
 
 interface Briefing {
@@ -116,48 +118,76 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
         )}
         {briefing && (
           <>
-            <p>{briefing.summary}</p>
+            <p className="leading-relaxed">{briefing.summary}</p>
 
-            {briefing.priorities.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {de.briefing.priorities}
+            {briefing.nextMove && (
+              <div className="flex items-start gap-3 rounded-lg border border-primary/40 bg-background p-3">
+                <span className="text-xl leading-none">⚡</span>
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    {de.briefing.nextMove}
+                  </div>
+                  <p className="mt-0.5">{briefing.nextMove}</p>
                 </div>
-                <ol className="list-decimal space-y-1 pl-5">
-                  {briefing.priorities.map((p, i) => (
-                    <li key={i}>
-                      <span className="font-medium">{p.title}</span>
-                      {p.reason ? (
-                        <span className="text-muted-foreground">
-                          {' '}
-                          — {p.reason}
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ol>
               </div>
             )}
 
-            {briefing.nextMove && (
-              <div className="rounded-md border border-primary/30 bg-background p-3">
-                <div className="text-xs font-semibold uppercase tracking-wide text-primary">
-                  {de.briefing.nextMove}
+            {briefing.priorities.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  🎯 {de.briefing.priorities}
                 </div>
-                <p className="mt-1">{briefing.nextMove}</p>
+                <div className="space-y-2">
+                  {briefing.priorities.map((p, i) => {
+                    const inner = (
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">
+                            {p.title}
+                            {p.taskId && (
+                              <span className="ml-1 text-xs text-primary">↗</span>
+                            )}
+                          </div>
+                          {p.reason && (
+                            <div className="text-xs text-muted-foreground">
+                              {p.reason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                    return p.taskId ? (
+                      <Link
+                        key={i}
+                        href={`/app/tasks/${p.taskId}`}
+                        className="block rounded-lg border bg-background p-2.5 transition-colors hover:border-primary/50 hover:bg-primary/5"
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div key={i} className="rounded-lg border bg-background p-2.5">
+                        {inner}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
             {briefing.notes.length > 0 && (
-              <div className="space-y-1">
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {de.briefing.notes}
-                </div>
-                <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-                  {briefing.notes.map((n, i) => (
-                    <li key={i}>{n}</li>
-                  ))}
-                </ul>
+              <div className="space-y-1.5">
+                {briefing.notes.map((n, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                  >
+                    <span>⚠️</span>
+                    <span>{n}</span>
+                  </div>
+                ))}
               </div>
             )}
           </>
