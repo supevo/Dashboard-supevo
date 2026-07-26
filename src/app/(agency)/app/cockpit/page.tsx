@@ -4,6 +4,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { getCockpit } from '@/features/cockpit/queries';
+import { CoachingCard } from '@/features/coaching/components/coaching-card';
 import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -38,6 +39,8 @@ export default async function CockpitPage() {
         <h1 className="text-2xl font-bold">{de.cockpit.title}</h1>
         <p className="text-sm text-muted-foreground">{de.cockpit.subtitle}</p>
       </div>
+
+      <CoachingCard mode="team" />
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{de.cockpit.empty}</p>

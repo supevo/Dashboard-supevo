@@ -5,6 +5,7 @@ import { getAgencyDashboard } from '@/features/dashboard/queries';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { PulseWidget } from '@/features/pulse/components/pulse-widget';
 import { getMyPulse } from '@/features/pulse/queries';
+import { CoachingCard } from '@/features/coaching/components/coaching-card';
 import { formatMinutes, formatBerlinDateTime } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -37,7 +38,10 @@ export default async function AgencyDashboardPage() {
         firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
       />
 
-      <PulseWidget initial={myPulse} />
+      <div className="grid gap-6 md:grid-cols-2">
+        <PulseWidget initial={myPulse} />
+        <CoachingCard mode="me" />
+      </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />
