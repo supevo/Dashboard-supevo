@@ -286,6 +286,53 @@ export interface Database {
         >;
         Relationships: [];
       };
+      objectives: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          title: string;
+          description: string | null;
+          period: string | null;
+          status: 'active' | 'done' | 'archived';
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          title: string;
+          description?: string | null;
+          period?: string | null;
+          status?: 'active' | 'done' | 'archived';
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['objectives']['Insert']>;
+        Relationships: [];
+      };
+      key_results: {
+        Row: {
+          id: string;
+          objective_id: string;
+          title: string;
+          done: boolean;
+          points: number;
+          position: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          objective_id: string;
+          title: string;
+          done?: boolean;
+          points?: number;
+          position?: number;
+        };
+        Update: Partial<Database['public']['Tables']['key_results']['Insert']>;
+        Relationships: [];
+      };
       pulse_checks: {
         Row: {
           id: string;
