@@ -444,6 +444,14 @@ export function KanbanBoard({
                           {de.kanban.blocked}
                         </span>
                       )}
+                      {task.needsRating && (
+                        <span
+                          className="rounded bg-amber-100 px-1 py-0.5 text-amber-800"
+                          title={de.taskKudos.pending}
+                        >
+                          ⭐ {de.kanban.rate}
+                        </span>
+                      )}
                       {task.agingDays !== null && task.agingDays >= AGING_AMBER_DAYS && (
                         <span
                           className={cn(

@@ -387,6 +387,7 @@ export interface Database {
           badge: string;
           message: string | null;
           points: number;
+          task_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -397,6 +398,7 @@ export interface Database {
           badge: string;
           message?: string | null;
           points?: number;
+          task_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['kudos']['Insert']>;
         Relationships: [];
@@ -1023,6 +1025,8 @@ export interface Database {
           lock_version: number;
           column_entered_at: string;
           reopen_count: number;
+          completed_by: string | null;
+          completed_at: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -1049,6 +1053,8 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;
           deleted_at?: string | null;
+          completed_by?: string | null;
+          completed_at?: string | null;
         };
         Relationships: [];
       };

@@ -418,7 +418,7 @@ export async function moveTaskAction(
   const { taskId, targetColumnId, newPosition, expectedLockVersion } =
     parsed.data;
 
-  await requireUser();
+  const user = await requireUser();
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.rpc('move_task', {
@@ -430,6 +430,20 @@ export async function moveTaskAction(
 
   if (error) {
     return errorResult(moveErrorMessage(error.message));
+  }
+
+  // Record who finished the task when it lands in a done column, so colleagues
+  // can award kudos for it and the completer earns the points.
+  const { data: targetColumn } = await supabase
+    .from('board_columns')
+    .select('is_done_column')
+    .eq('id', targetColumnId)
+    .maybeSingle();
+  if (targetColumn?.is_done_column) {
+    await supabase
+      .from('tasks')
+      .update({ completed_by: user.id, completed_at: new Date().toISOString() })
+      .eq('id', taskId);
   }
 
   revalidatePath('/app/projects');
