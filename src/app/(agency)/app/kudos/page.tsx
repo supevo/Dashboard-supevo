@@ -232,13 +232,28 @@ export default async function KudosPage() {
                   ))}
                 </ul>
               )}
-              {hub.badges.length === 0 ? (
-                hub.trophies.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {t.achievementsEmpty}
-                  </p>
-                )
-              ) : (
+
+              {hub.milestones.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.milestones}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {hub.milestones.map((m) => (
+                      <span
+                        key={m.key}
+                        className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+                        title={m.label}
+                      >
+                        <span aria-hidden>{m.emoji}</span>
+                        {m.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hub.badges.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {hub.badges.map((b) => (
                     <span
@@ -255,6 +270,14 @@ export default async function KudosPage() {
                   ))}
                 </div>
               )}
+
+              {hub.trophies.length === 0 &&
+                hub.milestones.length === 0 &&
+                hub.badges.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {t.achievementsEmpty}
+                  </p>
+                )}
             </CardContent>
           </Card>
 
