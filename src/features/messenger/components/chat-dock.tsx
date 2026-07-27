@@ -11,8 +11,14 @@ import {
   createChannelAction,
   sendChannelMessageAction,
   markChannelRead,
+  openDmAction,
 } from '@/features/messenger/actions';
-import type { ChatChannel, ChannelMessage } from '@/features/messenger/queries';
+import type {
+  ChatChannel,
+  ChannelMessage,
+  DmConversation,
+  TeamMember,
+} from '@/features/messenger/queries';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
@@ -27,15 +33,6 @@ const OVERVIEW_POLL_MS = 12000;
 const OPEN_KEY = 'chatDockOpen';
 const ACTIVE_KEY = 'chatDockChannel';
 
-function UnreadBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return (
-    <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
-      {count > 99 ? '99+' : count}
-    </span>
-  );
-}
-
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
     day: '2-digit',
@@ -45,7 +42,22 @@ function timeLabel(iso: string): string {
   });
 }
 
-function ConversationView({ channel }: { channel: ChatChannel }) {
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+function ConversationView({
+  channelId,
+  title,
+}: {
+  channelId: string;
+  title: string;
+}) {
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [state, action] = useActionState(sendChannelMessageAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
@@ -53,7 +65,7 @@ function ConversationView({ channel }: { channel: ChatChannel }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages`, {
+      const res = await fetch(`/api/chat/channels/${channelId}/messages`, {
         cache: 'no-store',
       });
       if (!res.ok) return;
@@ -62,7 +74,7 @@ function ConversationView({ channel }: { channel: ChatChannel }) {
     } catch {
       /* transient — next poll retries */
     }
-  }, [channel.id]);
+  }, [channelId]);
 
   useEffect(() => {
     void load();
@@ -83,7 +95,7 @@ function ConversationView({ channel }: { channel: ChatChannel }) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div className="border-b px-3 py-2 text-sm font-semibold"># {channel.name}</div>
+      <div className="border-b px-3 py-2 text-sm font-semibold">{title}</div>
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-3">
         {messages.length === 0 ? (
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
@@ -112,12 +124,12 @@ function ConversationView({ channel }: { channel: ChatChannel }) {
         )}
       </div>
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
-        <input type="hidden" name="channelId" value={channel.id} />
+        <input type="hidden" name="channelId" value={channelId} />
         <Textarea
           name="body"
           required
           rows={1}
-          placeholder={`${de.messenger.messagePlaceholder} #${channel.name}`}
+          placeholder={de.messenger.messagePlaceholder}
           className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -132,19 +144,61 @@ function ConversationView({ channel }: { channel: ChatChannel }) {
   );
 }
 
-function CreateChannel({ onCreated }: { onCreated: () => void }) {
+function CreateChannel({
+  members,
+  onCreated,
+}: {
+  members: TeamMember[];
+  onCreated: () => void;
+}) {
   const [state, action] = useActionState(createChannelAction, idleResult);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   useEffect(() => {
     if (state.status === 'success') onCreated();
   }, [state, onCreated]);
+
+  const toggle = (id: string) =>
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+
   return (
-    <form action={action} className="space-y-1 p-2">
+    <form action={action} className="space-y-1.5 p-2">
       {state.status === 'error' && (
         <Alert variant="destructive" className="text-[11px]">
           {state.message}
         </Alert>
       )}
       <Input name="name" required placeholder={de.messenger.channelName} className="h-7 text-xs" />
+      <label className="flex items-center gap-1.5 text-[11px]">
+        <input
+          type="checkbox"
+          name="isPrivate"
+          checked={isPrivate}
+          onChange={(e) => setIsPrivate(e.target.checked)}
+          className="h-3.5 w-3.5"
+        />
+        {de.messenger.privateChannel}
+      </label>
+      {isPrivate && (
+        <div className="max-h-24 space-y-0.5 overflow-y-auto rounded border p-1">
+          {members.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">–</p>
+          ) : (
+            members.map((m) => (
+              <label key={m.userId} className="flex items-center gap-1.5 text-[11px]">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(m.userId)}
+                  onChange={() => toggle(m.userId)}
+                  className="h-3.5 w-3.5"
+                />
+                {m.name}
+              </label>
+            ))
+          )}
+        </div>
+      )}
+      <input type="hidden" name="memberIds" value={JSON.stringify(selected)} />
       <SubmitButton size="sm" className="w-full">
         {de.messenger.create}
       </SubmitButton>
@@ -152,18 +206,16 @@ function CreateChannel({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-/**
- * Persistent chat widget docked at the bottom-right across the agency area.
- * Collapsed to a launcher bar; expands to a channel list + conversation.
- */
 export function ChatDock() {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [dms, setDms] = useState<DmConversation[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [startingDm, setStartingDm] = useState(false);
 
-  // Restore the open/active state so it survives reloads.
   useEffect(() => {
     setOpen(localStorage.getItem(OPEN_KEY) === '1');
     setActiveId(localStorage.getItem(ACTIVE_KEY));
@@ -181,29 +233,29 @@ export function ChatDock() {
       if (!res.ok) return;
       const data = (await res.json()) as {
         channels: ChatChannel[];
+        dms: DmConversation[];
+        members: TeamMember[];
         unread?: Record<string, number>;
       };
       setChannels(data.channels);
+      setDms(data.dms);
+      setMembers(data.members);
       setUnread(data.unread ?? {});
-      setActiveId((cur) =>
-        cur && data.channels.some((c) => c.id === cur)
-          ? cur
-          : (data.channels[0]?.id ?? null),
-      );
+      setActiveId((cur) => {
+        const known = [...data.channels, ...data.dms].some((c) => c.id === cur);
+        return cur && known ? cur : (data.channels[0]?.id ?? data.dms[0]?.id ?? null);
+      });
     } catch {
       /* ignore */
     }
   }, []);
 
-  // Poll the overview (channels + unread) regardless of open state, so the
-  // launcher badge stays current even while collapsed.
   useEffect(() => {
     void loadOverview();
     const t = setInterval(() => void loadOverview(), OVERVIEW_POLL_MS);
     return () => clearInterval(t);
   }, [loadOverview]);
 
-  // Mark the active channel read while the dock is open and clear its badge.
   useEffect(() => {
     if (!open || !activeId) return;
     if ((unread[activeId] ?? 0) === 0) return;
@@ -211,8 +263,22 @@ export function ChatDock() {
     setUnread((u) => ({ ...u, [activeId]: 0 }));
   }, [open, activeId, unread]);
 
-  const active = channels.find((c) => c.id === activeId) ?? null;
+  const startDm = async (userId: string) => {
+    const res = await openDmAction(userId);
+    if ('channelId' in res) {
+      setActiveId(res.channelId);
+      setStartingDm(false);
+      void loadOverview();
+    }
+  };
+
+  const activeChannel = channels.find((c) => c.id === activeId);
+  const activeDm = dms.find((d) => d.id === activeId);
+  const activeTitle = activeChannel
+    ? `${activeChannel.isPrivate ? '🔒' : '#'} ${activeChannel.name}`
+    : (activeDm?.otherName ?? '');
   const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
+  const dmMemberIds = new Set(dms.map((d) => d.otherUserId));
 
   if (!open) {
     return (
@@ -247,8 +313,65 @@ export function ChatDock() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-40 shrink-0 flex-col border-r sm:w-48">
-          <div className="flex items-center justify-between px-2 py-2">
+        <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r sm:w-52">
+          {/* Direct messages */}
+          <div className="flex items-center justify-between px-2 pt-2">
+            <span className="text-xs font-semibold uppercase text-muted-foreground">
+              {de.messenger.directMessages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setStartingDm((v) => !v)}
+              className="rounded px-1.5 text-base leading-none text-muted-foreground hover:bg-muted"
+              title={de.messenger.newDm}
+              aria-label={de.messenger.newDm}
+            >
+              +
+            </button>
+          </div>
+          {startingDm && (
+            <div className="mx-1.5 mb-1 max-h-28 space-y-0.5 overflow-y-auto rounded border p-1">
+              {members.filter((m) => !dmMemberIds.has(m.userId)).length === 0 ? (
+                <p className="px-1 py-0.5 text-[11px] text-muted-foreground">–</p>
+              ) : (
+                members
+                  .filter((m) => !dmMemberIds.has(m.userId))
+                  .map((m) => (
+                    <button
+                      key={m.userId}
+                      type="button"
+                      onClick={() => void startDm(m.userId)}
+                      className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs hover:bg-muted"
+                    >
+                      <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} size="sm" />
+                      <span className="truncate">{m.name}</span>
+                    </button>
+                  ))
+              )}
+            </div>
+          )}
+          <div className="space-y-0.5 px-1.5 pb-1">
+            {dms.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setActiveId(d.id)}
+                className={cn(
+                  'flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                  activeId === d.id
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground',
+                )}
+              >
+                <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} size="sm" />
+                <span className="truncate">{d.otherName}</span>
+                {activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
+              </button>
+            ))}
+          </div>
+
+          {/* Channels */}
+          <div className="mt-1 flex items-center justify-between px-2 pt-1">
             <span className="text-xs font-semibold uppercase text-muted-foreground">
               {de.messenger.channels}
             </span>
@@ -264,13 +387,14 @@ export function ChatDock() {
           </div>
           {creating && (
             <CreateChannel
+              members={members}
               onCreated={() => {
                 setCreating(false);
                 void loadOverview();
               }}
             />
           )}
-          <nav className="flex-1 space-y-0.5 overflow-y-auto px-1.5 pb-2">
+          <nav className="space-y-0.5 px-1.5 pb-2">
             {channels.length === 0 ? (
               <p className="px-2 py-2 text-[11px] text-muted-foreground">
                 {de.messenger.noChannels}
@@ -288,7 +412,9 @@ export function ChatDock() {
                       : 'text-muted-foreground',
                   )}
                 >
-                  <span className="truncate"># {c.name}</span>
+                  <span className="truncate">
+                    {c.isPrivate ? '🔒' : '#'} {c.name}
+                  </span>
                   {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
                 </button>
               ))
@@ -296,11 +422,11 @@ export function ChatDock() {
           </nav>
         </aside>
 
-        {active ? (
-          <ConversationView key={active.id} channel={active} />
+        {activeId && activeTitle ? (
+          <ConversationView key={activeId} channelId={activeId} title={activeTitle} />
         ) : (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
-            {de.messenger.noChannels}
+            {de.messenger.selectChannel}
           </div>
         )}
       </div>
