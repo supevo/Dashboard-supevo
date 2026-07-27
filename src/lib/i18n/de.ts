@@ -497,6 +497,15 @@ export const de = {
     interests: 'Interessen / Zielgruppen',
     interestsHint: 'Themen, Zielgruppen, Besonderheiten …',
   },
+  taskLog: {
+    title: 'Verlauf (intern)',
+    subtitle: 'Nur für das Team sichtbar – der Kunde sieht das nicht.',
+    views: 'Aufrufe',
+    noViews: 'Noch keine Aufrufe erfasst.',
+    lastSeen: 'zuletzt',
+    changes: 'Änderungen',
+    noChanges: 'Noch keine Änderungen protokolliert.',
+  },
   taskKudos: {
     title: 'Bewertung',
     notYet: 'Bewertbar, sobald die Aufgabe in „Fertig" verschoben wurde.',
