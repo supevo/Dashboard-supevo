@@ -20,6 +20,9 @@ interface AppShellProps {
   userName: string;
   hasAvatar: boolean;
   searchEnabled?: boolean;
+  level?: number;
+  levelProgressPct?: number;
+  status?: 'online' | 'afk' | 'dnd';
   children: React.ReactNode;
 }
 
@@ -32,6 +35,9 @@ export function AppShell({
   userName,
   hasAvatar,
   searchEnabled = false,
+  level,
+  levelProgressPct,
+  status,
   children,
 }: AppShellProps) {
   return (
@@ -71,6 +77,9 @@ export function AppShell({
               name={userName}
               hasAvatar={hasAvatar}
               items={menuItems}
+              level={level}
+              progressPct={levelProgressPct}
+              status={status}
             />
           </div>
         </header>

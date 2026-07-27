@@ -106,6 +106,7 @@ export interface Database {
           email: string | null;
           avatar_url: string | null;
           locale: string;
+          status: string;
           created_at: string;
           updated_at: string;
         };
@@ -115,6 +116,7 @@ export interface Database {
           email?: string | null;
           avatar_url?: string | null;
           locale?: string;
+          status?: string;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];

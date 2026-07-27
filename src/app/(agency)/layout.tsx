@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
+import { getMyGamification } from '@/features/gamification/queries';
 import {
   getCurrentUser,
   hasAgencyAccess,
@@ -19,7 +20,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/projects', label: de.nav.projects },
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/leads', label: de.nav.leads },
-  { href: '/app/kudos', label: de.nav.recognition },
   { href: '/app/reports', label: de.nav.reports },
 ];
 
@@ -33,6 +33,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
 // Personal items visible to every agency staffer.
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
+  { href: '/app/kudos', label: de.nav.levelHub },
   { href: '/app/absences', label: de.nav.absence },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },
@@ -64,6 +65,7 @@ export default async function AgencyLayout({
     .select('avatar_url')
     .eq('id', user.id)
     .maybeSingle();
+  const gamification = await getMyGamification(user.id);
 
   const orgId = primaryAgencyOrgId(user);
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
@@ -78,6 +80,9 @@ export default async function AgencyLayout({
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}
+      level={gamification.level}
+      levelProgressPct={gamification.progressPct}
+      status={gamification.status}
       searchEnabled
     >
       {children}
