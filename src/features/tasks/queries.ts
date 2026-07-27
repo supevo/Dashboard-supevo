@@ -105,6 +105,8 @@ export interface BoardTask {
   attachmentCount: number;
   /** Whole days the task has sat in its current column (null for done cards). */
   agingDays: number | null;
+  /** Completed task awaiting the current viewer's kudos rating. */
+  needsRating: boolean;
 }
 
 export interface BoardColumn {
@@ -152,7 +154,7 @@ export async function getBoardView(
   const { data: tasks } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at',
+      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at, completed_by',
     )
     .eq('board_id', board.id)
     .eq('is_archived', false)
@@ -162,7 +164,7 @@ export async function getBoardView(
   const { data: archivedRows } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at',
+      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at, completed_by',
     )
     .eq('board_id', board.id)
     .eq('is_archived', true)
@@ -249,6 +251,28 @@ export async function getBoardView(
     return ms > 0 ? Math.floor(ms / 86_400_000) : 0;
   };
 
+  // A completed task in a done column awaits the current viewer's kudos rating,
+  // unless they completed it themselves or already rated it.
+  const doneColumnIds = new Set(
+    (columns ?? []).filter((c) => c.is_done_column).map((c) => c.id),
+  );
+  const { data: authData } = await supabase.auth.getUser();
+  const meId = authData.user?.id ?? null;
+  const ratedTaskIds = new Set<string>();
+  if (meId && taskIds.length > 0) {
+    const { data: myKudos } = await supabase
+      .from('kudos')
+      .select('task_id')
+      .eq('from_user_id', meId)
+      .in('task_id', taskIds);
+    for (const k of myKudos ?? []) if (k.task_id) ratedTaskIds.add(k.task_id);
+  }
+  const needsRatingFor = (t: { id: string; column_id: string; completed_by: string | null }) =>
+    doneColumnIds.has(t.column_id) &&
+    !!t.completed_by &&
+    t.completed_by !== meId &&
+    !ratedTaskIds.has(t.id);
+
   type TaskRow = NonNullable<typeof tasks>[number];
   const toBoardTask = (t: TaskRow, withAging: boolean): BoardTask => ({
     id: t.id,
@@ -264,6 +288,7 @@ export async function getBoardView(
     labels: labelsByTask.get(t.id) ?? [],
     attachmentCount: attachmentsByTask.get(t.id) ?? 0,
     agingDays: withAging ? daysSince(t.column_entered_at) : null,
+    needsRating: needsRatingFor(t),
   });
 
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({

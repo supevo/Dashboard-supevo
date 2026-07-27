@@ -20,6 +20,8 @@ import { StartTimerButton } from '@/features/time-tracking/components/start-time
 import { getRunningTimer } from '@/features/time-tracking/queries';
 import { TaskRating } from '@/features/ratings/components/task-rating';
 import { getTaskRating } from '@/features/ratings/queries';
+import { TaskKudosPanel } from '@/features/task-kudos/components/task-kudos-panel';
+import { getTaskKudos } from '@/features/task-kudos/queries';
 import { EffortPanel } from '@/features/estimate/components/effort-panel';
 import { getTaskActualMinutes } from '@/features/estimate/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
@@ -55,6 +57,7 @@ export default async function TaskDetailPage({
   const members = await listProjectMembers(projectId);
   const runningTimer = await getRunningTimer(user.id);
   const rating = await getTaskRating(taskId, user.id);
+  const taskKudos = await getTaskKudos(taskId, user.id);
   const actualMinutes = await getTaskActualMinutes(taskId);
   const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
@@ -241,6 +244,15 @@ export default async function TaskDetailPage({
                 actualMinutes={actualMinutes}
                 canManage={task.canManage}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.taskKudos.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TaskKudosPanel projectId={projectId} taskId={taskId} info={taskKudos} />
             </CardContent>
           </Card>
 

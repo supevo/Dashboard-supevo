@@ -2,12 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
-import {
-  listColleagues,
-  listRecentKudos,
-  getLeaderboard,
-} from '@/features/kudos/queries';
-import { GiveKudos } from '@/features/kudos/components/give-kudos';
+import { listRecentKudos, getLeaderboard } from '@/features/kudos/queries';
 import { badgeLabel } from '@/features/kudos/badges';
 import { AwardsSummary } from '@/features/awards/components/awards-summary';
 import { de } from '@/lib/i18n/de';
@@ -19,8 +14,7 @@ const MEDAL = ['🥇', '🥈', '🥉'];
 export default async function KudosPage() {
   const { user, orgId } = await requireAgencyPage();
   const admin = isOrgAdmin(user, orgId);
-  const [colleagues, feed, leaderboard] = await Promise.all([
-    listColleagues(orgId, user.id),
+  const [feed, leaderboard] = await Promise.all([
     listRecentKudos(30),
     getLeaderboard(),
   ]);
@@ -38,16 +32,8 @@ export default async function KudosPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{de.kudos.give}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <GiveKudos colleagues={colleagues} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
               <CardTitle>{de.kudos.feed}</CardTitle>
+              <p className="text-sm text-muted-foreground">{de.kudos.subtitle}</p>
             </CardHeader>
             <CardContent>
               {feed.length === 0 ? (
@@ -59,18 +45,12 @@ export default async function KudosPage() {
                       <Avatar userId={k.toUserId} name={k.toName} hasAvatar={false} size="sm" />
                       <div className="min-w-0">
                         <div className="text-sm">
-                          <span className="font-medium">{k.fromName}</span>{' '}
-                          {de.kudos.gaveTo}{' '}
                           <span className="font-medium">{k.toName}</span>{' '}
+                          {de.kudos.received}{' '}
                           <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
-                            {badgeLabel(k.badge)} +{k.points}
+                            {k.badge === 'task' ? de.taskKudos.title : badgeLabel(k.badge)} +{k.points}
                           </span>
                         </div>
-                        {k.message && (
-                          <div className="text-sm text-muted-foreground">
-                            „{k.message}“
-                          </div>
-                        )}
                         <div className="text-xs text-muted-foreground">
                           {new Date(k.createdAt).toLocaleDateString('de-DE')}
                         </div>
