@@ -724,6 +724,46 @@ export interface Database {
         >;
         Relationships: [];
       };
+      xp_events: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string;
+          kind: string;
+          points: number;
+          task_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id: string;
+          kind: string;
+          points: number;
+          task_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['xp_events']['Insert']>;
+        Relationships: [];
+      };
+      achievements: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string;
+          key: string;
+          earned_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id: string;
+          key: string;
+          earned_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['achievements']['Insert']>;
+        Relationships: [];
+      };
       client_chat_messages: {
         Row: {
           id: string;

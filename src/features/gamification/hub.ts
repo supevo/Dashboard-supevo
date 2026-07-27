@@ -5,6 +5,11 @@ import { leagueForPoints, type LeagueStanding } from '@/features/gamification/le
 import { listObjectivesForUser, type Objective } from '@/features/goals/queries';
 import { listHallOfFame } from '@/features/awards/queries';
 import { BADGE_BY_KEY } from '@/features/kudos/badges';
+import { getXpPoints } from '@/features/gamification/xp';
+import {
+  listAchievements,
+  type EarnedAchievement,
+} from '@/features/gamification/achievements';
 
 export interface HubStats {
   missions: number; // tasks completed by the user
@@ -48,6 +53,7 @@ export interface LevelHub {
   objectives: Objective[];
   badges: HubBadge[];
   trophies: HubTrophy[];
+  milestones: EarnedAchievement[];
 }
 
 /**
@@ -70,6 +76,8 @@ export async function getLevelHub(
     missionsRes,
     objectives,
     hallOfFame,
+    xpPoints,
+    milestones,
   ] = await Promise.all([
     supabase.from('profiles').select('full_name, avatar_url, created_at').eq('id', userId).maybeSingle(),
     supabase
@@ -84,11 +92,14 @@ export async function getLevelHub(
     supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('completed_by', userId),
     listObjectivesForUser(userId),
     listHallOfFame(orgId, 24),
+    getXpPoints(userId),
+    listAchievements(userId),
   ]);
 
   const profile = profileRes.data;
   const received = kudosReceivedRes.data ?? [];
-  const points = received.reduce((n, k) => n + (k.points ?? 0), 0);
+  // Level/XP = peer kudos + automatic XP ledger (missions, on-time, streaks).
+  const points = received.reduce((n, k) => n + (k.points ?? 0), 0) + xpPoints;
   const { level, next } = levelForPoints(points);
 
   const skills = (skillsRes.data ?? [])
@@ -144,5 +155,6 @@ export async function getLevelHub(
     objectives: objectives.filter((o) => o.status !== 'archived'),
     badges,
     trophies,
+    milestones,
   };
 }

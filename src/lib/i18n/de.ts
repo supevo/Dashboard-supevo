@@ -569,6 +569,7 @@ export const de = {
     radarEmpty: 'Trage im Profil mindestens drei Skills ein, um dein Kompetenz-Radar zu sehen.',
     achievements: 'Auszeichnungen',
     achievementsEmpty: 'Noch keine Auszeichnungen gesammelt.',
+    milestones: 'Meilensteine',
     trophies: 'Mitarbeiter des Monats',
     activity: 'Aktivität',
     seeAll: 'Alle ansehen',

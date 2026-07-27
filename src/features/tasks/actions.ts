@@ -7,6 +7,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
+import { awardTaskXp } from '@/features/gamification/xp';
+import { checkAndAwardAchievements } from '@/features/gamification/achievements';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -440,10 +442,25 @@ export async function moveTaskAction(
     .eq('id', targetColumnId)
     .maybeSingle();
   if (targetColumn?.is_done_column) {
-    await supabase
+    const completedAt = new Date().toISOString();
+    const { data: doneTask } = await supabase
       .from('tasks')
-      .update({ completed_by: user.id, completed_at: new Date().toISOString() })
-      .eq('id', taskId);
+      .update({ completed_by: user.id, completed_at: completedAt })
+      .eq('id', taskId)
+      .select('due_date')
+      .maybeSingle();
+    const orgId = targetColumn.organization_id;
+    if (orgId) {
+      // Automatic XP + milestone badges for finishing the task (idempotent).
+      await awardTaskXp({
+        userId: user.id,
+        orgId,
+        taskId,
+        dueDate: doneTask?.due_date ?? null,
+        completedAt,
+      });
+      await checkAndAwardAchievements(user.id, orgId);
+    }
   }
 
   // Log the move for the task's internal activity feed.
