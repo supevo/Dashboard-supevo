@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import {
   listColleagues,
   listRecentKudos,
@@ -8,6 +9,7 @@ import {
 } from '@/features/kudos/queries';
 import { GiveKudos } from '@/features/kudos/components/give-kudos';
 import { badgeLabel } from '@/features/kudos/badges';
+import { AwardsSummary } from '@/features/awards/components/awards-summary';
 import { de } from '@/lib/i18n/de';
 
 export const dynamic = 'force-dynamic';
@@ -16,6 +18,7 @@ const MEDAL = ['🥇', '🥈', '🥉'];
 
 export default async function KudosPage() {
   const { user, orgId } = await requireAgencyPage();
+  const admin = isOrgAdmin(user, orgId);
   const [colleagues, feed, leaderboard] = await Promise.all([
     listColleagues(orgId, user.id),
     listRecentKudos(30),
@@ -25,12 +28,14 @@ export default async function KudosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{de.kudos.title}</h1>
+        <h1 className="text-2xl font-bold">{de.nav.recognition}</h1>
         <p className="text-sm text-muted-foreground">{de.kudos.subtitle}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="space-y-6">
+          <AwardsSummary orgId={orgId} userId={user.id} canSeeFull={admin} />
+
           <Card>
             <CardHeader>
               <CardTitle>{de.kudos.give}</CardTitle>
