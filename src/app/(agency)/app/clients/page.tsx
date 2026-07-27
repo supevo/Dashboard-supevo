@@ -18,7 +18,17 @@ export default async function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{de.clients.title}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">{de.clients.title}</h1>
+        {isAdmin && (
+          <Link
+            href="/app/clients/import"
+            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          >
+            ✨ {de.clientImport.open}
+          </Link>
+        )}
+      </div>
 
       {isAdmin && (
         <Card>
