@@ -53,8 +53,16 @@ export function LabelPicker({
         {assigned.map((l) => (
           <span
             key={l.id}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium"
-            style={{ backgroundColor: l.color, color: readableTextColor(l.color) }}
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium ${
+              l.intensity >= 2 ? 'label-pulse font-semibold' : ''
+            }`}
+            style={
+              {
+                backgroundColor: l.color,
+                color: readableTextColor(l.color),
+                ...(l.intensity >= 2 ? { '--label-glow': l.color } : {}),
+              } as React.CSSProperties
+            }
           >
             {l.name}
             <form action={removeAction} className="inline">

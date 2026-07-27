@@ -176,6 +176,9 @@ export interface Database {
           name: string;
           contact_email: string | null;
           notes: string | null;
+          industry: string | null;
+          brands: string | null;
+          interests: string | null;
           is_active: boolean;
           created_by: string | null;
           created_at: string;
@@ -188,6 +191,9 @@ export interface Database {
           name: string;
           contact_email?: string | null;
           notes?: string | null;
+          industry?: string | null;
+          brands?: string | null;
+          interests?: string | null;
           is_active?: boolean;
           created_by?: string | null;
         };
@@ -1245,6 +1251,7 @@ export interface Database {
           description: string | null;
           is_active: boolean;
           is_client_visible: boolean;
+          intensity: number;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -1257,6 +1264,7 @@ export interface Database {
           description?: string | null;
           is_active?: boolean;
           is_client_visible?: boolean;
+          intensity?: number;
           created_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['labels']['Insert']>;

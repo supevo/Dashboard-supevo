@@ -32,11 +32,12 @@ export async function createLabelAction(
     color: formData.get('color'),
     description: formData.get('description') ?? '',
     isClientVisible: formData.get('isClientVisible') ?? 'false',
+    intensity: formData.get('intensity') ?? '1',
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { orgId, name, color, description, isClientVisible } = parsed.data;
+  const { orgId, name, color, description, isClientVisible, intensity } = parsed.data;
 
   const user = await requireUser();
   authorize(user, { type: 'label.manage', orgId });
@@ -50,6 +51,7 @@ export async function createLabelAction(
       color,
       description: description || null,
       is_client_visible: isClientVisible === 'true',
+      intensity: Number(intensity),
       created_by: user.id,
     })
     .select('id')
@@ -84,12 +86,21 @@ export async function updateLabelAction(
     description: formData.get('description') ?? '',
     isActive: formData.get('isActive'),
     isClientVisible: formData.get('isClientVisible'),
+    intensity: formData.get('intensity') ?? '1',
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { orgId, labelId, name, color, description, isActive, isClientVisible } =
-    parsed.data;
+  const {
+    orgId,
+    labelId,
+    name,
+    color,
+    description,
+    isActive,
+    isClientVisible,
+    intensity,
+  } = parsed.data;
 
   const user = await requireUser();
   authorize(user, { type: 'label.manage', orgId });
@@ -103,6 +114,7 @@ export async function updateLabelAction(
       description: description || null,
       is_active: isActive === 'true',
       is_client_visible: isClientVisible === 'true',
+      intensity: Number(intensity),
     })
     .eq('id', labelId)
     .eq('organization_id', orgId);

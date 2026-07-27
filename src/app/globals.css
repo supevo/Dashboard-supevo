@@ -45,3 +45,30 @@
     color: hsl(var(--foreground));
   }
 }
+
+/* Strong labels (intensity 2): a gentle pulsing glow that draws the eye,
+   including for clients in the portal. Uses the label's own color via the
+   --label-glow custom property. Respects reduced-motion preferences. */
+@keyframes labelPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--label-glow, rgba(59, 130, 246, 0.7));
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 4px transparent;
+    transform: scale(1.06);
+  }
+}
+
+.label-pulse {
+  animation: labelPulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .label-pulse {
+    animation: none;
+    outline: 2px solid var(--label-glow, currentColor);
+    outline-offset: 1px;
+  }
+}

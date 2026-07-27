@@ -41,6 +41,18 @@ export function CreateLabelForm({ orgId }: { orgId: string }) {
           <Label htmlFor="color">{de.labels.color}</Label>
           <Input id="color" name="color" type="color" defaultValue="#3366ff" />
         </div>
+        <div className="space-y-2">
+          <Label htmlFor="intensity">{de.labels.intensity}</Label>
+          <select
+            id="intensity"
+            name="intensity"
+            defaultValue="1"
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          >
+            <option value="1">{de.labels.intensityNormal}</option>
+            <option value="2">{de.labels.intensityStrong}</option>
+          </select>
+        </div>
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="isClientVisible" value="true" />
