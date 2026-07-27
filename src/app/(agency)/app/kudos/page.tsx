@@ -22,7 +22,7 @@ export default async function KudosPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">{de.nav.recognition}</h1>
+        <h1 className="text-2xl font-bold">{de.nav.levelHub}</h1>
         <p className="text-sm text-muted-foreground">{de.kudos.subtitle}</p>
       </div>
 
@@ -68,7 +68,9 @@ export default async function KudosPage() {
             <CardTitle>{de.kudos.leaderboard}</CardTitle>
           </CardHeader>
           <CardContent>
-            {leaderboard.length === 0 ? (
+            {!admin ? (
+              <p className="text-sm text-muted-foreground">{de.awards.revealHint}</p>
+            ) : leaderboard.length === 0 ? (
               <p className="text-sm text-muted-foreground">{de.kudos.empty}</p>
             ) : (
               <ol className="space-y-2">

@@ -45,6 +45,7 @@ export const de = {
     kudos: 'Anerkennung',
     awards: 'Auszeichnungen',
     recognition: 'Anerkennung & Auszeichnungen',
+    levelHub: 'Level Hub',
     goals: 'Ziele',
     absence: 'Abwesenheit',
     workload: 'Auslastung',
@@ -496,6 +497,16 @@ export const de = {
     brandsHint: 'Welche Marken/Produkte betreut werden …',
     interests: 'Interessen / Zielgruppen',
     interestsHint: 'Themen, Zielgruppen, Besonderheiten …',
+  },
+  presence: {
+    title: 'Status',
+    online: 'Online',
+    afk: 'Abwesend (AFK)',
+    dnd: 'Nicht stören (DND)',
+  },
+  level: {
+    short: 'Lvl',
+    title: 'Level',
   },
   taskLog: {
     title: 'Verlauf (intern)',
