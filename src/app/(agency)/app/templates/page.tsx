@@ -1,4 +1,4 @@
-import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { listProjectTemplates } from '@/features/templates/queries';
 import { TemplatesManager } from '@/features/templates/components/templates-manager';
 import { de } from '@/lib/i18n/de';
@@ -6,7 +6,7 @@ import { de } from '@/lib/i18n/de';
 export const dynamic = 'force-dynamic';
 
 export default async function TemplatesPage() {
-  await requireAgencyPage();
+  await requireOrgAdminPage();
   const templates = await listProjectTemplates();
 
   return (

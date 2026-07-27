@@ -19,8 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/projects', label: de.nav.projects },
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/leads', label: de.nav.leads },
-  { href: '/app/kudos', label: de.nav.kudos },
-  { href: '/app/awards', label: de.nav.awards },
+  { href: '/app/kudos', label: de.nav.recognition },
   { href: '/app/reports', label: de.nav.reports },
 ];
 
@@ -31,14 +30,18 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/app/cockpit', label: de.nav.cockpit },
 ];
 
-// Personal items live in the top-right user menu.
+// Personal items visible to every agency staffer.
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
-  { href: '/app/templates', label: de.nav.templates },
   { href: '/app/absences', label: de.nav.absence },
-  { href: '/app/settings', label: de.nav.settings },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },
+];
+
+// Management-only menu entries (configuration + diagnostics).
+const ADMIN_MENU_ITEMS: UserMenuItem[] = [
+  { href: '/app/templates', label: de.nav.templates },
+  { href: '/app/settings', label: de.nav.settings },
   { href: '/app/diagnostics', label: de.nav.diagnostics },
 ];
 
@@ -63,15 +66,14 @@ export default async function AgencyLayout({
     .maybeSingle();
 
   const orgId = primaryAgencyOrgId(user);
-  const navItems =
-    orgId && isOrgAdmin(user, orgId)
-      ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS]
-      : NAV_ITEMS;
+  const admin = Boolean(orgId && isOrgAdmin(user, orgId));
+  const navItems = admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
 
   return (
     <AppShell
       navItems={navItems}
-      menuItems={MENU_ITEMS}
+      menuItems={menuItems}
       areaLabel="Agenturbereich"
       userId={user.id}
       userName={user.fullName ?? user.email}
