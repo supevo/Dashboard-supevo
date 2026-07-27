@@ -5,7 +5,7 @@ import type { WorkPreference } from '@/features/preferences/queries';
 
 /**
  * Work-preference self-assessment: the same catalog as skills, but rated by how
- * much someone *likes* the work (1–5 hearts). Feeds smarter task assignment.
+ * much someone *likes* the work (1–10 hearts). Feeds smarter task assignment.
  */
 export function PreferencesSection({
   preferences,
