@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
+import { ChatDock } from '@/features/messenger/components/chat-dock';
 import {
   getCurrentUser,
   hasAgencyAccess,
@@ -18,7 +19,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/projects', label: de.nav.projects },
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/leads', label: de.nav.leads },
-  { href: '/app/chat', label: de.nav.chat },
   { href: '/app/kudos', label: de.nav.kudos },
   { href: '/app/awards', label: de.nav.awards },
   { href: '/app/reports', label: de.nav.reports },
@@ -79,6 +79,7 @@ export default async function AgencyLayout({
       searchEnabled
     >
       {children}
+      <ChatDock />
     </AppShell>
   );
 }
