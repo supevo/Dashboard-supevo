@@ -23,9 +23,15 @@ export function HeartRating({
 
   function choose(n: number) {
     const next = n === level ? 0 : n;
+    const prev = level;
     setLevel(next);
-    startTransition(() => {
-      void setPreferenceLevel(name, next);
+    startTransition(async () => {
+      try {
+        await setPreferenceLevel(name, next);
+      } catch {
+        // Persisting failed – roll the UI back so it never shows a fake state.
+        setLevel(prev);
+      }
     });
   }
 
