@@ -22,6 +22,9 @@ import { TaskRating } from '@/features/ratings/components/task-rating';
 import { getTaskRating } from '@/features/ratings/queries';
 import { TaskKudosPanel } from '@/features/task-kudos/components/task-kudos-panel';
 import { getTaskKudos } from '@/features/task-kudos/queries';
+import { TaskViewTracker } from '@/features/tasks/components/task-view-tracker';
+import { TaskActivityLog } from '@/features/tasks/components/task-activity-log';
+import { listTaskActivity, getTaskViewStats } from '@/features/tasks/activity';
 import { EffortPanel } from '@/features/estimate/components/effort-panel';
 import { getTaskActualMinutes } from '@/features/estimate/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
@@ -59,11 +62,16 @@ export default async function TaskDetailPage({
   const rating = await getTaskRating(taskId, user.id);
   const taskKudos = await getTaskKudos(taskId, user.id);
   const actualMinutes = await getTaskActualMinutes(taskId);
+  const [taskActivity, taskViewStats] = await Promise.all([
+    listTaskActivity(taskId),
+    getTaskViewStats(taskId),
+  ]);
   const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
+      <TaskViewTracker taskId={taskId} />
       <div>
         <Link
           href={`/app/projects/${projectId}`}
@@ -308,6 +316,16 @@ export default async function TaskDetailPage({
                 taskId={taskId}
                 defaultTitle={task.title}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.taskLog.title}</CardTitle>
+              <p className="text-xs text-muted-foreground">{de.taskLog.subtitle}</p>
+            </CardHeader>
+            <CardContent>
+              <TaskActivityLog activity={taskActivity} viewStats={taskViewStats} />
             </CardContent>
           </Card>
         </aside>

@@ -1064,6 +1064,26 @@ export interface Database {
         };
         Relationships: [];
       };
+      task_views: {
+        Row: {
+          id: string;
+          task_id: string;
+          organization_id: string;
+          user_id: string;
+          opened_at: string;
+          dwell_seconds: number;
+        };
+        Insert: {
+          id?: string;
+          task_id: string;
+          organization_id: string;
+          user_id: string;
+          opened_at?: string;
+          dwell_seconds?: number;
+        };
+        Update: Partial<Database['public']['Tables']['task_views']['Insert']>;
+        Relationships: [];
+      };
       task_assignees: {
         Row: {
           task_id: string;

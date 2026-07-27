@@ -436,7 +436,7 @@ export async function moveTaskAction(
   // can award kudos for it and the completer earns the points.
   const { data: targetColumn } = await supabase
     .from('board_columns')
-    .select('is_done_column')
+    .select('is_done_column, name, organization_id')
     .eq('id', targetColumnId)
     .maybeSingle();
   if (targetColumn?.is_done_column) {
@@ -445,6 +445,16 @@ export async function moveTaskAction(
       .update({ completed_by: user.id, completed_at: new Date().toISOString() })
       .eq('id', taskId);
   }
+
+  // Log the move for the task's internal activity feed.
+  await logActivity({
+    actorId: user.id,
+    organizationId: targetColumn?.organization_id ?? null,
+    action: 'status_change',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { column: targetColumn?.name ?? '' },
+  });
 
   revalidatePath('/app/projects');
   return successResult('Aufgabe verschoben.');
