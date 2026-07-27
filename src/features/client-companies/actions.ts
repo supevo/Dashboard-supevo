@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { hasClientAccess } from '@/features/auth/access';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 import {
@@ -156,4 +158,53 @@ export async function updateClientProfileAction(
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult('Kundenprofil gespeichert.');
+}
+
+const myProfileSchema = z.object({
+  industry: z.string().trim().max(500).optional().or(z.literal('')),
+  brands: z.string().trim().max(2000).optional().or(z.literal('')),
+  interests: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+/**
+ * Lets a client edit their own company profile (industry, brands, interests)
+ * from the portal. Writes via the service client after confirming the caller is
+ * a contact of the company; only the three descriptive fields are touched.
+ */
+export async function updateMyClientProfileAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = myProfileSchema.safeParse({
+    industry: formData.get('industry') ?? '',
+    brands: formData.get('brands') ?? '',
+    interests: formData.get('interests') ?? '',
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { industry, brands, interests } = parsed.data;
+
+  const user = await requireUser();
+  if (!hasClientAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: contact } = await supabase
+    .from('client_contacts')
+    .select('client_company_id')
+    .limit(1)
+    .maybeSingle();
+  if (!contact) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('client_companies')
+    .update({
+      industry: industry || null,
+      brands: brands || null,
+      interests: interests || null,
+    })
+    .eq('id', contact.client_company_id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/portal/profile');
+  return successResult('Profil gespeichert.');
 }

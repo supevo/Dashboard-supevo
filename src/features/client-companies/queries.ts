@@ -66,6 +66,39 @@ export async function getClientCompany(
   };
 }
 
+export interface MyClientProfile {
+  clientCompanyId: string;
+  name: string;
+  industry: string | null;
+  brands: string | null;
+  interests: string | null;
+}
+
+/** The current client's own company profile (for the portal). RLS-scoped. */
+export async function getMyClientProfile(): Promise<MyClientProfile | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data: contact } = await supabase
+    .from('client_contacts')
+    .select('client_company_id')
+    .limit(1)
+    .maybeSingle();
+  if (!contact) return null;
+
+  const { data } = await supabase
+    .from('client_companies')
+    .select('id, name, industry, brands, interests')
+    .eq('id', contact.client_company_id)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    clientCompanyId: data.id,
+    name: data.name,
+    industry: data.industry,
+    brands: data.brands,
+    interests: data.interests,
+  };
+}
+
 /**
  * Derives the client's current Stage from its projects' active-task columns.
  * All of a client's projects are kept in sync, so the first non-null WIP limit
