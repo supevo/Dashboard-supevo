@@ -181,6 +181,7 @@ export interface Database {
           industry: string | null;
           brands: string | null;
           interests: string | null;
+          billing_entity_id: string | null;
           is_active: boolean;
           created_by: string | null;
           created_at: string;
@@ -196,6 +197,7 @@ export interface Database {
           industry?: string | null;
           brands?: string | null;
           interests?: string | null;
+          billing_entity_id?: string | null;
           is_active?: boolean;
           created_by?: string | null;
         };
@@ -1479,6 +1481,32 @@ export interface Database {
         >;
         Relationships: [];
       };
+      billing_entities: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          is_default: boolean;
+        } & Omit<
+          Database['public']['Tables']['billing_settings']['Row'],
+          'organization_id'
+        >;
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          is_default?: boolean;
+        } & Partial<
+          Omit<
+            Database['public']['Tables']['billing_settings']['Row'],
+            'organization_id' | 'created_at' | 'updated_at'
+          >
+        >;
+        Update: Partial<
+          Database['public']['Tables']['billing_entities']['Insert']
+        >;
+        Relationships: [];
+      };
       client_memberships: {
         Row: {
           id: string;
@@ -1528,6 +1556,7 @@ export interface Database {
           organization_id: string;
           client_company_id: string;
           membership_id: string | null;
+          billing_entity_id: string | null;
           invoice_number: string | null;
           status: InvoiceStatus;
           issue_date: string | null;

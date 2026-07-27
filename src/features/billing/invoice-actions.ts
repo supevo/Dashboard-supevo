@@ -13,9 +13,13 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { getBillingSettings } from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
-import { createDraftInvoice, assignInvoiceNumber } from '@/features/billing/invoice-service';
+import {
+  createDraftInvoice,
+  assignInvoiceNumber,
+  resolveClientEntity,
+  resolveInvoiceEntity,
+} from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import type { Database } from '@/lib/database.types';
@@ -41,13 +45,18 @@ export async function createDraftInvoiceAction(
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId: membership.organization_id });
 
-  const settings = await getBillingSettings(membership.organization_id);
+  const entity = await resolveClientEntity(
+    supabase,
+    membership.organization_id,
+    clientCompanyId,
+  );
   const result = await createDraftInvoice({
     supabase,
     orgId: membership.organization_id,
     clientCompanyId,
     membership,
-    settings,
+    settings: entity,
+    billingEntityId: entity?.id ?? null,
     createdBy: user.id,
   });
   if ('error' in result) {
@@ -98,14 +107,14 @@ export async function finalizeInvoiceAction(
     return errorResult('Nur Entwürfe können finalisiert werden.');
   }
 
-  const settings = await getBillingSettings(invoice.organization_id);
-  if (!settings?.company_name || !settings.iban) {
+  const entity = await resolveInvoiceEntity(supabase, invoice);
+  if (!entity?.company_name || !entity.iban) {
     return errorResult(
-      'Bitte zuerst die Firmen- und Bankdaten unter „Firma & Rechnung" ausfüllen.',
+      'Bitte zuerst die Firmen- und Bankdaten des Rechnungsstellers ausfüllen.',
     );
   }
 
-  const numberResult = await assignInvoiceNumber(supabase, invoice.organization_id);
+  const numberResult = await assignInvoiceNumber(supabase, entity.id);
   if ('error' in numberResult) return errorResult(de.errors.INTERNAL);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -129,7 +138,7 @@ export async function finalizeInvoiceAction(
     pdfBytes = await renderInvoicePdf({
       invoice: finalized,
       items: items ?? [],
-      settings,
+      settings: entity,
       membership,
     });
   } catch (e) {

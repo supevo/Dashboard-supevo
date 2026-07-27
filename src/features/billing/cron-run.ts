@@ -8,11 +8,12 @@ import { FILES_BUCKET } from '@/lib/files/storage';
 import {
   createDraftInvoice,
   assignInvoiceNumber,
+  resolveClientEntity,
+  type BillingEntity,
 } from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import type { Database } from '@/lib/database.types';
 
-type Settings = Database['public']['Tables']['billing_settings']['Row'];
 type Membership = Database['public']['Tables']['client_memberships']['Row'];
 
 /** Adds `months` to an ISO date, clamping the day to 28 for safety. */
@@ -22,8 +23,8 @@ function addMonths(iso: string, months: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function settingsComplete(s: Settings | null): s is Settings {
-  return !!s && !!s.company_name && !!s.iban;
+function entityComplete(e: BillingEntity | null): e is BillingEntity {
+  return !!e && !!e.company_name && !!e.iban;
 }
 
 /** Resolves the client's notification emails (company address + contacts). */
@@ -55,7 +56,7 @@ async function finalizeWithService(
   service: ReturnType<typeof createSupabaseServiceClient>,
   invoiceId: string,
   orgId: string,
-  settings: Settings,
+  entity: BillingEntity,
   membership: Membership,
 ): Promise<{ number: string; pdf: Uint8Array; grossCents: number } | null> {
   const { data: invoice } = await service
@@ -65,7 +66,7 @@ async function finalizeWithService(
     .maybeSingle();
   if (!invoice) return null;
 
-  const numberResult = await assignInvoiceNumber(service, orgId);
+  const numberResult = await assignInvoiceNumber(service, entity.id);
   if ('error' in numberResult) return null;
 
   const today = new Date().toISOString().slice(0, 10);
@@ -85,7 +86,7 @@ async function finalizeWithService(
         due_date: today,
       },
       items: items ?? [],
-      settings,
+      settings: entity,
       membership,
     });
   } catch (e) {
@@ -141,30 +142,24 @@ export async function runDueInvoices(): Promise<CronResult> {
     .lte('next_invoice_date', today);
   if (!due || due.length === 0) return result;
 
-  const settingsCache = new Map<string, Settings | null>();
-  const getSettings = async (orgId: string) => {
-    if (!settingsCache.has(orgId)) {
-      const { data } = await service
-        .from('billing_settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .maybeSingle();
-      settingsCache.set(orgId, data ?? null);
-    }
-    return settingsCache.get(orgId) ?? null;
-  };
-
   for (const membership of due as Membership[]) {
     result.processed += 1;
     try {
-      const settings = await getSettings(membership.organization_id);
+      // Each client bills from its assigned entity (else the org's default),
+      // so the sender + invoice-number sequence come from that entity.
+      const entity = await resolveClientEntity(
+        service,
+        membership.organization_id,
+        membership.client_company_id,
+      );
 
       const draft = await createDraftInvoice({
         supabase: service,
         orgId: membership.organization_id,
         clientCompanyId: membership.client_company_id,
         membership,
-        settings,
+        settings: entity,
+        billingEntityId: entity?.id ?? null,
         createdBy: null, // system job; no user actor
       });
       if ('error' in draft) {
@@ -172,12 +167,12 @@ export async function runDueInvoices(): Promise<CronResult> {
         continue;
       }
 
-      if (membership.auto_send && settingsComplete(settings)) {
+      if (membership.auto_send && entityComplete(entity)) {
         const fin = await finalizeWithService(
           service,
           draft.invoiceId,
           membership.organization_id,
-          settings,
+          entity,
           membership,
         );
         if (fin) {

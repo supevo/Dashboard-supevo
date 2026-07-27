@@ -10,10 +10,14 @@ import {
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
-import { getBillingSettings } from '@/features/billing/queries';
+import {
+  listBillingEntities,
+  getBillingEntityForClient,
+} from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
+import { ClientBillingEntityForm } from '@/features/billing/components/client-billing-entity-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
 import { RequestsSection } from '@/features/requests/components/requests-section';
 import { listClientRequests } from '@/features/requests/queries';
@@ -61,14 +65,16 @@ export default async function ClientDetailPage({
   ]);
 
   // Billing / contacts are admin-only.
-  const [contacts, membership, billingSettings, invoices] = isAdmin
-    ? await Promise.all([
-        listClientContacts(orgId, clientCompanyId),
-        getClientMembership(clientCompanyId),
-        getBillingSettings(orgId),
-        listClientInvoices(clientCompanyId),
-      ])
-    : [[], null, null, []];
+  const [contacts, membership, billingEntity, billingEntities, invoices] =
+    isAdmin
+      ? await Promise.all([
+          listClientContacts(orgId, clientCompanyId),
+          getClientMembership(clientCompanyId),
+          getBillingEntityForClient(orgId, clientCompanyId),
+          listBillingEntities(orgId),
+          listClientInvoices(clientCompanyId),
+        ])
+      : [[], null, null, [], []];
 
   return (
     <div className="space-y-6">
@@ -178,6 +184,20 @@ export default async function ClientDetailPage({
         <>
           <Card>
             <CardHeader>
+              <CardTitle>Rechnungssteller</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientBillingEntityForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                entities={billingEntities}
+                currentEntityId={company.billingEntityId}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Mitgliedschaft</CardTitle>
             </CardHeader>
             <CardContent>
@@ -185,7 +205,7 @@ export default async function ClientDetailPage({
                 orgId={orgId}
                 clientCompanyId={clientCompanyId}
                 membership={membership}
-                settings={billingSettings}
+                settings={billingEntity}
               />
             </CardContent>
           </Card>

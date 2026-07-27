@@ -5,6 +5,61 @@ import type { BillingSettings } from '@/features/billing/queries';
 import type { ClientMembership } from '@/features/billing/membership';
 import { effectiveMonthlyCents, membershipLabel } from '@/features/billing/membership';
 
+export type BillingEntity =
+  Database['public']['Tables']['billing_entities']['Row'];
+
+/**
+ * The billing entity (Rechnungssteller) that issues invoices for a client: its
+ * assigned entity, else the org's default entity. Works with the server or the
+ * service client.
+ */
+export async function resolveClientEntity(
+  supabase: SupabaseClient<Database>,
+  orgId: string,
+  clientCompanyId: string,
+): Promise<BillingEntity | null> {
+  const { data: client } = await supabase
+    .from('client_companies')
+    .select('billing_entity_id')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  if (client?.billing_entity_id) {
+    const { data } = await supabase
+      .from('billing_entities')
+      .select('*')
+      .eq('id', client.billing_entity_id)
+      .maybeSingle();
+    if (data) return data as BillingEntity;
+  }
+  const { data: def } = await supabase
+    .from('billing_entities')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('is_default', true)
+    .maybeSingle();
+  return (def as BillingEntity | null) ?? null;
+}
+
+/** Resolves the entity for an existing invoice (its own, else client/default). */
+export async function resolveInvoiceEntity(
+  supabase: SupabaseClient<Database>,
+  invoice: {
+    organization_id: string;
+    client_company_id: string;
+    billing_entity_id: string | null;
+  },
+): Promise<BillingEntity | null> {
+  if (invoice.billing_entity_id) {
+    const { data } = await supabase
+      .from('billing_entities')
+      .select('*')
+      .eq('id', invoice.billing_entity_id)
+      .maybeSingle();
+    if (data) return data as BillingEntity;
+  }
+  return resolveClientEntity(supabase, invoice.organization_id, invoice.client_company_id);
+}
+
 export interface InvoiceAmounts {
   netCents: number;
   taxRate: number;
@@ -47,6 +102,7 @@ export async function createDraftInvoice(params: {
   clientCompanyId: string;
   membership: ClientMembership;
   settings: BillingSettings | null;
+  billingEntityId?: string | null;
   createdBy: string | null;
   refDate?: Date;
 }): Promise<{ invoiceId: string } | { error: string }> {
@@ -68,6 +124,7 @@ export async function createDraftInvoice(params: {
       organization_id: orgId,
       client_company_id: clientCompanyId,
       membership_id: membership.id,
+      billing_entity_id: params.billingEntityId ?? null,
       status: 'draft',
       service_period_start: period.start,
       service_period_end: period.end,
@@ -108,16 +165,16 @@ export async function createDraftInvoice(params: {
  */
 export async function assignInvoiceNumber(
   supabase: SupabaseClient<Database>,
-  orgId: string,
+  entityId: string,
 ): Promise<{ number: string } | { error: string }> {
   const { data: s } = await supabase
-    .from('billing_settings')
+    .from('billing_entities')
     .select(
       'invoice_prefix, invoice_next_number, invoice_number_padding, invoice_reset_yearly, invoice_number_year',
     )
-    .eq('organization_id', orgId)
+    .eq('id', entityId)
     .maybeSingle();
-  if (!s) return { error: 'no billing settings' };
+  if (!s) return { error: 'no billing entity' };
 
   const year = new Date().getFullYear();
   let next = s.invoice_next_number;
@@ -131,9 +188,9 @@ export async function assignInvoiceNumber(
     : `${s.invoice_prefix}${seq}`;
 
   const { error } = await supabase
-    .from('billing_settings')
+    .from('billing_entities')
     .update({ invoice_next_number: next + 1, invoice_number_year: year })
-    .eq('organization_id', orgId);
+    .eq('id', entityId);
   if (error) return { error: error.message };
 
   return { number };
