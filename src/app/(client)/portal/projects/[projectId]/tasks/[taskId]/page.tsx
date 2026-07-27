@@ -5,6 +5,8 @@ import { requireClientPage } from '@/lib/authz/page-guards';
 import { getTaskDetail } from '@/features/tasks/queries';
 import { listTaskComments } from '@/features/comments/queries';
 import { listTaskFiles } from '@/features/files/queries';
+import { listTaskLabels } from '@/features/labels/queries';
+import { LabelChip } from '@/components/ui/label-chip';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { CommentForm } from '@/features/comments/components/comment-form';
 import { CommentItem } from '@/features/comments/components/comment-item';
@@ -25,10 +27,11 @@ export default async function PortalTaskPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [comments, files, approvals] = await Promise.all([
+  const [comments, files, approvals, labels] = await Promise.all([
     listTaskComments(taskId, user.id),
     listTaskFiles(taskId, user.id),
     listProjectApprovals(projectId),
+    listTaskLabels(taskId),
   ]);
   const pending = approvals.filter(
     (a) => a.taskId === taskId && a.status === 'pending',
@@ -44,6 +47,13 @@ export default async function PortalTaskPage({
           ← {de.portal.back}
         </Link>
         <h1 className="mt-2 text-2xl font-bold">{task.title}</h1>
+        {labels.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {labels.map((l) => (
+              <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
+            ))}
+          </div>
+        )}
       </div>
 
       {task.description && (

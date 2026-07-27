@@ -9,6 +9,7 @@ import {
 } from '@/features/client-companies/queries';
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
+import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
 import { getBillingSettings } from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
@@ -90,6 +91,23 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.clientProfile.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ClientProfileForm
+              orgId={orgId}
+              clientCompanyId={clientCompanyId}
+              industry={company.industry}
+              brands={company.brands}
+              interests={company.interests}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

@@ -88,6 +88,7 @@ export interface BoardTaskLabel {
   id: string;
   name: string;
   color: string;
+  intensity: number;
 }
 
 export interface BoardTask {
@@ -215,14 +216,19 @@ export async function getBoardView(
     if (labelIds.length > 0) {
       const { data: labels } = await supabase
         .from('labels')
-        .select('id, name, color')
+        .select('id, name, color, intensity')
         .in('id', labelIds);
       const labelById = new Map((labels ?? []).map((l) => [l.id, l] as const));
       for (const tl of taskLabels ?? []) {
         const label = labelById.get(tl.label_id);
         if (!label) continue;
         const list = labelsByTask.get(tl.task_id) ?? [];
-        list.push({ id: label.id, name: label.name, color: label.color });
+        list.push({
+          id: label.id,
+          name: label.name,
+          color: label.color,
+          intensity: label.intensity ?? 1,
+        });
         labelsByTask.set(tl.task_id, list);
       }
     }

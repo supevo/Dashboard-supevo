@@ -430,7 +430,7 @@ export function KanbanBoard({
                     <div className="text-sm font-medium">{task.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                       {task.labels.map((l) => (
-                        <LabelChip key={l.id} name={l.name} color={l.color} />
+                        <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
                       ))}
                       {/* Only flag INTERNAL tasks (not client-visible). Client-
                           visible is the norm, so no badge to keep cards clean. */}

@@ -115,3 +115,45 @@ export async function updateClientCompanyAction(
   revalidatePath('/app/clients');
   return successResult('Kundenunternehmen aktualisiert.');
 }
+
+const updateClientProfileSchema = z.object({
+  orgId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  industry: z.string().trim().max(500).optional().or(z.literal('')),
+  brands: z.string().trim().max(2000).optional().or(z.literal('')),
+  interests: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+/** Updates a client's descriptive profile (industry, brands, interests). */
+export async function updateClientProfileAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = updateClientProfileSchema.safeParse({
+    orgId: formData.get('orgId'),
+    clientCompanyId: formData.get('clientCompanyId'),
+    industry: formData.get('industry') ?? '',
+    brands: formData.get('brands') ?? '',
+    interests: formData.get('interests') ?? '',
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { orgId, clientCompanyId, industry, brands, interests } = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'clientCompany.manage', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('client_companies')
+    .update({
+      industry: industry || null,
+      brands: brands || null,
+      interests: interests || null,
+    })
+    .eq('organization_id', orgId)
+    .eq('id', clientCompanyId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  return successResult('Kundenprofil gespeichert.');
+}

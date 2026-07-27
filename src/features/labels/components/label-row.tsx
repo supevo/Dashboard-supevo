@@ -79,6 +79,14 @@ export function LabelRow({
           {de.labels.clientVisible}
         </label>
         <input type="hidden" name="isClientVisible" value="false" />
+        <select
+          name="intensity"
+          defaultValue={String(label.intensity)}
+          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+        >
+          <option value="1">{de.labels.intensityNormal}</option>
+          <option value="2">{de.labels.intensityStrong}</option>
+        </select>
         <SubmitButton size="sm">{de.labels.save}</SubmitButton>
       </form>
     );
@@ -87,7 +95,7 @@ export function LabelRow({
   return (
     <div className="flex items-center justify-between py-2">
       <div className="flex items-center gap-2">
-        <LabelChip name={label.name} color={label.color} />
+        <LabelChip name={label.name} color={label.color} intensity={label.intensity} />
         {!label.isActive && (
           <span className="text-xs text-muted-foreground">
             ({de.labels.inactive})
