@@ -567,6 +567,9 @@ export interface Database {
           name: string;
           description: string | null;
           is_archived: boolean;
+          kind: string;
+          is_private: boolean;
+          dm_key: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -576,9 +579,28 @@ export interface Database {
           name: string;
           description?: string | null;
           is_archived?: boolean;
+          kind?: string;
+          is_private?: boolean;
+          dm_key?: string | null;
           created_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channels']['Insert']>;
+        Relationships: [];
+      };
+      chat_channel_members: {
+        Row: {
+          channel_id: string;
+          organization_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          channel_id: string;
+          organization_id: string;
+          user_id: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['chat_channel_members']['Insert']>;
         Relationships: [];
       };
       chat_channel_messages: {

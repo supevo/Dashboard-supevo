@@ -627,7 +627,10 @@ export const de = {
   messenger: {
     title: 'Team-Chat',
     channels: 'Kanäle',
+    directMessages: 'Direktnachrichten',
     newChannel: 'Neuer Kanal',
+    newDm: 'Neue Direktnachricht',
+    privateChannel: 'Privat (nur ausgewählte Mitglieder)',
     channelName: 'Kanalname',
     channelDescription: 'Beschreibung (optional)',
     create: 'Erstellen',

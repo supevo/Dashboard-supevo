@@ -28,9 +28,11 @@ function normalizeChannelName(raw: string): string {
 const createSchema = z.object({
   name: z.string().trim().min(1).max(40),
   description: z.string().trim().max(200).optional().or(z.literal('')),
+  isPrivate: z.string().optional(),
+  memberIds: z.string().optional(),
 });
 
-/** Creates a new channel in the current agency organization. */
+/** Creates a new channel (public, or private with an explicit member list). */
 export async function createChannelAction(
   _prev: ActionResult,
   formData: FormData,
@@ -38,6 +40,8 @@ export async function createChannelAction(
   const parsed = createSchema.safeParse({
     name: formData.get('name'),
     description: formData.get('description') ?? '',
+    isPrivate: formData.get('isPrivate') ?? undefined,
+    memberIds: formData.get('memberIds') ?? undefined,
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
@@ -49,21 +53,118 @@ export async function createChannelAction(
   const orgId = primaryAgencyOrgId(user);
   if (!orgId) return errorResult(de.errors.FORBIDDEN);
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('chat_channels').insert({
-    organization_id: orgId,
-    name,
-    description: parsed.data.description ? parsed.data.description : null,
-    created_by: user.id,
-  });
-  if (error) {
-    // 23505 = unique violation (channel name already exists).
-    if (error.code === '23505') return errorResult('Ein Kanal mit diesem Namen existiert bereits.');
+  const isPrivate = parsed.data.isPrivate === 'on' || parsed.data.isPrivate === 'true';
+
+  // Public channel: plain RLS-guarded insert.
+  if (!isPrivate) {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase.from('chat_channels').insert({
+      organization_id: orgId,
+      name,
+      description: parsed.data.description ? parsed.data.description : null,
+      created_by: user.id,
+    });
+    if (error) {
+      if (error.code === '23505')
+        return errorResult('Ein Kanal mit diesem Namen existiert bereits.');
+      return errorResult(de.errors.FORBIDDEN);
+    }
+    revalidatePath('/app/chat');
+    return successResult('Kanal erstellt.');
+  }
+
+  // Private channel: create via service role, then add creator + selected members.
+  let memberIds: string[] = [];
+  try {
+    const raw = parsed.data.memberIds ? JSON.parse(parsed.data.memberIds) : [];
+    if (Array.isArray(raw)) memberIds = raw.filter((v): v is string => typeof v === 'string');
+  } catch {
+    memberIds = [];
+  }
+
+  const service = createSupabaseServiceClient();
+  const { data: created, error } = await service
+    .from('chat_channels')
+    .insert({
+      organization_id: orgId,
+      name,
+      description: parsed.data.description ? parsed.data.description : null,
+      is_private: true,
+      created_by: user.id,
+    })
+    .select('id')
+    .maybeSingle();
+  if (error || !created) {
+    if (error?.code === '23505')
+      return errorResult('Ein Kanal mit diesem Namen existiert bereits.');
     return errorResult(de.errors.FORBIDDEN);
   }
 
+  const members = [...new Set([user.id, ...memberIds])].map((uid) => ({
+    channel_id: created.id,
+    organization_id: orgId,
+    user_id: uid,
+  }));
+  await service.from('chat_channel_members').insert(members);
+
   revalidatePath('/app/chat');
-  return successResult('Kanal erstellt.');
+  return successResult('Privater Kanal erstellt.');
+}
+
+/**
+ * Opens (or creates) the 1:1 direct-message conversation between the current
+ * user and another org member. Returns the channel id for the client to select.
+ */
+export async function openDmAction(
+  otherUserId: string,
+): Promise<{ channelId: string } | { error: string }> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { error: de.errors.FORBIDDEN };
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return { error: de.errors.FORBIDDEN };
+  if (otherUserId === user.id) return { error: de.errors.VALIDATION };
+
+  const service = createSupabaseServiceClient();
+
+  // Other user must be an active agency member of the same org.
+  const { data: membership } = await service
+    .from('memberships')
+    .select('user_id, role, status')
+    .eq('organization_id', orgId)
+    .eq('user_id', otherUserId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (!membership || membership.role === 'client') return { error: de.errors.FORBIDDEN };
+
+  const dmKey = [user.id, otherUserId].sort().join(':');
+
+  const { data: existing } = await service
+    .from('chat_channels')
+    .select('id')
+    .eq('dm_key', dmKey)
+    .maybeSingle();
+  if (existing) return { channelId: existing.id };
+
+  const { data: created, error } = await service
+    .from('chat_channels')
+    .insert({
+      organization_id: orgId,
+      name: '',
+      kind: 'dm',
+      is_private: true,
+      dm_key: dmKey,
+      created_by: user.id,
+    })
+    .select('id')
+    .maybeSingle();
+  if (error || !created) return { error: de.errors.INTERNAL };
+
+  await service.from('chat_channel_members').insert([
+    { channel_id: created.id, organization_id: orgId, user_id: user.id },
+    { channel_id: created.id, organization_id: orgId, user_id: otherUserId },
+  ]);
+
+  return { channelId: created.id };
 }
 
 const sendSchema = z.object({
