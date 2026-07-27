@@ -10,6 +10,7 @@ import {
 import {
   createChannelAction,
   sendChannelMessageAction,
+  markChannelRead,
 } from '@/features/messenger/actions';
 import type { ChatChannel, ChannelMessage } from '@/features/messenger/queries';
 import { idleResult } from '@/lib/action-result';
@@ -22,8 +23,18 @@ import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
+const OVERVIEW_POLL_MS = 12000;
 const OPEN_KEY = 'chatDockOpen';
 const ACTIVE_KEY = 'chatDockChannel';
+
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="ml-auto inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
@@ -148,6 +159,7 @@ function CreateChannel({ onCreated }: { onCreated: () => void }) {
 export function ChatDock() {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [unread, setUnread] = useState<Record<string, number>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -163,12 +175,16 @@ export function ChatDock() {
     if (activeId) localStorage.setItem(ACTIVE_KEY, activeId);
   }, [activeId]);
 
-  const loadChannels = useCallback(async () => {
+  const loadOverview = useCallback(async () => {
     try {
       const res = await fetch('/api/chat/overview', { cache: 'no-store' });
       if (!res.ok) return;
-      const data = (await res.json()) as { channels: ChatChannel[] };
+      const data = (await res.json()) as {
+        channels: ChatChannel[];
+        unread?: Record<string, number>;
+      };
       setChannels(data.channels);
+      setUnread(data.unread ?? {});
       setActiveId((cur) =>
         cur && data.channels.some((c) => c.id === cur)
           ? cur
@@ -179,11 +195,24 @@ export function ChatDock() {
     }
   }, []);
 
+  // Poll the overview (channels + unread) regardless of open state, so the
+  // launcher badge stays current even while collapsed.
   useEffect(() => {
-    if (open) void loadChannels();
-  }, [open, loadChannels]);
+    void loadOverview();
+    const t = setInterval(() => void loadOverview(), OVERVIEW_POLL_MS);
+    return () => clearInterval(t);
+  }, [loadOverview]);
+
+  // Mark the active channel read while the dock is open and clear its badge.
+  useEffect(() => {
+    if (!open || !activeId) return;
+    if ((unread[activeId] ?? 0) === 0) return;
+    void markChannelRead(activeId);
+    setUnread((u) => ({ ...u, [activeId]: 0 }));
+  }, [open, activeId, unread]);
 
   const active = channels.find((c) => c.id === activeId) ?? null;
+  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
 
   if (!open) {
     return (
@@ -193,6 +222,11 @@ export function ChatDock() {
         className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
       >
         💬 {de.messenger.title}
+        {totalUnread > 0 && (
+          <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
+            {totalUnread > 99 ? '99+' : totalUnread}
+          </span>
+        )}
       </button>
     );
   }
@@ -232,7 +266,7 @@ export function ChatDock() {
             <CreateChannel
               onCreated={() => {
                 setCreating(false);
-                void loadChannels();
+                void loadOverview();
               }}
             />
           )}
@@ -248,13 +282,14 @@ export function ChatDock() {
                   type="button"
                   onClick={() => setActiveId(c.id)}
                   className={cn(
-                    'block w-full truncate rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                    'flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
                     activeId === c.id
                       ? 'bg-muted font-medium text-foreground'
                       : 'text-muted-foreground',
                   )}
                 >
-                  # {c.name}
+                  <span className="truncate"># {c.name}</span>
+                  {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
                 </button>
               ))
             )}

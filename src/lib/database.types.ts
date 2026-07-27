@@ -600,6 +600,22 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
         Relationships: [];
       };
+      chat_reads: {
+        Row: {
+          channel_id: string;
+          user_id: string;
+          organization_id: string;
+          last_read_at: string;
+        };
+        Insert: {
+          channel_id: string;
+          user_id: string;
+          organization_id: string;
+          last_read_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['chat_reads']['Insert']>;
+        Relationships: [];
+      };
       calendar_feed_tokens: {
         Row: {
           user_id: string;
@@ -1514,6 +1530,10 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      chat_unread_counts: {
+        Args: Record<string, never>;
+        Returns: { channel_id: string; unread: number }[];
+      };
       move_task: {
         Args: {
           p_task_id: string;

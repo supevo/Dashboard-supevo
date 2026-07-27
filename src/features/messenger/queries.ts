@@ -34,6 +34,15 @@ export async function listChannels(orgId: string): Promise<ChatChannel[]> {
   }));
 }
 
+/** Unread message counts per channel for the current user. */
+export async function getUnreadCounts(): Promise<Record<string, number>> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.rpc('chat_unread_counts');
+  const out: Record<string, number> = {};
+  for (const row of data ?? []) out[row.channel_id] = Number(row.unread);
+  return out;
+}
+
 /** A single channel by id. RLS-scoped. */
 export async function getChannel(channelId: string): Promise<ChatChannel | null> {
   const supabase = await createSupabaseServerClient();
