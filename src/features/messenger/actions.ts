@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
+import { createNotifications } from '@/features/notifications/create';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -100,7 +102,96 @@ export async function sendChannelMessageAction(
   });
   if (error) return errorResult(de.errors.FORBIDDEN);
 
+  await notifyMentions(
+    channel.organization_id,
+    parsed.data.channelId,
+    parsed.data.body,
+    user.id,
+    user.fullName ?? user.email,
+  );
+
   return successResult('');
+}
+
+/**
+ * Parses @mentions from a message and notifies matched org members. Matching is
+ * best-effort against first names and full names (case-insensitive). Uses the
+ * existing 'comment_mention' notification type.
+ */
+async function notifyMentions(
+  orgId: string,
+  channelId: string,
+  body: string,
+  authorId: string,
+  authorName: string,
+): Promise<void> {
+  const tokens = [...body.matchAll(/@([\p{L}]+)/gu)]
+    .map((m) => (m[1] ?? '').toLowerCase())
+    .filter(Boolean);
+  if (tokens.length === 0) return;
+
+  const service = createSupabaseServiceClient();
+  const { data: memberships } = await service
+    .from('memberships')
+    .select('user_id, role')
+    .eq('organization_id', orgId)
+    .eq('status', 'active');
+  const staffIds = (memberships ?? [])
+    .filter((m) => m.role !== 'client')
+    .map((m) => m.user_id)
+    .filter((id) => id !== authorId);
+  if (staffIds.length === 0) return;
+
+  const { data: profiles } = await service
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', staffIds);
+
+  const matched = new Set<string>();
+  for (const p of profiles ?? []) {
+    const full = (p.full_name ?? '').toLowerCase();
+    if (!full) continue;
+    const first = full.split(/\s+/)[0] ?? '';
+    if (tokens.some((t) => t === first || full.split(/\s+/).includes(t))) {
+      matched.add(p.id);
+    }
+  }
+  if (matched.size === 0) return;
+
+  await createNotifications(
+    [...matched].map((recipientId) => ({
+      organizationId: orgId,
+      recipientId,
+      type: 'comment_mention' as const,
+      title: `${authorName} hat dich im Chat erwähnt`,
+      body: body.slice(0, 200),
+      entityType: 'chat',
+      entityId: channelId,
+    })),
+    authorId,
+  );
+}
+
+/** Marks a channel as read up to now for the current user. */
+export async function markChannelRead(channelId: string): Promise<void> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return;
+  const supabase = await createSupabaseServerClient();
+  const { data: channel } = await supabase
+    .from('chat_channels')
+    .select('organization_id')
+    .eq('id', channelId)
+    .maybeSingle();
+  if (!channel) return;
+  await supabase.from('chat_reads').upsert(
+    {
+      channel_id: channelId,
+      user_id: user.id,
+      organization_id: channel.organization_id,
+      last_read_at: new Date().toISOString(),
+    },
+    { onConflict: 'channel_id,user_id' },
+  );
 }
 
 /** Deletes a channel (creator or admin). */
