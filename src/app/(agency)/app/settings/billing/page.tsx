@@ -2,12 +2,15 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
-import { getBillingSettings } from '@/features/billing/queries';
-import { BillingSettingsForm } from '@/features/billing/components/billing-settings-form';
+import { listBillingEntities } from '@/features/billing/queries';
+import {
+  BillingEntityCard,
+  AddBillingEntity,
+} from '@/features/billing/components/billing-entity-form';
 
 export default async function BillingSettingsPage() {
   const { orgId } = await requireOrgAdminPage();
-  const settings = await getBillingSettings(orgId);
+  const entities = await listBillingEntities(orgId);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -20,17 +23,35 @@ export default async function BillingSettingsPage() {
         </Link>
         <h1 className="mt-2 text-2xl font-bold">Firma &amp; Rechnung</h1>
         <p className="text-sm text-muted-foreground">
-          Diese Angaben erscheinen auf den Rechnungen und werden für den
-          SEPA-Einzug verwendet.
+          Rechnungssteller sind die Firmen, in deren Namen Rechnungen gestellt
+          werden. Jeder hat einen eigenen Absender, eigene Bankdaten und einen
+          eigenen Rechnungsnummernkreis. Kunden werden im Kundenprofil einem
+          Rechnungssteller zugeordnet.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Rechnungseinstellungen</CardTitle>
+          <CardTitle>Rechnungssteller</CardTitle>
         </CardHeader>
-        <CardContent>
-          <BillingSettingsForm orgId={orgId} settings={settings} />
+        <CardContent className="space-y-3">
+          {entities.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Noch kein Rechnungssteller angelegt. Lege den ersten an – er wird
+              automatisch zum Standard.
+            </p>
+          )}
+          {entities.map((entity) => (
+            <BillingEntityCard
+              key={entity.id}
+              orgId={orgId}
+              entity={entity}
+              defaultOpen={entities.length === 1}
+            />
+          ))}
+          <div className="pt-1">
+            <AddBillingEntity orgId={orgId} />
+          </div>
         </CardContent>
       </Card>
 

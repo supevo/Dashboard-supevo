@@ -160,6 +160,51 @@ export async function updateClientProfileAction(
   return successResult('Kundenprofil gespeichert.');
 }
 
+const assignEntitySchema = z.object({
+  orgId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  billingEntityId: z.string().uuid().optional().or(z.literal('')),
+});
+
+/** Assigns the client to a billing entity (Rechnungssteller), or clears it. */
+export async function assignClientBillingEntityAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = assignEntitySchema.safeParse({
+    orgId: formData.get('orgId'),
+    clientCompanyId: formData.get('clientCompanyId'),
+    billingEntityId: formData.get('billingEntityId') ?? '',
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { orgId, clientCompanyId, billingEntityId } = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'clientCompany.manage', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  // Verify the target entity belongs to this org before assigning.
+  if (billingEntityId) {
+    const { data: entity } = await supabase
+      .from('billing_entities')
+      .select('id')
+      .eq('id', billingEntityId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!entity) return errorResult(de.errors.NOT_FOUND);
+  }
+
+  const { error } = await supabase
+    .from('client_companies')
+    .update({ billing_entity_id: billingEntityId || null })
+    .eq('organization_id', orgId)
+    .eq('id', clientCompanyId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  return successResult('Rechnungssteller zugeordnet.');
+}
+
 const myProfileSchema = z.object({
   industry: z.string().trim().max(500).optional().or(z.literal('')),
   brands: z.string().trim().max(2000).optional().or(z.literal('')),
