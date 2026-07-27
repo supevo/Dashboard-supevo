@@ -490,6 +490,7 @@ export const de = {
   },
   clientProfile: {
     title: 'Kundenprofil',
+    portalHint: 'Helfen Sie uns, Sie besser zu betreuen – ergänzen Sie Angaben zu Ihrem Unternehmen.',
     industry: 'Branche',
     brands: 'Marken',
     brandsHint: 'Welche Marken/Produkte betreut werden …',
