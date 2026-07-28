@@ -20,6 +20,12 @@ const SIZES = {
  * or Client Component; the image is a plain <img> pointing at our redirecting
  * avatar route, so the browser caches it.
  */
+const STATUS_DOT: Record<string, { color: string; label: string }> = {
+  online: { color: 'bg-emerald-500', label: 'Online' },
+  afk: { color: 'bg-amber-500', label: 'Abwesend' },
+  dnd: { color: 'bg-rose-500', label: 'Nicht stören' },
+};
+
 export function Avatar({
   userId,
   name,
@@ -27,6 +33,7 @@ export function Avatar({
   size = 'md',
   className,
   bust,
+  status,
 }: {
   userId: string;
   name: string;
@@ -35,6 +42,8 @@ export function Avatar({
   className?: string;
   /** Cache-busting token; change it to force the browser to reload the image. */
   bust?: number;
+  /** Presence status → small coloured dot on the avatar. */
+  status?: string | null;
 }) {
   const base = cn(
     'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 font-medium text-primary',
@@ -42,21 +51,35 @@ export function Avatar({
     className,
   );
 
-  if (hasAvatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`/api/profiles/${userId}/avatar${bust ? `?v=${bust}` : ''}`}
-        alt={name}
-        title={name}
-        className={cn(base, 'object-cover')}
-      />
-    );
-  }
-
-  return (
+  const inner = hasAvatar ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/profiles/${userId}/avatar${bust ? `?v=${bust}` : ''}`}
+      alt={name}
+      title={name}
+      className={cn(base, 'object-cover')}
+    />
+  ) : (
     <span className={base} title={name} aria-label={name}>
       {initials(name)}
+    </span>
+  );
+
+  const dot = status ? STATUS_DOT[status] : undefined;
+  if (!dot) return inner;
+
+  return (
+    <span className="relative inline-flex shrink-0">
+      {inner}
+      <span
+        title={dot.label}
+        aria-label={dot.label}
+        className={cn(
+          'absolute bottom-0 right-0 rounded-full ring-2 ring-background',
+          size === 'sm' ? 'h-1.5 w-1.5' : size === 'lg' ? 'h-4 w-4' : 'h-2.5 w-2.5',
+          dot.color,
+        )}
+      />
     </span>
   );
 }

@@ -10,7 +10,8 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { changeRoleSchema, memberTargetSchema } from './schema';
+import { isOrgAdmin } from '@/lib/authz/policies';
+import { changeRoleSchema, memberTargetSchema, joinDateSchema } from './schema';
 
 /** Changes a member's role. The central policy rejects self-changes and
  *  super_admin; RLS enforces the same at the database level. */
@@ -95,6 +96,45 @@ async function setMemberStatus(
   return successResult(
     status === 'suspended' ? 'Benutzer deaktiviert.' : 'Benutzer aktiviert.',
   );
+}
+
+/** Admins/super-admins set (or clear) a member's real company start date. */
+export async function setJoinDateAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = joinDateSchema.safeParse({
+    orgId: formData.get('orgId'),
+    targetUserId: formData.get('targetUserId'),
+    joinedAt: formData.get('joinedAt'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { orgId, targetUserId, joinedAt } = parsed.data;
+
+  const user = await requireUser();
+  if (!isOrgAdmin(user, orgId)) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('memberships')
+    .update({ joined_company_at: joinedAt === '' ? null : joinedAt })
+    .eq('organization_id', orgId)
+    .eq('user_id', targetUserId);
+
+  if (error) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: orgId,
+    action: 'role_change',
+    entityType: 'membership',
+    entityId: targetUserId,
+    metadata: { joinedAt: joinedAt || null },
+  });
+
+  revalidatePath('/app/team');
+  revalidatePath('/app/kudos');
+  return successResult('Eintrittsdatum gespeichert.');
 }
 
 export async function deactivateMemberAction(

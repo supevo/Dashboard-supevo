@@ -118,6 +118,8 @@ export const de = {
     changeRole: 'Rolle ändern',
     deactivate: 'Deaktivieren',
     reactivate: 'Aktivieren',
+    joinDate: 'Im Unternehmen seit',
+    saveJoinDate: 'Speichern',
     openInvitations: 'Offene Einladungen',
     revoke: 'Widerrufen',
     resend: 'Neuen Link erzeugen',

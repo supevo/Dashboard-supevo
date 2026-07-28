@@ -85,7 +85,7 @@ export async function getLevelHub(
     supabase.from('profiles').select('full_name, avatar_url, created_at').eq('id', userId).maybeSingle(),
     supabase
       .from('memberships')
-      .select('role, created_at')
+      .select('role, created_at, joined_company_at')
       .eq('user_id', userId)
       .eq('organization_id', orgId)
       .maybeSingle(),
@@ -125,7 +125,11 @@ export async function getLevelHub(
     .filter((h) => h.overall.userId === userId)
     .map((h) => ({ year: h.year, month: h.month, monthLabel: h.monthLabel, value: h.overall.value }));
 
-  const joinIso = membershipRes.data?.created_at ?? profile?.created_at ?? new Date().toISOString();
+  const joinIso =
+    membershipRes.data?.joined_company_at ??
+    membershipRes.data?.created_at ??
+    profile?.created_at ??
+    new Date().toISOString();
   const daysInCompany = Math.max(
     0,
     Math.floor((Date.now() - new Date(joinIso).getTime()) / 86_400_000),
