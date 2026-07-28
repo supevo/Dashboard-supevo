@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
@@ -300,16 +301,94 @@ export default async function KudosPage() {
         </div>
 
         <div className="space-y-6">
-          {/* Competence radar */}
+          {/* Skills: radar + full list */}
           <Card>
             <CardHeader>
-              <CardTitle>{t.competencesTitle}</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>{t.skillsTitle}</CardTitle>
+                <Link href="/app/profile" className="text-xs text-primary hover:underline">
+                  {t.editInProfile}
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {hub.radar.length >= 3 && <SkillRadar skills={hub.radar} />}
+              {hub.skills.length > 0 ? (
+                <ul className="space-y-2">
+                  {hub.skills.map((s) => (
+                    <li key={s.name}>
+                      <div className="mb-0.5 flex items-center justify-between text-xs">
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-muted-foreground">{s.level}/10</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-violet-500"
+                          style={{ width: `${(s.level / 10) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Lieblingsarbeit (Herzen) */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>{t.prefsTitle}</CardTitle>
+                <Link href="/app/profile" className="text-xs text-primary hover:underline">
+                  {t.editInProfile}
+                </Link>
+              </div>
             </CardHeader>
             <CardContent>
-              {hub.radar.length >= 3 ? (
-                <SkillRadar skills={hub.radar} />
+              {hub.preferences.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {hub.preferences.map((p) => (
+                    <li key={p.name} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate">{p.name}</span>
+                      <span className="shrink-0 text-rose-500" aria-label={`${p.level} von 10`}>
+                        {'♥'.repeat(Math.min(5, Math.round(p.level / 2))) || '♥'}
+                        <span className="ml-1 text-xs text-muted-foreground">{p.level}/10</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">{t.radarEmpty}</p>
+                <p className="text-sm text-muted-foreground">{t.prefsEmpty}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Meine Anerkennungen (erhaltene Kudos-Arten) */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.recognitions}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hub.badges.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {hub.badges.map((b) => (
+                    <span
+                      key={b.key}
+                      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
+                      title={b.label}
+                    >
+                      <span aria-hidden>{b.emoji}</span>
+                      {b.label}
+                      <span className="text-muted-foreground">
+                        {t.times}{b.count}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t.recognitionsEmpty}</p>
               )}
             </CardContent>
           </Card>
@@ -366,31 +445,11 @@ export default async function KudosPage() {
                 </div>
               )}
 
-              {hub.badges.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {hub.badges.map((b) => (
-                    <span
-                      key={b.key}
-                      className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
-                      title={b.label}
-                    >
-                      <span aria-hidden>{b.emoji}</span>
-                      {b.label}
-                      <span className="text-muted-foreground">
-                        {t.times}{b.count}
-                      </span>
-                    </span>
-                  ))}
-                </div>
+              {hub.trophies.length === 0 && hub.badgeWall.every((b) => !b.earned) && (
+                <p className="text-sm text-muted-foreground">
+                  {t.achievementsEmpty}
+                </p>
               )}
-
-              {hub.trophies.length === 0 &&
-                hub.milestones.length === 0 &&
-                hub.badges.length === 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {t.achievementsEmpty}
-                  </p>
-                )}
             </CardContent>
           </Card>
 

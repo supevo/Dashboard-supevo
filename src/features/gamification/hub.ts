@@ -38,6 +38,11 @@ export interface HubTrophy {
   value: string;
 }
 
+export interface NamedLevel {
+  name: string;
+  level: number;
+}
+
 export interface LevelHub {
   name: string;
   hasAvatar: boolean;
@@ -51,6 +56,8 @@ export interface LevelHub {
   daysInCompany: number;
   stats: HubStats;
   radar: RadarSkill[];
+  skills: NamedLevel[]; // full skill list (0–10)
+  preferences: NamedLevel[]; // Lieblingsarbeit (1–10 hearts)
   objectives: Objective[];
   badges: HubBadge[];
   trophies: HubTrophy[];
@@ -76,6 +83,7 @@ export async function getLevelHub(
     kudosGivenRes,
     skillsRes,
     missionsRes,
+    prefsRes,
     objectives,
     hallOfFame,
     xpPoints,
@@ -93,6 +101,7 @@ export async function getLevelHub(
     supabase.from('kudos').select('id', { count: 'exact', head: true }).eq('from_user_id', userId),
     supabase.from('employee_skills').select('name, level').eq('user_id', userId),
     supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('completed_by', userId),
+    supabase.from('work_preferences').select('name, level').eq('user_id', userId),
     listObjectivesForUser(userId),
     listHallOfFame(orgId, 24),
     getXpPoints(userId),
@@ -110,6 +119,9 @@ export async function getLevelHub(
     .slice()
     .sort((a, b) => b.level - a.level);
   const competences = skills.reduce((n, s) => n + (s.level ?? 0), 0);
+  const preferences = (prefsRes.data ?? [])
+    .slice()
+    .sort((a, b) => b.level - a.level);
 
   // Earned badges with counts, ordered by frequency.
   const badgeCounts = new Map<string, number>();
@@ -160,6 +172,8 @@ export async function getLevelHub(
       helpfulness: received.length,
     },
     radar: skills.slice(0, 7).map((s) => ({ label: s.name, level: s.level })),
+    skills: skills.map((s) => ({ name: s.name, level: s.level })),
+    preferences: preferences.map((p) => ({ name: p.name, level: p.level })),
     objectives: objectives.filter((o) => o.status !== 'archived'),
     badges,
     trophies,
