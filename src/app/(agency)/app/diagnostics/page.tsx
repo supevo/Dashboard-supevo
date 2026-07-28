@@ -27,6 +27,58 @@ async function checkServiceKey(): Promise<{ ok: boolean; message: string }> {
   }
 }
 
+interface SchemaCheck {
+  label: string;
+  ok: boolean;
+  hint: string;
+}
+
+/**
+ * Verifies that the DB objects the app depends on actually exist – catches the
+ * "code deployed but migration not run" drift (e.g. a missing function). Uses
+ * the service client and reads Postgres error codes: 42P01 = table missing,
+ * 42703 = column missing, 42883 = function missing.
+ */
+async function checkSchema(): Promise<SchemaCheck[]> {
+  const service = createSupabaseServiceClient();
+  const checks: SchemaCheck[] = [];
+
+  const table = async (
+    name: 'xp_events' | 'achievements' | 'user_counters',
+    hint: string,
+  ) => {
+    const { error } = await service.from(name).select('*', { head: true, count: 'exact' }).limit(1);
+    checks.push({ label: `Tabelle ${name}`, ok: !error || error.code !== '42P01', hint });
+  };
+  const column = async (
+    tbl: 'memberships' | 'work_preferences',
+    col: string,
+    hint: string,
+  ) => {
+    const { error } = await service.from(tbl).select(col, { head: true }).limit(1);
+    checks.push({ label: `Spalte ${tbl}.${col}`, ok: !error || error.code !== '42703', hint });
+  };
+
+  await table('xp_events', 'Migration 0047');
+  await table('achievements', 'Migration 0048');
+  await table('user_counters', 'Migration 0049/0050');
+  await column('memberships', 'joined_company_at', 'Migration 0051');
+  await column('work_preferences', 'level', 'Migration 0021/0046');
+
+  // Function bump_counter (0050): service client → auth.uid() null → no-op, safe.
+  const { error: fnErr } = await service.rpc('bump_counter', {
+    p_key: '__diag__',
+    p_org: '00000000-0000-0000-0000-000000000000',
+  });
+  checks.push({
+    label: 'Funktion bump_counter()',
+    ok: !fnErr || (fnErr.code !== '42883' && fnErr.code !== 'PGRST202'),
+    hint: 'Migration 0050',
+  });
+
+  return checks;
+}
+
 /**
  * Support/diagnostics page: shows the app-side and DB-side view of the current
  * account, so role/membership mismatches (a frequent cause of RLS write errors)
@@ -39,6 +91,8 @@ export default async function DiagnosticsPage() {
   const { data: dbView, error } = await supabase.rpc('whoami');
   const serviceKey = await checkServiceKey();
   const ai = await aiSelfTest();
+  const schema = await checkSchema();
+  const schemaOk = schema.every((c) => c.ok);
 
   return (
     <div className="space-y-6">
@@ -89,6 +143,32 @@ export default async function DiagnosticsPage() {
             KI-Schlüssel (<code>GEMINI_API_KEY</code>) fehlt/ist ungültig, das
             Modell (<code>AI_MODEL</code>) ist nicht verfügbar, oder ein Kontingent
             ist erschöpft.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Datenbank-Schema {schemaOk ? '✅' : '⚠️'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-1 text-sm">
+            {schema.map((c) => (
+              <li key={c.label} className="flex items-center justify-between gap-3">
+                <span className={c.ok ? '' : 'text-destructive'}>
+                  {c.ok ? '✅' : '❌'} {c.label}
+                </span>
+                {!c.ok && (
+                  <span className="text-xs text-muted-foreground">{c.hint}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Alle grün = alle Migrationen eingespielt. Ein ❌ zeigt genau, welche
+            Migration in Supabase noch fehlt.
           </p>
         </CardContent>
       </Card>

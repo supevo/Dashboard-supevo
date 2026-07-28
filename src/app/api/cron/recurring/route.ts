@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { cronUnauthorized } from '@/lib/cron-auth';
 import { runDueRecurringTasks } from '@/features/recurring/cron-run';
 import { logger } from '@/lib/logger';
 
@@ -10,13 +11,8 @@ export const dynamic = 'force-dynamic';
  * Vercel Cron calls this with `Authorization: Bearer $CRON_SECRET`.
  */
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = request.headers.get('authorization');
-    if (auth !== `Bearer ${secret}`) {
-      return new NextResponse(null, { status: 401 });
-    }
-  }
+  const denied = cronUnauthorized(request);
+  if (denied) return denied;
 
   try {
     const result = await runDueRecurringTasks();

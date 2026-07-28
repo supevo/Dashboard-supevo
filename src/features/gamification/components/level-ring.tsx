@@ -4,13 +4,11 @@ import { de } from '@/lib/i18n/de';
 export function LevelRing({
   level,
   points,
-  nextLevelPoints,
   progressPct,
   size = 200,
 }: {
   level: number;
   points: number;
-  nextLevelPoints: number;
   progressPct: number;
   size?: number;
 }) {
@@ -49,7 +47,8 @@ export function LevelRing({
         </span>
         <span className="text-3xl font-bold leading-tight">{level}</span>
         <span className="text-xs text-muted-foreground">
-          {points}/{nextLevelPoints} XP
+          {/* XP within the current level, matching the ring fill (each level = 100 XP). */}
+          {Math.max(0, points - (level - 1) * 100)}/100 XP
         </span>
       </div>
     </div>
