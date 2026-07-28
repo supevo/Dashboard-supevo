@@ -76,7 +76,7 @@ export function Avatar({
         aria-label={dot.label}
         className={cn(
           'absolute bottom-0 right-0 rounded-full ring-2 ring-background',
-          size === 'sm' ? 'h-1.5 w-1.5' : size === 'lg' ? 'h-4 w-4' : 'h-2.5 w-2.5',
+          size === 'sm' ? 'h-2 w-2' : size === 'lg' ? 'h-4 w-4' : 'h-2.5 w-2.5',
           dot.color,
         )}
       />

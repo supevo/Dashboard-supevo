@@ -10,7 +10,7 @@ import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure';
 import { BADGE_REASON } from '@/features/gamification/badge-catalog';
 import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
-import { EasterEggBadge } from '@/features/gamification/components/badge-test-controls';
+import { WallBadges } from '@/features/gamification/components/wall-badges';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -263,21 +263,15 @@ export default async function KudosPage() {
                         .replace('{total}', String(hub.badgeWall.length))}
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2.5">
-                    {hub.badgeWall.map((b) => (
-                      <span
-                        key={b.key}
-                        title={b.name}
-                        className={cn(
-                          'flex h-12 w-12 items-center justify-center rounded-lg border text-2xl transition',
-                          b.earned ? 'border-primary/30 bg-primary/5' : 'opacity-30 grayscale',
-                        )}
-                      >
-                        <span aria-hidden>{b.emoji}</span>
-                      </span>
-                    ))}
-                    <EasterEggBadge />
-                  </div>
+                  <WallBadges
+                    badges={hub.badgeWall.map((b) => ({
+                      key: b.key,
+                      name: b.name,
+                      emoji: b.emoji,
+                      earned: b.earned,
+                      reason: BADGE_REASON.get(b.key) ?? b.name,
+                    }))}
+                  />
                 </div>
               )}
 

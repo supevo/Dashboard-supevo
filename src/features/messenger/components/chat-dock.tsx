@@ -106,6 +106,7 @@ function ConversationView({
                 userId={m.authorId ?? ''}
                 name={m.authorName}
                 hasAvatar={m.authorHasAvatar}
+                status={m.authorStatus}
                 size="sm"
               />
               <div
