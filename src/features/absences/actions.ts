@@ -16,6 +16,17 @@ import {
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Bitte gültiges Datum wählen.');
 
+/** Vacation must be requested at least this many days ahead (no spontaneous
+ *  leave via the portal). Sick / other absences are exempt. */
+const MIN_VACATION_LEAD_DAYS = 14;
+
+function minVacationStart(): string {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + MIN_VACATION_LEAD_DAYS);
+  return d.toISOString().slice(0, 10);
+}
+
 const requestSchema = z
   .object({
     type: z.enum(['urlaub', 'krank', 'sonstiges']),
@@ -41,6 +52,13 @@ export async function requestAbsenceAction(
   });
   if (!parsed.success) {
     return errorResult(parsed.error.issues[0]?.message ?? de.errors.VALIDATION);
+  }
+
+  // No spontaneous vacation: must be at least two weeks ahead.
+  if (parsed.data.type === 'urlaub' && parsed.data.startDate < minVacationStart()) {
+    return errorResult(
+      'Urlaub muss mindestens 2 Wochen im Voraus beantragt werden.',
+    );
   }
 
   const user = await requireUser();

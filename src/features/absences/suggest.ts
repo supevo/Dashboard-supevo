@@ -24,12 +24,14 @@ function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Next Monday (UTC) after today. */
+/** First planning Monday: the first Monday at least two weeks out (no
+ *  spontaneous vacation). */
 function nextMonday(): Date {
   const d = new Date();
   d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() + 14); // skip the first two weeks
   const dow = (d.getUTCDay() + 6) % 7; // Mon=0
-  d.setUTCDate(d.getUTCDate() + (7 - dow));
+  if (dow !== 0) d.setUTCDate(d.getUTCDate() + (7 - dow));
   return d;
 }
 

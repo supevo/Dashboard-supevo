@@ -27,6 +27,8 @@ export interface VacationCalendar {
 }
 
 const WEEKS = 16;
+/** Skip the first two weeks – no spontaneous vacation planning. */
+const LEAD_DAYS = 14;
 
 function iso(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -64,7 +66,10 @@ function holidaysForYear(year: number): Map<string, string> {
   add(new Date(Date.UTC(year, 4, 1)), 'Tag der Arbeit');
   add(shift(e, 39), 'Christi Himmelfahrt');
   add(shift(e, 50), 'Pfingstmontag');
+  add(shift(e, 60), 'Fronleichnam'); // Saarland
+  add(new Date(Date.UTC(year, 7, 15)), 'Mariä Himmelfahrt'); // Saarland
   add(new Date(Date.UTC(year, 9, 3)), 'Tag der Deutschen Einheit');
+  add(new Date(Date.UTC(year, 10, 1)), 'Allerheiligen'); // Saarland
   add(new Date(Date.UTC(year, 11, 25)), '1. Weihnachtstag');
   add(new Date(Date.UTC(year, 11, 26)), '2. Weihnachtstag');
   return m;
@@ -77,6 +82,7 @@ export async function getVacationCalendar(
   const supabase = await createSupabaseServerClient();
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() + LEAD_DAYS);
   const end = new Date(start.getTime() + (WEEKS * 7 - 1) * 86_400_000);
   const fromISO = iso(start);
   const toISO = iso(end);
