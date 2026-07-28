@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
+import { BannerAdmin } from '@/features/gamification/components/banner-admin';
+import { listHubBanners } from '@/features/gamification/banner-queries';
 import { buttonVariants } from '@/components/ui/button';
 import { de } from '@/lib/i18n/de';
 
@@ -10,6 +12,8 @@ export default async function SettingsPage() {
   const { orgId } = await requireOrgAdminPage();
   const org = await getOrganization(orgId);
   if (!org) return null;
+
+  const hubBanners = await listHubBanners(orgId);
 
   return (
     <div className="space-y-6">
@@ -34,6 +38,15 @@ export default async function SettingsPage() {
           >
             {de.labels.manage}
           </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.hubBanners.title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <BannerAdmin banners={hubBanners} />
         </CardContent>
       </Card>
 

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 /** Two-letter initials derived from a display name. */
@@ -34,6 +35,7 @@ export function Avatar({
   className,
   bust,
   status,
+  style,
 }: {
   userId: string;
   name: string;
@@ -44,6 +46,8 @@ export function Avatar({
   bust?: number;
   /** Presence status → small coloured dot on the avatar. */
   status?: string | null;
+  /** Inline overrides (e.g. an explicit pixel size for the level ring). */
+  style?: CSSProperties;
 }) {
   const base = cn(
     'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/15 font-medium text-primary',
@@ -58,9 +62,10 @@ export function Avatar({
       alt={name}
       title={name}
       className={cn(base, 'object-cover')}
+      style={style}
     />
   ) : (
-    <span className={base} title={name} aria-label={name}>
+    <span className={base} title={name} aria-label={name} style={style}>
       {initials(name)}
     </span>
   );

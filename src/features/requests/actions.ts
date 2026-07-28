@@ -13,7 +13,12 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { generateTaskSuggestions } from './suggest';
+import {
+  generateTaskSuggestions,
+  generateClarifyingQuestions,
+  generateTaskFromClarification,
+  type TaskSuggestion,
+} from './suggest';
 
 const submitSchema = z.object({
   projectId: z.string().uuid(),
@@ -229,6 +234,169 @@ export async function acceptSuggestionAction(
   revalidatePath(`/app/clients/${clientCompanyId}`);
   revalidatePath(`/app/projects/${request.project_id}`);
   return successResult('Aufgabe übernommen.');
+}
+
+/**
+ * Reads a client briefing and returns the few most important clarifying
+ * questions the AI thinks are still missing (format, intention, deadline …).
+ * RLS gates the read; agency staff of the org can see the request.
+ */
+export async function getClarifyingQuestionsForRequest(
+  requestId: string,
+): Promise<{ ok: boolean; questions: string[]; error?: string }> {
+  const parsed = z.string().uuid().safeParse(requestId);
+  if (!parsed.success) {
+    return { ok: false, questions: [], error: de.errors.VALIDATION };
+  }
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { data: request } = await supabase
+    .from('client_requests')
+    .select('body')
+    .eq('id', parsed.data)
+    .maybeSingle();
+  if (!request) return { ok: false, questions: [], error: de.errors.NOT_FOUND };
+
+  const questions = await generateClarifyingQuestions(request.body);
+  return { ok: true, questions };
+}
+
+/** Inserts a suggestion as a real task into a project's queue column. */
+async function insertTaskInQueue(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  args: {
+    organizationId: string;
+    projectId: string;
+    suggestion: TaskSuggestion;
+    isInternal: boolean;
+    userId: string;
+  },
+): Promise<boolean> {
+  const { data: board } = await supabase
+    .from('boards')
+    .select('id')
+    .eq('project_id', args.projectId)
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!board) return false;
+
+  const { data: columns } = await supabase
+    .from('board_columns')
+    .select('id, column_key, position')
+    .eq('board_id', board.id)
+    .order('position', { ascending: true });
+  const target =
+    (columns ?? []).find((c) => c.column_key === 'queue') ?? (columns ?? [])[0];
+  if (!target) return false;
+
+  const { data: maxRow } = await supabase
+    .from('tasks')
+    .select('position')
+    .eq('column_id', target.id)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error } = await supabase.from('tasks').insert({
+    organization_id: args.organizationId,
+    project_id: args.projectId,
+    board_id: board.id,
+    column_id: target.id,
+    title: args.suggestion.title,
+    description: args.suggestion.description || null,
+    priority: args.suggestion.priority,
+    is_internal: args.isInternal,
+    created_by: args.userId,
+    position: (maxRow?.position ?? 0) + 1000,
+  });
+  return !error;
+}
+
+const clarifyTaskSchema = z.object({
+  requestId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  isInternal: z.boolean().default(true),
+  answers: z
+    .array(
+      z.object({
+        question: z.string().trim().max(300),
+        answer: z.string().trim().max(2000),
+      }),
+    )
+    .max(6)
+    .default([]),
+});
+
+/**
+ * Turns a briefing + the agency's clarification answers into ONE well-specified
+ * task via the AI, then creates it in the project's queue and marks the request
+ * processed. Falls back to a plain task built from the briefing if AI is off.
+ */
+export async function createTaskFromBriefingAction(input: {
+  requestId: string;
+  clientCompanyId: string;
+  isInternal: boolean;
+  answers: { question: string; answer: string }[];
+}): Promise<ActionResult> {
+  const parsed = clarifyTaskSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { requestId, clientCompanyId, isInternal, answers } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: request } = await supabase
+    .from('client_requests')
+    .select('project_id, organization_id, body')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!request) return errorResult(de.errors.FORBIDDEN);
+
+  let suggestion = await generateTaskFromClarification(request.body, answers);
+  if (!suggestion) {
+    // AI off/failed: build a plain task from the briefing + any answers.
+    const firstLine =
+      request.body.split('\n').find((l) => l.trim())?.trim().slice(0, 120) ||
+      'Kunden-Briefing';
+    const answered = answers
+      .filter((a) => a.answer.trim())
+      .map((a) => `• ${a.question} ${a.answer}`)
+      .join('\n');
+    suggestion = {
+      title: firstLine,
+      description: [request.body, answered].filter(Boolean).join('\n\n'),
+      priority: 'medium',
+    };
+  }
+
+  const ok = await insertTaskInQueue(supabase, {
+    organizationId: request.organization_id,
+    projectId: request.project_id,
+    suggestion,
+    isInternal,
+    userId: user.id,
+  });
+  if (!ok) return errorResult(de.errors.FORBIDDEN);
+
+  await supabase
+    .from('client_requests')
+    .update({ status: 'processed' })
+    .eq('id', requestId);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: request.organization_id,
+    action: 'create',
+    entityType: 'task',
+    entityId: requestId,
+    metadata: { fromRequest: true, clarified: answers.length },
+  });
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath(`/app/projects/${request.project_id}`);
+  return successResult('Aufgabe aus Briefing erstellt.');
 }
 
 const statusSchema = z.object({

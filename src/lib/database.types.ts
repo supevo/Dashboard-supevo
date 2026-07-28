@@ -107,6 +107,7 @@ export interface Database {
           avatar_url: string | null;
           locale: string;
           status: string;
+          hub_banner: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -117,6 +118,7 @@ export interface Database {
           avatar_url?: string | null;
           locale?: string;
           status?: string;
+          hub_banner?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];
@@ -141,6 +143,29 @@ export interface Database {
           joined_company_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
+        Relationships: [];
+      };
+      hub_banner_images: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          unlock_level: number;
+          storage_path: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          unlock_level?: number;
+          storage_path: string;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['hub_banner_images']['Insert']
+        >;
         Relationships: [];
       };
       invitations: {

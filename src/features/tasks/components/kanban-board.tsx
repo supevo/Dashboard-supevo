@@ -43,6 +43,7 @@ export function KanbanBoard({
   board,
   members,
   canManage,
+  canAddTask = false,
   canMove = false,
   reorderOnly = false,
   allowColumnMove = false,
@@ -52,6 +53,9 @@ export function KanbanBoard({
   board: BoardView;
   members: Member[];
   canManage: boolean;
+  /** Allow adding tasks (quick-add per column) without full project management –
+   *  any agency staff member may create tasks. */
+  canAddTask?: boolean;
   /** Full drag (incl. across columns) without project-management rights –
    *  e.g. any agency staff member on their team board. */
   canMove?: boolean;
@@ -374,6 +378,12 @@ export function KanbanBoard({
                 </span>
               </div>
 
+              {col.isDoneColumn && (
+                <p className="mb-2 px-1 text-xs text-amber-600 dark:text-amber-400">
+                  {de.kanban.doneRateHint}
+                </p>
+              )}
+
               <div className="flex-1 space-y-2">
                 {visibleTasks.map((task) => (
                   <div
@@ -450,7 +460,7 @@ export function KanbanBoard({
                       )}
                       {task.needsRating && (
                         <span
-                          className="rounded bg-amber-100 px-1 py-0.5 text-amber-800"
+                          className="rounded bg-amber-100 px-1 py-0.5 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
                           title={de.taskKudos.pending}
                         >
                           ⭐ {de.kanban.rate}
@@ -514,7 +524,7 @@ export function KanbanBoard({
                 ))}
               </div>
 
-              {canManage && (
+              {(canManage || canAddTask) && (
                 <AddTaskInline projectId={projectId} columnId={col.id} />
               )}
             </div>

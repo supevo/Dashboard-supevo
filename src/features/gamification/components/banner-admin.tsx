@@ -1,0 +1,146 @@
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { deleteHubBannerAction } from '@/features/gamification/actions';
+import type { HubBannerAdminItem } from '@/features/gamification/banner-queries';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Alert } from '@/components/ui/alert';
+import { de } from '@/lib/i18n/de';
+
+/**
+ * Admin control to upload Level-Hub banner images and assign each an unlock
+ * level. Uploaded banners appear in every employee's hub and adapt to their
+ * level automatically (highest unlocked one), or can be picked manually.
+ */
+export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [level, setLevel] = useState(0);
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, startDelete] = useTransition();
+
+  async function upload() {
+    if (!file) {
+      setError(de.hubBanners.pickFile);
+      return;
+    }
+    setError(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      fd.set('name', name || de.hubBanners.defaultName);
+      fd.set('level', String(level));
+      const res = await fetch('/api/hub-banners', { method: 'POST', body: fd });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? de.task.uploadError);
+      } else {
+        setName('');
+        setLevel(0);
+        setFile(null);
+        router.refresh();
+      }
+    } catch {
+      setError(de.task.uploadError);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-muted-foreground">{de.hubBanners.hint}</p>
+
+      {/* Existing banners */}
+      {banners.length > 0 ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {banners.map((b) => (
+            <li
+              key={b.id}
+              className="flex items-center gap-3 rounded-lg border p-2"
+            >
+              <div
+                className="h-12 w-20 shrink-0 rounded-md border bg-muted"
+                style={{
+                  background: `url("${b.imageUrl}") center / cover no-repeat`,
+                }}
+                aria-hidden
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{b.name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {de.hubBanners.fromLevel} {b.unlockLevel}
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={deleting}
+                aria-label={de.common.delete}
+                onClick={() =>
+                  startDelete(async () => {
+                    await deleteHubBannerAction(b.id);
+                    router.refresh();
+                  })
+                }
+              >
+                ✕
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">{de.hubBanners.empty}</p>
+      )}
+
+      {/* Upload form */}
+      <div className="space-y-3 rounded-lg border p-3">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {de.hubBanners.addTitle}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              {de.hubBanners.nameLabel}
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={de.hubBanners.namePlaceholder}
+              maxLength={80}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">
+              {de.hubBanners.levelLabel}
+            </label>
+            <Input
+              type="number"
+              min={0}
+              max={999}
+              value={level}
+              onChange={(e) => setLevel(Math.max(0, Number(e.target.value) || 0))}
+              className="w-24"
+            />
+          </div>
+        </div>
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          className="block text-sm"
+        />
+        {error && <Alert variant="destructive">{error}</Alert>}
+        <Button type="button" size="sm" onClick={upload} disabled={uploading}>
+          {uploading ? de.common.loading : de.hubBanners.upload}
+        </Button>
+      </div>
+    </div>
+  );
+}

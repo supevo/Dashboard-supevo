@@ -32,12 +32,12 @@ export default async function ProjectDetailPage({
     listProjectMembers(projectId),
     getProjectHealthMap(orgId),
   ]);
-  const [recurring, templates] = project.canManage
-    ? await Promise.all([
-        listRecurringTasks(projectId),
-        listProjectTemplates(),
-      ])
-    : [[], []];
+  // Recurring tasks: every staff member may SEE them (read-only); only managers
+  // get the templates picker and the pause/delete controls.
+  const [recurring, templates] = await Promise.all([
+    listRecurringTasks(projectId),
+    project.canManage ? listProjectTemplates() : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -76,6 +76,7 @@ export default async function ProjectDetailPage({
           board={board}
           members={members}
           canManage={project.canManage}
+          canAddTask
           canMove
         />
       ) : (
@@ -93,13 +94,17 @@ export default async function ProjectDetailPage({
         </Card>
       )}
 
-      {project.canManage && (
+      {(project.canManage || recurring.length > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>{de.recurring.title}</CardTitle>
           </CardHeader>
           <CardContent>
-            <RecurringTasksSection projectId={projectId} items={recurring} />
+            <RecurringTasksSection
+              projectId={projectId}
+              items={recurring}
+              canManage={project.canManage}
+            />
           </CardContent>
         </Card>
       )}

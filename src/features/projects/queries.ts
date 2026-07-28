@@ -1,5 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import type { ProjectStatus } from '@/lib/database.types';
 
 export interface ProjectListItem {
@@ -75,29 +76,56 @@ export interface ProjectMemberInfo {
   name: string;
 }
 
-/** Lists members of a project (for assignee pickers/filters). */
+/**
+ * Candidate assignees for a project: all active agency staff of the project's
+ * organization. Agency staff have org-wide project access (they don't need an
+ * explicit project_members row), so the assignee picker must offer the whole
+ * team – not just people already listed on the project.
+ *
+ * Access is gated by the caller (agency page + RLS-scoped getProject); we first
+ * resolve the org via the RLS client (returns nothing if the caller can't see
+ * the project), then use the service client to read the roster.
+ */
 export async function listProjectMembers(
   projectId: string,
 ): Promise<ProjectMemberInfo[]> {
   const supabase = await createSupabaseServerClient();
-  const { data: members } = await supabase
-    .from('project_members')
-    .select('user_id')
-    .eq('project_id', projectId);
-  if (!members || members.length === 0) return [];
+  const { data: project } = await supabase
+    .from('projects')
+    .select('organization_id')
+    .eq('id', projectId)
+    .maybeSingle();
+  if (!project) return [];
 
-  const { data: profiles } = await supabase
+  const service = createSupabaseServiceClient();
+  const { data: memberships } = await service
+    .from('memberships')
+    .select('user_id, role')
+    .eq('organization_id', project.organization_id)
+    .eq('status', 'active');
+
+  const staffIds = [
+    ...new Set(
+      (memberships ?? [])
+        .filter((m) =>
+          ['agency_admin', 'project_manager', 'employee', 'freelancer'].includes(
+            m.role,
+          ),
+        )
+        .map((m) => m.user_id),
+    ),
+  ];
+  if (staffIds.length === 0) return [];
+
+  const { data: profiles } = await service
     .from('profiles')
     .select('id, full_name')
-    .in(
-      'id',
-      members.map((m) => m.user_id),
-    );
+    .in('id', staffIds);
   const nameById = new Map(
     (profiles ?? []).map((p) => [p.id, p.full_name ?? ''] as const),
   );
-  return members.map((m) => ({
-    userId: m.user_id,
-    name: nameById.get(m.user_id) || '—',
-  }));
+
+  return staffIds
+    .map((id) => ({ userId: id, name: nameById.get(id) || '—' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
