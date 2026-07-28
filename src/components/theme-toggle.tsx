@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { bumpCounter } from '@/features/gamification/actions';
 
 /** Toggles light/dark theme by setting the `dark` class on <html> and
  *  persisting the choice in localStorage. The no-flash script in the root
@@ -22,6 +23,8 @@ export function ThemeToggle() {
       // ignore storage errors (private mode)
     }
     setIsDark(next);
+    // Collectible badge: count light/dark switches (fire-and-forget).
+    void bumpCounter('theme_toggle');
   }
 
   return (

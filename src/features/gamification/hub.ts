@@ -10,6 +10,7 @@ import {
   listAchievements,
   type EarnedAchievement,
 } from '@/features/gamification/achievements';
+import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
 
 export interface HubStats {
   missions: number; // tasks completed by the user
@@ -54,6 +55,7 @@ export interface LevelHub {
   badges: HubBadge[];
   trophies: HubTrophy[];
   milestones: EarnedAchievement[];
+  badgeWall: WallBadge[];
 }
 
 /**
@@ -78,6 +80,7 @@ export async function getLevelHub(
     hallOfFame,
     xpPoints,
     milestones,
+    badgeWall,
   ] = await Promise.all([
     supabase.from('profiles').select('full_name, avatar_url, created_at').eq('id', userId).maybeSingle(),
     supabase
@@ -94,6 +97,7 @@ export async function getLevelHub(
     listHallOfFame(orgId, 24),
     getXpPoints(userId),
     listAchievements(userId),
+    getBadgeWall(userId, orgId),
   ]);
 
   const profile = profileRes.data;
@@ -156,5 +160,6 @@ export async function getLevelHub(
     badges,
     trophies,
     milestones,
+    badgeWall,
   };
 }

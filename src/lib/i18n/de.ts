@@ -570,6 +570,8 @@ export const de = {
     achievements: 'Auszeichnungen',
     achievementsEmpty: 'Noch keine Auszeichnungen gesammelt.',
     milestones: 'Meilensteine',
+    badges: 'Sammel-Badges',
+    badgesUnlocked: '{n}/{total} freigespielt',
     trophies: 'Mitarbeiter des Monats',
     activity: 'Aktivität',
     seeAll: 'Alle ansehen',

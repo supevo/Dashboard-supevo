@@ -8,6 +8,7 @@ import { getLevelHub } from '@/features/gamification/hub';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
+import { cn } from '@/lib/utils';
 import { AwardsSummary } from '@/features/awards/components/awards-summary';
 import { de } from '@/lib/i18n/de';
 
@@ -233,20 +234,31 @@ export default async function KudosPage() {
                 </ul>
               )}
 
-              {hub.milestones.length > 0 && (
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t.milestones}
+              {hub.badgeWall.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t.badges}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {t.badgesUnlocked
+                        .replace('{n}', String(hub.badgeWall.filter((b) => b.earned).length))
+                        .replace('{total}', String(hub.badgeWall.length))}
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {hub.milestones.map((m) => (
+                    {hub.badgeWall.map((b) => (
                       <span
-                        key={m.key}
-                        className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs"
-                        title={m.label}
+                        key={b.key}
+                        title={b.name}
+                        className={cn(
+                          'flex h-11 w-11 items-center justify-center rounded-lg border text-xl transition',
+                          b.earned
+                            ? 'border-primary/30 bg-primary/5'
+                            : 'opacity-30 grayscale',
+                        )}
                       >
-                        <span aria-hidden>{m.emoji}</span>
-                        {m.label}
+                        <span aria-hidden>{b.emoji}</span>
                       </span>
                     ))}
                   </div>
