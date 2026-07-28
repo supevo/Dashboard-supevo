@@ -7,6 +7,7 @@ import { listRecentKudos, getLeaderboard } from '@/features/kudos/queries';
 import { badgeLabel } from '@/features/kudos/badges';
 import { getLevelHub } from '@/features/gamification/hub';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
+import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure';
 import { BADGE_REASON } from '@/features/gamification/badge-catalog';
 import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
 import { EasterEggBadge } from '@/features/gamification/components/badge-test-controls';
@@ -69,12 +70,17 @@ export default async function KudosPage() {
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-          <span className="text-2xl" aria-hidden>📅</span>
+          <span className="text-2xl" aria-hidden>
+            {currentTenureBadge(hub.daysInCompany)?.emoji ?? '📅'}
+          </span>
           <div>
             <div className="text-xs text-muted-foreground">{t.inCompany}</div>
-            <div className="font-semibold">
-              {hub.daysInCompany} {t.days}
-            </div>
+            <div className="font-semibold">{formatTenure(hub.daysInCompany)}</div>
+            {currentTenureBadge(hub.daysInCompany) && (
+              <div className="text-xs text-amber-500" title="Dienstjubiläum">
+                {currentTenureBadge(hub.daysInCompany)!.name}
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
