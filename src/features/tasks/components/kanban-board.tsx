@@ -494,6 +494,7 @@ export function KanbanBoard({
                             userId={a.userId}
                             name={a.name || '—'}
                             hasAvatar={a.hasAvatar}
+                            status={a.status}
                             size="sm"
                           />
                           {a.name || '—'}

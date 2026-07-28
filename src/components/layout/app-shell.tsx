@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { BrowserNotifications } from '@/components/layout/browser-notifications';
+import { PresenceTracker } from '@/components/layout/presence-tracker';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { RunningTimer } from '@/components/layout/running-timer';
@@ -83,6 +84,7 @@ export function AppShell({
             />
           </div>
         </header>
+        <PresenceTracker />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>

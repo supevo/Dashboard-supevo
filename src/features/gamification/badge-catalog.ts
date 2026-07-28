@@ -57,6 +57,7 @@ export type BadgeMetric =
   | 'aiSummaries'
   | 'aiFeedback'
   | 'breaks'
+  | 'notifications'
   | 'tenureDays'
   | 'badgesEarned';
 
@@ -105,6 +106,7 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'ki_buddy', name: 'KI Buddy', emoji: '🤖', metric: 'aiSummaries', threshold: 25, reason: '25 KI-Zusammenfassungen abgerufen' },
   { key: 'coach', name: 'Ich liebe dich Coach', emoji: '💬', metric: 'aiFeedback', threshold: 50, reason: '50 Mal KI-Feedback eingeholt' },
   { key: 'arbeitslos', name: 'Arbeitslos', emoji: '☕', metric: 'breaks', threshold: 100, reason: '100 Mal Pause gemacht' },
+  { key: 'gloeckner', name: 'Glöckner von Notre Dame', emoji: '🔔', metric: 'notifications', threshold: 1, reason: 'Benachrichtigungen aktiviert' },
   // Rhythmus (Uhrzeit/Tag des Abschlusses)
   { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1, reason: 'Aufgabe vor 7 Uhr erledigt' },
   { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1, reason: 'Aufgabe nach 22 Uhr erledigt' },
@@ -263,6 +265,7 @@ export async function getBadgeWall(
     aiSummaries: counters.get('ai_summary') ?? 0,
     aiFeedback: counters.get('ai_feedback') ?? 0,
     breaks: counters.get('break') ?? 0,
+    notifications: counters.get('notifications') ?? 0,
     tenureDays: (() => {
       const joinIso =
         membershipRes.data?.joined_company_at ??

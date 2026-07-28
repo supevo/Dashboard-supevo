@@ -27,6 +27,27 @@ export async function bumpCounter(key: string): Promise<void> {
   }
 }
 
+/**
+ * Quiet auto-presence update from the client tracker. Only sets online/afk and
+ * NEVER overrides a manually chosen "Nicht stören" (dnd). No revalidate, so the
+ * frequent heartbeat doesn't trigger re-render storms.
+ */
+export async function setPresenceAction(status: string): Promise<void> {
+  const parsed = z.enum(['online', 'afk']).safeParse(status);
+  if (!parsed.success) return;
+  try {
+    const user = await requireUser();
+    const supabase = await createSupabaseServerClient();
+    await supabase
+      .from('profiles')
+      .update({ status: parsed.data })
+      .eq('id', user.id)
+      .neq('status', 'dnd');
+  } catch {
+    /* presence is best-effort */
+  }
+}
+
 /** Sets the current user's presence status (online / afk / dnd). */
 export async function setUserStatusAction(status: string): Promise<void> {
   const parsed = z.enum(['online', 'afk', 'dnd']).safeParse(status);

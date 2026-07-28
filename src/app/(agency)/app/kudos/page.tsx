@@ -326,60 +326,6 @@ export default async function KudosPage() {
           {/* Award of the month (admin sees full; others get the reveal hint) */}
           <AwardsSummary orgId={orgId} userId={user.id} canSeeFull={admin} />
 
-          {/* Auszeichnungen: Trophäen + Badge-Wand (breite Spalte = mehr Platz) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.achievements}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {hub.trophies.length > 0 && (
-                <ul className="space-y-2">
-                  {hub.trophies.map((tr) => (
-                    <li key={`${tr.year}-${tr.month}`} className="flex items-center gap-2 text-sm">
-                      <span aria-hidden>🏆</span>
-                      <span className="font-medium">{t.trophies}</span>
-                      <span className="text-muted-foreground">{tr.monthLabel}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {hub.badgeWall.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t.badges}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {t.badgesUnlocked
-                        .replace('{n}', String(hub.badgeWall.filter((b) => b.earned).length))
-                        .replace('{total}', String(hub.badgeWall.length))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2.5">
-                    {hub.badgeWall.map((b) => (
-                      <span
-                        key={b.key}
-                        title={b.name}
-                        className={cn(
-                          'flex h-12 w-12 items-center justify-center rounded-lg border text-2xl transition',
-                          b.earned ? 'border-primary/30 bg-primary/5' : 'opacity-30 grayscale',
-                        )}
-                      >
-                        <span aria-hidden>{b.emoji}</span>
-                      </span>
-                    ))}
-                    <EasterEggBadge />
-                  </div>
-                </div>
-              )}
-
-              {hub.trophies.length === 0 && hub.badgeWall.every((b) => !b.earned) && (
-                <p className="text-sm text-muted-foreground">{t.achievementsEmpty}</p>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Activity feed */}
           <Card>
             <CardHeader>

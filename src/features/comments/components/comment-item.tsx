@@ -25,6 +25,7 @@ export function CommentItem({ comment }: { comment: CommentView }) {
             userId={comment.authorId}
             name={comment.authorName}
             hasAvatar={comment.authorHasAvatar}
+            status={comment.authorStatus}
             size="md"
           />
           <span>
