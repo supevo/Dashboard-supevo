@@ -14,12 +14,14 @@ export interface DmConversation {
   otherUserId: string;
   otherName: string;
   otherHasAvatar: boolean;
+  otherStatus: string | null;
 }
 
 export interface TeamMember {
   userId: string;
   name: string;
   hasAvatar: boolean;
+  status: string | null;
 }
 
 export interface ChannelMessage {
@@ -81,7 +83,7 @@ export async function listDmConversations(
   const service = createSupabaseServiceClient();
   const { data: profiles } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url')
+    .select('id, full_name, avatar_url, status')
     .in('id', otherIds);
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
 
@@ -95,6 +97,7 @@ export async function listDmConversations(
         otherUserId: otherId,
         otherName: p?.full_name ?? 'Unbekannt',
         otherHasAvatar: Boolean(p?.avatar_url),
+        otherStatus: p?.status ?? null,
       };
     })
     .filter((d): d is DmConversation => d !== null);
@@ -122,13 +125,14 @@ export async function listTeamMembers(
 
   const { data: profiles } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url')
+    .select('id, full_name, avatar_url, status')
     .in('id', ids);
   return (profiles ?? [])
     .map((p) => ({
       userId: p.id,
       name: p.full_name ?? 'Unbekannt',
       hasAvatar: Boolean(p.avatar_url),
+      status: p.status ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

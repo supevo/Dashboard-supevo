@@ -344,7 +344,7 @@ export function ChatDock() {
                       onClick={() => void startDm(m.userId)}
                       className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-xs hover:bg-muted"
                     >
-                      <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} size="sm" />
+                      <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} status={m.status} size="sm" />
                       <span className="truncate">{m.name}</span>
                     </button>
                   ))
@@ -364,7 +364,7 @@ export function ChatDock() {
                     : 'text-muted-foreground',
                 )}
               >
-                <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} size="sm" />
+                <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
                 <span className="truncate">{d.otherName}</span>
                 {activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
               </button>
