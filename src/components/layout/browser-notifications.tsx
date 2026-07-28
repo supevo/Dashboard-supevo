@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { bumpCounter } from '@/features/gamification/actions';
 
 const STORAGE_KEY = 'browserNotifyEnabled';
 const POLL_MS = 30_000;
@@ -119,6 +120,7 @@ export function BrowserNotifications() {
       setEnabled(true);
       localStorage.setItem(STORAGE_KEY, 'true');
       playChime(); // confirmation + unlocks audio via the click gesture
+      void bumpCounter('notifications'); // collectible badge "Glöckner"
     }
   }
 
