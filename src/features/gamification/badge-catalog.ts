@@ -3,6 +3,25 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCounters } from '@/features/gamification/counters';
 import { getXpPoints } from '@/features/gamification/xp';
 
+/** Hour (0–23) and weekday (0=Sun..6=Sat) of a timestamp in German local time,
+ *  so the time-of-day badges match Europe/Berlin, not the UTC server clock. */
+function berlinParts(iso: string): { hour: number; day: number } {
+  const d = new Date(iso);
+  const hour = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Berlin',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(d),
+  );
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Berlin',
+    weekday: 'short',
+  }).format(d);
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return { hour, day: map[wd] ?? 0 };
+}
+
 /**
  * Collectible badges. Each badge is unlocked when a single metric reaches its
  * threshold. Adding a badge = one line here (plus the metric in buildStats if
@@ -166,8 +185,7 @@ export async function getBadgeWall(
     if (t.created_by && t.created_by !== userId) takenOver += 1;
     if (!t.completed_at) continue;
     const done = new Date(t.completed_at);
-    const hour = done.getHours();
-    const day = done.getDay(); // 0 = So, 6 = Sa
+    const { hour, day } = berlinParts(t.completed_at); // German local time
     if (hour < 7) earlyBird += 1;
     if (hour >= 22) nightOwl += 1;
     if (day === 0 || day === 6) weekendWarrior += 1;
