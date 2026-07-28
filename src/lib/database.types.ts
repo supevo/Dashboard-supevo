@@ -764,6 +764,24 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['achievements']['Insert']>;
         Relationships: [];
       };
+      user_counters: {
+        Row: {
+          user_id: string;
+          organization_id: string;
+          key: string;
+          count: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          organization_id: string;
+          key: string;
+          count?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['user_counters']['Insert']>;
+        Relationships: [];
+      };
       client_chat_messages: {
         Row: {
           id: string;
