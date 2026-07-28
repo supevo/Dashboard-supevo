@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser, primaryAgencyOrgId } from '@/features/auth/session';
+import { bumpCounter } from '@/features/gamification/actions';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { sanitizeFileName } from '@/lib/files/validation';
 import { rateLimit } from '@/lib/rate-limit';
@@ -103,6 +104,9 @@ export async function POST(request: NextRequest) {
   if (prev?.avatar_url && prev.avatar_url !== storagePath) {
     await supabase.storage.from(FILES_BUCKET).remove([prev.avatar_url]);
   }
+
+  // Collectible badge "Topmodel": count profile-picture swaps.
+  await bumpCounter('avatar_swap');
 
   return NextResponse.json({ ok: true });
 }
