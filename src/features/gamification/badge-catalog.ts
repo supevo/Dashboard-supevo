@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCounters } from '@/features/gamification/counters';
 import { getXpPoints } from '@/features/gamification/xp';
+import { TENURE_BADGES } from '@/features/gamification/tenure';
 
 /** Hour (0–23) and weekday (0=Sun..6=Sat) of a timestamp in German local time,
  *  so the time-of-day badges match Europe/Berlin, not the UTC server clock. */
@@ -56,6 +57,7 @@ export type BadgeMetric =
   | 'aiSummaries'
   | 'aiFeedback'
   | 'breaks'
+  | 'tenureDays'
   | 'badgesEarned';
 
 export interface BadgeDef {
@@ -115,6 +117,15 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'punktesammler', name: 'Punktesammler', emoji: '💰', metric: 'points', threshold: 1000, reason: '1.000 XP gesammelt' },
   { key: 'lobhudler', name: 'Lobhudler', emoji: '👏', metric: 'ratingsGiven', threshold: 25, reason: '25 Mal Kollegen gelobt' },
   { key: 'deadline_held', name: 'Deadline-Held', emoji: '⏰', metric: 'ontime', threshold: 20, reason: '20 Mal pünktlich geliefert' },
+  // Dienstjubiläen (aus der Betriebszugehörigkeit) – eine Quelle: tenure.ts
+  ...TENURE_BADGES.map((b) => ({
+    key: `tenure_${b.minDays}`,
+    name: b.name,
+    emoji: b.emoji,
+    metric: 'tenureDays' as const,
+    threshold: b.minDays,
+    reason: b.name,
+  })),
   // Meta (Anzahl freigespielter Badges) – werden zuletzt ausgewertet
   { key: 'sammler', name: 'Sammler', emoji: '🧺', metric: 'badgesEarned', threshold: 10, reason: '10 Badges freigespielt' },
   { key: 'vollstaendig', name: 'Vollständig', emoji: '🏆', metric: 'badgesEarned', threshold: 999, reason: 'Alle Badges freigespielt' },
@@ -157,6 +168,7 @@ export async function getBadgeWall(
     kudosReceivedRes,
     ontimeRes,
     filesRes,
+    membershipRes,
     xpPoints,
     counters,
   ] = await Promise.all([
@@ -170,11 +182,17 @@ export async function getBadgeWall(
     supabase.from('client_chat_messages').select('id', head).eq('author_id', userId),
     supabase.from('time_entries').select('id', head).eq('user_id', userId),
     supabase.from('absences').select('id', head).eq('user_id', userId).eq('type', 'urlaub'),
-    supabase.from('profiles').select('full_name, avatar_url').eq('id', userId).maybeSingle(),
+    supabase.from('profiles').select('full_name, avatar_url, created_at').eq('id', userId).maybeSingle(),
     supabase.from('employee_skills').select('id', head).eq('user_id', userId),
     supabase.from('kudos').select('points, badge').eq('to_user_id', userId),
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'ontime'),
     supabase.from('files').select('id', head).eq('uploaded_by', userId).is('deleted_at', null),
+    supabase
+      .from('memberships')
+      .select('joined_company_at, created_at')
+      .eq('user_id', userId)
+      .eq('organization_id', orgId)
+      .maybeSingle(),
     getXpPoints(userId),
     getCounters(userId),
   ]);
@@ -245,6 +263,14 @@ export async function getBadgeWall(
     aiSummaries: counters.get('ai_summary') ?? 0,
     aiFeedback: counters.get('ai_feedback') ?? 0,
     breaks: counters.get('break') ?? 0,
+    tenureDays: (() => {
+      const joinIso =
+        membershipRes.data?.joined_company_at ??
+        membershipRes.data?.created_at ??
+        profile?.created_at ??
+        new Date().toISOString();
+      return Math.max(0, Math.floor((Date.now() - new Date(joinIso).getTime()) / 86_400_000));
+    })(),
     badgesEarned: 0, // filled after the non-meta pass
   };
   void orgId;

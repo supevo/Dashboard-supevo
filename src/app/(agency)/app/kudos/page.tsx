@@ -233,46 +233,7 @@ export default async function KudosPage() {
             </CardContent>
           </Card>
 
-          {/* KPIs */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t.kpis}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {hub.objectives.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{t.kpisEmpty}</p>
-              ) : (
-                <ul className="space-y-4">
-                  {hub.objectives.map((o) => (
-                    <li key={o.id}>
-                      <div className="mb-1 flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 truncate text-sm font-medium">
-                          {o.title}
-                        </span>
-                        <span className="shrink-0 text-sm font-semibold text-primary">
-                          {o.progress}%
-                        </span>
-                      </div>
-                      <div className="mb-1 text-xs text-muted-foreground">
-                        {o.period ?? t.noDeadline}
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-emerald-500"
-                          style={{ width: `${o.progress}%` }}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Award of the month (admin sees full; others get the reveal hint) */}
-          <AwardsSummary orgId={orgId} userId={user.id} canSeeFull={admin} />
-
-          {/* Auszeichnungen: Trophäen + Badge-Wand (breite Spalte = mehr Platz) */}
+          {/* Auszeichnungen: Trophäen + Badge-Wand (direkt unter den Wochenchallenges) */}
           <Card>
             <CardHeader>
               <CardTitle>{t.achievements}</CardTitle>
@@ -325,6 +286,45 @@ export default async function KudosPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* KPIs */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t.kpis}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hub.objectives.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.kpisEmpty}</p>
+              ) : (
+                <ul className="space-y-4">
+                  {hub.objectives.map((o) => (
+                    <li key={o.id}>
+                      <div className="mb-1 flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate text-sm font-medium">
+                          {o.title}
+                        </span>
+                        <span className="shrink-0 text-sm font-semibold text-primary">
+                          {o.progress}%
+                        </span>
+                      </div>
+                      <div className="mb-1 text-xs text-muted-foreground">
+                        {o.period ?? t.noDeadline}
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-emerald-500"
+                          style={{ width: `${o.progress}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Award of the month (admin sees full; others get the reveal hint) */}
+          <AwardsSummary orgId={orgId} userId={user.id} canSeeFull={admin} />
 
           {/* Activity feed */}
           <Card>
