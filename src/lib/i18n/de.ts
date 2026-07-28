@@ -42,6 +42,7 @@ export const de = {
     clients: 'Kunden',
     leads: 'Leads',
     team: 'Team',
+    colleagues: 'Kollegen',
     kudos: 'Anerkennung',
     awards: 'Auszeichnungen',
     recognition: 'Anerkennung & Auszeichnungen',
@@ -936,6 +937,12 @@ export const de = {
     upload: 'Hochladen',
     pickFile: 'Bitte ein Bild auswählen.',
     defaultName: 'Titelbild',
+  },
+  colleagues: {
+    subtitle:
+      'Öffne die Profile deiner Kolleg:innen, um Level, Liga, Erfolge und Badges zu sehen.',
+    empty: 'Noch keine Teammitglieder.',
+    you: 'Du',
   },
   marketingReport: {
     title: 'Berichte',

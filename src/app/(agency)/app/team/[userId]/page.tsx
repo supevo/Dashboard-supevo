@@ -54,7 +54,7 @@ export default async function ColleagueProfilePage({
                 {p.league.current.emoji} {p.league.current.name}
               </span>
               <span className="rounded-full border px-2.5 py-1">
-                {de.level.title} {p.level}
+                {de.level.title} {p.level} · {p.points} XP
               </span>
               <span className="rounded-full border px-2.5 py-1">
                 📅 {t.inCompany}: {formatTenure(p.daysInCompany)} (seit {fmtDate(p.joinedAt)})

@@ -37,6 +37,75 @@ const ROLE_LABELS: Record<string, string> = {
   client: 'Kunde',
 };
 
+export interface ColleagueListItem {
+  userId: string;
+  name: string;
+  hasAvatar: boolean;
+  status: string | null;
+  roleLabel: string;
+  level: number;
+  leagueEmoji: string;
+  leagueName: string;
+  isSelf: boolean;
+}
+
+/**
+ * Roster of the org's agency team for the colleague view – every staff member
+ * may see it (to open each other's profiles, XP and badges). Guarded: viewer
+ * must be agency staff; the privileged client reads cross-user profile data
+ * only after that check.
+ */
+export async function listColleagues(
+  orgId: string,
+): Promise<ColleagueListItem[]> {
+  const viewer = await requireUser();
+  if (!hasAgencyAccess(viewer)) return [];
+
+  const service = createSupabaseServiceClient();
+  const { data: memberships } = await service
+    .from('memberships')
+    .select('user_id, role')
+    .eq('organization_id', orgId)
+    .eq('status', 'active');
+  const staff = (memberships ?? []).filter((m) => m.role !== 'client');
+  const ids = [...new Set(staff.map((m) => m.user_id))];
+  if (ids.length === 0) return [];
+
+  const [profilesRes, kudosRes, xpRes] = await Promise.all([
+    service.from('profiles').select('id, full_name, avatar_url, status').in('id', ids),
+    service.from('kudos').select('to_user_id, points').in('to_user_id', ids),
+    service.from('xp_events').select('user_id, points').in('user_id', ids),
+  ]);
+
+  const pointsById = new Map<string, number>();
+  for (const k of kudosRes.data ?? [])
+    pointsById.set(k.to_user_id, (pointsById.get(k.to_user_id) ?? 0) + (k.points ?? 0));
+  for (const x of xpRes.data ?? [])
+    pointsById.set(x.user_id, (pointsById.get(x.user_id) ?? 0) + (x.points ?? 0));
+
+  const profileById = new Map((profilesRes.data ?? []).map((p) => [p.id, p] as const));
+  const roleById = new Map(staff.map((m) => [m.user_id, m.role] as const));
+
+  return ids
+    .map((id) => {
+      const p = profileById.get(id);
+      const pts = pointsById.get(id) ?? 0;
+      const league = leagueForPoints(pts);
+      return {
+        userId: id,
+        name: p?.full_name ?? '—',
+        hasAvatar: Boolean(p?.avatar_url),
+        status: p?.status ?? null,
+        roleLabel: ROLE_LABELS[roleById.get(id) ?? 'employee'] ?? 'Mitarbeiter:in',
+        level: levelForPoints(pts).level,
+        leagueEmoji: league.current.emoji,
+        leagueName: league.current.name,
+        isSelf: id === viewer.id,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * A teammate's public profile for the colleague view. Guarded: the viewer must
  * be agency staff and the target must be a member of the same organization.

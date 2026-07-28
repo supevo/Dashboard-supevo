@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/clients', label: de.nav.clients },
   { href: '/app/leads', label: de.nav.leads },
   { href: '/app/reports', label: de.nav.reports },
+  { href: '/app/colleagues', label: de.nav.colleagues },
 ];
 
 // Leadership-only entries appended for org admins (and super admins).
