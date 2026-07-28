@@ -72,6 +72,31 @@ export function VacationCalendar({ days }: { days: VacationDay[] }) {
   const inRec = (date: string) =>
     suggestion ? date >= suggestion.start && date <= suggestion.end : false;
 
+  /** Writes the suggested range into the request form above (controlled
+   *  inputs → native setter + input event so React picks up the change). */
+  function applyToForm() {
+    if (!suggestion) return;
+    const setNative = (id: string, value: string, event: 'input' | 'change') => {
+      const el = document.getElementById(id) as
+        | HTMLInputElement
+        | HTMLSelectElement
+        | null;
+      if (!el) return;
+      const proto =
+        el instanceof HTMLSelectElement
+          ? HTMLSelectElement.prototype
+          : HTMLInputElement.prototype;
+      Object.getOwnPropertyDescriptor(proto, 'value')?.set?.call(el, value);
+      el.dispatchEvent(new Event(event, { bubbles: true }));
+    };
+    setNative('type', 'urlaub', 'change');
+    setNative('startDate', suggestion.start, 'input');
+    setNative('endDate', suggestion.end, 'input');
+    document
+      .getElementById('startDate')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -84,13 +109,22 @@ export function VacationCalendar({ days }: { days: VacationDay[] }) {
           {loading ? de.common.loading : `✨ ${de.absence.vacationSuggest}`}
         </button>
         {suggestion && (
-          <p className="text-sm">
-            <span className="font-semibold">
-              {suggestion.start.split('-').reverse().join('.')}–
-              {suggestion.end.split('-').reverse().join('.')}:
-            </span>{' '}
-            <span className="text-muted-foreground">{suggestion.reason}</span>
-          </p>
+          <>
+            <p className="text-sm">
+              <span className="font-semibold">
+                {suggestion.start.split('-').reverse().join('.')}–
+                {suggestion.end.split('-').reverse().join('.')}:
+              </span>{' '}
+              <span className="text-muted-foreground">{suggestion.reason}</span>
+            </p>
+            <button
+              type="button"
+              onClick={applyToForm}
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            >
+              {de.absence.suggestApply}
+            </button>
+          </>
         )}
         {failed && (
           <p className="text-xs text-muted-foreground">{de.absence.suggestError}</p>
