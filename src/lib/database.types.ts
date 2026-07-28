@@ -1688,6 +1688,10 @@ export interface Database {
         };
         Returns: undefined;
       };
+      bump_counter: {
+        Args: { p_key: string; p_org: string };
+        Returns: undefined;
+      };
       can_access_project: {
         Args: { p_project_id: string };
         Returns: boolean;

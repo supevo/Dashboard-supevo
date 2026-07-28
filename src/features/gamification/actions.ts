@@ -9,7 +9,8 @@ import { primaryAgencyOrgId } from '@/features/auth/session';
 /**
  * Increments a UI-action counter for the current user (for collectible badges).
  * Fire-and-forget: never throws, so a failed count can't break the action that
- * triggered it. Non-atomic read-then-write is fine at badge granularity.
+ * triggered it. Uses an atomic Postgres function so rapid clicks don't lose
+ * increments (a read-then-write would).
  */
 export async function bumpCounter(key: string): Promise<void> {
   const clean = key.trim().slice(0, 40);
@@ -19,22 +20,8 @@ export async function bumpCounter(key: string): Promise<void> {
     const orgId = primaryAgencyOrgId(user);
     if (!orgId) return;
     const supabase = await createSupabaseServerClient();
-    const { data } = await supabase
-      .from('user_counters')
-      .select('count')
-      .eq('user_id', user.id)
-      .eq('key', clean)
-      .maybeSingle();
-    await supabase.from('user_counters').upsert(
-      {
-        user_id: user.id,
-        organization_id: orgId,
-        key: clean,
-        count: (data?.count ?? 0) + 1,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,key' },
-    );
+    const { error } = await supabase.rpc('bump_counter', { p_key: clean, p_org: orgId });
+    if (error) console.error('bumpCounter failed', error);
   } catch (err) {
     console.error('bumpCounter failed', err);
   }
