@@ -94,7 +94,6 @@ export default async function KudosPage() {
           <LevelRing
             level={hub.level}
             points={hub.points}
-            nextLevelPoints={hub.nextLevelPoints}
             progressPct={hub.levelProgressPct}
           />
           <div className="min-w-0 flex-1 text-center sm:text-left">
