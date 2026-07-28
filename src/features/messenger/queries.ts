@@ -27,6 +27,7 @@ export interface ChannelMessage {
   authorId: string | null;
   authorName: string;
   authorHasAvatar: boolean;
+  authorStatus: string | null;
   body: string;
   createdAt: string;
   isMine: boolean;
@@ -179,9 +180,16 @@ export async function listChannelMessages(
   const { data: profiles } = authorIds.length
     ? await service
         .from('profiles')
-        .select('id, full_name, avatar_url')
+        .select('id, full_name, avatar_url, status')
         .in('id', authorIds)
-    : { data: [] as { id: string; full_name: string | null; avatar_url: string | null }[] };
+    : {
+        data: [] as {
+          id: string;
+          full_name: string | null;
+          avatar_url: string | null;
+          status: string | null;
+        }[],
+      };
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
 
   return data.map((m) => {
@@ -191,6 +199,7 @@ export async function listChannelMessages(
       authorId: m.author_id,
       authorName: profile?.full_name ?? 'Unbekannt',
       authorHasAvatar: Boolean(profile?.avatar_url),
+      authorStatus: profile?.status ?? null,
       body: m.body,
       createdAt: m.created_at,
       isMine: m.author_id === currentUserId,

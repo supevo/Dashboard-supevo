@@ -128,6 +128,7 @@ export interface Database {
           organization_id: string;
           role: AppRole;
           status: MembershipStatus;
+          joined_company_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -137,6 +138,7 @@ export interface Database {
           organization_id: string;
           role: AppRole;
           status?: MembershipStatus;
+          joined_company_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
         Relationships: [];

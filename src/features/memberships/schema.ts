@@ -14,3 +14,14 @@ export const memberTargetSchema = z.object({
   orgId: z.string().uuid(),
   targetUserId: z.string().uuid(),
 });
+
+export const joinDateSchema = z.object({
+  orgId: z.string().uuid(),
+  targetUserId: z.string().uuid(),
+  // Empty string clears the date; otherwise expect an ISO date (YYYY-MM-DD).
+  joinedAt: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ungültiges Datum.')
+    .or(z.literal('')),
+});

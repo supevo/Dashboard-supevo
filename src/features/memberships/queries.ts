@@ -11,6 +11,7 @@ export interface OrgMember {
   email: string | null;
   role: AppRole;
   status: MembershipStatus;
+  joinedAt: string | null;
   isSelf: boolean;
 }
 
@@ -26,7 +27,7 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
   const service = createSupabaseServiceClient();
   const { data: memberships } = await service
     .from('memberships')
-    .select('id, user_id, role, status')
+    .select('id, user_id, role, status, joined_company_at')
     .eq('organization_id', orgId);
 
   if (!memberships || memberships.length === 0) return [];
@@ -51,6 +52,7 @@ export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
         email: profile?.email ?? null,
         role: m.role,
         status: m.status,
+        joinedAt: m.joined_company_at ?? null,
         isSelf: m.user_id === user.id,
       };
     })

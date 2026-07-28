@@ -5,11 +5,13 @@ import {
   changeRoleAction,
   deactivateMemberAction,
   reactivateMemberAction,
+  setJoinDateAction,
 } from '@/features/memberships/actions';
 import { INVITABLE_ROLES } from '@/features/invitations/schema';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { SubmitButton } from '@/components/ui/submit-button';
 import type { OrgMember } from '@/features/memberships/queries';
 
@@ -27,10 +29,12 @@ export function MemberRow({
       : deactivateMemberAction,
     idleResult,
   );
+  const [joinState, joinAction] = useActionState(setJoinDateAction, idleResult);
 
   const anyError =
     (roleState.status === 'error' && roleState.message) ||
     (statusState.status === 'error' && statusState.message) ||
+    (joinState.status === 'error' && joinState.message) ||
     null;
 
   return (
@@ -75,6 +79,22 @@ export function MemberRow({
             </SubmitButton>
           </form>
         )}
+      </td>
+      <td className="py-2 pr-4">
+        <form action={joinAction} className="flex items-center gap-2">
+          <input type="hidden" name="orgId" value={orgId} />
+          <input type="hidden" name="targetUserId" value={member.userId} />
+          <Input
+            type="date"
+            name="joinedAt"
+            defaultValue={member.joinedAt ?? ''}
+            aria-label={de.team.joinDate}
+            className="h-9 w-auto"
+          />
+          <SubmitButton variant="outline" size="sm">
+            {de.team.saveJoinDate}
+          </SubmitButton>
+        </form>
       </td>
       <td className="py-2 text-right">
         {!member.isSelf && (

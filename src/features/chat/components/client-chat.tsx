@@ -20,6 +20,7 @@ interface ChatMessage {
   authorId: string | null;
   authorName: string;
   authorHasAvatar: boolean;
+  authorStatus: string | null;
   body: string;
   createdAt: string;
   isMine: boolean;
@@ -87,6 +88,7 @@ export function ClientChat({ clientCompanyId }: { clientCompanyId: string }) {
                 userId={m.authorId ?? ''}
                 name={m.authorName}
                 hasAvatar={m.authorHasAvatar}
+                status={m.authorStatus}
                 size="sm"
               />
               <div
