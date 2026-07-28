@@ -8,6 +8,8 @@ import {
   type Absence,
 } from '@/features/absences/queries';
 import { RequestAbsenceForm } from '@/features/absences/components/request-absence-form';
+import { getVacationCalendar } from '@/features/absences/vacation-calendar';
+import { VacationCalendar } from '@/features/absences/components/vacation-calendar';
 import {
   AbsenceDecide,
   AbsenceCancel,
@@ -44,10 +46,11 @@ export default async function AbsencesPage() {
   const { user, orgId } = await requireAgencyPage();
   const admin = isOrgAdmin(user, orgId);
 
-  const [mine, team, pending] = await Promise.all([
+  const [mine, team, pending, vacationCalendar] = await Promise.all([
     listMyAbsences(user.id),
     listTeamAbsences(),
     admin ? listPendingAbsences() : Promise.resolve([] as Absence[]),
+    getVacationCalendar(orgId, user.id),
   ]);
 
   return (
@@ -63,6 +66,18 @@ export default async function AbsencesPage() {
         </CardHeader>
         <CardContent>
           <RequestAbsenceForm />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.absence.vacationCalendarTitle}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {de.absence.vacationCalendarSub}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <VacationCalendar days={vacationCalendar.days} />
         </CardContent>
       </Card>
 
