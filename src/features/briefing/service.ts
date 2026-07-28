@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { isAiEnabled } from '@/lib/ai/complete';
 import { gatherBriefingContext } from './context';
 import { generateBriefing, type BriefingPriority } from './generate';
+import { bumpCounter } from '@/features/gamification/actions';
 
 export interface StoredBriefing {
   summary: string;
@@ -49,6 +50,10 @@ export async function createTodayBriefing(
   const ctx = await gatherBriefingContext(userId);
   const generated = await generateBriefing(ctx);
   if (!generated) return null;
+
+  // Collectible badge "KI Buddy": count fresh AI summaries the user pulls.
+  // In the cron pre-generation path there is no session, so this is a no-op.
+  await bumpCounter('ai_summary');
 
   const service = createSupabaseServiceClient();
   const { data, error } = await service

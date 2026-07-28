@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
+import { bumpCounter } from '@/features/gamification/actions';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
@@ -154,6 +155,9 @@ export async function POST(
       return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
     }
   }
+
+  // Collectible badge "Ach wie hübsch": count project-cover swaps.
+  await bumpCounter('cover_swap');
 
   // A random token invalidates any cached image so the new cover shows.
   return NextResponse.json({ ok: true, token: randomUUID() });

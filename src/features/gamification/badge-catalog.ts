@@ -50,6 +50,12 @@ export type BadgeMetric =
   | 'blitz'
   | 'qualityKudos'
   | 'retterKudos'
+  | 'filesUploaded'
+  | 'avatarSwaps'
+  | 'coverSwaps'
+  | 'aiSummaries'
+  | 'aiFeedback'
+  | 'breaks'
   | 'badgesEarned';
 
 export interface BadgeDef {
@@ -91,6 +97,12 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'profil', name: 'Profi(l)', emoji: '🧑‍💼', metric: 'profileComplete', threshold: 1, reason: 'Profil komplett ausgefüllt' },
   { key: 'michael_jackson', name: 'Michael Jackson', emoji: '🕺', metric: 'themeToggles', threshold: 20, reason: '20 Mal das Design gewechselt' },
   { key: 'lass_mich_allein', name: 'Lass mich allein', emoji: '🚷', metric: 'dnd', threshold: 20, reason: '20 Mal auf „Nicht stören" gestellt' },
+  { key: 'anhaenger', name: 'Anhänger', emoji: '📎', metric: 'filesUploaded', threshold: 10, reason: '10 Dateien hochgeladen' },
+  { key: 'topmodel', name: 'Topmodel', emoji: '📸', metric: 'avatarSwaps', threshold: 5, reason: '5 Mal das Profilbild getauscht' },
+  { key: 'ach_wie_huebsch', name: 'Ach wie hübsch', emoji: '🖼️', metric: 'coverSwaps', threshold: 5, reason: '5 Mal ein Projekt-Titelbild getauscht' },
+  { key: 'ki_buddy', name: 'KI Buddy', emoji: '🤖', metric: 'aiSummaries', threshold: 25, reason: '25 KI-Zusammenfassungen abgerufen' },
+  { key: 'coach', name: 'Ich liebe dich Coach', emoji: '💬', metric: 'aiFeedback', threshold: 50, reason: '50 Mal KI-Feedback eingeholt' },
+  { key: 'arbeitslos', name: 'Arbeitslos', emoji: '☕', metric: 'breaks', threshold: 100, reason: '100 Mal Pause gemacht' },
   // Rhythmus (Uhrzeit/Tag des Abschlusses)
   { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1, reason: 'Aufgabe vor 7 Uhr erledigt' },
   { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1, reason: 'Aufgabe nach 22 Uhr erledigt' },
@@ -144,6 +156,7 @@ export async function getBadgeWall(
     skillsRes,
     kudosReceivedRes,
     ontimeRes,
+    filesRes,
     xpPoints,
     counters,
   ] = await Promise.all([
@@ -161,6 +174,7 @@ export async function getBadgeWall(
     supabase.from('employee_skills').select('id', head).eq('user_id', userId),
     supabase.from('kudos').select('points, badge').eq('to_user_id', userId),
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'ontime'),
+    supabase.from('files').select('id', head).eq('uploaded_by', userId).is('deleted_at', null),
     getXpPoints(userId),
     getCounters(userId),
   ]);
@@ -225,6 +239,12 @@ export async function getBadgeWall(
     blitz,
     qualityKudos,
     retterKudos,
+    filesUploaded: filesRes.count ?? 0,
+    avatarSwaps: counters.get('avatar_swap') ?? 0,
+    coverSwaps: counters.get('cover_swap') ?? 0,
+    aiSummaries: counters.get('ai_summary') ?? 0,
+    aiFeedback: counters.get('ai_feedback') ?? 0,
+    breaks: counters.get('break') ?? 0,
     badgesEarned: 0, // filled after the non-meta pass
   };
   void orgId;

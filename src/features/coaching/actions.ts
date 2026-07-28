@@ -5,6 +5,7 @@ import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { isAiEnabled } from '@/lib/ai/complete';
 import { getCockpit } from '@/features/cockpit/queries';
+import { bumpCounter } from '@/features/gamification/actions';
 import { generateCoaching, generateEscalation } from './generate';
 
 export interface CoachingResult {
@@ -23,6 +24,8 @@ export async function getMyCoaching(): Promise<CoachingResult> {
   const mine = rows.find((r) => r.userId === user.id);
   if (!mine) return { enabled: true, text: null };
   const text = await generateCoaching(mine);
+  // Collectible badge "Ich liebe dich Coach": count AI feedback pulls.
+  if (text) await bumpCounter('ai_feedback');
   return { enabled: true, text };
 }
 
