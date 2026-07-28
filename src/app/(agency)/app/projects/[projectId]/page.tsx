@@ -76,6 +76,7 @@ export default async function ProjectDetailPage({
           board={board}
           members={members}
           canManage={project.canManage}
+          canMove
         />
       ) : (
         <p className="text-sm text-muted-foreground">Kein Board vorhanden.</p>
