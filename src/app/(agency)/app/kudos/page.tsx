@@ -5,6 +5,7 @@ import { isOrgAdmin } from '@/lib/authz/policies';
 import { listRecentKudos, getLeaderboard } from '@/features/kudos/queries';
 import { badgeLabel } from '@/features/kudos/badges';
 import { getLevelHub } from '@/features/gamification/hub';
+import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -20,10 +21,11 @@ const t = de.hub;
 export default async function KudosPage() {
   const { user, orgId } = await requireAgencyPage();
   const admin = isOrgAdmin(user, orgId);
-  const [hub, feed, leaderboard] = await Promise.all([
+  const [hub, feed, leaderboard, weekly] = await Promise.all([
     getLevelHub(user.id, orgId),
     listRecentKudos(12),
     getLeaderboard(),
+    getWeeklyChallenges(user.id, orgId),
   ]);
 
   const league = hub.league;
@@ -127,6 +129,85 @@ export default async function KudosPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
+          {/* Wochenchallenges */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-baseline justify-between gap-2">
+                <CardTitle>{t.challenges}</CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {weekly.weekLabel} ·{' '}
+                  {t.challengesSub.replace('{days}', String(weekly.daysLeft))}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ul className="space-y-4">
+                {weekly.challenges.map((c) => (
+                  <li key={c.key}>
+                    <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span aria-hidden>{c.emoji}</span>
+                        <span className="truncate font-medium">{c.title}</span>
+                        {c.rareName && !c.done && (
+                          <span className="shrink-0 text-xs text-amber-500" title={t.rareBadges}>
+                            ✦
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          'shrink-0 text-xs font-semibold',
+                          c.done ? 'text-emerald-500' : 'text-primary',
+                        )}
+                      >
+                        {c.done ? t.challengeDone : `+${c.xp} XP`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn(
+                            'h-full rounded-full',
+                            c.done ? 'bg-emerald-500' : 'bg-primary',
+                          )}
+                          style={{ width: `${(c.progress / c.target) * 100}%` }}
+                        />
+                      </div>
+                      <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
+                        {c.progress}/{c.target}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="border-t pt-3">
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {t.rareBadges}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{t.rareHint}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {weekly.rareBadges.map((b) => (
+                    <span
+                      key={b.key}
+                      title={b.name}
+                      className={cn(
+                        'flex h-11 w-11 items-center justify-center rounded-lg border text-xl transition',
+                        b.earned
+                          ? 'border-amber-400/50 bg-amber-400/10'
+                          : 'opacity-30 grayscale',
+                      )}
+                    >
+                      <span aria-hidden>{b.emoji}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* KPIs */}
           <Card>
             <CardHeader>
