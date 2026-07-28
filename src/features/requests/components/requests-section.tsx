@@ -11,6 +11,7 @@ import { de } from '@/lib/i18n/de';
 import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
+import { AiTaskDialog } from '@/features/requests/components/ai-task-dialog';
 import type { ClientRequest } from '@/features/requests/queries';
 
 function AcceptForm({
@@ -146,7 +147,12 @@ export function RequestsSection({
             </p>
           )}
 
-          <div className="mt-2 flex justify-end gap-1">
+          <div className="mt-3 flex flex-wrap items-center justify-end gap-1">
+            {r.status !== 'dismissed' && (
+              <div className="mr-auto">
+                <AiTaskDialog clientCompanyId={clientCompanyId} requestId={r.id} />
+              </div>
+            )}
             {r.status !== 'dismissed' ? (
               <StatusForm
                 clientCompanyId={clientCompanyId}

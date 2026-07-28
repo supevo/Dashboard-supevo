@@ -11,6 +11,7 @@ import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure
 import { BADGE_REASON } from '@/features/gamification/badge-catalog';
 import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
 import { WallBadges } from '@/features/gamification/components/wall-badges';
+import { BannerPicker } from '@/features/gamification/components/banner-picker';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -94,53 +95,72 @@ export default async function KudosPage() {
         </div>
       </div>
 
-      {/* Profile header */}
-      <Card>
-        <CardContent className="flex flex-col items-center gap-6 py-6 sm:flex-row sm:items-center">
+      {/* Profile header – mit freischaltbarem Titelbild als Hintergrund */}
+      <Card className="relative overflow-hidden border-0">
+        {/* Titelbild (Verlauf) hinter XP-Kreis und Profilbild */}
+        <div
+          aria-hidden
+          className="absolute inset-0"
+          style={{ background: hub.bannerBackground }}
+        />
+        <div aria-hidden className="absolute inset-0 bg-background/45 backdrop-blur-[2px]" />
+
+        {/* Titelbild-Auswahl */}
+        <div className="absolute right-3 top-3 z-10">
+          <BannerPicker
+            level={hub.level}
+            selected={hub.bannerKey}
+            customBanners={hub.customBanners}
+          />
+        </div>
+
+        <CardContent className="relative flex flex-col items-center gap-6 py-6 sm:flex-row sm:items-center">
           <LevelRing
             level={hub.level}
             points={hub.points}
             progressPct={hub.levelProgressPct}
+            avatar={{ userId: user.id, name: hub.name, hasAvatar: hub.hasAvatar }}
           />
           <div className="min-w-0 flex-1 text-center sm:text-left">
-            <h2 className="text-2xl font-bold">{hub.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {hub.specialty ? `${hub.specialty} · ` : ''}
-              {hub.roleLabel}
-            </p>
-            <div className="mt-3 max-w-sm">
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {league.current.emoji} {league.current.name}
+            <div className="inline-block rounded-lg bg-background/70 px-4 py-3 backdrop-blur">
+              <h2 className="text-2xl font-bold">{hub.name}</h2>
+              <p className="text-sm text-muted-foreground">
+                {hub.specialty ? `${hub.specialty} · ` : ''}
+                {hub.roleLabel}
+              </p>
+              <div className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                {de.level.title} {hub.level}
+                <span className="ml-2 text-sm font-medium text-muted-foreground">
+                  {Math.max(0, hub.points - (hub.level - 1) * 100)}/100 XP
                 </span>
-                {league.next ? (
-                  <span>
-                    {t.toNextLeague
-                      .replace('{points}', String(league.toNext))
-                      .replace('{league}', league.next.name)}
-                  </span>
-                ) : (
-                  <span>{t.topLeague}</span>
-                )}
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${league.progressPct}%`,
-                    backgroundColor: league.current.color,
-                  }}
-                />
+              <div className="mt-3 max-w-sm">
+                <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    {league.current.emoji} {league.current.name}
+                  </span>
+                  {league.next ? (
+                    <span>
+                      {t.toNextLeague
+                        .replace('{points}', String(league.toNext))
+                        .replace('{league}', league.next.name)}
+                    </span>
+                  ) : (
+                    <span>{t.topLeague}</span>
+                  )}
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${league.progressPct}%`,
+                      backgroundColor: league.current.color,
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
-          <Avatar
-            userId={user.id}
-            name={hub.name}
-            hasAvatar={hub.hasAvatar}
-            size="lg"
-            className="h-28 w-28 shrink-0"
-          />
         </CardContent>
       </Card>
 

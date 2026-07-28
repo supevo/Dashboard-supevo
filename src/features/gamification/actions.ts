@@ -3,8 +3,17 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { primaryAgencyOrgId } from '@/features/auth/session';
+import { FILES_BUCKET } from '@/lib/files/storage';
+import { getXpPoints } from '@/features/gamification/xp';
+import { levelForPoints } from '@/features/kudos/badges';
+import {
+  BANNER_BY_KEY,
+  parseCustomBannerKey,
+  customBannerKey,
+} from '@/features/gamification/banners';
 
 /**
  * Increments a UI-action counter for the current user (for collectible badges).
@@ -46,6 +55,83 @@ export async function setPresenceAction(status: string): Promise<void> {
   } catch {
     /* presence is best-effort */
   }
+}
+
+/**
+ * Sets the Level-Hub-Titelbild (banner) for the current user. Server-side gate:
+ * the banner must exist and be unlocked at the user's current level, so a
+ * tampered request can't select a locked one.
+ */
+export async function setBannerAction(key: string): Promise<void> {
+  const clean = key.trim();
+  const customId = parseCustomBannerKey(clean);
+  const gradient = customId ? null : BANNER_BY_KEY.get(clean);
+  if (!customId && !gradient) return;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Level = erhaltene Kudos-Punkte + automatische XP (wie im Hub).
+  const [kudosRes, xpPoints] = await Promise.all([
+    supabase.from('kudos').select('points').eq('to_user_id', user.id),
+    getXpPoints(user.id),
+  ]);
+  const points =
+    (kudosRes.data ?? []).reduce((n, k) => n + (k.points ?? 0), 0) + xpPoints;
+  const { level } = levelForPoints(points);
+
+  // Freischalt-Level + zu speichernder Schlüssel je nach Banner-Typ.
+  let unlockLevel: number;
+  let storeKey: string;
+  if (gradient) {
+    unlockLevel = gradient.unlockLevel;
+    storeKey = gradient.key;
+  } else {
+    // Bild-Banner: RLS stellt sicher, dass nur Banner der eigenen Org sichtbar sind.
+    const { data: img } = await supabase
+      .from('hub_banner_images')
+      .select('unlock_level')
+      .eq('id', customId!)
+      .maybeSingle();
+    if (!img) return;
+    unlockLevel = img.unlock_level;
+    storeKey = customBannerKey(customId!);
+  }
+  if (level < unlockLevel) return;
+
+  await supabase.from('profiles').update({ hub_banner: storeKey }).eq('id', user.id);
+  revalidatePath('/app/kudos');
+}
+
+/**
+ * Deletes an uploaded Level-Hub banner (row + stored image). RLS restricts the
+ * row delete to org admins; the file is removed with the service client.
+ */
+export async function deleteHubBannerAction(bannerId: string): Promise<void> {
+  const parsed = z.string().uuid().safeParse(bannerId);
+  if (!parsed.success) return;
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { data: banner } = await supabase
+    .from('hub_banner_images')
+    .select('storage_path')
+    .eq('id', parsed.data)
+    .maybeSingle();
+  if (!banner) return;
+
+  const { error } = await supabase
+    .from('hub_banner_images')
+    .delete()
+    .eq('id', parsed.data);
+  if (error) return; // RLS blocks non-admins
+
+  await createSupabaseServiceClient()
+    .storage.from(FILES_BUCKET)
+    .remove([banner.storage_path]);
+
+  revalidatePath('/app/settings');
+  revalidatePath('/app/kudos');
 }
 
 /** Sets the current user's presence status (online / afk / dnd). */

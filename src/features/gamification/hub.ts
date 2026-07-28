@@ -11,6 +11,10 @@ import {
   type EarnedAchievement,
 } from '@/features/gamification/achievements';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
+import {
+  resolveActiveBanner,
+  type CustomBanner,
+} from '@/features/gamification/banners';
 
 export interface HubStats {
   missions: number; // tasks completed by the user
@@ -63,6 +67,9 @@ export interface LevelHub {
   trophies: HubTrophy[];
   milestones: EarnedAchievement[];
   badgeWall: WallBadge[];
+  bannerKey: string; // aktiv angezeigtes Titelbild (Schlüssel)
+  bannerBackground: string; // CSS-background für das aktive Titelbild
+  customBanners: CustomBanner[]; // hochgeladene Titelbilder der Org (mit Level)
 }
 
 /**
@@ -89,8 +96,9 @@ export async function getLevelHub(
     xpPoints,
     milestones,
     badgeWall,
+    customBannersRes,
   ] = await Promise.all([
-    supabase.from('profiles').select('full_name, avatar_url, created_at').eq('id', userId).maybeSingle(),
+    supabase.from('profiles').select('full_name, avatar_url, created_at, hub_banner').eq('id', userId).maybeSingle(),
     supabase
       .from('memberships')
       .select('role, created_at, joined_company_at')
@@ -107,7 +115,18 @@ export async function getLevelHub(
     getXpPoints(userId),
     listAchievements(userId),
     getBadgeWall(userId, orgId),
+    supabase
+      .from('hub_banner_images')
+      .select('id, name, unlock_level')
+      .eq('organization_id', orgId)
+      .order('unlock_level', { ascending: true }),
   ]);
+
+  const customBanners: CustomBanner[] = (customBannersRes.data ?? []).map((b) => ({
+    id: b.id,
+    name: b.name,
+    unlockLevel: b.unlock_level,
+  }));
 
   const profile = profileRes.data;
   const received = kudosReceivedRes.data ?? [];
@@ -147,6 +166,14 @@ export async function getLevelHub(
     Math.floor((Date.now() - new Date(joinIso).getTime()) / 86_400_000),
   );
 
+  // Aktives Titelbild: bewusste Wahl (falls freigeschaltet) sonst höchstes
+  // freigeschaltetes – passt sich so automatisch dem Level an.
+  const activeBanner = resolveActiveBanner(
+    profile?.hub_banner ?? null,
+    level,
+    customBanners,
+  );
+
   const roleLabels: Record<string, string> = {
     owner: 'Inhaber:in',
     admin: 'Administrator:in',
@@ -179,5 +206,8 @@ export async function getLevelHub(
     trophies,
     milestones,
     badgeWall,
+    bannerKey: activeBanner.key,
+    bannerBackground: activeBanner.background,
+    customBanners,
   };
 }
