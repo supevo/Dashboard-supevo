@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
+import { bumpCounter } from '@/features/gamification/actions';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -88,6 +89,9 @@ export async function startBreakAction(): Promise<ActionResult> {
     .from('work_sessions')
     .update({ status: 'on_break' })
     .eq('id', open.id);
+
+  // Collectible badge "Arbeitslos": count breaks taken.
+  await bumpCounter('break');
 
   revalidatePath('/app/time');
   return successResult('Pause gestartet.');

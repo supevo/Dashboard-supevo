@@ -55,6 +55,7 @@ export type BadgeMetric =
   | 'coverSwaps'
   | 'aiSummaries'
   | 'aiFeedback'
+  | 'breaks'
   | 'badgesEarned';
 
 export interface BadgeDef {
@@ -101,6 +102,7 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'ach_wie_huebsch', name: 'Ach wie hübsch', emoji: '🖼️', metric: 'coverSwaps', threshold: 5, reason: '5 Mal ein Projekt-Titelbild getauscht' },
   { key: 'ki_buddy', name: 'KI Buddy', emoji: '🤖', metric: 'aiSummaries', threshold: 25, reason: '25 KI-Zusammenfassungen abgerufen' },
   { key: 'coach', name: 'Ich liebe dich Coach', emoji: '💬', metric: 'aiFeedback', threshold: 50, reason: '50 Mal KI-Feedback eingeholt' },
+  { key: 'arbeitslos', name: 'Arbeitslos', emoji: '☕', metric: 'breaks', threshold: 100, reason: '100 Mal Pause gemacht' },
   // Rhythmus (Uhrzeit/Tag des Abschlusses)
   { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1, reason: 'Aufgabe vor 7 Uhr erledigt' },
   { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1, reason: 'Aufgabe nach 22 Uhr erledigt' },
@@ -242,6 +244,7 @@ export async function getBadgeWall(
     coverSwaps: counters.get('cover_swap') ?? 0,
     aiSummaries: counters.get('ai_summary') ?? 0,
     aiFeedback: counters.get('ai_feedback') ?? 0,
+    breaks: counters.get('break') ?? 0,
     badgesEarned: 0, // filled after the non-meta pass
   };
   void orgId;
