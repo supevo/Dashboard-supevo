@@ -10,71 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { SubmitButton } from '@/components/ui/submit-button';
-import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-
-interface Suggestion {
-  start: string;
-  end: string;
-  reason: string;
-}
-
-function fmt(d: string): string {
-  return d.split('-').reverse().join('.');
-}
-
-/** AI/heuristic vacation-window helper, shown only for "Urlaub". */
-function VacationHint({ onApply }: { onApply: (s: Suggestion) => void }) {
-  const [loading, setLoading] = useState(false);
-  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
-  const [error, setError] = useState(false);
-
-  const fetchSuggestion = async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await fetch('/api/absences/suggest', { cache: 'no-store' });
-      const data = (await res.json()) as { suggestion: Suggestion | null };
-      if (data.suggestion) setSuggestion(data.suggestion);
-      else setError(true);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium">✨ {de.absence.suggestTitle}</span>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={fetchSuggestion}
-          disabled={loading}
-        >
-          {loading ? de.common.loading : de.absence.suggestButton}
-        </Button>
-      </div>
-      {error && (
-        <p className="mt-2 text-xs text-muted-foreground">{de.absence.suggestError}</p>
-      )}
-      {suggestion && (
-        <div className="mt-2 space-y-1">
-          <div className="text-sm font-medium">
-            {fmt(suggestion.start)} – {fmt(suggestion.end)}
-          </div>
-          <p className="text-xs text-muted-foreground">{suggestion.reason}</p>
-          <Button type="button" size="sm" onClick={() => onApply(suggestion)}>
-            {de.absence.suggestApply}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function RequestAbsenceForm() {
   const [state, action] = useActionState(requestAbsenceAction, idleResult);
@@ -142,15 +78,6 @@ export function RequestAbsenceForm() {
           />
         </div>
       </div>
-
-      {type === 'urlaub' && (
-        <VacationHint
-          onApply={(s) => {
-            setStartDate(s.start);
-            setEndDate(s.end);
-          }}
-        />
-      )}
 
       <div className="space-y-1">
         <Label htmlFor="note">{de.absence.note}</Label>
