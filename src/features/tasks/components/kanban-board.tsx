@@ -43,6 +43,7 @@ export function KanbanBoard({
   board,
   members,
   canManage,
+  canMove = false,
   reorderOnly = false,
   allowColumnMove = false,
   basePath = '/app/projects',
@@ -51,6 +52,9 @@ export function KanbanBoard({
   board: BoardView;
   members: Member[];
   canManage: boolean;
+  /** Full drag (incl. across columns) without project-management rights –
+   *  e.g. any agency staff member on their team board. */
+  canMove?: boolean;
   /** Allow drag-reordering WITHIN a column without full management rights
    *  (e.g. clients setting their processing order). */
   reorderOnly?: boolean;
@@ -60,7 +64,7 @@ export function KanbanBoard({
   basePath?: string;
 }) {
   const router = useRouter();
-  const canDrag = canManage || reorderOnly;
+  const canDrag = canManage || canMove || reorderOnly;
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
