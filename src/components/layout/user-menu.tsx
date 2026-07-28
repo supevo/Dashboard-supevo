@@ -44,14 +44,12 @@ function LevelAvatar({
   hasAvatar,
   level,
   progressPct,
-  status,
 }: {
   userId: string;
   name: string;
   hasAvatar: boolean;
   level: number;
   progressPct: number;
-  status?: Status;
 }) {
   const r = 22;
   const c = 2 * Math.PI * r;
@@ -76,16 +74,6 @@ function LevelAvatar({
       <div className="absolute inset-[7px]">
         <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="lg" className="h-[38px] w-[38px]" />
       </div>
-      {status && (
-        <span
-          title={de.presence[status]}
-          aria-label={de.presence[status]}
-          className={cn(
-            'absolute right-0 top-1 h-3.5 w-3.5 rounded-full ring-2 ring-background',
-            STATUS[status].dot,
-          )}
-        />
-      )}
       <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-1.5 text-[10px] font-bold leading-4 text-primary-foreground shadow">
         {de.level.short} {level}
       </span>
@@ -159,16 +147,9 @@ export function UserMenu({
             hasAvatar={hasAvatar}
             level={level}
             progressPct={progressPct}
-            status={current}
           />
         ) : (
-          <Avatar
-            userId={userId}
-            name={name}
-            hasAvatar={hasAvatar}
-            size="md"
-            status={current}
-          />
+          <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="md" />
         )}
         <span className="hidden text-left sm:block">
           <span className="flex items-center gap-1 text-sm font-medium">
