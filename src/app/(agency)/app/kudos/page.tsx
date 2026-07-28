@@ -8,6 +8,7 @@ import { getLevelHub } from '@/features/gamification/hub';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { BADGE_REASON } from '@/features/gamification/badge-catalog';
 import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
+import { EasterEggBadge } from '@/features/gamification/components/badge-test-controls';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -360,6 +361,7 @@ export default async function KudosPage() {
                         <span aria-hidden>{b.emoji}</span>
                       </span>
                     ))}
+                    <EasterEggBadge />
                   </div>
                 </div>
               )}
