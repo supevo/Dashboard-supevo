@@ -39,53 +39,58 @@ export interface BadgeDef {
   emoji: string;
   metric: BadgeMetric;
   threshold: number;
+  /** Shown ONLY in the unlock animation – never on hover in the wall. */
+  reason: string;
 }
 
 export const BADGE_CATALOG: BadgeDef[] = [
   // Missionen (erledigte Aufgaben)
-  { key: 'first_mission', name: 'Erste Mission', emoji: '🎯', metric: 'missions', threshold: 1 },
-  { key: 'missions_10', name: 'Aufgabenjäger', emoji: '🔟', metric: 'missions', threshold: 10 },
-  { key: 'missions_50', name: 'Vielschaffer', emoji: '🏅', metric: 'missions', threshold: 50 },
-  { key: 'missions_100', name: 'Durchstarter', emoji: '💯', metric: 'missions', threshold: 100 },
+  { key: 'first_mission', name: 'Erste Mission', emoji: '🎯', metric: 'missions', threshold: 1, reason: 'Erste Aufgabe erledigt' },
+  { key: 'missions_10', name: 'Aufgabenjäger', emoji: '🔟', metric: 'missions', threshold: 10, reason: '10 Aufgaben erledigt' },
+  { key: 'missions_50', name: 'Vielschaffer', emoji: '🏅', metric: 'missions', threshold: 50, reason: '50 Aufgaben erledigt' },
+  { key: 'missions_100', name: 'Durchstarter', emoji: '💯', metric: 'missions', threshold: 100, reason: '100 Aufgaben erledigt' },
   // Aufgaben von Kollegen übernommen
-  { key: 'entlaster', name: 'Entlaster', emoji: '🤝', metric: 'takenOver', threshold: 3 },
-  { key: 'buddy', name: 'Buddy', emoji: '🫂', metric: 'takenOver', threshold: 10 },
+  { key: 'entlaster', name: 'Entlaster', emoji: '🤝', metric: 'takenOver', threshold: 3, reason: '3 Aufgaben von Kollegen übernommen' },
+  { key: 'buddy', name: 'Buddy', emoji: '🫂', metric: 'takenOver', threshold: 10, reason: '10 Aufgaben von Kollegen übernommen' },
   // Aufgaben erstellt
-  { key: 'regler', name: 'Regler', emoji: '🎚️', metric: 'tasksCreated', threshold: 5 },
-  { key: 'fliessband', name: 'Fließband', emoji: '🏭', metric: 'tasksCreated', threshold: 15 },
+  { key: 'regler', name: 'Regler', emoji: '🎚️', metric: 'tasksCreated', threshold: 5, reason: '5 Aufgaben erstellt' },
+  { key: 'fliessband', name: 'Fließband', emoji: '🏭', metric: 'tasksCreated', threshold: 15, reason: '15 Aufgaben erstellt' },
   // Aufgaben verschoben / bewertet
-  { key: 'ordnungsfimmel', name: 'Ordnungsfimmel', emoji: '🧹', metric: 'taskMoves', threshold: 50 },
-  { key: 'gedrueckt', name: 'Einfach was gedrückt', emoji: '🔘', metric: 'ratingsGiven', threshold: 50 },
+  { key: 'ordnungsfimmel', name: 'Ordnungsfimmel', emoji: '🧹', metric: 'taskMoves', threshold: 50, reason: '50 Aufgaben verschoben' },
+  { key: 'gedrueckt', name: 'Einfach was gedrückt', emoji: '🔘', metric: 'ratingsGiven', threshold: 50, reason: '50 Aufgaben bewertet' },
   // Kunden & Projekte
-  { key: 'kundenmagnet', name: 'Kundenmagnet', emoji: '🧲', metric: 'clientsCreated', threshold: 1 },
-  { key: 'projektpionier', name: 'Projekt-Pionier', emoji: '🚩', metric: 'projectsCreated', threshold: 1 },
+  { key: 'kundenmagnet', name: 'Kundenmagnet', emoji: '🧲', metric: 'clientsCreated', threshold: 1, reason: 'Einen Kunden angelegt' },
+  { key: 'projektpionier', name: 'Projekt-Pionier', emoji: '🚩', metric: 'projectsCreated', threshold: 1, reason: 'Ein Projekt angelegt' },
   // Chat
-  { key: 'plaudertasche', name: 'Plaudertasche', emoji: '💬', metric: 'chatMessages', threshold: 25 },
-  { key: 'schreibmaschine', name: 'Schreibmaschine', emoji: '⌨️', metric: 'chatMessages', threshold: 100 },
+  { key: 'plaudertasche', name: 'Plaudertasche', emoji: '💬', metric: 'chatMessages', threshold: 25, reason: '25 Chat-Nachrichten gesendet' },
+  { key: 'schreibmaschine', name: 'Schreibmaschine', emoji: '⌨️', metric: 'chatMessages', threshold: 100, reason: '100 Chat-Nachrichten gesendet' },
   // Zeit
-  { key: 'erster_stempel', name: 'Erster Stempel', emoji: '🕐', metric: 'timerStamps', threshold: 1 },
-  { key: 'stempelkoenig', name: 'Stempelkönig', emoji: '⏱️', metric: 'timerStamps', threshold: 200 },
-  { key: 'urlaubsreif', name: 'Urlaubsreif', emoji: '🏖️', metric: 'vacations', threshold: 5 },
+  { key: 'erster_stempel', name: 'Erster Stempel', emoji: '🕐', metric: 'timerStamps', threshold: 1, reason: 'Zum ersten Mal Zeit erfasst' },
+  { key: 'stempelkoenig', name: 'Stempelkönig', emoji: '⏱️', metric: 'timerStamps', threshold: 200, reason: '200 Mal Zeit erfasst' },
+  { key: 'urlaubsreif', name: 'Urlaubsreif', emoji: '🏖️', metric: 'vacations', threshold: 5, reason: '5 Mal Urlaub beantragt' },
   // Profil & Style
-  { key: 'profil', name: 'Profi(l)', emoji: '🧑‍💼', metric: 'profileComplete', threshold: 1 },
-  { key: 'michael_jackson', name: 'Michael Jackson', emoji: '🕺', metric: 'themeToggles', threshold: 20 },
-  { key: 'lass_mich_allein', name: 'Lass mich allein', emoji: '🚷', metric: 'dnd', threshold: 20 },
+  { key: 'profil', name: 'Profi(l)', emoji: '🧑‍💼', metric: 'profileComplete', threshold: 1, reason: 'Profil komplett ausgefüllt' },
+  { key: 'michael_jackson', name: 'Michael Jackson', emoji: '🕺', metric: 'themeToggles', threshold: 20, reason: '20 Mal das Design gewechselt' },
+  { key: 'lass_mich_allein', name: 'Lass mich allein', emoji: '🚷', metric: 'dnd', threshold: 20, reason: '20 Mal auf „Nicht stören" gestellt' },
   // Rhythmus (Uhrzeit/Tag des Abschlusses)
-  { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1 },
-  { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1 },
-  { key: 'wochenendkrieger', name: 'Wochenendkrieger', emoji: '⚔️', metric: 'weekendWarrior', threshold: 1 },
-  { key: 'blitzableiter', name: 'Blitzableiter', emoji: '⚡', metric: 'blitz', threshold: 1 },
+  { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1, reason: 'Aufgabe vor 7 Uhr erledigt' },
+  { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1, reason: 'Aufgabe nach 22 Uhr erledigt' },
+  { key: 'wochenendkrieger', name: 'Wochenendkrieger', emoji: '⚔️', metric: 'weekendWarrior', threshold: 1, reason: 'Am Wochenende gearbeitet' },
+  { key: 'blitzableiter', name: 'Blitzableiter', emoji: '⚡', metric: 'blitz', threshold: 1, reason: 'Aufgabe in unter 10 Minuten erledigt' },
   // Anerkennung & Level
-  { key: 'publikumsliebling', name: 'Publikumsliebling', emoji: '🌟', metric: 'qualityKudos', threshold: 10 },
-  { key: 'retter', name: 'Retter in der Not', emoji: '🦸', metric: 'retterKudos', threshold: 1 },
-  { key: 'grande', name: 'Grande', emoji: '🎖️', metric: 'points', threshold: 900 },
-  { key: 'punktesammler', name: 'Punktesammler', emoji: '💰', metric: 'points', threshold: 1000 },
-  { key: 'lobhudler', name: 'Lobhudler', emoji: '👏', metric: 'ratingsGiven', threshold: 25 },
-  { key: 'deadline_held', name: 'Deadline-Held', emoji: '⏰', metric: 'ontime', threshold: 20 },
+  { key: 'publikumsliebling', name: 'Publikumsliebling', emoji: '🌟', metric: 'qualityKudos', threshold: 10, reason: '10 Mal für Qualität gelobt' },
+  { key: 'retter', name: 'Retter in der Not', emoji: '🦸', metric: 'retterKudos', threshold: 1, reason: 'Als Retter in der Not ausgezeichnet' },
+  { key: 'grande', name: 'Grande', emoji: '🎖️', metric: 'points', threshold: 900, reason: 'Level 10 erreicht' },
+  { key: 'punktesammler', name: 'Punktesammler', emoji: '💰', metric: 'points', threshold: 1000, reason: '1.000 XP gesammelt' },
+  { key: 'lobhudler', name: 'Lobhudler', emoji: '👏', metric: 'ratingsGiven', threshold: 25, reason: '25 Mal Kollegen gelobt' },
+  { key: 'deadline_held', name: 'Deadline-Held', emoji: '⏰', metric: 'ontime', threshold: 20, reason: '20 Mal pünktlich geliefert' },
   // Meta (Anzahl freigespielter Badges) – werden zuletzt ausgewertet
-  { key: 'sammler', name: 'Sammler', emoji: '🧺', metric: 'badgesEarned', threshold: 10 },
-  { key: 'vollstaendig', name: 'Vollständig', emoji: '🏆', metric: 'badgesEarned', threshold: 999 },
+  { key: 'sammler', name: 'Sammler', emoji: '🧺', metric: 'badgesEarned', threshold: 10, reason: '10 Badges freigespielt' },
+  { key: 'vollstaendig', name: 'Vollständig', emoji: '🏆', metric: 'badgesEarned', threshold: 999, reason: 'Alle Badges freigespielt' },
 ];
+
+/** Map from badge key to its unlock reason (for the unlock animation). */
+export const BADGE_REASON = new Map(BADGE_CATALOG.map((b) => [b.key, b.reason] as const));
 
 /** Badges whose criterion depends on how many *other* badges are earned. */
 const META_KEYS = new Set(['sammler', 'vollstaendig']);

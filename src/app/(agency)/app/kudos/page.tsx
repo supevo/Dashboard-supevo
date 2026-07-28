@@ -6,6 +6,8 @@ import { listRecentKudos, getLeaderboard } from '@/features/kudos/queries';
 import { badgeLabel } from '@/features/kudos/badges';
 import { getLevelHub } from '@/features/gamification/hub';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
+import { BADGE_REASON } from '@/features/gamification/badge-catalog';
+import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -30,8 +32,24 @@ export default async function KudosPage() {
 
   const league = hub.league;
 
+  // Currently-earned badges (wall + rare) for the one-time unlock animation.
+  const unlockedBadges = [
+    ...hub.badgeWall
+      .filter((b) => b.earned)
+      .map((b) => ({
+        key: b.key,
+        name: b.name,
+        emoji: b.emoji,
+        reason: BADGE_REASON.get(b.key) ?? '',
+      })),
+    ...weekly.rareBadges
+      .filter((b) => b.earned)
+      .map((b) => ({ key: `rare_${b.key}`, name: b.name, emoji: b.emoji, reason: b.reason })),
+  ];
+
   return (
     <div className="space-y-6">
+      <BadgeUnlockOverlay badges={unlockedBadges} />
       <div>
         <h1 className="text-2xl font-bold">{de.nav.levelHub}</h1>
         <p className="text-sm text-muted-foreground">{de.kudos.subtitle}</p>

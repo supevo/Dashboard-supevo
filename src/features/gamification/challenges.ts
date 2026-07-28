@@ -21,6 +21,7 @@ export interface RareBadge {
   key: string;
   name: string;
   emoji: string;
+  reason: string;
 }
 
 export interface ChallengeDef {
@@ -34,14 +35,14 @@ export interface ChallengeDef {
 }
 
 export const CHALLENGE_POOL: ChallengeDef[] = [
-  { key: 'sprint', title: 'Wochensprint', emoji: '🏃', metric: 'missionsWeek', target: 10, xp: 50, rare: { key: 'sprinter', name: 'Sprinter', emoji: '🏃‍♂️' } },
-  { key: 'marathon', title: 'Wochenmarathon', emoji: '🔥', metric: 'missionsWeek', target: 20, xp: 80, rare: { key: 'unaufhaltsam', name: 'Unaufhaltsam', emoji: '🚀' } },
+  { key: 'sprint', title: 'Wochensprint', emoji: '🏃', metric: 'missionsWeek', target: 10, xp: 50, rare: { key: 'sprinter', name: 'Sprinter', emoji: '🏃‍♂️', reason: 'Challenge „Wochensprint" gemeistert' } },
+  { key: 'marathon', title: 'Wochenmarathon', emoji: '🔥', metric: 'missionsWeek', target: 20, xp: 80, rare: { key: 'unaufhaltsam', name: 'Unaufhaltsam', emoji: '🚀', reason: 'Challenge „Wochenmarathon" gemeistert' } },
   { key: 'creator', title: 'Ideenschmiede', emoji: '🛠️', metric: 'createdWeek', target: 5, xp: 30 },
-  { key: 'factory', title: 'Vielbeschäftigt', emoji: '🏭', metric: 'createdWeek', target: 15, xp: 50, rare: { key: 'fabrik', name: 'Fabrik', emoji: '🏗️' } },
-  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗' } },
+  { key: 'factory', title: 'Vielbeschäftigt', emoji: '🏭', metric: 'createdWeek', target: 15, xp: 50, rare: { key: 'fabrik', name: 'Fabrik', emoji: '🏗️', reason: 'Challenge „Vielbeschäftigt" gemeistert' } },
+  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
   { key: 'chatty', title: 'Kommunikator', emoji: '💬', metric: 'chatWeek', target: 30, xp: 25 },
   { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', metric: 'timerWeek', target: 10, xp: 25 },
-  { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️' } },
+  { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️', reason: 'Challenge „Pünktlichkeitsprofi" gemeistert' } },
   { key: 'organizer', title: 'Aufräumaktion', emoji: '🧹', metric: 'movesWeek', target: 20, xp: 20 },
 ];
 
@@ -65,7 +66,7 @@ export interface WeeklyChallenges {
   weekLabel: string;
   daysLeft: number;
   challenges: WeeklyChallenge[];
-  rareBadges: { key: string; name: string; emoji: string; earned: boolean }[];
+  rareBadges: { key: string; name: string; emoji: string; reason: string; earned: boolean }[];
 }
 
 interface WeekInfo {
@@ -207,6 +208,7 @@ export async function getWeeklyChallenges(
       key: b.key,
       name: b.name,
       emoji: b.emoji,
+      reason: b.reason,
       earned: ownedRare.has(`rare_${b.key}`),
     })),
   };
