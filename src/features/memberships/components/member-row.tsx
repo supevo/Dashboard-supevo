@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useActionState } from 'react';
 import {
   changeRoleAction,
@@ -41,7 +43,12 @@ export function MemberRow({
     <tr className="border-b last:border-0">
       <td className="py-2 pr-4">
         <div className="font-medium">
-          {member.fullName ?? '—'}{' '}
+          <Link
+            href={`/app/team/${member.userId}`}
+            className="text-primary hover:underline"
+          >
+            {member.fullName ?? '—'}
+          </Link>{' '}
           {member.isSelf && (
             <span className="text-xs text-muted-foreground">
               ({de.team.self})
