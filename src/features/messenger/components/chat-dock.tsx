@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
+import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -62,6 +63,18 @@ function ConversationView({
   const [state, action] = useActionState(sendChannelMessageAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + emoji + el.value.slice(end);
+    const pos = start + emoji.length;
+    el.setSelectionRange(pos, pos);
+    el.focus();
+  }
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +139,7 @@ function ConversationView({
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
         <Textarea
+          ref={inputRef}
           name="body"
           required
           rows={1}
@@ -138,6 +152,7 @@ function ConversationView({
             }
           }}
         />
+        <EmojiPicker onPick={insertEmoji} />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
     </div>

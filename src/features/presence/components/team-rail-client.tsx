@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ui/avatar';
+import { UserMenu } from '@/components/layout/user-menu';
 import type { TeamRailData, RailMember } from '@/features/presence/team-rail';
+import type { RailSelfMenu } from '@/features/presence/components/team-rail';
+import { de } from '@/lib/i18n/de';
 
 const POLL_MS = 20_000;
 
@@ -59,7 +62,9 @@ function MemberRow({ m }: { m: RailMember }) {
             <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} status={m.status} size="lg" />
             <div className="min-w-0">
               <div className="truncate text-base font-semibold">{m.name}</div>
-              <div className="text-xs text-muted-foreground">{m.roleLabel}</div>
+              <div className="text-xs text-muted-foreground">
+                {de.level.short} {m.level} · {m.roleLabel}
+              </div>
               <div className="text-xs text-muted-foreground">{statusText(m.status)}</div>
             </div>
           </div>
@@ -104,7 +109,13 @@ function MemberRow({ m }: { m: RailMember }) {
  * and current/last activity. Hovering a colleague opens a tooltip with their
  * profile, what they're working on, and a "Chat beginnen" button.
  */
-export function TeamRailClient({ initial }: { initial: TeamRailData }) {
+export function TeamRailClient({
+  initial,
+  selfMenu,
+}: {
+  initial: TeamRailData;
+  selfMenu: RailSelfMenu;
+}) {
   const [data, setData] = useState(initial);
 
   const load = useCallback(async () => {
@@ -127,22 +138,18 @@ export function TeamRailClient({ initial }: { initial: TeamRailData }) {
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-l bg-card lg:flex">
-      {/* Own profile */}
-      {data.self && (
-        <div className="flex items-center gap-3 border-b p-4">
-          <Avatar
-            userId={data.self.userId}
-            name={data.self.name}
-            hasAvatar={data.self.hasAvatar}
-            status={data.self.status}
-            size="lg"
-          />
-          <div className="min-w-0">
-            <div className="truncate text-base font-bold">{data.self.name}</div>
-            <div className="text-xs text-muted-foreground">{statusText(data.self.status)}</div>
-          </div>
-        </div>
-      )}
+      {/* Own profile + menu (moved here from the header to avoid duplication) */}
+      <div className="border-b p-3">
+        <UserMenu
+          userId={selfMenu.userId}
+          name={selfMenu.name}
+          hasAvatar={selfMenu.hasAvatar}
+          items={selfMenu.items}
+          level={selfMenu.level}
+          progressPct={selfMenu.progressPct}
+          status={selfMenu.status}
+        />
+      </div>
 
       <div className="flex-1 overflow-y-auto p-2">
         {online.length > 0 && (

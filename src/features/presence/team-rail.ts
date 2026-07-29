@@ -17,6 +17,7 @@ export interface RailMember {
   hasAvatar: boolean;
   status: string | null;
   roleLabel: string;
+  level: number;
   isSelf: boolean;
   activity: RailActivity | null;
 }
@@ -126,6 +127,7 @@ export async function getTeamRail(): Promise<TeamRailData | null> {
     hasAvatar: c.hasAvatar,
     status: c.status,
     roleLabel: c.roleLabel,
+    level: c.level,
     isSelf: c.isSelf,
     activity: activity.get(c.userId) ?? null,
   }));

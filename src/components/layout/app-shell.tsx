@@ -31,6 +31,9 @@ interface AppShellProps {
   rightRail?: React.ReactNode;
   /** Optional badge rendered in the header (e.g. the Express-Ticket credit). */
   headerBadge?: React.ReactNode;
+  /** When true, the header user menu hides on desktop (the right rail shows it),
+   *  staying available on mobile where the rail is hidden. */
+  userMenuInRail?: boolean;
   children: React.ReactNode;
 }
 
@@ -50,6 +53,7 @@ export function AppShell({
   coins,
   rightRail,
   headerBadge,
+  userMenuInRail = false,
   children,
 }: AppShellProps) {
   return (
@@ -95,15 +99,17 @@ export function AppShell({
                 <span>{coins}</span>
               </Link>
             )}
-            <UserMenu
-              userId={userId}
-              name={userName}
-              hasAvatar={hasAvatar}
-              items={menuItems}
-              level={level}
-              progressPct={levelProgressPct}
-              status={status}
-            />
+            <div className={userMenuInRail ? 'lg:hidden' : undefined}>
+              <UserMenu
+                userId={userId}
+                name={userName}
+                hasAvatar={hasAvatar}
+                items={menuItems}
+                level={level}
+                progressPct={levelProgressPct}
+                status={status}
+              />
+            </div>
           </div>
         </header>
         <PresenceTracker />

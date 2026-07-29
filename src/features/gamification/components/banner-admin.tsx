@@ -33,24 +33,68 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
     setError(null);
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.set('file', file);
-      fd.set('name', name || de.hubBanners.defaultName);
-      fd.set('level', String(level));
-      fd.set('exclusive', String(exclusive));
-      fd.set('coinPrice', String(coinPrice));
-      const res = await fetch('/api/hub-banners', { method: 'POST', body: fd });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) {
-        setError(json.error ?? de.task.uploadError);
-      } else {
-        setName('');
-        setLevel(0);
-        setExclusive(false);
-        setCoinPrice(0);
-        setFile(null);
-        router.refresh();
+      // Step 1: signed upload target (bypasses the serverless body-size limit).
+      const createRes = await fetch('/api/hub-banners/create-upload-url', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mimeType: file.type, sizeBytes: file.size }),
+      });
+      const created = (await createRes.json()) as {
+        path?: string;
+        token?: string;
+        storagePath?: string;
+        bannerId?: string;
+        error?: string;
+      };
+      if (
+        !createRes.ok ||
+        !created.path ||
+        !created.token ||
+        !created.storagePath ||
+        !created.bannerId
+      ) {
+        setError(created.error ?? de.task.uploadError);
+        return;
       }
+
+      // Step 2: upload the bytes DIRECTLY to storage.
+      const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
+      const supabase = createSupabaseBrowserClient();
+      const { error: upErr } = await supabase.storage
+        .from('files')
+        .uploadToSignedUrl(created.path, created.token, file, {
+          contentType: file.type,
+        });
+      if (upErr) {
+        setError(de.task.uploadError);
+        return;
+      }
+
+      // Step 3: record the banner row.
+      const finRes = await fetch('/api/hub-banners/finalize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          bannerId: created.bannerId,
+          storagePath: created.storagePath,
+          name: name || de.hubBanners.defaultName,
+          level,
+          exclusive,
+          coinPrice,
+        }),
+      });
+      const finJson = (await finRes.json()) as { ok?: boolean; error?: string };
+      if (!finRes.ok || !finJson.ok) {
+        setError(finJson.error ?? de.task.uploadError);
+        return;
+      }
+
+      setName('');
+      setLevel(0);
+      setExclusive(false);
+      setCoinPrice(0);
+      setFile(null);
+      router.refresh();
     } catch {
       setError(de.task.uploadError);
     } finally {
