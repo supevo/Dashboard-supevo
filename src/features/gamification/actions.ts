@@ -91,12 +91,24 @@ export async function setBannerAction(key: string): Promise<void> {
     // Bild-Banner: RLS stellt sicher, dass nur Banner der eigenen Org sichtbar sind.
     const { data: img } = await supabase
       .from('hub_banner_images')
-      .select('unlock_level')
+      .select('unlock_level, exclusive')
       .eq('id', customId!)
       .maybeSingle();
     if (!img) return;
-    unlockLevel = img.unlock_level;
     storeKey = customBannerKey(customId!);
+    if (img.exclusive) {
+      // Exklusive Titelbilder gibt es nur über Lootbox: Besitz prüfen statt Level.
+      const { data: owned } = await supabase
+        .from('achievements')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('key', `banner_${customId!}`)
+        .maybeSingle();
+      if (!owned) return;
+      unlockLevel = 0;
+    } else {
+      unlockLevel = img.unlock_level;
+    }
   }
   if (level < unlockLevel) return;
 

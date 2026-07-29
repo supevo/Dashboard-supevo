@@ -29,8 +29,16 @@ const TIER_LABEL: Record<BoxTier, string> = {
 
 // Häufig genutzte Emojis für digitale Badges – anklickbar, Freitext bleibt möglich.
 const BADGE_EMOJIS = [
-  '🏅', '🥇', '🎖️', '🏆', '⭐', '🌟', '✨', '💎', '👑', '🔥',
-  '🚀', '🎯', '💪', '🧠', '🍀', '🦄', '🐙', '⚡', '❤️', '🎉',
+  '🏅', '🥇', '🥈', '🥉', '🎖️', '🏆', '⭐', '🌟', '✨', '💫',
+  '💎', '👑', '🔥', '🚀', '🎯', '💪', '🧠', '🍀', '🦄', '🐙',
+  '⚡', '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🎉',
+  '🎊', '🎈', '🎁', '🏵️', '🎗️', '🏳️', '🚩', '🔮', '🧿', '💠',
+  '🌈', '☀️', '🌙', '⚙️', '🛡️', '⚔️', '🗡️', '🏹', '🎓', '📈',
+  '💡', '🔑', '🧩', '🎮', '🕹️', '🎲', '♟️', '🎳', '🏀', '⚽',
+  '🏈', '🎾', '🥊', '🏓', '🥋', '🏆', '🐉', '🦁', '🐯', '🐺',
+  '🦅', '🦉', '🐝', '🦋', '🐢', '🐬', '🦈', '🌵', '🌻', '🍄',
+  '🍕', '🍔', '🍩', '🍪', '☕', '🍺', '🥂', '🧉', '🎸', '🎧',
+  '🎬', '📷', '🖌️', '🎨', '✏️', '📌', '⏰', '🧭', '🗺️', '🏔️',
 ];
 
 interface Colleague {
@@ -38,14 +46,22 @@ interface Colleague {
   name: string;
 }
 
+interface ExclusiveBanner {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
 export function LootAdmin({
   config,
   items,
   colleagues,
+  banners,
 }: {
   config: LootConfig;
   items: LootItem[];
   colleagues: Colleague[];
+  banners: ExclusiveBanner[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -59,11 +75,12 @@ export function LootAdmin({
   const [boxTier, setBoxTier] = useState<BoxTier>('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'physical' | 'badge'>('physical');
+  const [type, setType] = useState<'physical' | 'badge' | 'banner'>('physical');
   const [weight, setWeight] = useState(10);
   const [badgeEmoji, setBadgeEmoji] = useState('🏅');
   const [badgeName, setBadgeName] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
+  const [bannerImageId, setBannerImageId] = useState(banners[0]?.id ?? '');
 
   // Verschenken
   const [giftUser, setGiftUser] = useState(colleagues[0]?.userId ?? '');
@@ -84,7 +101,14 @@ export function LootAdmin({
   async function addItem() {
     setError(null);
     setNotice(null);
-    if (name.trim().length < 2) {
+    // Für Banner den Titelbild-Namen als Fallback nehmen.
+    const bannerName = banners.find((b) => b.id === bannerImageId)?.name ?? '';
+    const effectiveName = type === 'banner' && name.trim().length < 2 ? bannerName : name;
+    if (type === 'banner' && !bannerImageId) {
+      setError('Bitte ein exklusives Titelbild wählen.');
+      return;
+    }
+    if (effectiveName.trim().length < 2) {
       setError('Bitte einen Namen angeben.');
       return;
     }
@@ -92,12 +116,13 @@ export function LootAdmin({
     try {
       const fd = new FormData();
       fd.set('boxTier', boxTier);
-      fd.set('name', name);
+      fd.set('name', effectiveName);
       fd.set('description', description);
       fd.set('type', type);
       fd.set('weight', String(weight));
       fd.set('badgeEmoji', badgeEmoji);
       fd.set('badgeName', badgeName);
+      if (type === 'banner') fd.set('bannerImageId', bannerImageId);
       if (photo) fd.set('file', photo);
       const res = await fetch('/api/loot/items', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -264,9 +289,10 @@ export function LootAdmin({
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Typ</label>
-            <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge')}>
+            <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge' | 'banner')}>
               <option value="physical">Physisch (du löst ein)</option>
               <option value="badge">Badge (digital, automatisch)</option>
+              <option value="banner">Titelbild (nur über Lootbox)</option>
             </Select>
           </div>
           <div className="space-y-1">
@@ -292,6 +318,45 @@ export function LootAdmin({
             <Textarea rows={1} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
           </div>
         </div>
+
+        {type === 'banner' && (
+          <div className="space-y-2">
+            {banners.length === 0 ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Noch keine exklusiven Titelbilder. Lade zuerst unter{' '}
+                <b>Einstellungen → Titelbilder</b> ein Titelbild hoch und markiere es als
+                „exklusiv (nur über Lootbox)&ldquo;.
+              </p>
+            ) : (
+              <>
+                <label className="text-xs text-muted-foreground">Exklusives Titelbild</label>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={bannerImageId}
+                    onChange={(e) => setBannerImageId(e.target.value)}
+                    className="sm:max-w-xs"
+                  >
+                    {banners.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </Select>
+                  {bannerImageId && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={banners.find((b) => b.id === bannerImageId)?.imageUrl}
+                      alt=""
+                      className="h-10 w-16 rounded object-cover"
+                    />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Wer dieses Item zieht und einlöst, schaltet das Titelbild exklusiv im Level
+                  Hub frei. Ohne eigenen Namen wird der Titelbild-Name verwendet.
+                </p>
+              </>
+            )}
+          </div>
+        )}
 
         {type === 'physical' && (
           <div className="space-y-1">
@@ -341,7 +406,16 @@ export function LootAdmin({
           </div>
         )}
 
-        <Button size="sm" disabled={busy || name.trim().length < 2} onClick={addItem}>
+        <Button
+          size="sm"
+          disabled={
+            busy ||
+            (type === 'banner'
+              ? !bannerImageId
+              : name.trim().length < 2)
+          }
+          onClick={addItem}
+        >
           {busy ? 'Wird gespeichert …' : 'Item hinzufügen'}
         </Button>
         <p className="text-xs text-muted-foreground">

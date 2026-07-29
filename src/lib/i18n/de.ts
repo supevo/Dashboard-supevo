@@ -189,6 +189,7 @@ export const de = {
     days: 'T',
     rate: 'bewerten',
     doneRateHint: '⭐ Fertige Aufgaben von Kolleg:innen kannst du hier per Klick bewerten.',
+    doneRateHintClient: '⭐ Öffnen Sie eine fertige Aufgabe, um die Ausführung zu bewerten.',
     visibility: 'Sichtbarkeit',
     filterAssignee: 'Verantwortlicher',
     filterPriority: 'Priorität',
@@ -959,7 +960,7 @@ export const de = {
   news: {
     title: 'Aktuelles aus Ihrer Branche',
     topic: 'Thema',
-    footer: 'Von der KI täglich für Sie zusammengestellt. Links führen zu den Originalquellen.',
+    footer: 'Aktuelle Schlagzeilen aus Ihrer Branche. Links führen zu den Originalquellen.',
   },
   marketingReport: {
     title: 'Berichte',

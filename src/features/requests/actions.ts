@@ -101,6 +101,206 @@ export async function submitClientRequestAction(
   return successResult('Briefing gesendet. Wir melden uns.');
 }
 
+/**
+ * Step 1 of the guided briefing: stores the client's briefing and returns the
+ * few clarifying questions the AI thinks are still missing before we can start.
+ * The agency is notified about the new briefing right away.
+ */
+export async function startBriefingAction(
+  projectId: string,
+  body: string,
+): Promise<{ ok: boolean; requestId?: string; questions?: string[]; error?: string }> {
+  const parsed = submitSchema.safeParse({ projectId, body });
+  if (!parsed.success) return { ok: false, error: 'Bitte beschreiben Sie Ihr Anliegen.' };
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('organization_id, client_company_id')
+    .eq('id', parsed.data.projectId)
+    .maybeSingle();
+  if (!project) return { ok: false, error: de.errors.FORBIDDEN };
+
+  const { data: request, error } = await supabase
+    .from('client_requests')
+    .insert({
+      organization_id: project.organization_id,
+      client_company_id: project.client_company_id,
+      project_id: parsed.data.projectId,
+      submitted_by: user.id,
+      body: parsed.data.body,
+    })
+    .select('id')
+    .single();
+  if (error || !request) return { ok: false, error: de.errors.FORBIDDEN };
+
+  const service = createSupabaseServiceClient();
+  const { data: members } = await service
+    .from('project_members')
+    .select('user_id')
+    .eq('project_id', parsed.data.projectId);
+  const recipients = (members ?? []).map((m) => m.user_id).filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: project.organization_id,
+        recipientId,
+        type: 'client_comment' as const,
+        title: 'Neues Briefing vom Kunden',
+        body: parsed.data.body.slice(0, 140),
+        entityType: 'project',
+        entityId: parsed.data.projectId,
+      })),
+      user.id,
+    );
+  }
+
+  const questions = await generateClarifyingQuestions(parsed.data.body);
+  revalidatePath(`/portal/projects/${parsed.data.projectId}`);
+  return { ok: true, requestId: request.id, questions };
+}
+
+const finishBriefingSchema = z.object({
+  requestId: z.string().uuid(),
+  answers: z
+    .array(
+      z.object({
+        question: z.string().trim().max(300),
+        answer: z.string().trim().max(2000),
+      }),
+    )
+    .max(6)
+    .default([]),
+});
+
+/**
+ * Step 2 of the guided briefing: the client's answers to the clarifying
+ * questions. The AI turns briefing + answers into ONE ready-to-work task,
+ * created in the project's queue (service client – clients can't insert tasks
+ * under RLS). The briefing is marked processed and the agency is notified.
+ */
+export async function finishBriefingAction(input: {
+  requestId: string;
+  answers: { question: string; answer: string }[];
+}): Promise<ActionResult> {
+  const parsed = finishBriefingSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { requestId, answers } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // RLS gate: the client can only read their own briefing.
+  const { data: request } = await supabase
+    .from('client_requests')
+    .select('project_id, organization_id, body, status')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!request) return errorResult(de.errors.FORBIDDEN);
+  if (request.status !== 'new') {
+    return errorResult('Dieses Briefing wurde bereits verarbeitet.');
+  }
+
+  let suggestion = await generateTaskFromClarification(request.body, answers);
+  if (!suggestion) {
+    const firstLine =
+      request.body.split('\n').find((l) => l.trim())?.trim().slice(0, 120) ||
+      'Kunden-Briefing';
+    const answered = answers
+      .filter((a) => a.answer.trim())
+      .map((a) => `• ${a.question} ${a.answer}`)
+      .join('\n');
+    suggestion = {
+      title: firstLine,
+      description: [request.body, answered].filter(Boolean).join('\n\n'),
+      priority: 'medium',
+    };
+  }
+
+  const service = createSupabaseServiceClient();
+  const { data: board } = await service
+    .from('boards')
+    .select('id')
+    .eq('project_id', request.project_id)
+    .order('position', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (!board) return errorResult(de.errors.INTERNAL);
+  const { data: columns } = await service
+    .from('board_columns')
+    .select('id, column_key, position')
+    .eq('board_id', board.id)
+    .order('position', { ascending: true });
+  const target =
+    (columns ?? []).find((c) => c.column_key === 'queue') ?? (columns ?? [])[0];
+  if (!target) return errorResult(de.errors.INTERNAL);
+  const { data: maxRow } = await service
+    .from('tasks')
+    .select('position')
+    .eq('column_id', target.id)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { error: insErr } = await service.from('tasks').insert({
+    organization_id: request.organization_id,
+    project_id: request.project_id,
+    board_id: board.id,
+    column_id: target.id,
+    title: suggestion.title,
+    description: suggestion.description || null,
+    priority: suggestion.priority,
+    is_internal: false,
+    created_by: user.id,
+    position: (maxRow?.position ?? 0) + 1000,
+  });
+  if (insErr) return errorResult(de.errors.INTERNAL);
+
+  // Append the Q&A to the briefing (for the record) and mark it processed.
+  const qaBlock = answers
+    .filter((a) => a.answer.trim())
+    .map((a) => `\n\n**${a.question}**\n${a.answer}`)
+    .join('');
+  await service
+    .from('client_requests')
+    .update({ status: 'processed', body: request.body + qaBlock })
+    .eq('id', requestId);
+
+  const { data: members } = await service
+    .from('project_members')
+    .select('user_id')
+    .eq('project_id', request.project_id);
+  const recipients = (members ?? []).map((m) => m.user_id).filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: request.organization_id,
+        recipientId,
+        type: 'client_comment' as const,
+        title: 'Aufgabe aus Briefing erstellt',
+        body: suggestion.title.slice(0, 140),
+        entityType: 'project',
+        entityId: request.project_id,
+      })),
+      user.id,
+    );
+  }
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: request.organization_id,
+    action: 'create',
+    entityType: 'task',
+    entityId: requestId,
+    metadata: { fromBriefing: true, clientDriven: true, answered: answers.length },
+  });
+
+  revalidatePath(`/portal/projects/${request.project_id}`);
+  return successResult('Danke! Wir haben eine Aufgabe daraus erstellt und legen los.');
+}
+
 const editSchema = z.object({
   requestId: z.string().uuid(),
   projectId: z.string().uuid(),

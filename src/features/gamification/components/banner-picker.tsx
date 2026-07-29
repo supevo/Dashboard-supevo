@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import {
   allBanners,
+  isBannerAvailable,
   DEFAULT_BANNER_KEY,
   type CustomBanner,
 } from '@/features/gamification/banners';
@@ -48,7 +49,7 @@ export function BannerPicker({
       <Modal open={open} onClose={() => setOpen(false)} title="Titelbild wählen">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {banners.map((b) => {
-            const unlocked = level >= b.unlockLevel;
+            const unlocked = isBannerAvailable(b, level);
             const active = current === b.key;
             return (
               <button
@@ -56,7 +57,13 @@ export function BannerPicker({
                 key={b.key}
                 disabled={!unlocked || pending}
                 onClick={() => unlocked && choose(b.key)}
-                title={unlocked ? b.name : `${b.name} – ab Level ${b.unlockLevel}`}
+                title={
+                  unlocked
+                    ? b.name
+                    : b.exclusive
+                      ? `${b.name} – nur über Lootbox`
+                      : `${b.name} – ab Level ${b.unlockLevel}`
+                }
                 className={cn(
                   'group relative h-20 overflow-hidden rounded-lg border text-left transition',
                   active ? 'ring-2 ring-primary' : 'border-border',
@@ -79,7 +86,7 @@ export function BannerPicker({
                   )}
                   {!unlocked && (
                     <span className="shrink-0 rounded bg-black/55 px-1 text-[10px] text-white">
-                      🔒 {b.unlockLevel}
+                      {b.exclusive ? '🔒 🎁' : `🔒 ${b.unlockLevel}`}
                     </span>
                   )}
                 </span>

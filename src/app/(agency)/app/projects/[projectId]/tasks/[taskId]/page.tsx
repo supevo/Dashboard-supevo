@@ -22,6 +22,7 @@ import { TaskRating } from '@/features/ratings/components/task-rating';
 import { getTaskRating } from '@/features/ratings/queries';
 import { TaskKudosPanel } from '@/features/task-kudos/components/task-kudos-panel';
 import { getTaskKudos } from '@/features/task-kudos/queries';
+import { getTaskClientRating } from '@/features/client-ratings/queries';
 import { TaskViewTracker } from '@/features/tasks/components/task-view-tracker';
 import { TaskActivityLog } from '@/features/tasks/components/task-activity-log';
 import { listTaskActivity, getTaskViewStats } from '@/features/tasks/activity';
@@ -61,6 +62,7 @@ export default async function TaskDetailPage({
   const runningTimer = await getRunningTimer(user.id);
   const rating = await getTaskRating(taskId, user.id);
   const taskKudos = await getTaskKudos(taskId, user.id);
+  const clientRating = await getTaskClientRating(taskId);
   const actualMinutes = await getTaskActualMinutes(taskId);
   const [taskActivity, taskViewStats] = await Promise.all([
     listTaskActivity(taskId),
@@ -254,6 +256,26 @@ export default async function TaskDetailPage({
               />
             </CardContent>
           </Card>
+
+          {clientRating && (
+            <Card>
+              <CardHeader>
+                <CardTitle>⭐ Kundenbewertung</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                <div className="text-lg text-amber-400" aria-label={`${clientRating.stars} von 5 Sternen`}>
+                  {'★'.repeat(clientRating.stars)}
+                  <span className="text-muted-foreground/30">{'★'.repeat(5 - clientRating.stars)}</span>
+                </div>
+                {clientRating.comment && (
+                  <p className="text-sm text-muted-foreground">„{clientRating.comment}“</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {clientRating.raterName} · {new Date(clientRating.createdAt).toLocaleDateString('de-DE')}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card>
             <CardHeader>

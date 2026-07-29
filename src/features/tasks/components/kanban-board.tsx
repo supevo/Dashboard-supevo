@@ -380,7 +380,9 @@ export function KanbanBoard({
 
               {col.isDoneColumn && (
                 <p className="mb-2 px-1 text-xs text-amber-600 dark:text-amber-400">
-                  {de.kanban.doneRateHint}
+                  {basePath.startsWith('/portal')
+                    ? de.kanban.doneRateHintClient
+                    : de.kanban.doneRateHint}
                 </p>
               )}
 

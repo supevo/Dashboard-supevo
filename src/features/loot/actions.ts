@@ -78,7 +78,7 @@ export async function openBoxAction(
 
   const { data: items } = await service
     .from('loot_items')
-    .select('name, description, type, weight, badge_emoji, badge_name, image_path')
+    .select('name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id')
     .eq('organization_id', orgId)
     .eq('box_tier', parsed.data);
   if (!items || items.length === 0) return errorResult('Diese Box ist noch leer.');
@@ -128,10 +128,19 @@ export async function openBoxAction(
       badge_name: drawn.badge_name,
       box_tier: parsed.data,
       image_path: drawn.image_path,
+      banner_image_id: drawn.banner_image_id ?? null,
       status: 'new',
     })
     .select('id')
     .maybeSingle();
+
+  // Reveal-Bild: Banner zeigen das Titelbild selbst, physische ihr Foto.
+  const revealImage =
+    drawn.type === 'banner' && drawn.banner_image_id
+      ? `/api/hub-banners/${drawn.banner_image_id}`
+      : drawn.image_path && inserted?.id
+        ? `/api/loot/inventory/${inserted.id}/image`
+        : null;
 
   revalidatePath('/app/rewards');
   revalidatePath('/app/kudos');
@@ -139,7 +148,7 @@ export async function openBoxAction(
     name: drawn.name,
     type: drawn.type,
     badgeEmoji: drawn.badge_emoji ?? '🎁',
-    imageUrl: drawn.image_path && inserted?.id ? `/api/loot/inventory/${inserted.id}/image` : null,
+    imageUrl: revealImage,
     tier: parsed.data,
   });
 }
@@ -152,12 +161,36 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
 
   const { data: item } = await service
     .from('loot_inventory')
-    .select('id, organization_id, name, type, status')
+    .select('id, organization_id, name, type, status, banner_image_id')
     .eq('id', inventoryId)
     .eq('user_id', user.id)
     .maybeSingle();
   if (!item) return errorResult('Nicht gefunden.');
   if (item.status !== 'new') return errorResult('Bereits eingelöst.');
+
+  if (item.type === 'banner') {
+    // Titelbild freischalten: als achievement 'banner_<bannerId>' gutschreiben,
+    // dann ist es im Level-Hub-Titelbild-Picker auswählbar.
+    if (item.banner_image_id) {
+      await service
+        .from('achievements')
+        .upsert(
+          {
+            user_id: user.id,
+            organization_id: item.organization_id,
+            key: `banner_${item.banner_image_id}`,
+          },
+          { onConflict: 'user_id,key', ignoreDuplicates: true },
+        );
+    }
+    await service
+      .from('loot_inventory')
+      .update({ status: 'fulfilled', redeemed_at: new Date().toISOString() })
+      .eq('id', item.id);
+    revalidatePath('/app/rewards');
+    revalidatePath('/app/kudos');
+    return successResult('Titelbild freigeschaltet – im Level Hub unter „🎨 Titelbild" wählbar.');
+  }
 
   if (item.type === 'badge') {
     await service

@@ -163,7 +163,7 @@ export async function getColleagueProfile(
     service.from('kudos').select('id', { count: 'exact', head: true }).eq('from_user_id', targetUserId),
     service.from('tasks').select('id', { count: 'exact', head: true }).eq('completed_by', targetUserId),
     service.from('xp_events').select('points').eq('user_id', targetUserId),
-    service.from('hub_banner_images').select('id, name, unlock_level').eq('organization_id', orgId),
+    service.from('hub_banner_images').select('id, name, unlock_level, exclusive').eq('organization_id', orgId),
     getBadgeWall(targetUserId, orgId),
   ]);
 
@@ -186,6 +186,10 @@ export async function getColleagueProfile(
     id: b.id,
     name: b.name,
     unlockLevel: b.unlock_level,
+    exclusive: Boolean(b.exclusive),
+    // Für die Anzeige eines explizit gewählten exklusiven Titelbilds reicht das
+    // exclusive-Flag (resolveActiveBanner zeigt die bewusste Wahl).
+    owned: false,
   }));
   const banner = resolveActiveBanner(profile?.hub_banner ?? null, levelInfo.level, customBanners);
 

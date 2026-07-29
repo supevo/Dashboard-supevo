@@ -1,12 +1,14 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   upsertMarketingReportAction,
   deleteMarketingReportAction,
+  generateReportDraftAction,
 } from '@/features/marketing-reports/actions';
 import type { MarketingReport } from '@/features/marketing-reports/queries';
+import { WEEKLY_REPORT_PROMPT } from '@/features/marketing-reports/report-prompt';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Button } from '@/components/ui/button';
@@ -38,6 +40,10 @@ function ReportForm({
 }) {
   const [state, action] = useActionState(upsertMarketingReportAction, idleResult);
   const router = useRouter();
+  const [summary, setSummary] = useState(editing?.summary ?? '');
+  const [genPending, startGen] = useTransition();
+  const [notice, setNotice] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -46,11 +52,55 @@ function ReportForm({
     }
   }, [state, router, onDone]);
 
+  function generateFromTasks() {
+    setNotice(null);
+    startGen(async () => {
+      const res = await generateReportDraftAction(clientCompanyId);
+      if (!res.ok) {
+        setNotice(res.error ?? 'Konnte keinen Entwurf erstellen.');
+        return;
+      }
+      if (res.hasActivity === false) {
+        setNotice(
+          'Für die letzten 7 Tage gibt es keine kundensichtbaren Aufgaben – es wurde kein Entwurf erzeugt.',
+        );
+        return;
+      }
+      if (res.summary) setSummary(res.summary);
+    });
+  }
+
+  async function copyPrompt() {
+    try {
+      await navigator.clipboard.writeText(WEEKLY_REPORT_PROMPT);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setNotice('Kopieren nicht möglich – bitte manuell markieren.');
+    }
+  }
+
   return (
     <form action={action} className="space-y-3 rounded-lg border bg-muted/30 p-4">
       {state.status === 'error' && <Alert variant="destructive">{state.message}</Alert>}
+      {notice && <Alert variant="default">{notice}</Alert>}
       <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
       {editing && <input type="hidden" name="id" value={editing.id} />}
+
+      <div className="flex flex-wrap gap-2 rounded-md border border-dashed bg-background/60 p-3">
+        <Button type="button" size="sm" variant="outline" disabled={genPending} onClick={generateFromTasks}>
+          {genPending ? 'Wird erzeugt …' : '📊 Wochenbericht aus Aufgaben erzeugen'}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={copyPrompt}>
+          {copied ? 'Prompt kopiert ✓' : '📋 Prompt kopieren'}
+        </Button>
+        <p className="w-full text-xs text-muted-foreground">
+          &bdquo;Aus Aufgaben erzeugen&ldquo; schreibt eine Zusammenfassung der erledigten &amp;
+          laufenden Arbeit in das Zusammenfassungs-Feld. Ranking/SEO, SEA und Anfragen tragen Sie
+          manuell ein – leere Abschnitte erscheinen dem Kunden nicht. Der Prompt hilft beim
+          strukturierten Erfassen der Zahlen.
+        </p>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -77,7 +127,13 @@ function ReportForm({
 
       <div>
         <Label htmlFor="summary">{de.marketingReport.summary}</Label>
-        <Textarea id="summary" name="summary" rows={2} defaultValue={editing?.summary ?? ''} />
+        <Textarea
+          id="summary"
+          name="summary"
+          rows={4}
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+        />
       </div>
       <div>
         <Label htmlFor="ranking">{de.marketingReport.ranking}</Label>

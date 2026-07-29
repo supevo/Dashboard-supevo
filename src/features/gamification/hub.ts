@@ -122,15 +122,28 @@ export async function getLevelHub(
     // the table's RLS select policy is missing.
     createSupabaseServiceClient()
       .from('hub_banner_images')
-      .select('id, name, unlock_level')
+      .select('id, name, unlock_level, exclusive')
       .eq('organization_id', orgId)
       .order('unlock_level', { ascending: true }),
   ]);
+
+  // Exklusive (nur über Lootbox erhältliche) Titelbilder, die diese Person
+  // besitzt – als achievements-Einträge 'banner_<bannerId>' gespeichert.
+  const { data: ownedBannerRows } = await createSupabaseServiceClient()
+    .from('achievements')
+    .select('key')
+    .eq('user_id', userId)
+    .like('key', 'banner_%');
+  const ownedBannerIds = new Set(
+    (ownedBannerRows ?? []).map((r) => r.key.slice('banner_'.length)),
+  );
 
   const customBanners: CustomBanner[] = (customBannersRes.data ?? []).map((b) => ({
     id: b.id,
     name: b.name,
     unlockLevel: b.unlock_level,
+    exclusive: Boolean(b.exclusive),
+    owned: ownedBannerIds.has(b.id),
   }));
 
   const profile = profileRes.data;
