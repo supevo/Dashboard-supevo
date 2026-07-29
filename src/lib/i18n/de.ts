@@ -606,6 +606,10 @@ export const de = {
     activity: 'Aktivität',
     seeAll: 'Alle ansehen',
     times: '×',
+    rewards: {
+      title: '🎁 Belohnungen',
+      coinChipTitle: 'Deine Coins – zu den Belohnungen im Level Hub',
+    },
   },
   taskLog: {
     title: 'Verlauf (intern)',

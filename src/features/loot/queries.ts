@@ -131,6 +131,19 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
   };
 }
 
+/** Just the spendable coin balance – light query for the header chip. */
+export async function getCoinBalance(userId: string, orgId: string): Promise<number> {
+  const service = createSupabaseServiceClient();
+  const [config, walletRes, points] = await Promise.all([
+    getLootConfig(orgId),
+    service.from('loot_wallets').select('coins_spent').eq('user_id', userId).maybeSingle(),
+    totalPoints(service, userId),
+  ]);
+  const spent = walletRes.data?.coins_spent ?? 0;
+  const earned = Math.floor(points / Math.max(1, config.xpPerCoin));
+  return Math.max(0, earned - spent);
+}
+
 /** All loot items of the org for the admin editor. */
 export async function listLootItems(orgId: string): Promise<LootItem[]> {
   const { data } = await createSupabaseServiceClient()

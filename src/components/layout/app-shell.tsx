@@ -24,6 +24,7 @@ interface AppShellProps {
   level?: number;
   levelProgressPct?: number;
   status?: 'online' | 'afk' | 'dnd';
+  coins?: number;
   children: React.ReactNode;
 }
 
@@ -39,6 +40,7 @@ export function AppShell({
   level,
   levelProgressPct,
   status,
+  coins,
   children,
 }: AppShellProps) {
   return (
@@ -73,6 +75,16 @@ export function AppShell({
             {searchEnabled && <CommandPalette />}
             <BrowserNotifications />
             <ThemeToggle />
+            {typeof coins === 'number' && (
+              <Link
+                href="/app/kudos#belohnungen"
+                title={de.hub.rewards.coinChipTitle}
+                className="flex items-center gap-1 rounded-full border bg-amber-400/10 px-2.5 py-1 text-sm font-semibold text-amber-600 hover:bg-amber-400/20 dark:text-amber-400"
+              >
+                <span aria-hidden>🪙</span>
+                <span>{coins}</span>
+              </Link>
+            )}
             <UserMenu
               userId={userId}
               name={userName}

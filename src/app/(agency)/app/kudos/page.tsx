@@ -14,6 +14,8 @@ import { WallBadges } from '@/features/gamification/components/wall-badges';
 import { BannerPicker } from '@/features/gamification/components/banner-picker';
 import { getActiveXpBoost } from '@/features/gamification/xp-boost';
 import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banner';
+import { getShopData } from '@/features/loot/queries';
+import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -29,12 +31,13 @@ const t = de.hub;
 export default async function KudosPage() {
   const { user, orgId } = await requireAgencyPage();
   const admin = isOrgAdmin(user, orgId);
-  const [hub, feed, leaderboard, weekly, xpBoost] = await Promise.all([
+  const [hub, feed, leaderboard, weekly, xpBoost, shop] = await Promise.all([
     getLevelHub(user.id, orgId),
     listRecentKudos(12),
     getLeaderboard(),
     getWeeklyChallenges(user.id, orgId),
     getActiveXpBoost(orgId),
+    getShopData(user.id, orgId),
   ]);
 
   const league = hub.league;
@@ -177,6 +180,16 @@ export default async function KudosPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
+          {/* Belohnungen: Coins, Lootboxen & Inventar direkt im Level Hub */}
+          <Card id="belohnungen" className="scroll-mt-20">
+            <CardHeader>
+              <CardTitle>{t.rewards.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RewardPanel shop={shop} />
+            </CardContent>
+          </Card>
+
           {/* Wochenchallenges */}
           <Card>
             <CardHeader>

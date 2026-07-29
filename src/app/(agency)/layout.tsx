@@ -3,6 +3,7 @@ import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
 import { getMyGamification } from '@/features/gamification/queries';
+import { getCoinBalance } from '@/features/loot/queries';
 import {
   getCurrentUser,
   hasAgencyAccess,
@@ -23,13 +24,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/reports', label: de.nav.reports },
   { href: '/app/colleagues', label: de.nav.colleagues },
   { href: '/app/leaderboard', label: de.nav.leaderboard },
-  { href: '/app/rewards', label: de.nav.rewards },
 ];
 
 // Leadership-only entries appended for org admins (and super admins).
+// Mitarbeiter erreichen die Belohnungen über den Level Hub – im Menü nur für Admins.
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/app/team', label: de.nav.team },
   { href: '/app/challenges', label: de.nav.challenges },
+  { href: '/app/rewards', label: de.nav.rewards },
   { href: '/app/workload', label: de.nav.workload },
   { href: '/app/cockpit', label: de.nav.cockpit },
 ];
@@ -75,6 +77,7 @@ export default async function AgencyLayout({
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
   const navItems = admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
+  const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
 
   return (
     <AppShell
@@ -87,6 +90,7 @@ export default async function AgencyLayout({
       level={gamification.level}
       levelProgressPct={gamification.progressPct}
       status={gamification.status}
+      coins={coins}
       searchEnabled
     >
       {children}
