@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ui/avatar';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -33,14 +33,27 @@ function startChat(userId: string) {
 }
 
 function MemberRow({ m }: { m: RailMember }) {
-  const [hover, setHover] = useState(false);
+  // Position the card with `position: fixed` computed from the row's rect so it
+  // escapes the rail's `overflow-y-auto` container (which otherwise clips it).
+  const liRef = useRef<HTMLLIElement>(null);
+  const [card, setCard] = useState<{ top: number; left: number } | null>(null);
   const line = activityLine(m);
+
+  const CARD_WIDTH = 256;
+  function openCard() {
+    const r = liRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const left = Math.max(8, r.left - CARD_WIDTH - 8);
+    const top = Math.min(r.top, window.innerHeight - 200);
+    setCard({ top, left });
+  }
 
   return (
     <li
+      ref={liRef}
       className="relative"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseEnter={openCard}
+      onMouseLeave={() => setCard(null)}
     >
       <button
         type="button"
@@ -56,8 +69,11 @@ function MemberRow({ m }: { m: RailMember }) {
         </span>
       </button>
 
-      {hover && (
-        <div className="absolute right-full top-0 z-50 mr-2 w-64 rounded-xl border bg-card p-3 shadow-xl">
+      {card && (
+        <div
+          style={{ position: 'fixed', top: card.top, left: card.left, width: CARD_WIDTH }}
+          className="z-50 rounded-xl border bg-card p-3 shadow-xl"
+        >
           <div className="flex items-center gap-3">
             <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} status={m.status} size="lg" />
             <div className="min-w-0">
