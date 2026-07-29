@@ -1,5 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { weekInfo, hashWeek } from '@/features/gamification/week';
+import { getActiveCustomChallenges } from '@/features/gamification/custom-challenges';
 
 /**
  * Weekly challenges. A fixed pool; each ISO week three are picked
@@ -69,48 +71,9 @@ export interface WeeklyChallenges {
   rareBadges: { key: string; name: string; emoji: string; reason: string; earned: boolean }[];
 }
 
-interface WeekInfo {
-  id: string;
-  seed: number;
-  startIso: string;
-  daysLeft: number;
-  weekNumber: number;
-}
-
-function weekInfo(now = new Date()): WeekInfo {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const dow = (d.getUTCDay() + 6) % 7; // Mon = 0
-  const monday = new Date(d);
-  monday.setUTCDate(d.getUTCDate() - dow);
-  const thursday = new Date(monday);
-  thursday.setUTCDate(monday.getUTCDate() + 3);
-  const yearStart = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  const nextMonday = new Date(monday);
-  nextMonday.setUTCDate(monday.getUTCDate() + 7);
-  const daysLeft = Math.max(1, Math.ceil((nextMonday.getTime() - now.getTime()) / 86_400_000));
-  return {
-    id: `${thursday.getUTCFullYear()}-W${String(week).padStart(2, '0')}`,
-    seed: thursday.getUTCFullYear() * 53 + week,
-    startIso: monday.toISOString(),
-    daysLeft,
-    weekNumber: week,
-  };
-}
-
-/** Small deterministic string hash → non-negative int. */
-function hash(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
 function pickForWeek(seed: number): ChallengeDef[] {
   return [...CHALLENGE_POOL]
-    .map((c) => ({ c, r: hash(`${c.key}:${seed}`) }))
+    .map((c) => ({ c, r: hashWeek(`${c.key}:${seed}`) }))
     .sort((a, b) => a.r - b.r)
     .slice(0, 3)
     .map((x) => x.c);
@@ -124,6 +87,33 @@ export async function getWeeklyChallenges(
   userId: string,
   orgId: string,
 ): Promise<WeeklyChallenges> {
+  // Admin-defined challenges for the current week take precedence over the
+  // built-in pool. If none are published for this week, fall back to the pool.
+  const custom = await getActiveCustomChallenges(userId, orgId);
+  if (custom) {
+    return {
+      weekLabel: custom.weekLabel,
+      daysLeft: custom.daysLeft,
+      challenges: custom.challenges.map((c) => ({
+        key: c.id,
+        title: c.kind === 'team' ? `👥 ${c.title}` : c.title,
+        emoji: c.emoji,
+        progress: c.progress,
+        target: c.target,
+        xp: c.xp,
+        done: c.done,
+        rareName: c.badgeName,
+      })),
+      rareBadges: custom.badges.map((b) => ({
+        key: b.key,
+        name: b.name,
+        emoji: b.emoji,
+        reason: b.name,
+        earned: b.earned,
+      })),
+    };
+  }
+
   const supabase = await createSupabaseServerClient();
   const week = weekInfo();
   const since = week.startIso;

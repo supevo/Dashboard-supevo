@@ -198,6 +198,45 @@ export interface Database {
         };
         Relationships: [];
       };
+      custom_challenges: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          description: string | null;
+          emoji: string;
+          metric: string;
+          target: number;
+          xp: number;
+          kind: string;
+          badge_key: string | null;
+          badge_name: string | null;
+          badge_emoji: string | null;
+          week_start: string;
+          active: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title: string;
+          description?: string | null;
+          emoji?: string;
+          metric: string;
+          target: number;
+          xp?: number;
+          kind?: string;
+          badge_key?: string | null;
+          badge_name?: string | null;
+          badge_emoji?: string | null;
+          week_start: string;
+          active?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['custom_challenges']['Insert']>;
+        Relationships: [];
+      };
       client_news: {
         Row: {
           client_company_id: string;

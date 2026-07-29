@@ -43,6 +43,7 @@ export const de = {
     leads: 'Leads',
     team: 'Team',
     colleagues: 'Kollegen',
+    challenges: 'Challenges',
     kudos: 'Anerkennung',
     awards: 'Auszeichnungen',
     recognition: 'Anerkennung & Auszeichnungen',
