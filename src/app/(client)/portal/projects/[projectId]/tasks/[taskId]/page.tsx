@@ -121,6 +121,8 @@ export default async function PortalTaskPage({
                   file={f}
                   projectId={projectId}
                   taskId={taskId}
+                  area="portal"
+                  currentUserId={user.id}
                 />
               ))}
             </ul>

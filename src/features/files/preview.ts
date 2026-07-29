@@ -11,3 +11,8 @@ export function isPreviewable(mime: string): boolean {
     PREVIEWABLE_PREFIXES.some((p) => mime.startsWith(p))
   );
 }
+
+/** Whether a file is an image (used for visual proofing / annotations). */
+export function isImage(mime: string): boolean {
+  return mime.startsWith('image/');
+}

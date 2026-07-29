@@ -1523,6 +1523,35 @@ export interface Database {
         };
         Relationships: [];
       };
+      image_annotations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          file_id: string;
+          task_id: string | null;
+          created_by: string | null;
+          strokes: unknown;
+          comment: string | null;
+          status: string;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          file_id: string;
+          task_id?: string | null;
+          created_by?: string | null;
+          strokes?: unknown;
+          comment?: string | null;
+          status?: string;
+          resolved_at?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['image_annotations']['Insert']
+        >;
+        Relationships: [];
+      };
       checklists: {
         Row: {
           id: string;
