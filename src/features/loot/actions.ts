@@ -255,6 +255,37 @@ export async function deleteLootItemAction(id: string): Promise<ActionResult> {
   return successResult('Gelöscht.');
 }
 
+/**
+ * Admin marks a redeemed physical reward as handed over (`requested` →
+ * `fulfilled`). Idempotent and scoped to the admin's own organization.
+ */
+export async function markRedemptionFulfilledAction(inventoryId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(inventoryId).success) return errorResult('Ungültig.');
+  const orgId = await requireAdminOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+
+  const { data: item } = await service
+    .from('loot_inventory')
+    .select('id, status')
+    .eq('id', inventoryId)
+    .eq('organization_id', orgId)
+    .eq('type', 'physical')
+    .maybeSingle();
+  if (!item) return errorResult('Nicht gefunden.');
+  if (item.status === 'fulfilled') return successResult('Bereits erledigt.');
+
+  const { error } = await service
+    .from('loot_inventory')
+    .update({ status: 'fulfilled' })
+    .eq('id', inventoryId)
+    .eq('organization_id', orgId);
+  if (error) return errorResult(error.message);
+
+  revalidatePath('/app/rewards');
+  return successResult('Als erledigt markiert.');
+}
+
 // --- Gifting free boxes ------------------------------------------------------
 
 const giftSchema = z.object({
