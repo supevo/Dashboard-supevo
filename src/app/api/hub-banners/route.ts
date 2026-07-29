@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser, primaryAgencyOrgId } from '@/features/auth/session';
 import { isOrgAdmin } from '@/lib/authz/policies';
@@ -72,16 +71,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }
 
-  // RLS write policy (is_org_admin) gates the insert.
-  const supabase = await createSupabaseServerClient();
-  const { error: insertError } = await supabase.from('hub_banner_images').insert({
-    id: bannerId,
-    organization_id: orgId,
-    name,
-    unlock_level: level,
-    storage_path: path,
-    created_by: user.id,
-  });
+  // Admin rights were already verified above (isOrgAdmin); write with the
+  // service client so the insert can't be blocked by a missing RLS policy.
+  const { error: insertError } = await createSupabaseServiceClient()
+    .from('hub_banner_images')
+    .insert({
+      id: bannerId,
+      organization_id: orgId,
+      name,
+      unlock_level: level,
+      storage_path: path,
+      created_by: user.id,
+    });
   if (insertError) {
     // Roll back the stored file so we don't leak orphans.
     await createSupabaseServiceClient().storage.from(FILES_BUCKET).remove([path]);

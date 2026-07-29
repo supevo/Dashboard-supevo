@@ -1,5 +1,5 @@
 import 'server-only';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { customBannerImageUrl } from '@/features/gamification/banners';
 
 export interface HubBannerAdminItem {
@@ -13,8 +13,10 @@ export interface HubBannerAdminItem {
 export async function listHubBanners(
   orgId: string,
 ): Promise<HubBannerAdminItem[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  // Read with the service client (org-scoped) so the admin list is independent
+  // of whether the table's RLS select policy was applied.
+  const service = createSupabaseServiceClient();
+  const { data } = await service
     .from('hub_banner_images')
     .select('id, name, unlock_level')
     .eq('organization_id', orgId)

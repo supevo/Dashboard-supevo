@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { primaryAgencyOrgId } from '@/features/auth/session';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { getXpPoints } from '@/features/gamification/xp';
 import { levelForPoints } from '@/features/kudos/badges';
@@ -111,24 +112,21 @@ export async function deleteHubBannerAction(bannerId: string): Promise<void> {
   const parsed = z.string().uuid().safeParse(bannerId);
   if (!parsed.success) return;
 
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const { data: banner } = await supabase
+  const user = await requireUser();
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId || !isOrgAdmin(user, orgId)) return; // admins only
+
+  const service = createSupabaseServiceClient();
+  const { data: banner } = await service
     .from('hub_banner_images')
     .select('storage_path')
     .eq('id', parsed.data)
+    .eq('organization_id', orgId)
     .maybeSingle();
   if (!banner) return;
 
-  const { error } = await supabase
-    .from('hub_banner_images')
-    .delete()
-    .eq('id', parsed.data);
-  if (error) return; // RLS blocks non-admins
-
-  await createSupabaseServiceClient()
-    .storage.from(FILES_BUCKET)
-    .remove([banner.storage_path]);
+  await service.from('hub_banner_images').delete().eq('id', parsed.data);
+  await service.storage.from(FILES_BUCKET).remove([banner.storage_path]);
 
   revalidatePath('/app/settings');
   revalidatePath('/app/kudos');

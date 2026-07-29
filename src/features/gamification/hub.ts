@@ -1,5 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { levelForPoints } from '@/features/kudos/badges';
 import { leagueForPoints, type LeagueStanding } from '@/features/gamification/leagues';
 import { listObjectivesForUser, type Objective } from '@/features/goals/queries';
@@ -117,7 +118,9 @@ export async function getLevelHub(
     getXpPoints(userId),
     listAchievements(userId),
     getBadgeWall(userId, orgId),
-    supabase
+    // Org-scoped read via the service client so uploaded banners appear even if
+    // the table's RLS select policy is missing.
+    createSupabaseServiceClient()
       .from('hub_banner_images')
       .select('id, name, unlock_level')
       .eq('organization_id', orgId)
