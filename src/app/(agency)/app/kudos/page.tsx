@@ -20,7 +20,6 @@ import { LevelRing } from '@/features/gamification/components/level-ring';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
 import { cn } from '@/lib/utils';
-import { AwardsSummary } from '@/features/awards/components/awards-summary';
 import { de } from '@/lib/i18n/de';
 
 export const dynamic = 'force-dynamic';
@@ -353,9 +352,6 @@ export default async function KudosPage() {
             </CardContent>
           </Card>
 
-          {/* Award of the month (admin sees full; others get the reveal hint) */}
-          <AwardsSummary orgId={orgId} userId={user.id} canSeeFull={admin} />
-
           {/* Activity feed */}
           <Card>
             <CardHeader>
@@ -390,6 +386,34 @@ export default async function KudosPage() {
         </div>
 
         <div className="space-y-6">
+          {/* Leaderboard (admin only) – über den Fähigkeiten */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.kudos.leaderboard}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!admin ? (
+                <p className="text-sm text-muted-foreground">{de.awards.revealHint}</p>
+              ) : leaderboard.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{de.kudos.empty}</p>
+              ) : (
+                <ol className="space-y-2">
+                  {leaderboard.slice(0, 10).map((r, i) => (
+                    <li key={r.userId} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="w-5 text-center">{MEDAL[i] ?? i + 1}</span>
+                        <span className="truncate">{r.name}</span>
+                      </span>
+                      <span className="shrink-0 font-semibold text-primary">
+                        {r.points}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Skills: radar + full list */}
           <Card>
             <CardHeader>
@@ -478,34 +502,6 @@ export default async function KudosPage() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">{t.recognitionsEmpty}</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Leaderboard (admin only) */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.kudos.leaderboard}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {!admin ? (
-                <p className="text-sm text-muted-foreground">{de.awards.revealHint}</p>
-              ) : leaderboard.length === 0 ? (
-                <p className="text-sm text-muted-foreground">{de.kudos.empty}</p>
-              ) : (
-                <ol className="space-y-2">
-                  {leaderboard.slice(0, 10).map((r, i) => (
-                    <li key={r.userId} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="w-5 text-center">{MEDAL[i] ?? i + 1}</span>
-                        <span className="truncate">{r.name}</span>
-                      </span>
-                      <span className="shrink-0 font-semibold text-primary">
-                        {r.points}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
               )}
             </CardContent>
           </Card>
