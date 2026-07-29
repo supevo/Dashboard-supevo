@@ -14,6 +14,7 @@ import { ApplyTemplate } from '@/features/templates/components/apply-template';
 import { listProjectTemplates } from '@/features/templates/queries';
 import { getProjectHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
+import { RecapSection } from '@/features/recap/components/recap-section';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -81,6 +82,17 @@ export default async function ProjectDetailPage({
         />
       ) : (
         <p className="text-sm text-muted-foreground">Kein Board vorhanden.</p>
+      )}
+
+      {project.clientCompanyId && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.recap.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RecapSection clientCompanyId={project.clientCompanyId} />
+          </CardContent>
+        </Card>
       )}
 
       {project.canManage && (
