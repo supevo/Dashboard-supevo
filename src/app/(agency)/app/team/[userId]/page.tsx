@@ -77,7 +77,6 @@ export default async function ColleagueProfilePage({
       {/* Profile header with title-image background */}
       <Card className="relative overflow-hidden border-0">
         <div aria-hidden className="absolute inset-0" style={{ background: p.bannerBackground }} />
-        <div aria-hidden className="absolute inset-0 bg-background/35" />
         <CardContent className="relative flex flex-col items-center gap-6 py-6 sm:flex-row sm:items-center">
           <LevelRing
             level={p.level}
