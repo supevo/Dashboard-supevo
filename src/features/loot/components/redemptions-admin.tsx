@@ -31,9 +31,11 @@ export function RedemptionsAdmin({ redemptions }: { redemptions: Redemption[] })
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
 
   const open = redemptions.filter((r) => r.status === 'requested');
   const done = redemptions.filter((r) => r.status === 'fulfilled');
+  const recentDone = done.slice(0, 10); // immer nur die letzten 10 erledigten
 
   function markDone(id: string) {
     setError(null);
@@ -98,8 +100,25 @@ export function RedemptionsAdmin({ redemptions }: { redemptions: Redemption[] })
 
       {done.length > 0 && (
         <div className="space-y-2">
-          <div className="text-sm font-semibold">Erledigt ({done.length})</div>
-          <ul className="space-y-1.5">{done.map(row)}</ul>
+          <button
+            type="button"
+            onClick={() => setShowDone((v) => !v)}
+            aria-expanded={showDone}
+            className="flex w-full items-center gap-2 text-left text-sm font-semibold hover:text-primary"
+          >
+            <span aria-hidden className="text-xs">{showDone ? '▾' : '▸'}</span>
+            Erledigt ({done.length})
+          </button>
+          {showDone && (
+            <>
+              <ul className="space-y-1.5">{recentDone.map(row)}</ul>
+              {done.length > recentDone.length && (
+                <p className="text-xs text-muted-foreground">
+                  Es werden nur die letzten {recentDone.length} erledigten Einlösungen angezeigt.
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

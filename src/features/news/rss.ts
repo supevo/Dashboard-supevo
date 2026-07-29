@@ -5,6 +5,8 @@ export interface NewsItem {
   url: string;
   source: string;
   publishedAt: string | null;
+  /** Vorschaubild, falls der Feed eines liefert (sonst null → Verlauf-Cover). */
+  imageUrl: string | null;
 }
 
 /** Google News RSS search for a topic – free, no key, real article links. */
@@ -41,6 +43,30 @@ function tag(block: string, name: string): string {
   return decodeEntities((cdata ? cdata[1] : raw) ?? '');
 }
 
+/** Reads an attribute (e.g. url="…") from the first matching self-closing tag. */
+function tagAttr(block: string, name: string, attr: string): string | null {
+  const m = block.match(new RegExp(`<${name}\\b[^>]*\\b${attr}=["']([^"']+)["']`, 'i'));
+  return m?.[1] ?? null;
+}
+
+/**
+ * Best-effort preview image for a feed item: media:content/thumbnail, an
+ * image enclosure, or the first <img> in the description. Google News rarely
+ * includes one – the UI falls back to a coloured cover then.
+ */
+function extractImage(block: string): string | null {
+  const candidate =
+    tagAttr(block, 'media:content', 'url') ||
+    tagAttr(block, 'media:thumbnail', 'url') ||
+    tagAttr(block, 'enclosure', 'url');
+  if (candidate && /^https?:\/\//i.test(candidate)) return candidate;
+
+  const desc = tag(block, 'description') || tag(block, 'content:encoded');
+  const img = desc.match(/<img[^>]*\bsrc=["']([^"']+)["']/i);
+  if (img?.[1] && /^https?:\/\//i.test(img[1])) return img[1];
+  return null;
+}
+
 /**
  * Fetches and parses an RSS feed into news items. Times out fast so it can
  * never hang a page render; returns [] on any failure.
@@ -75,6 +101,7 @@ export async function fetchRssItems(
         url: link,
         source: tag(block, 'source') || 'News',
         publishedAt: parsed && !isNaN(parsed.getTime()) ? parsed.toISOString() : null,
+        imageUrl: extractImage(block),
       });
     }
     return items;

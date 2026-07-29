@@ -59,7 +59,11 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const file = form.get('file');
   const name = String(form.get('name') ?? '').trim().slice(0, 80) || 'Titelbild';
-  const level = Math.max(0, Math.min(999, Number(form.get('level') ?? 0) || 0));
+  const exclusive = String(form.get('exclusive') ?? '') === 'true';
+  // Exklusive Titelbilder gibt es nur über Lootbox – das Level ist dann egal.
+  const level = exclusive
+    ? 0
+    : Math.max(0, Math.min(999, Number(form.get('level') ?? 0) || 0));
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
@@ -98,6 +102,7 @@ export async function POST(request: NextRequest) {
       organization_id: orgId,
       name,
       unlock_level: level,
+      exclusive,
       storage_path: path,
       created_by: user.id,
     });

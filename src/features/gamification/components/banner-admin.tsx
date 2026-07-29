@@ -18,6 +18,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [level, setLevel] = useState(0);
+  const [exclusive, setExclusive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -35,6 +36,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
       fd.set('file', file);
       fd.set('name', name || de.hubBanners.defaultName);
       fd.set('level', String(level));
+      fd.set('exclusive', String(exclusive));
       const res = await fetch('/api/hub-banners', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -42,6 +44,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
       } else {
         setName('');
         setLevel(0);
+        setExclusive(false);
         setFile(null);
         router.refresh();
       }
@@ -74,7 +77,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{b.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  {de.hubBanners.fromLevel} {b.unlockLevel}
+                  {b.exclusive ? '🎁 nur über Lootbox' : `${de.hubBanners.fromLevel} ${b.unlockLevel}`}
                 </div>
               </div>
               <Button
@@ -126,10 +129,19 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
               max={999}
               value={level}
               onChange={(e) => setLevel(Math.max(0, Number(e.target.value) || 0))}
+              disabled={exclusive}
               className="w-24"
             />
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={exclusive}
+            onChange={(e) => setExclusive(e.target.checked)}
+          />
+          <span>🎁 Exklusiv – nur über Lootbox erhältlich (nicht per Level freischaltbar)</span>
+        </label>
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif"

@@ -61,6 +61,10 @@ export interface CustomBanner {
   id: string;
   name: string;
   unlockLevel: number;
+  /** Nur über Lootbox erhältlich (nicht per Level freischaltbar). */
+  exclusive?: boolean;
+  /** Ob die betrachtete Person dieses exklusive Titelbild besitzt. */
+  owned?: boolean;
 }
 
 /** Banner-Schlüssel für ein hochgeladenes Bild (z. B. "img:<uuid>"). */
@@ -89,6 +93,10 @@ export interface ResolvedBanner {
   unlockLevel: number;
   background: string;
   isImage: boolean;
+  /** Nur über Lootbox erhältlich. */
+  exclusive: boolean;
+  /** Ob die betrachtete Person es besitzt (nur relevant bei `exclusive`). */
+  owned: boolean;
 }
 
 /** Verlaufs- + Bild-Titelbilder zu einer Liste zusammenführen. */
@@ -99,6 +107,8 @@ export function allBanners(customBanners: CustomBanner[]): ResolvedBanner[] {
     unlockLevel: b.unlockLevel,
     background: b.gradient,
     isImage: false,
+    exclusive: false,
+    owned: true,
   }));
   const imgs: ResolvedBanner[] = customBanners.map((c) => ({
     key: customBannerKey(c.id),
@@ -106,8 +116,18 @@ export function allBanners(customBanners: CustomBanner[]): ResolvedBanner[] {
     unlockLevel: c.unlockLevel,
     background: customBannerBackground(c.id),
     isImage: true,
+    exclusive: Boolean(c.exclusive),
+    owned: Boolean(c.owned),
   }));
   return [...grads, ...imgs];
+}
+
+/**
+ * Ist ein Titelbild für die Person nutzbar? Exklusive nur bei Besitz, alle
+ * anderen ab dem Freischalt-Level.
+ */
+export function isBannerAvailable(b: ResolvedBanner, level: number): boolean {
+  return b.exclusive ? b.owned : level >= b.unlockLevel;
 }
 
 /**
@@ -124,10 +144,13 @@ export function resolveActiveBanner(
   const all = allBanners(customBanners);
   const byKey = new Map(all.map((b) => [b.key, b] as const));
   const chosen = selected ? byKey.get(selected) : undefined;
-  if (chosen && level >= chosen.unlockLevel) return chosen;
+  // Bewusste Wahl gewinnt, wenn verfügbar. Exklusive, die explizit gewählt
+  // wurden, werden immer gezeigt (die Wahl war nur bei Besitz möglich) – so
+  // rendert auch die Kollegen-Ansicht das Titelbild korrekt.
+  if (chosen && (isBannerAvailable(chosen, level) || chosen.exclusive)) return chosen;
 
   const unlocked = all
-    .filter((b) => level >= b.unlockLevel)
+    .filter((b) => isBannerAvailable(b, level))
     .sort(
       (a, b) =>
         b.unlockLevel - a.unlockLevel || Number(b.isImage) - Number(a.isImage),
