@@ -79,8 +79,9 @@ export function ClientProfileForm({
           className="w-24"
         />
         <p className="text-xs text-muted-foreground">
-          Wie viele Aufgaben der Kunde pro Monat vorziehen darf (0–10). Setzt
-          sich am 1. jedes Monats zurück.
+          0 = automatisch nach Mitgliedschaft (Stage 1 → 1, Stage 2 → 2). Ein
+          Wert &gt; 0 übersteuert das für Sonderfälle. Setzt sich am 1. jedes
+          Monats zurück.
         </p>
       </div>
       <SubmitButton size="sm">{de.common.save}</SubmitButton>

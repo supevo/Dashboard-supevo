@@ -8,7 +8,7 @@ import { requireUser } from '@/lib/authz/authorize';
 import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
-import { currentExpressPeriod } from './queries';
+import { currentExpressPeriod, getExpressStatus } from './queries';
 
 const redeemSchema = z.object({ taskId: z.string().uuid() });
 
@@ -57,19 +57,9 @@ export async function redeemExpressTicketAction(
 
   const period = currentExpressPeriod();
 
-  // Contingent check (per calendar month).
-  const { data: company } = await supabase
-    .from('client_companies')
-    .select('express_tickets_per_month')
-    .eq('id', project.client_company_id)
-    .maybeSingle();
-  const perMonth = company?.express_tickets_per_month ?? 0;
-  const { count: used } = await supabase
-    .from('express_ticket_redemptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('client_company_id', project.client_company_id)
-    .eq('period', period);
-  if (perMonth - (used ?? 0) <= 0) {
+  // Contingent check (per calendar month; derived from membership + override).
+  const status = await getExpressStatus(project.client_company_id);
+  if (status.available <= 0) {
     return {
       ok: false,
       error: 'Für diesen Monat sind keine Express-Tickets mehr verfügbar.',

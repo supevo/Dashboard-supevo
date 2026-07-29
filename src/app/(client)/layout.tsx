@@ -9,6 +9,8 @@ import {
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
+import { getExpressStatus } from '@/features/express/queries';
+import { ExpressHeaderBadge } from '@/features/express/components/express-header-badge';
 import { de } from '@/lib/i18n/de';
 
 const NAV_ITEMS: NavItem[] = [
@@ -58,6 +60,10 @@ export default async function ClientLayout({
       ]
     : NAV_ITEMS;
 
+  const expressStatus = company
+    ? await getExpressStatus(company.clientCompanyId)
+    : null;
+
   return (
     <AppShell
       navItems={navItems}
@@ -67,6 +73,9 @@ export default async function ClientLayout({
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}
+      headerBadge={
+        expressStatus ? <ExpressHeaderBadge status={expressStatus} /> : null
+      }
     >
       {children}
     </AppShell>
