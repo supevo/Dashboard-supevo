@@ -37,8 +37,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
   }
   const orgId = primaryAgencyOrgId(user);
-  if (!orgId || !isOrgAdmin(user, orgId)) {
-    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+  if (!orgId) {
+    return NextResponse.json(
+      { error: 'Keine Agentur-Organisation gefunden (keine aktive Mitgliedschaft).' },
+      { status: 403 },
+    );
+  }
+  if (!isOrgAdmin(user, orgId)) {
+    const role = user.memberships.find((m) => m.organizationId === orgId)?.role ?? '—';
+    return NextResponse.json(
+      { error: `Keine Admin-Rechte in dieser Organisation (deine Rolle: ${role}).` },
+      { status: 403 },
+    );
   }
 
   const form = await request.formData();
@@ -68,7 +78,10 @@ export async function POST(request: NextRequest) {
     .upload(path, bytes, { contentType: file.type, upsert: true });
   if (uploadError) {
     logger.error('hub_banner.upload_failed', { error: uploadError.message });
-    return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
+    return NextResponse.json(
+      { error: `Speicher-Upload fehlgeschlagen: ${uploadError.message}` },
+      { status: 500 },
+    );
   }
 
   // Admin rights were already verified above (isOrgAdmin); write with the
@@ -87,7 +100,10 @@ export async function POST(request: NextRequest) {
     // Roll back the stored file so we don't leak orphans.
     await createSupabaseServiceClient().storage.from(FILES_BUCKET).remove([path]);
     logger.error('hub_banner.insert_failed', { error: insertError.message });
-    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+    return NextResponse.json(
+      { error: `Speichern in DB fehlgeschlagen: ${insertError.message}` },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ ok: true, id: bannerId });
