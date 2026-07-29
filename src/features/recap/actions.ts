@@ -83,11 +83,13 @@ export async function sendRecapAction(
     return errorResult('Für diesen Kunden ist keine E-Mail-Adresse hinterlegt.');
   }
 
+  // The draft already carries the greeting ("Hallo, anbei euer Wochenrückblick")
+  // and the sign-off ("Mit besten Grüßen / supevo Team"), so the wrapper adds no
+  // extra intro/footer greeting.
   const { html, text } = renderEmail({
-    heading: 'Ihr Wochenrückblick',
-    intro: `Guten Tag,`,
+    heading: '',
+    intro: '',
     bodyLines: body.split('\n').filter(Boolean),
-    footer: 'Mit freundlichen Grüßen\nIhr Supevo-Team',
   });
   const ok = await sendEmail({
     to: company.contact_email,
