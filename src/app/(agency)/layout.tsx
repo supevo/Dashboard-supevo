@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/app/leads', label: de.nav.leads },
   { href: '/app/reports', label: de.nav.reports },
   { href: '/app/colleagues', label: de.nav.colleagues },
+  { href: '/app/leaderboard', label: de.nav.leaderboard },
   { href: '/app/rewards', label: de.nav.rewards },
 ];
 
