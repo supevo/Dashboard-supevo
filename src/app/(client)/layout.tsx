@@ -14,6 +14,7 @@ import { de } from '@/lib/i18n/de';
 const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
   { href: '/portal/projects', label: de.nav.projects },
+  { href: '/portal/hub', label: 'Marken-Hub' },
   { href: '/portal/approvals', label: de.nav.approvals },
   { href: '/portal/reports', label: de.nav.reports },
   { href: '/portal/membership', label: de.nav.membership },

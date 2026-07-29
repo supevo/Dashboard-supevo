@@ -466,6 +466,43 @@ export interface Database {
         };
         Relationships: [];
       };
+      client_assets: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          category: string;
+          title: string;
+          url: string | null;
+          username: string | null;
+          notes: string | null;
+          storage_path: string | null;
+          file_name: string | null;
+          mime_type: string | null;
+          size_bytes: number | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          category: string;
+          title: string;
+          url?: string | null;
+          username?: string | null;
+          notes?: string | null;
+          storage_path?: string | null;
+          file_name?: string | null;
+          mime_type?: string | null;
+          size_bytes?: number | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_assets']['Insert']
+        >;
+        Relationships: [];
+      };
       client_contacts: {
         Row: {
           id: string;
