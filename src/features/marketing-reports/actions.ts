@@ -14,6 +14,8 @@ import {
 } from '@/lib/action-result';
 import { gatherClientWeek } from '@/features/recap/context';
 import { generateRecap } from '@/features/recap/generate';
+import { bumpCounter } from '@/features/gamification/actions';
+import { weekToPeriod } from './week';
 import type { ReportScreenshot } from './queries';
 
 /**
@@ -55,8 +57,7 @@ export async function generateReportDraftAction(
 const schema = z.object({
   id: z.string().uuid().optional().or(z.literal('')),
   clientCompanyId: z.string().uuid(),
-  periodLabel: z.string().trim().min(1).max(120),
-  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  week: z.string().regex(/^\d{4}-W\d{2}$/),
   ranking: z.string().trim().max(4000).optional().or(z.literal('')),
   sea: z.string().trim().max(4000).optional().or(z.literal('')),
   inquiries: z.string().trim().max(4000).optional().or(z.literal('')),
@@ -91,8 +92,7 @@ export async function upsertMarketingReportAction(
   const parsed = schema.safeParse({
     id: formData.get('id') ?? '',
     clientCompanyId: formData.get('clientCompanyId'),
-    periodLabel: formData.get('periodLabel'),
-    periodStart: formData.get('periodStart'),
+    week: formData.get('week'),
     ranking: formData.get('ranking') ?? '',
     sea: formData.get('sea') ?? '',
     inquiries: formData.get('inquiries') ?? '',
@@ -120,11 +120,14 @@ export async function upsertMarketingReportAction(
     return errorResult(de.errors.FORBIDDEN);
   }
 
+  const period = weekToPeriod(p.week);
+  if (!period) return errorResult('Bitte eine gültige Kalenderwoche wählen.');
+
   const row = {
     organization_id: orgId,
     client_company_id: p.clientCompanyId,
-    period_label: p.periodLabel,
-    period_start: p.periodStart,
+    period_label: period.periodLabel,
+    period_start: period.periodStart,
     ranking: p.ranking ? p.ranking : null,
     sea: p.sea ? p.sea : null,
     inquiries: p.inquiries ? p.inquiries : null,
@@ -142,6 +145,9 @@ export async function upsertMarketingReportAction(
     ? await service.from('marketing_reports').update(row).eq('id', p.id).eq('organization_id', orgId)
     : await service.from('marketing_reports').insert(row);
   if (error) return errorResult(`Speichern fehlgeschlagen: ${error.message}`);
+
+  // Collectible badge: count each NEW weekly report the author sends out.
+  if (!p.id) await bumpCounter('weekly_report');
 
   revalidatePath(`/app/clients/${p.clientCompanyId}`);
   revalidatePath('/portal/reports');

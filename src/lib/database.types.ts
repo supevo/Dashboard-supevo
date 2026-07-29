@@ -52,6 +52,7 @@ export type NotificationType =
   | 'kudos'
   | 'award'
   | 'pulse_reminder'
+  | 'weekly_report_due'
   | 'inquiry';
 export type ActivityAction =
   | 'create'

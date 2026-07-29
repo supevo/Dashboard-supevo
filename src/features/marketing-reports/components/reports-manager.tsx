@@ -9,6 +9,11 @@ import {
 } from '@/features/marketing-reports/actions';
 import type { MarketingReport } from '@/features/marketing-reports/queries';
 import { WEEKLY_REPORT_PROMPT } from '@/features/marketing-reports/report-prompt';
+import {
+  currentIsoWeek,
+  isoWeekOfDateString,
+  weekToPeriod,
+} from '@/features/marketing-reports/week';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Button } from '@/components/ui/button';
@@ -25,10 +30,6 @@ function screenshotsToText(report: MarketingReport | null): string {
     .join('\n');
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function ReportForm({
   clientCompanyId,
   editing,
@@ -41,6 +42,9 @@ function ReportForm({
   const [state, action] = useActionState(upsertMarketingReportAction, idleResult);
   const router = useRouter();
   const [summary, setSummary] = useState(editing?.summary ?? '');
+  const [week, setWeek] = useState(
+    editing ? isoWeekOfDateString(editing.periodStart) : currentIsoWeek(),
+  );
   const [genPending, startGen] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -102,27 +106,19 @@ function ReportForm({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="periodLabel">{de.marketingReport.periodLabel}</Label>
-          <Input
-            id="periodLabel"
-            name="periodLabel"
-            required
-            defaultValue={editing?.periodLabel ?? ''}
-            placeholder="KW 30 · 21.–27. Juli 2026"
-          />
-        </div>
-        <div>
-          <Label htmlFor="periodStart">{de.marketingReport.periodStart}</Label>
-          <Input
-            id="periodStart"
-            name="periodStart"
-            type="date"
-            required
-            defaultValue={editing?.periodStart ?? todayIso()}
-          />
-        </div>
+      <div className="sm:max-w-xs">
+        <Label htmlFor="week">Kalenderwoche</Label>
+        <Input
+          id="week"
+          name="week"
+          type="week"
+          required
+          value={week}
+          onChange={(e) => setWeek(e.target.value)}
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          {weekToPeriod(week)?.periodLabel ?? 'Bitte eine Woche wählen.'}
+        </p>
       </div>
 
       <div>

@@ -273,6 +273,7 @@ export const de = {
     award: 'Auszeichnung',
     pulse_reminder: 'Stimmungs-Erinnerung',
     inquiry: 'Website-Anfrage',
+    weekly_report_due: 'Wochenbericht fällig',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',
