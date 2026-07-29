@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { livePresence } from '@/features/presence/status';
 
 export interface ChatChannel {
   id: string;
@@ -83,7 +84,7 @@ export async function listDmConversations(
   const service = createSupabaseServiceClient();
   const { data: profiles } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url, status')
+    .select('id, full_name, avatar_url, status, last_seen_at')
     .in('id', otherIds);
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
 
@@ -97,7 +98,7 @@ export async function listDmConversations(
         otherUserId: otherId,
         otherName: p?.full_name ?? 'Unbekannt',
         otherHasAvatar: Boolean(p?.avatar_url),
-        otherStatus: p?.status ?? null,
+        otherStatus: livePresence(p?.status, p?.last_seen_at),
       };
     })
     .filter((d): d is DmConversation => d !== null);
@@ -125,14 +126,14 @@ export async function listTeamMembers(
 
   const { data: profiles } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url, status')
+    .select('id, full_name, avatar_url, status, last_seen_at')
     .in('id', ids);
   return (profiles ?? [])
     .map((p) => ({
       userId: p.id,
       name: p.full_name ?? 'Unbekannt',
       hasAvatar: Boolean(p.avatar_url),
-      status: p.status ?? null,
+      status: livePresence(p.status, p.last_seen_at),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

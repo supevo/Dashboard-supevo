@@ -48,9 +48,13 @@ export async function setPresenceAction(status: string): Promise<void> {
   try {
     const user = await requireUser();
     const supabase = await createSupabaseServerClient();
+    // Always refresh last_seen_at (so presence can expire to offline); only
+    // change the visible status when the user isn't on "Nicht stören".
+    const now = new Date().toISOString();
+    await supabase.from('profiles').update({ last_seen_at: now }).eq('id', user.id);
     await supabase
       .from('profiles')
-      .update({ status: parsed.data })
+      .update({ status: parsed.data, last_seen_at: now })
       .eq('id', user.id)
       .neq('status', 'dnd');
   } catch {

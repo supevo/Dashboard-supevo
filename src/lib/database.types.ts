@@ -108,6 +108,7 @@ export interface Database {
           avatar_url: string | null;
           locale: string;
           status: string;
+          last_seen_at: string | null;
           hub_banner: string | null;
           created_at: string;
           updated_at: string;
@@ -119,6 +120,7 @@ export interface Database {
           avatar_url?: string | null;
           locale?: string;
           status?: string;
+          last_seen_at?: string | null;
           hub_banner?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
