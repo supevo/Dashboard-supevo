@@ -19,6 +19,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
   const [name, setName] = useState('');
   const [level, setLevel] = useState(0);
   const [exclusive, setExclusive] = useState(false);
+  const [coinPrice, setCoinPrice] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -37,6 +38,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
       fd.set('name', name || de.hubBanners.defaultName);
       fd.set('level', String(level));
       fd.set('exclusive', String(exclusive));
+      fd.set('coinPrice', String(coinPrice));
       const res = await fetch('/api/hub-banners', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -45,6 +47,7 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
         setName('');
         setLevel(0);
         setExclusive(false);
+        setCoinPrice(0);
         setFile(null);
         router.refresh();
       }
@@ -77,7 +80,9 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{b.name}</div>
                 <div className="text-xs text-muted-foreground">
-                  {b.exclusive ? '🎁 nur über Lootbox' : `${de.hubBanners.fromLevel} ${b.unlockLevel}`}
+                  {b.exclusive
+                    ? '🎁 nur über Lootbox'
+                    : `${de.hubBanners.fromLevel} ${b.unlockLevel}${b.coinPrice > 0 ? ` · 🪙 ${b.coinPrice}` : ''}`}
                 </div>
               </div>
               <Button
@@ -131,6 +136,18 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
               onChange={(e) => setLevel(Math.max(0, Number(e.target.value) || 0))}
               disabled={exclusive}
               className="w-24"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Coin-Preis (0 = nicht kaufbar)</label>
+            <Input
+              type="number"
+              min={0}
+              max={100000}
+              value={coinPrice}
+              onChange={(e) => setCoinPrice(Math.max(0, Number(e.target.value) || 0))}
+              disabled={exclusive}
+              className="w-28"
             />
           </div>
         </div>

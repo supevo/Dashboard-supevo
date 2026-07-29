@@ -7,6 +7,7 @@ export interface HubBannerAdminItem {
   name: string;
   unlockLevel: number;
   exclusive: boolean;
+  coinPrice: number;
   imageUrl: string;
 }
 
@@ -19,7 +20,7 @@ export async function listHubBanners(
   const service = createSupabaseServiceClient();
   const { data } = await service
     .from('hub_banner_images')
-    .select('id, name, unlock_level, exclusive')
+    .select('id, name, unlock_level, exclusive, coin_price')
     .eq('organization_id', orgId)
     .order('unlock_level', { ascending: true });
 
@@ -28,6 +29,7 @@ export async function listHubBanners(
     name: b.name,
     unlockLevel: b.unlock_level,
     exclusive: Boolean(b.exclusive),
+    coinPrice: b.coin_price ?? 0,
     imageUrl: customBannerImageUrl(b.id),
   }));
 }

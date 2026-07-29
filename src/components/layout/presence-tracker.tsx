@@ -43,10 +43,11 @@ export function PresenceTracker() {
     const events = ['mousemove', 'keydown', 'pointerdown', 'scroll', 'focus'];
     events.forEach((e) => window.addEventListener(e, active, { passive: true }));
     document.addEventListener('visibilitychange', onVisibility);
-    // Keep "online" fresh during steady work (also re-asserts after a manual pick).
+    // Keep presence fresh while the tab is open (online or afk), so last_seen_at
+    // stays current and a closed tab correctly expires to offline.
     const beat = setInterval(() => {
-      if (document.visibilityState === 'visible' && state.current === 'online') {
-        void setPresenceAction('online');
+      if (document.visibilityState === 'visible') {
+        void setPresenceAction(state.current);
       }
     }, BEAT_MS);
 

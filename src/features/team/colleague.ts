@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { levelForPoints } from '@/features/kudos/badges';
 import { leagueForPoints, type LeagueStanding } from '@/features/gamification/leagues';
+import { livePresence } from '@/features/presence/status';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
 import {
   resolveActiveBanner,
@@ -89,7 +90,7 @@ export async function listColleagues(
   if (ids.length === 0) return [];
 
   const [profilesRes, kudosRes, xpRes] = await Promise.all([
-    service.from('profiles').select('id, full_name, avatar_url, status').in('id', ids),
+    service.from('profiles').select('id, full_name, avatar_url, status, last_seen_at').in('id', ids),
     service.from('kudos').select('to_user_id, points').in('to_user_id', ids),
     service.from('xp_events').select('user_id, points').in('user_id', ids),
   ]);
@@ -112,7 +113,7 @@ export async function listColleagues(
         userId: id,
         name: p?.full_name ?? '—',
         hasAvatar: Boolean(p?.avatar_url),
-        status: p?.status ?? null,
+        status: livePresence(p?.status, p?.last_seen_at),
         roleLabel: ROLE_LABELS[roleById.get(id) ?? 'employee'] ?? 'Mitarbeiter:in',
         level: levelForPoints(pts).level,
         leagueEmoji: league.current.emoji,
@@ -156,7 +157,7 @@ export async function getColleagueProfile(
     bannersRes,
     badges,
   ] = await Promise.all([
-    service.from('profiles').select('full_name, avatar_url, status, created_at, hub_banner').eq('id', targetUserId).maybeSingle(),
+    service.from('profiles').select('full_name, avatar_url, status, last_seen_at, created_at, hub_banner').eq('id', targetUserId).maybeSingle(),
     service.from('employee_skills').select('name, level').eq('user_id', targetUserId),
     service.from('work_preferences').select('name, level').eq('user_id', targetUserId),
     service.from('kudos').select('points').eq('to_user_id', targetUserId),
@@ -197,7 +198,7 @@ export async function getColleagueProfile(
     userId: targetUserId,
     name: profile?.full_name ?? '—',
     hasAvatar: Boolean(profile?.avatar_url),
-    status: profile?.status ?? null,
+    status: livePresence(profile?.status, profile?.last_seen_at),
     roleLabel: ROLE_LABELS[membership.role] ?? 'Mitarbeiter:in',
     joinedAt,
     joinedExplicit: membership.joined_company_at ?? null,

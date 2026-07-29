@@ -32,6 +32,8 @@ import { ReportsManager } from '@/features/marketing-reports/components/reports-
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
+import { listCompanyAssets } from '@/features/assets/queries';
+import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
@@ -55,6 +57,7 @@ export default async function ClientDetailPage({
     marketingReports,
     inquiryEndpoint,
     inquiries,
+    assets,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -62,6 +65,7 @@ export default async function ClientDetailPage({
     listMarketingReports(clientCompanyId),
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
+    listCompanyAssets(clientCompanyId),
   ]);
 
   // Billing / contacts are admin-only.
@@ -110,10 +114,29 @@ export default async function ClientDetailPage({
               industry={company.industry}
               brands={company.brands}
               interests={company.interests}
+              expressTicketsPerMonth={company.expressTicketsPerMonth}
             />
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🗂️ Asset-Hub</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Marken-Guidelines, finale Logos &amp; Zugänge – dauerhaft hinterlegt.
+            Logos &amp; Guidelines sieht auch der Kunde im Portal; Zugänge bleiben
+            beim Team.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <AssetHubManager
+            orgId={orgId}
+            clientCompanyId={clientCompanyId}
+            assets={assets}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

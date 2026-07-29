@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
+import { TeamRail } from '@/features/presence/components/team-rail';
 import { getMyGamification } from '@/features/gamification/queries';
 import { getCoinBalance } from '@/features/loot/queries';
 import {
@@ -91,6 +92,7 @@ export default async function AgencyLayout({
       status={gamification.status}
       coins={coins}
       searchEnabled
+      rightRail={<TeamRail />}
     >
       {children}
       <ChatDock />

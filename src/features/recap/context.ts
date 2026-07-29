@@ -61,14 +61,25 @@ export async function gatherClientWeek(
     (columns ?? []).map((c) => [c.id, c.column_key] as const),
   );
 
-  // Client-visible tasks only (mirrors what the client can see).
+  // Client-visible tasks only (mirrors what the client can see). Descriptions
+  // are included so the AI can draw on details (SEO/SEA notes etc. the agency
+  // captures as tasks) and write a fuller recap.
   const { data: tasks } = await service
     .from('tasks')
-    .select('title, column_id, updated_at, is_internal')
+    .select('title, description, column_id, updated_at, is_internal')
     .in('project_id', projectIds)
     .eq('is_internal', false)
     .is('deleted_at', null)
     .limit(1000);
+
+  const label = (t: { title: string; description: string | null }): string => {
+    const desc = (t.description ?? '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 280);
+    return desc ? `${t.title} – ${desc}` : t.title;
+  };
 
   const completed: string[] = [];
   const ongoing: string[] = [];
@@ -76,10 +87,10 @@ export async function gatherClientWeek(
     const key = keyByColumn.get(t.column_id);
     if (key === 'done') {
       if (t.updated_at >= weekFromIso && completed.length < 30) {
-        completed.push(t.title);
+        completed.push(label(t));
       }
     } else if (ongoing.length < 30) {
-      ongoing.push(t.title);
+      ongoing.push(label(t));
     }
   }
 

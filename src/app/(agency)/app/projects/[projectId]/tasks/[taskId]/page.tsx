@@ -144,6 +144,8 @@ export default async function TaskDetailPage({
                       file={f}
                       projectId={projectId}
                       taskId={taskId}
+                      area="app"
+                      currentUserId={user.id}
                     />
                   ))}
                 </ul>

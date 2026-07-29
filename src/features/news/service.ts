@@ -2,7 +2,7 @@ import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { completeText } from '@/lib/ai/complete';
 import { logger } from '@/lib/logger';
-import { fetchRssItems, googleNewsUrl, type NewsItem } from './rss';
+import { fetchRssItems, fetchOgImage, googleNewsUrl, type NewsItem } from './rss';
 
 const TTL_MS = 24 * 60 * 60 * 1000; // refresh at most once per day
 const MAX_ITEMS = 6;
@@ -89,6 +89,13 @@ export async function getClientNews(
   try {
     const fetched = await fetchRssItems(googleNewsUrl(topic), 25);
     items = await curate(fetched, topic);
+    // Best-effort: pull a real preview image (og:image) per headline. Runs only
+    // on refresh (≤ once/day), in parallel, and degrades to the colour cover.
+    items = await Promise.all(
+      items.map(async (it) =>
+        it.imageUrl ? it : { ...it, imageUrl: await fetchOgImage(it.url) },
+      ),
+    );
   } catch (e) {
     logger.warn('client_news.refresh_failed', { error: (e as Error).message });
   }

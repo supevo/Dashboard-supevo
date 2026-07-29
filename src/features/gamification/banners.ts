@@ -63,8 +63,10 @@ export interface CustomBanner {
   unlockLevel: number;
   /** Nur über Lootbox erhältlich (nicht per Level freischaltbar). */
   exclusive?: boolean;
-  /** Ob die betrachtete Person dieses exklusive Titelbild besitzt. */
+  /** Ob die betrachtete Person dieses Titelbild besitzt (gekauft/gewonnen). */
   owned?: boolean;
+  /** Coin-Preis, um es vorzeitig (vor dem Level) zu kaufen. 0 = nicht kaufbar. */
+  coinPrice?: number;
 }
 
 /** Banner-Schlüssel für ein hochgeladenes Bild (z. B. "img:<uuid>"). */
@@ -95,8 +97,10 @@ export interface ResolvedBanner {
   isImage: boolean;
   /** Nur über Lootbox erhältlich. */
   exclusive: boolean;
-  /** Ob die betrachtete Person es besitzt (nur relevant bei `exclusive`). */
+  /** Ob die betrachtete Person es besitzt (gekauft/gewonnen). */
   owned: boolean;
+  /** Coin-Preis für vorzeitigen Kauf (0 = nicht kaufbar). */
+  coinPrice: number;
 }
 
 /** Verlaufs- + Bild-Titelbilder zu einer Liste zusammenführen. */
@@ -109,6 +113,7 @@ export function allBanners(customBanners: CustomBanner[]): ResolvedBanner[] {
     isImage: false,
     exclusive: false,
     owned: true,
+    coinPrice: 0,
   }));
   const imgs: ResolvedBanner[] = customBanners.map((c) => ({
     key: customBannerKey(c.id),
@@ -118,6 +123,7 @@ export function allBanners(customBanners: CustomBanner[]): ResolvedBanner[] {
     isImage: true,
     exclusive: Boolean(c.exclusive),
     owned: Boolean(c.owned),
+    coinPrice: c.coinPrice ?? 0,
   }));
   return [...grads, ...imgs];
 }
@@ -127,7 +133,8 @@ export function allBanners(customBanners: CustomBanner[]): ResolvedBanner[] {
  * anderen ab dem Freischalt-Level.
  */
 export function isBannerAvailable(b: ResolvedBanner, level: number): boolean {
-  return b.exclusive ? b.owned : level >= b.unlockLevel;
+  if (b.owned) return true; // gekauft oder gewonnen → immer nutzbar
+  return b.exclusive ? false : level >= b.unlockLevel;
 }
 
 /**

@@ -72,3 +72,27 @@
     outline-offset: 1px;
   }
 }
+
+/* Express-Ticket cards: a violet glow pulse so the team instantly sees a card
+   has jumped the queue. Respects reduced-motion (falls back to a static ring). */
+@keyframes expressPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(139, 92, 246, 0);
+  }
+}
+
+.express-pulse {
+  outline: 2px solid rgb(139, 92, 246);
+  outline-offset: 1px;
+  animation: expressPulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .express-pulse {
+    animation: none;
+  }
+}

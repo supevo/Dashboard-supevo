@@ -27,6 +27,10 @@ interface AppShellProps {
   levelProgressPct?: number;
   status?: 'online' | 'afk' | 'dnd';
   coins?: number;
+  /** Optional permanent right sidebar (e.g. the team rail). */
+  rightRail?: React.ReactNode;
+  /** Optional badge rendered in the header (e.g. the Express-Ticket credit). */
+  headerBadge?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -44,6 +48,8 @@ export function AppShell({
   levelProgressPct,
   status,
   coins,
+  rightRail,
+  headerBadge,
   children,
 }: AppShellProps) {
   return (
@@ -74,6 +80,7 @@ export function AppShell({
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            {headerBadge}
             {searchEnabled && <RunningTimer />}
             {searchEnabled && <CommandPalette />}
             <NotificationBell area={area} />
@@ -102,6 +109,7 @@ export function AppShell({
         <PresenceTracker />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
+      {rightRail}
     </div>
   );
 }

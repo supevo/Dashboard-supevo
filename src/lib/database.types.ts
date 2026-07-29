@@ -52,6 +52,8 @@ export type NotificationType =
   | 'kudos'
   | 'award'
   | 'pulse_reminder'
+  | 'weekly_report_due'
+  | 'express_redeemed'
   | 'inquiry';
 export type ActivityAction =
   | 'create'
@@ -107,6 +109,7 @@ export interface Database {
           avatar_url: string | null;
           locale: string;
           status: string;
+          last_seen_at: string | null;
           hub_banner: string | null;
           created_at: string;
           updated_at: string;
@@ -118,6 +121,7 @@ export interface Database {
           avatar_url?: string | null;
           locale?: string;
           status?: string;
+          last_seen_at?: string | null;
           hub_banner?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
@@ -152,6 +156,7 @@ export interface Database {
           name: string;
           unlock_level: number;
           exclusive: boolean;
+          coin_price: number;
           storage_path: string;
           created_by: string | null;
           created_at: string;
@@ -162,6 +167,7 @@ export interface Database {
           name: string;
           unlock_level?: number;
           exclusive?: boolean;
+          coin_price?: number;
           storage_path: string;
           created_by?: string | null;
         };
@@ -431,6 +437,7 @@ export interface Database {
           industry: string | null;
           brands: string | null;
           interests: string | null;
+          express_tickets_per_month: number;
           billing_entity_id: string | null;
           is_active: boolean;
           created_by: string | null;
@@ -447,6 +454,7 @@ export interface Database {
           industry?: string | null;
           brands?: string | null;
           interests?: string | null;
+          express_tickets_per_month?: number;
           billing_entity_id?: string | null;
           is_active?: boolean;
           created_by?: string | null;
@@ -456,6 +464,43 @@ export interface Database {
         > & {
           deleted_at?: string | null;
         };
+        Relationships: [];
+      };
+      client_assets: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          category: string;
+          title: string;
+          url: string | null;
+          username: string | null;
+          notes: string | null;
+          storage_path: string | null;
+          file_name: string | null;
+          mime_type: string | null;
+          size_bytes: number | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          category: string;
+          title: string;
+          url?: string | null;
+          username?: string | null;
+          notes?: string | null;
+          storage_path?: string | null;
+          file_name?: string | null;
+          mime_type?: string | null;
+          size_bytes?: number | null;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_assets']['Insert']
+        >;
         Relationships: [];
       };
       client_contacts: {
@@ -1366,6 +1411,7 @@ export interface Database {
           position: number;
           is_internal: boolean;
           is_blocked: boolean;
+          is_express: boolean;
           is_archived: boolean;
           lock_version: number;
           column_entered_at: string;
@@ -1393,6 +1439,7 @@ export interface Database {
           position?: number;
           is_internal?: boolean;
           is_blocked?: boolean;
+          is_express?: boolean;
           is_archived?: boolean;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
@@ -1401,6 +1448,29 @@ export interface Database {
           completed_by?: string | null;
           completed_at?: string | null;
         };
+        Relationships: [];
+      };
+      express_ticket_redemptions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          task_id: string | null;
+          redeemed_by: string | null;
+          period: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          task_id?: string | null;
+          redeemed_by?: string | null;
+          period: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['express_ticket_redemptions']['Insert']
+        >;
         Relationships: [];
       };
       task_views: {
@@ -1516,6 +1586,35 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['files']['Insert']> & {
           deleted_at?: string | null;
         };
+        Relationships: [];
+      };
+      image_annotations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          file_id: string;
+          task_id: string | null;
+          created_by: string | null;
+          strokes: unknown;
+          comment: string | null;
+          status: string;
+          created_at: string;
+          resolved_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          file_id: string;
+          task_id?: string | null;
+          created_by?: string | null;
+          strokes?: unknown;
+          comment?: string | null;
+          status?: string;
+          resolved_at?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['image_annotations']['Insert']
+        >;
         Relationships: [];
       };
       checklists: {

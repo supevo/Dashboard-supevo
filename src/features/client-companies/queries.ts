@@ -9,6 +9,7 @@ export interface ClientCompany {
   industry: string | null;
   brands: string | null;
   interests: string | null;
+  expressTicketsPerMonth: number;
   billingEntityId: string | null;
   isActive: boolean;
   createdAt: string;
@@ -35,6 +36,7 @@ export async function listClientCompanies(
     industry: null,
     brands: null,
     interests: null,
+    expressTicketsPerMonth: 0,
     billingEntityId: null,
     isActive: c.is_active,
     createdAt: c.created_at,
@@ -48,7 +50,7 @@ export async function getClientCompany(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('client_companies')
-    .select('id, name, contact_email, notes, industry, brands, interests, billing_entity_id, is_active, created_at')
+    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, is_active, created_at')
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId)
     .is('deleted_at', null)
@@ -63,6 +65,7 @@ export async function getClientCompany(
     industry: data.industry,
     brands: data.brands,
     interests: data.interests,
+    expressTicketsPerMonth: data.express_tickets_per_month,
     billingEntityId: data.billing_entity_id,
     isActive: data.is_active,
     createdAt: data.created_at,

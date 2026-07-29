@@ -272,6 +272,19 @@ export function ChatDock() {
     }
   };
 
+  // The team rail dispatches this to open a DM with a colleague.
+  const startDmRef = useRef(startDm);
+  startDmRef.current = startDm;
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const userId = (e as CustomEvent<string>).detail;
+      setOpen(true);
+      if (userId) void startDmRef.current(userId);
+    };
+    window.addEventListener('supevo:open-dm', handler);
+    return () => window.removeEventListener('supevo:open-dm', handler);
+  }, []);
+
   const activeChannel = channels.find((c) => c.id === activeId);
   const activeDm = dms.find((d) => d.id === activeId);
   const activeTitle = activeChannel

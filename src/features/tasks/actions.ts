@@ -64,6 +64,77 @@ export async function updateTaskBriefingAction(
   return successResult('Briefing gespeichert.');
 }
 
+/**
+ * Client-side briefing edit: a client updates the briefing (description) of a
+ * task they can see. Authorization goes through the caller's RLS-scoped client
+ * (the task only resolves if it is non-internal and in their project); the
+ * write then uses the service client (clients can't update tasks under RLS).
+ * Stored as plain text and rendered escaped, so no HTML injection is possible.
+ */
+export async function updateClientTaskBriefingAction(input: {
+  projectId: string;
+  taskId: string;
+  description: string;
+}): Promise<ActionResult> {
+  const parsed = updateBriefingSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { projectId, taskId, description } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // RLS gate: a client only sees non-internal tasks in their own projects.
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, organization_id, project_id, is_internal')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task || task.project_id !== projectId || task.is_internal) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('tasks')
+    .update({ description: description ? description : null })
+    .eq('id', taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  // Notify agency staff on the project that the client changed the briefing.
+  const { data: members } = await service
+    .from('project_members')
+    .select('user_id')
+    .eq('project_id', projectId);
+  const recipients = (members ?? []).map((m) => m.user_id).filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: task.organization_id,
+        recipientId,
+        type: 'client_comment' as const,
+        title: 'Kunde hat das Briefing aktualisiert',
+        body: (description || '').slice(0, 140),
+        entityType: 'task',
+        entityId: taskId,
+      })),
+      user.id,
+    );
+  }
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: task.organization_id,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { field: 'briefing', byClient: true },
+  });
+
+  revalidatePath(`/portal/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  return successResult('Briefing gespeichert.');
+}
+
 const renameTaskSchema = z.object({
   projectId: z.string().uuid(),
   taskId: z.string().uuid(),

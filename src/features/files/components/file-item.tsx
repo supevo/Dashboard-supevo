@@ -3,8 +3,9 @@
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteFileAction } from '@/features/files/actions';
-import { isPreviewable } from '@/features/files/preview';
+import { isPreviewable, isImage } from '@/features/files/preview';
 import { FilePreviewModal } from '@/features/files/components/file-preview-modal';
+import { ImageProofing } from '@/features/proofing/components/image-proofing';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Button } from '@/components/ui/button';
@@ -21,13 +22,19 @@ export function FileItem({
   file,
   projectId,
   taskId,
+  area = 'app',
+  currentUserId = '',
 }: {
   file: FileView;
   projectId: string;
   taskId: string;
+  /** 'portal' = client (may annotate), 'app' = agency (sees change requests). */
+  area?: 'app' | 'portal';
+  currentUserId?: string;
 }) {
   const [state, formAction] = useActionState(deleteFileAction, idleResult);
   const [preview, setPreview] = useState(false);
+  const [proofing, setProofing] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +42,7 @@ export function FileItem({
   }, [state, router]);
 
   const canPreview = isPreviewable(file.mimeType);
+  const canProof = isImage(file.mimeType);
 
   return (
     <li className="flex items-center justify-between gap-2 py-2">
@@ -71,6 +79,17 @@ export function FileItem({
             {de.task.preview}
           </Button>
         )}
+        {canProof && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setProofing(true)}
+            title="Markierungen / Änderungswünsche"
+          >
+            🖊️ {area === 'portal' ? 'Markieren' : 'Markierungen'}
+          </Button>
+        )}
         <a href={`/api/files/${file.id}/download`}>
           <Button type="button" variant="ghost" size="sm">
             {de.task.download}
@@ -95,6 +114,42 @@ export function FileItem({
           mimeType={file.mimeType}
           onClose={() => setPreview(false)}
         />
+      )}
+
+      {proofing && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Markierungen"
+          onClick={() => setProofing(false)}
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-5xl rounded-lg border bg-card shadow-xl"
+          >
+            <div className="flex items-center justify-between border-b px-5 py-3">
+              <h2 className="min-w-0 truncate text-lg font-semibold">🖊️ {file.fileName}</h2>
+              <button
+                type="button"
+                onClick={() => setProofing(false)}
+                aria-label={de.common.close}
+                className="rounded-md px-2 text-muted-foreground hover:bg-muted"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5">
+              <ImageProofing
+                fileId={file.id}
+                imageUrl={`/api/files/${file.id}/download`}
+                canAnnotate={area === 'portal'}
+                canResolve={area !== 'portal'}
+                currentUserId={currentUserId}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </li>
   );

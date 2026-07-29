@@ -2,17 +2,21 @@ import 'server-only';
 import { completeText } from '@/lib/ai/complete';
 import type { RecapContext } from './context';
 
-const SYSTEM = `Du schreibst im Namen einer deutschen Marketing-Agentur einen freundlichen, professionellen Wochenrückblick an einen Kunden.
+const SYSTEM = `Du schreibst im Namen einer deutschen Marketing-Agentur den INHALT eines Wochenrückblicks an einen Kunden.
 
 Antworte AUSSCHLIESSLICH mit JSON (kein Markdown, keine Code-Fences):
-{ "text": "der fertige Rückblick als zusammenhängender Text" }
+{ "text": "der Rückblick-INHALT als zusammenhängender Text" }
 
 Regeln:
-- Deutsch, Sie-Form, wertschätzend und konkret. 4-10 Sätze.
-- Nenne, was diese Woche erledigt wurde, und was laufend/als Nächstes ansteht.
+- Deutsch, Sie-Form, wertschätzend und konkret. Ruhig ausführlich (mehrere Absätze), wenn genügend Informationen vorliegen.
+- Nutze die Details aus den Aufgaben (inkl. Beschreibungen) – z. B. SEO-/Ranking-, SEA-/Kampagnen- oder sonstige Angaben – und fasse sie verständlich und konkret zusammen.
+- Nenne, was diese Woche erledigt wurde, und was laufend/als Nächstes ansteht. Gliedere bei Bedarf in kurze Absätze.
 - Wenn nichts abgeschlossen wurde, aber laufende Aufgaben existieren: den Fortschritt/Status ehrlich und positiv darstellen (die Betreuung läuft weiter).
 - Nichts erfinden. Nur die gelieferten Punkte nutzen. Keine internen Details.
-- Beginne mit einer kurzen Anrede und ende mit einem freundlichen Ausblick.`;
+- WICHTIG: KEINE Anrede und KEINE Grußformel schreiben – nur den reinen Inhalt. Einstieg und Grußformel werden separat ergänzt.`;
+
+const OPENER = 'Hallo, anbei euer Wochenrückblick';
+const CLOSING = 'Mit besten Grüßen\nsupevo Team';
 
 function extractJson(raw: string): string {
   const t = raw.trim();
@@ -41,13 +45,19 @@ export async function generateRecap(ctx: RecapContext): Promise<string | null> {
     maxTokens: 900,
   });
   if (!result) return null;
+
+  let inner: string | null;
   try {
     const parsed = JSON.parse(extractJson(result.text)) as { text?: unknown };
-    return typeof parsed.text === 'string' && parsed.text.trim()
-      ? parsed.text.trim()
-      : null;
+    inner =
+      typeof parsed.text === 'string' && parsed.text.trim() ? parsed.text.trim() : null;
   } catch {
     // If the model returned plain text despite instructions, use it as-is.
-    return result.text.trim() || null;
+    inner = result.text.trim() || null;
   }
+  if (!inner) return null;
+
+  // Wrap with the fixed opener + signature so the client always gets the same
+  // greeting/close, regardless of what the model wrote.
+  return `${OPENER}\n\n${inner}\n\n${CLOSING}`;
 }

@@ -49,6 +49,57 @@ function tagAttr(block: string, name: string, attr: string): string | null {
   return m?.[1] ?? null;
 }
 
+/** Reads a `<meta property|name="…" content="…">` value from HTML head. */
+function metaContent(html: string, prop: string): string | null {
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tag = html.match(
+    new RegExp(`<meta[^>]+(?:property|name)=["']${escaped}["'][^>]*>`, 'i'),
+  )?.[0];
+  if (!tag) return null;
+  return tag.match(/content=["']([^"']+)["']/i)?.[1] ?? null;
+}
+
+/**
+ * Best-effort preview image for an article: fetches the page and reads its Open
+ * Graph / Twitter image. Follows redirects (Google News links point at a
+ * redirect that lands on the real article). Returns an https URL or null.
+ * Times out fast and swallows all errors so it never breaks a page render.
+ */
+export async function fetchOgImage(url: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (compatible; SupevoNews/1.0)',
+        accept: 'text/html',
+      },
+      redirect: 'follow',
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    // Only the <head> is needed – cap the read so huge pages stay cheap.
+    const html = (await res.text()).slice(0, 250_000);
+    const img =
+      metaContent(html, 'og:image') ||
+      metaContent(html, 'og:image:url') ||
+      metaContent(html, 'twitter:image') ||
+      metaContent(html, 'twitter:image:src');
+    if (!img) return null;
+    try {
+      const abs = new URL(img, res.url || url).toString();
+      return /^https:\/\//i.test(abs) ? abs : null;
+    } catch {
+      return null;
+    }
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Best-effort preview image for a feed item: media:content/thumbnail, an
  * image enclosure, or the first <img> in the description. Google News rarely

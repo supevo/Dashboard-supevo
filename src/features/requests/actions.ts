@@ -205,18 +205,21 @@ export async function finishBriefingAction(input: {
 
   let suggestion = await generateTaskFromClarification(request.body, answers);
   if (!suggestion) {
+    // AI off/failed → build a plain but clearly laid-out task from the briefing.
     const firstLine =
       request.body.split('\n').find((l) => l.trim())?.trim().slice(0, 120) ||
       'Kunden-Briefing';
     const answered = answers
       .filter((a) => a.answer.trim())
-      .map((a) => `• ${a.question} ${a.answer}`)
+      .map((a) => `- ${a.question} ${a.answer}`)
       .join('\n');
-    suggestion = {
-      title: firstLine,
-      description: [request.body, answered].filter(Boolean).join('\n\n'),
-      priority: 'medium',
-    };
+    const description = [
+      `Ziel:\n${request.body.trim()}`,
+      answered ? `Weitere Angaben:\n${answered}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    suggestion = { title: firstLine, description, priority: 'medium' };
   }
 
   const service = createSupabaseServiceClient();

@@ -58,6 +58,7 @@ export type BadgeMetric =
   | 'aiFeedback'
   | 'breaks'
   | 'notifications'
+  | 'weeklyReports'
   | 'tenureDays'
   | 'badgesEarned';
 
@@ -107,6 +108,10 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'coach', name: 'Ich liebe dich Coach', emoji: '💬', metric: 'aiFeedback', threshold: 50, reason: '50 Mal KI-Feedback eingeholt' },
   { key: 'arbeitslos', name: 'Arbeitslos', emoji: '☕', metric: 'breaks', threshold: 100, reason: '100 Mal Pause gemacht' },
   { key: 'gloeckner', name: 'Glöckner von Notre Dame', emoji: '🔔', metric: 'notifications', threshold: 1, reason: 'Benachrichtigungen aktiviert' },
+  // Wochenberichte versendet
+  { key: 'berichterstatter', name: 'Berichterstatter', emoji: '📰', metric: 'weeklyReports', threshold: 10, reason: '10 Wochenberichte versendet' },
+  { key: 'chronist', name: 'Chronist', emoji: '🗞️', metric: 'weeklyReports', threshold: 20, reason: '20 Wochenberichte versendet' },
+  { key: 'redakteur', name: 'Redakteur', emoji: '✒️', metric: 'weeklyReports', threshold: 30, reason: '30 Wochenberichte versendet' },
   // Rhythmus (Uhrzeit/Tag des Abschlusses)
   { key: 'fruehaufsteher', name: 'Frühaufsteher', emoji: '🌅', metric: 'earlyBird', threshold: 1, reason: 'Aufgabe vor 7 Uhr erledigt' },
   { key: 'nachteule', name: 'Nachteule', emoji: '🦉', metric: 'nightOwl', threshold: 1, reason: 'Aufgabe nach 22 Uhr erledigt' },
@@ -266,6 +271,7 @@ export async function getBadgeWall(
     aiFeedback: counters.get('ai_feedback') ?? 0,
     breaks: counters.get('break') ?? 0,
     notifications: counters.get('notifications') ?? 0,
+    weeklyReports: counters.get('weekly_report') ?? 0,
     tenureDays: (() => {
       const joinIso =
         membershipRes.data?.joined_company_at ??
