@@ -15,6 +15,7 @@ import { FileItem } from '@/features/files/components/file-item';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
 import { getMyClientRating, isTaskDone } from '@/features/client-ratings/queries';
 import { ClientRatingPanel } from '@/features/client-ratings/components/client-rating-panel';
+import { ClientBriefingEditor } from '@/features/tasks/components/client-briefing-editor';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalTaskPage({
@@ -60,19 +61,18 @@ export default async function PortalTaskPage({
         )}
       </div>
 
-      {task.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.task.description}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: task.description }}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.task.description}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ClientBriefingEditor
+            projectId={projectId}
+            taskId={taskId}
+            description={task.description}
+          />
+        </CardContent>
+      </Card>
 
       {pending.length > 0 && (
         <Card>
