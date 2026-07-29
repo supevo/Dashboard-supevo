@@ -69,17 +69,18 @@ export default async function ClientDetailPage({
     listCompanyHub(clientCompanyId),
   ]);
 
-  // Billing / contacts are admin-only.
-  const [contacts, membership, billingEntity, billingEntities, invoices] =
-    isAdmin
-      ? await Promise.all([
-          listClientContacts(orgId, clientCompanyId),
-          getClientMembership(clientCompanyId),
-          getBillingEntityForClient(orgId, clientCompanyId),
-          listBillingEntities(orgId),
-          listClientInvoices(clientCompanyId),
-        ])
-      : [[], null, null, [], []];
+  // Contacts are visible/manageable by all agency staff (they add clients).
+  const contacts = await listClientContacts(orgId, clientCompanyId);
+
+  // Billing is admin-only.
+  const [membership, billingEntity, billingEntities, invoices] = isAdmin
+    ? await Promise.all([
+        getClientMembership(clientCompanyId),
+        getBillingEntityForClient(orgId, clientCompanyId),
+        listBillingEntities(orgId),
+        listClientInvoices(clientCompanyId),
+      ])
+    : [null, null, [], []];
 
   return (
     <div className="space-y-6">
@@ -247,41 +248,43 @@ export default async function ClientDetailPage({
               />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.clients.inviteContact}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.clients.contacts}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contacts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {de.clients.noContacts}
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {contacts.map((c) => (
-                    <ContactRow
-                      key={c.id}
-                      orgId={orgId}
-                      clientCompanyId={clientCompanyId}
-                      contact={c}
-                    />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
+
+      {/* Kontakte: für alle Agentur-Mitarbeiter (Einladen + Liste). */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.clients.inviteContact}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.clients.contacts}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {contacts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {de.clients.noContacts}
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {contacts.map((c) => (
+                <ContactRow
+                  key={c.id}
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  contact={c}
+                  canManage={isAdmin}
+                />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

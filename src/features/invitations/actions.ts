@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -70,14 +72,38 @@ export async function createInvitationAction(
   const { orgId, email, role, clientCompanyId } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'invitation.manage', orgId });
+
+  // Inviting a CLIENT contact scoped to a company may be done by any agency
+  // staff member (they add clients). Inviting agency members stays admin-only.
+  const isClientContactInvite =
+    (role === 'client' || role === 'guest') && Boolean(clientCompanyId);
+  if (isClientContactInvite && clientCompanyId) {
+    if (!isAgencyStaffInOrg(user, orgId)) {
+      return errorResult(de.errors.FORBIDDEN);
+    }
+    // The company must belong to this org (RLS-scoped read).
+    const check = await createSupabaseServerClient();
+    const { data: company } = await check
+      .from('client_companies')
+      .select('id')
+      .eq('id', clientCompanyId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!company) return errorResult(de.errors.FORBIDDEN);
+  } else {
+    authorize(user, { type: 'invitation.manage', orgId });
+  }
 
   const rawToken = generateInviteToken();
   const expiresAt = new Date(
     Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
 
-  const supabase = await createSupabaseServerClient();
+  // Admin invites go through RLS; client-contact invites by non-admin staff use
+  // the service client (the invitations INSERT policy is admin-only).
+  const supabase = isClientContactInvite
+    ? createSupabaseServiceClient()
+    : await createSupabaseServerClient();
   const { data: invite, error } = await supabase
     .from('invitations')
     .insert({
