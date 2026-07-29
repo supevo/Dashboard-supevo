@@ -198,6 +198,22 @@ export interface Database {
         };
         Relationships: [];
       };
+      client_news: {
+        Row: {
+          client_company_id: string;
+          organization_id: string;
+          items: unknown;
+          fetched_at: string;
+        };
+        Insert: {
+          client_company_id: string;
+          organization_id: string;
+          items?: unknown;
+          fetched_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_news']['Insert']>;
+        Relationships: [];
+      };
       client_companies: {
         Row: {
           id: string;

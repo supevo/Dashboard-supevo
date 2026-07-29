@@ -4,6 +4,8 @@ import { requireClientPage } from '@/lib/authz/page-guards';
 import { getClientDashboard } from '@/features/dashboard/queries';
 import { getMyClientCompany, getMySatisfaction } from '@/features/satisfaction/queries';
 import { SatisfactionWidget } from '@/features/satisfaction/components/satisfaction-widget';
+import { getClientNews } from '@/features/news/service';
+import { NewsTicker } from '@/features/news/components/news-ticker';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -22,6 +24,9 @@ export default async function ClientDashboardPage() {
   const mySatisfaction = company
     ? await getMySatisfaction(company.clientCompanyId)
     : null;
+  const news = company
+    ? await getClientNews(company.clientCompanyId, company.organizationId)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -37,6 +42,10 @@ export default async function ClientDashboardPage() {
         <StatTile label={de.dashboard.inProgress} value={d.inProgressCount} />
         <StatTile label={de.dashboard.toApprove} value={d.toApproveCount} />
       </div>
+
+      {news && news.items.length > 0 ? (
+        <NewsTicker items={news.items} topic={news.topic} />
+      ) : null}
 
       {company ? <SatisfactionWidget initial={mySatisfaction} /> : null}
 

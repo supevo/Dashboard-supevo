@@ -946,6 +946,11 @@ export const de = {
     empty: 'Noch keine Teammitglieder.',
     you: 'Du',
   },
+  news: {
+    title: 'Aktuelles aus Ihrer Branche',
+    topic: 'Thema',
+    footer: 'Von der KI täglich für Sie zusammengestellt. Links führen zu den Originalquellen.',
+  },
   marketingReport: {
     title: 'Berichte',
     agencyTitle: 'Wochenberichte (SEO / SEA / Anfragen)',
