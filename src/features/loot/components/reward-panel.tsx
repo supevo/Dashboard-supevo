@@ -113,7 +113,7 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
             <div
               key={b.tier}
               className={cn(
-                'flex flex-col items-center gap-2 rounded-lg border-2 bg-card p-4 text-center',
+                'flex flex-col items-center gap-3 rounded-xl border-2 bg-card p-6 text-center',
                 meta.ring,
               )}
             >
@@ -122,14 +122,14 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
                 <img
                   src={b.artUrl}
                   alt={meta.label}
-                  className="h-24 w-24 rounded-lg object-contain"
+                  className="h-48 w-48 rounded-lg object-contain"
                 />
               ) : (
-                <span className="text-4xl" aria-hidden>
+                <span className="text-8xl" aria-hidden>
                   {meta.emoji}
                 </span>
               )}
-              <div className="font-semibold">{meta.label}</div>
+              <div className="text-lg font-semibold">{meta.label}</div>
               {b.free > 0 && (
                 <div className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   🎁 {b.free} Gratis-Box{b.free > 1 ? 'en' : ''}
@@ -207,7 +207,7 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
 
       {/* Opening animation (box video) – plays before the reveal */}
       {openingVideo && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/90 p-4">
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-white p-4">
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
           <video
             src={openingVideo}
@@ -216,15 +216,15 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
             playsInline
             onEnded={() => setVideoDone(true)}
             onError={() => setVideoDone(true)}
-            className="max-h-[70vh] w-auto max-w-full rounded-lg"
+            className="max-h-[70vh] w-auto max-w-full"
           />
           {videoDone && !pendingReveal ? (
-            <p className="text-sm text-white/70">Box wird geöffnet …</p>
+            <p className="text-sm text-neutral-500">Box wird geöffnet …</p>
           ) : (
             <button
               type="button"
               onClick={() => setVideoDone(true)}
-              className="rounded-full border border-white/30 px-4 py-1.5 text-sm text-white/80 hover:bg-white/10"
+              className="rounded-full border border-neutral-300 px-4 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100"
             >
               Überspringen
             </button>
