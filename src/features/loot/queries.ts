@@ -187,6 +187,49 @@ export async function getCoinBalance(userId: string, orgId: string): Promise<num
   return Math.max(0, earned - spent);
 }
 
+/** A physical reward a staff member has redeemed – for the admin overview. */
+export interface Redemption {
+  id: string;
+  userName: string;
+  itemName: string;
+  boxTier: string | null;
+  imageUrl: string | null;
+  status: 'requested' | 'fulfilled';
+  redeemedAt: string | null;
+}
+
+/**
+ * All physical redemptions of the org (requested + fulfilled), newest first,
+ * with the redeeming staff member's name. Powers the admin "who redeemed what"
+ * list. Badges are auto-granted and therefore excluded.
+ */
+export async function listRedemptions(orgId: string): Promise<Redemption[]> {
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('loot_inventory')
+    .select('id, user_id, name, box_tier, image_path, status, redeemed_at')
+    .eq('organization_id', orgId)
+    .eq('type', 'physical')
+    .in('status', ['requested', 'fulfilled'])
+    .order('redeemed_at', { ascending: false });
+  const rows = data ?? [];
+  const ids = [...new Set(rows.map((r) => r.user_id))];
+  const nameById = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data: profs } = await service.from('profiles').select('id, full_name').in('id', ids);
+    for (const p of profs ?? []) nameById.set(p.id, p.full_name ?? '—');
+  }
+  return rows.map((r) => ({
+    id: r.id,
+    userName: nameById.get(r.user_id) ?? '—',
+    itemName: r.name,
+    boxTier: r.box_tier,
+    imageUrl: r.image_path ? inventoryImageUrl(r.id) : null,
+    status: r.status as 'requested' | 'fulfilled',
+    redeemedAt: r.redeemed_at,
+  }));
+}
+
 /** All loot items of the org for the admin editor. */
 export async function listLootItems(orgId: string): Promise<LootItem[]> {
   const { data } = await createSupabaseServiceClient()

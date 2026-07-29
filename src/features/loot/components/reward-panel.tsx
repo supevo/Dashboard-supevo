@@ -218,16 +218,8 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
             onError={() => setVideoDone(true)}
             className="max-h-[70vh] w-auto max-w-full"
           />
-          {videoDone && !pendingReveal ? (
+          {videoDone && !pendingReveal && (
             <p className="text-sm text-neutral-500">Box wird geöffnet …</p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setVideoDone(true)}
-              className="rounded-full border border-neutral-300 px-4 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100"
-            >
-              Überspringen
-            </button>
           )}
         </div>
       )}

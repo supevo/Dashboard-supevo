@@ -1,10 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
-import { getShopData, listLootItems, getLootConfig } from '@/features/loot/queries';
+import { getShopData, listLootItems, getLootConfig, listRedemptions } from '@/features/loot/queries';
 import { listColleagues } from '@/features/team/colleague';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LootAdmin } from '@/features/loot/components/loot-admin';
+import { RedemptionsAdmin } from '@/features/loot/components/redemptions-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,14 @@ export default async function RewardsPage() {
   const admin = isOrgAdmin(user, orgId);
   const shop = await getShopData(user.id, orgId);
 
-  const [items, config, roster] = admin
-    ? await Promise.all([listLootItems(orgId), getLootConfig(orgId), listColleagues(orgId)])
-    : [[], shop.config, []];
+  const [items, config, roster, redemptions] = admin
+    ? await Promise.all([
+        listLootItems(orgId),
+        getLootConfig(orgId),
+        listColleagues(orgId),
+        listRedemptions(orgId),
+      ])
+    : [[], shop.config, [], []];
   const colleagues = roster.map((c) => ({ userId: c.userId, name: c.name }));
 
   return (
@@ -28,6 +34,17 @@ export default async function RewardsPage() {
       </div>
 
       <RewardPanel shop={shop} />
+
+      {admin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>📥 Einlösungen (wer hat was eingelöst)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RedemptionsAdmin redemptions={redemptions} />
+          </CardContent>
+        </Card>
+      )}
 
       {admin && (
         <Card>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { BrowserNotifications } from '@/components/layout/browser-notifications';
+import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { PresenceTracker } from '@/components/layout/presence-tracker';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { MobileNav } from '@/components/layout/mobile-nav';
@@ -17,6 +17,8 @@ interface AppShellProps {
   navItems: NavItem[];
   menuItems: UserMenuItem[];
   areaLabel: string;
+  /** Which app area this shell renders – controls notification deep links. */
+  area?: 'app' | 'portal';
   userId: string;
   userName: string;
   hasAvatar: boolean;
@@ -33,6 +35,7 @@ export function AppShell({
   navItems,
   menuItems,
   areaLabel,
+  area = 'app',
   userId,
   userName,
   hasAvatar,
@@ -73,7 +76,7 @@ export function AppShell({
           <div className="flex items-center gap-2 sm:gap-3">
             {searchEnabled && <RunningTimer />}
             {searchEnabled && <CommandPalette />}
-            <BrowserNotifications />
+            <NotificationBell area={area} />
             <ThemeToggle />
             {typeof coins === 'number' && (
               <Link
