@@ -20,7 +20,12 @@ function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get('origin');
   if (!origin) return true;
   try {
-    return new URL(origin).host === new URL(env.NEXT_PUBLIC_APP_URL).host;
+    const originHost = new URL(origin).host;
+    // True same-origin: the Origin matches the host the request came in on –
+    // works on any domain the app is served from (app.supevo.de, *.vercel.app).
+    const requestHost = request.headers.get('host') ?? '';
+    if (originHost && originHost === requestHost) return true;
+    return originHost === new URL(env.NEXT_PUBLIC_APP_URL).host;
   } catch {
     return false;
   }
