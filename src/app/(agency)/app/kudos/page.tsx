@@ -116,6 +116,7 @@ export default async function KudosPage() {
             level={hub.level}
             selected={hub.bannerKey}
             customBanners={hub.customBanners}
+            coins={shop.balance}
           />
         </div>
 

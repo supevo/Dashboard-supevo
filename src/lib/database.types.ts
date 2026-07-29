@@ -155,6 +155,7 @@ export interface Database {
           name: string;
           unlock_level: number;
           exclusive: boolean;
+          coin_price: number;
           storage_path: string;
           created_by: string | null;
           created_at: string;
@@ -165,6 +166,7 @@ export interface Database {
           name: string;
           unlock_level?: number;
           exclusive?: boolean;
+          coin_price?: number;
           storage_path: string;
           created_by?: string | null;
         };

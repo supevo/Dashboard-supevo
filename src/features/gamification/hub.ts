@@ -122,7 +122,7 @@ export async function getLevelHub(
     // the table's RLS select policy is missing.
     createSupabaseServiceClient()
       .from('hub_banner_images')
-      .select('id, name, unlock_level, exclusive')
+      .select('id, name, unlock_level, exclusive, coin_price')
       .eq('organization_id', orgId)
       .order('unlock_level', { ascending: true }),
   ]);
@@ -144,6 +144,7 @@ export async function getLevelHub(
     unlockLevel: b.unlock_level,
     exclusive: Boolean(b.exclusive),
     owned: ownedBannerIds.has(b.id),
+    coinPrice: b.coin_price ?? 0,
   }));
 
   const profile = profileRes.data;

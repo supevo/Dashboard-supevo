@@ -10,7 +10,7 @@ import {
 } from '@/lib/files/validation';
 import { de } from '@/lib/i18n/de';
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   EMPTY: 'Die Datei ist leer.',
@@ -43,16 +43,26 @@ export function FileUploader({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [isInternal, setIsInternal] = useState(allowInternal);
 
-  async function upload(file: File) {
+  async function uploadMany(files: File[]) {
+    for (const file of files) {
+      // Stop the batch on the first failure (upload sets the error).
+      // eslint-disable-next-line no-await-in-loop
+      const ok = await upload(file);
+      if (!ok) break;
+    }
+  }
+
+  async function upload(file: File): Promise<boolean> {
     setError(null);
 
     // Fail fast in the browser before any network round-trip.
     const clientError = validateUpload({ size: file.size, type: file.type });
     if (clientError) {
       setError(CLIENT_ERROR_MESSAGES[clientError] ?? de.task.uploadError);
-      return;
+      return false;
     }
 
     setPending(true);
@@ -77,7 +87,7 @@ export function FileUploader({
       };
       if (!createRes.ok || !createJson.path || !createJson.token) {
         setError(createJson.error ?? de.task.uploadError);
-        return;
+        return false;
       }
 
       // Step 2: upload the bytes DIRECTLY to Supabase Storage (no Vercel limit).
@@ -89,7 +99,7 @@ export function FileUploader({
         });
       if (uploadError) {
         setError(de.task.uploadError);
-        return;
+        return false;
       }
 
       // Step 3: record the metadata row.
@@ -114,27 +124,21 @@ export function FileUploader({
       };
       if (!finalizeRes.ok || !finalizeJson.ok) {
         setError(finalizeJson.error ?? de.task.uploadError);
-        return;
+        return false;
       }
 
       router.refresh();
+      return true;
     } catch {
       setError(de.task.uploadError);
+      return false;
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <div
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        const file = e.dataTransfer.files?.[0];
-        if (file) void upload(file);
-      }}
-      className="space-y-2 rounded-md border border-dashed p-4"
-    >
+    <div className="space-y-2">
       {error && <Alert variant="destructive">{error}</Alert>}
       {allowInternal && (
         <label className="flex items-center gap-2 text-sm">
@@ -146,23 +150,56 @@ export function FileUploader({
           {de.task.uploadInternal}
         </label>
       )}
-      <input
-        type="file"
-        disabled={pending}
-        accept={DEFAULT_ALLOWED_MIME.join(',')}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void upload(file);
+
+      <label
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragActive(true);
         }}
-        className="block text-sm"
-      />
-      <Button type="button" variant="outline" size="sm" disabled={pending}>
-        {pending ? de.common.loading : de.task.upload}
-      </Button>
-      <p className="text-xs text-muted-foreground">
-        Auch per Drag &amp; Drop. Max.{' '}
-        {Math.round(DEFAULT_MAX_SIZE_BYTES / (1024 * 1024))} MB.
-      </p>
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+          const files = Array.from(e.dataTransfer.files ?? []);
+          if (files.length) void uploadMany(files);
+        }}
+        className={cn(
+          'flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition',
+          dragActive
+            ? 'border-primary bg-primary/10'
+            : 'border-input hover:border-primary/50 hover:bg-muted/50',
+          pending && 'pointer-events-none opacity-60',
+        )}
+      >
+        <span className="text-2xl" aria-hidden>
+          {pending ? '⏳' : '📎'}
+        </span>
+        <span className="text-sm font-medium">
+          {pending ? de.common.loading : 'Dateien hierher ziehen oder klicken'}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Mehrere möglich · max. {Math.round(DEFAULT_MAX_SIZE_BYTES / (1024 * 1024))} MB je Datei
+        </span>
+        <input
+          type="file"
+          multiple
+          disabled={pending}
+          accept={DEFAULT_ALLOWED_MIME.join(',')}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            if (files.length) void uploadMany(files);
+            e.target.value = '';
+          }}
+          className="hidden"
+        />
+      </label>
     </div>
   );
 }

@@ -64,6 +64,10 @@ export async function POST(request: NextRequest) {
   const level = exclusive
     ? 0
     : Math.max(0, Math.min(999, Number(form.get('level') ?? 0) || 0));
+  // Optionaler Coin-Preis für vorzeitigen Kauf (nur für nicht-exklusive).
+  const coinPrice = exclusive
+    ? 0
+    : Math.max(0, Math.min(100000, Number(form.get('coinPrice') ?? 0) || 0));
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
@@ -103,6 +107,7 @@ export async function POST(request: NextRequest) {
       name,
       unlock_level: level,
       exclusive,
+      coin_price: coinPrice,
       storage_path: path,
       created_by: user.id,
     });

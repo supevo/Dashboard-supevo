@@ -15,6 +15,7 @@ import {
   parseCustomBannerKey,
   customBannerKey,
 } from '@/features/gamification/banners';
+import { getCoinBalance } from '@/features/loot/queries';
 
 /**
  * Increments a UI-action counter for the current user (for collectible badges).
@@ -100,16 +101,18 @@ export async function setBannerAction(key: string): Promise<void> {
       .maybeSingle();
     if (!img) return;
     storeKey = customBannerKey(customId!);
-    if (img.exclusive) {
-      // Exklusive Titelbilder gibt es nur über Lootbox: Besitz prüfen statt Level.
-      const { data: owned } = await supabase
-        .from('achievements')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('key', `banner_${customId!}`)
-        .maybeSingle();
-      if (!owned) return;
+    // Besitz (per Lootbox gewonnen ODER mit Coins gekauft) schaltet immer frei.
+    const { data: owned } = await supabase
+      .from('achievements')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('key', `banner_${customId!}`)
+      .maybeSingle();
+    if (owned) {
       unlockLevel = 0;
+    } else if (img.exclusive) {
+      // Exklusive Titelbilder gibt es nur über Lootbox – ohne Besitz gesperrt.
+      return;
     } else {
       unlockLevel = img.unlock_level;
     }
@@ -118,6 +121,68 @@ export async function setBannerAction(key: string): Promise<void> {
 
   await supabase.from('profiles').update({ hub_banner: storeKey }).eq('id', user.id);
   revalidatePath('/app/kudos');
+}
+
+/**
+ * Buys a level-locked title banner early with coins. Non-exclusive banners with
+ * a coin price only. Spends the coins (loot_wallets) and grants the unlock as an
+ * achievement 'banner_<id>' – the same ownership the picker/hub already honour.
+ */
+export async function buyBannerAction(
+  bannerId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!z.string().uuid().safeParse(bannerId).success) {
+    return { ok: false, error: 'Ungültig.' };
+  }
+  const user = await requireUser();
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return { ok: false, error: 'Keine Organisation.' };
+
+  const service = createSupabaseServiceClient();
+  const { data: banner } = await service
+    .from('hub_banner_images')
+    .select('id, exclusive, coin_price, organization_id')
+    .eq('id', bannerId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!banner) return { ok: false, error: 'Titelbild nicht gefunden.' };
+  if (banner.exclusive) return { ok: false, error: 'Nur über Lootbox erhältlich.' };
+  const price = banner.coin_price ?? 0;
+  if (price <= 0) return { ok: false, error: 'Dieses Titelbild ist nicht käuflich.' };
+
+  const key = `banner_${bannerId}`;
+  const { data: owned } = await service
+    .from('achievements')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('key', key)
+    .maybeSingle();
+  if (owned) return { ok: false, error: 'Bereits freigeschaltet.' };
+
+  const balance = await getCoinBalance(user.id, orgId);
+  if (balance < price) return { ok: false, error: 'Nicht genug Coins.' };
+
+  // Spend the coins, then grant the unlock.
+  const { data: wallet } = await service
+    .from('loot_wallets')
+    .select('coins_spent')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  await service.from('loot_wallets').upsert({
+    user_id: user.id,
+    organization_id: orgId,
+    coins_spent: (wallet?.coins_spent ?? 0) + price,
+    updated_at: new Date().toISOString(),
+  });
+  await service
+    .from('achievements')
+    .upsert(
+      { user_id: user.id, organization_id: orgId, key },
+      { onConflict: 'user_id,key', ignoreDuplicates: true },
+    );
+
+  revalidatePath('/app/kudos');
+  return { ok: true };
 }
 
 /**
