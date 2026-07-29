@@ -4,8 +4,14 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 
 export type AssetCategory = 'guideline' | 'logo' | 'access';
 
+export interface Brand {
+  id: string;
+  name: string;
+}
+
 export interface AssetView {
   id: string;
+  brandId: string | null;
   category: AssetCategory;
   title: string;
   url: string | null;
@@ -19,8 +25,9 @@ export interface AssetView {
   createdAt: string;
 }
 
-function toView(row: {
+interface AssetRow {
   id: string;
+  brand_id: string | null;
   category: string;
   title: string;
   url: string | null;
@@ -31,9 +38,12 @@ function toView(row: {
   mime_type: string | null;
   size_bytes: number | null;
   created_at: string;
-}): AssetView {
+}
+
+function toView(row: AssetRow): AssetView {
   return {
     id: row.id,
+    brandId: row.brand_id,
     category: row.category as AssetCategory,
     title: row.title,
     url: row.url,
@@ -48,34 +58,50 @@ function toView(row: {
 }
 
 const SELECT =
-  'id, category, title, url, username, notes, storage_path, file_name, mime_type, size_bytes, created_at';
+  'id, brand_id, category, title, url, username, notes, storage_path, file_name, mime_type, size_bytes, created_at';
 
-/**
- * All assets of a client company, for the agency. RLS restricts this to agency
- * staff of the company's organization (includes the 'access' references).
- */
-export async function listCompanyAssets(
-  clientCompanyId: string,
-): Promise<AssetView[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from('client_assets')
-    .select(SELECT)
-    .eq('client_company_id', clientCompanyId)
-    .order('category', { ascending: true })
-    .order('created_at', { ascending: false });
-  return (data ?? []).map(toView);
+export interface CompanyHub {
+  brands: Brand[];
+  assets: AssetView[];
 }
 
 /**
- * Client-visible assets (guidelines + logos only — never access references).
- * The client_assets table is agency-only in RLS, so we verify the caller is a
- * contact of the company and then read via the service client.
+ * Full Marken-Hub of a client company, for the agency. RLS restricts this to
+ * agency staff of the company's organization (includes 'access' references).
  */
-export async function listClientAssets(): Promise<{
+export async function listCompanyHub(
+  clientCompanyId: string,
+): Promise<CompanyHub> {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: brands }, { data: assets }] = await Promise.all([
+    supabase
+      .from('client_brands')
+      .select('id, name')
+      .eq('client_company_id', clientCompanyId)
+      .order('name', { ascending: true }),
+    supabase
+      .from('client_assets')
+      .select(SELECT)
+      .eq('client_company_id', clientCompanyId)
+      .order('created_at', { ascending: false }),
+  ]);
+  return {
+    brands: (brands ?? []).map((b) => ({ id: b.id, name: b.name })),
+    assets: (assets ?? []).map(toView),
+  };
+}
+
+export interface ClientHub extends CompanyHub {
+  clientCompanyId: string;
   companyName: string;
-  assets: AssetView[];
-} | null> {
+}
+
+/**
+ * Client-facing Marken-Hub (brands + guideline/logo assets — never access
+ * references). The tables are agency-only in RLS, so we verify the caller is a
+ * contact of a company and read via the service client.
+ */
+export async function listClientHub(): Promise<ClientHub | null> {
   const supabase = await createSupabaseServerClient();
   const { data: contact } = await supabase
     .from('client_contacts')
@@ -84,24 +110,32 @@ export async function listClientAssets(): Promise<{
     .maybeSingle();
   if (!contact) return null;
 
+  const companyId = contact.client_company_id;
   const service = createSupabaseServiceClient();
-  const [{ data: company }, { data }] = await Promise.all([
-    service
-      .from('client_companies')
-      .select('name')
-      .eq('id', contact.client_company_id)
-      .maybeSingle(),
-    service
-      .from('client_assets')
-      .select(SELECT)
-      .eq('client_company_id', contact.client_company_id)
-      .in('category', ['guideline', 'logo'])
-      .order('category', { ascending: true })
-      .order('created_at', { ascending: false }),
-  ]);
+  const [{ data: company }, { data: brands }, { data: assets }] =
+    await Promise.all([
+      service
+        .from('client_companies')
+        .select('name')
+        .eq('id', companyId)
+        .maybeSingle(),
+      service
+        .from('client_brands')
+        .select('id, name')
+        .eq('client_company_id', companyId)
+        .order('name', { ascending: true }),
+      service
+        .from('client_assets')
+        .select(SELECT)
+        .eq('client_company_id', companyId)
+        .in('category', ['guideline', 'logo'])
+        .order('created_at', { ascending: false }),
+    ]);
 
   return {
+    clientCompanyId: companyId,
     companyName: company?.name ?? '',
-    assets: (data ?? []).map(toView),
+    brands: (brands ?? []).map((b) => ({ id: b.id, name: b.name })),
+    assets: (assets ?? []).map(toView),
   };
 }

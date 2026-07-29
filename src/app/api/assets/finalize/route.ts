@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getCurrentUser, hasAgencyAccess } from '@/features/auth/session';
+import { getCurrentUser } from '@/features/auth/session';
+import { resolveAssetAccess } from '@/features/assets/access';
 import { validateUpload, sanitizeFileName } from '@/lib/files/validation';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
@@ -28,12 +28,10 @@ export async function POST(request: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
   }
-  if (!hasAgencyAccess(user)) {
-    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
-  }
 
   const body = (await request.json().catch(() => null)) as {
     clientCompanyId?: string;
+    brandId?: string | null;
     category?: string;
     title?: string;
     storagePath?: string;
@@ -43,6 +41,7 @@ export async function POST(request: NextRequest) {
   } | null;
 
   const clientCompanyId = body?.clientCompanyId ?? '';
+  const brandId = body?.brandId || null;
   const category = body?.category ?? '';
   const storagePath = body?.storagePath ?? '';
   const fileName = body?.fileName ?? '';
@@ -64,27 +63,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data: company } = await supabase
-    .from('client_companies')
-    .select('organization_id')
-    .eq('id', clientCompanyId)
-    .maybeSingle();
-  if (!company) {
+  // Agency staff of the company's org OR a client contact may finalize.
+  const access = await resolveAssetAccess(clientCompanyId);
+  if (!access) {
     return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
   }
 
   // The object must live under this company's tenant folder.
-  const expectedPrefix = `org/${company.organization_id}/company/${clientCompanyId}/`;
+  const expectedPrefix = `org/${access.orgId}/company/${clientCompanyId}/`;
   if (!storagePath.startsWith(expectedPrefix)) {
     return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
   }
 
-  const { data: row, error } = await supabase
+  const service = createSupabaseServiceClient();
+
+  // A supplied brand must belong to this company.
+  let safeBrandId: string | null = null;
+  if (brandId) {
+    const { data: brand } = await service
+      .from('client_brands')
+      .select('id')
+      .eq('id', brandId)
+      .eq('client_company_id', clientCompanyId)
+      .maybeSingle();
+    if (!brand) {
+      return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
+    }
+    safeBrandId = brand.id;
+  }
+
+  const { data: row, error } = await service
     .from('client_assets')
     .insert({
-      organization_id: company.organization_id,
+      organization_id: access.orgId,
       client_company_id: clientCompanyId,
+      brand_id: safeBrandId,
       category,
       title: title.slice(0, 200),
       storage_path: storagePath,
@@ -99,18 +112,16 @@ export async function POST(request: NextRequest) {
   if (error || !row) {
     // Roll back the uploaded object if the metadata insert was rejected.
     try {
-      await createSupabaseServiceClient()
-        .storage.from(FILES_BUCKET)
-        .remove([storagePath]);
+      await service.storage.from(FILES_BUCKET).remove([storagePath]);
     } catch {
       // Best-effort cleanup.
     }
-    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+    return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }
 
   await logActivity({
     actorId: user.id,
-    organizationId: company.organization_id,
+    organizationId: access.orgId,
     action: 'file_upload',
     entityType: 'client_asset',
     entityId: row.id,

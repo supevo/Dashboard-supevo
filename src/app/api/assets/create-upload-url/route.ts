@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import { getCurrentUser } from '@/features/auth/session';
+import { resolveAssetAccess } from '@/features/assets/access';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { getCurrentUser, hasAgencyAccess } from '@/features/auth/session';
 import { createSignedUploadTarget } from '@/lib/files/storage';
 import { validateUpload } from '@/lib/files/validation';
 import { buildAssetStoragePath } from '@/lib/files/asset-path';
@@ -34,9 +35,6 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
-  }
-  if (!hasAgencyAccess(user)) {
-    return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
   }
 
   const limit = rateLimit(`asset-upload:${user.id}`, 30, 60_000);
@@ -71,24 +69,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = await createSupabaseServerClient();
-  // RLS returns the company only for agency staff of its organization.
-  const { data: company } = await supabase
-    .from('client_companies')
-    .select('organization_id')
-    .eq('id', clientCompanyId)
-    .maybeSingle();
-  if (!company) {
+  // Agency staff of the company's org OR a client contact may upload.
+  const access = await resolveAssetAccess(clientCompanyId);
+  if (!access) {
     return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
   }
 
   const storagePath = buildAssetStoragePath({
-    organizationId: company.organization_id,
+    organizationId: access.orgId,
     clientCompanyId,
     uuid: randomUUID(),
     fileName,
   });
 
+  const supabase = await createSupabaseServerClient();
   const target = await createSignedUploadTarget(supabase, storagePath);
   if (!target) {
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });

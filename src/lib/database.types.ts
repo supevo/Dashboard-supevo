@@ -466,11 +466,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      client_brands: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_brands']['Insert']
+        >;
+        Relationships: [];
+      };
       client_assets: {
         Row: {
           id: string;
           organization_id: string;
           client_company_id: string;
+          brand_id: string | null;
           category: string;
           title: string;
           url: string | null;
@@ -487,6 +509,7 @@ export interface Database {
           id?: string;
           organization_id: string;
           client_company_id: string;
+          brand_id?: string | null;
           category: string;
           title: string;
           url?: string | null;

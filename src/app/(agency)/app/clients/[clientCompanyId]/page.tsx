@@ -32,7 +32,7 @@ import { ReportsManager } from '@/features/marketing-reports/components/reports-
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
-import { listCompanyAssets } from '@/features/assets/queries';
+import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -57,7 +57,7 @@ export default async function ClientDetailPage({
     marketingReports,
     inquiryEndpoint,
     inquiries,
-    assets,
+    hub,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -65,7 +65,7 @@ export default async function ClientDetailPage({
     listMarketingReports(clientCompanyId),
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
-    listCompanyAssets(clientCompanyId),
+    listCompanyHub(clientCompanyId),
   ]);
 
   // Billing / contacts are admin-only.
@@ -131,9 +131,10 @@ export default async function ClientDetailPage({
         </CardHeader>
         <CardContent>
           <AssetHubManager
-            orgId={orgId}
             clientCompanyId={clientCompanyId}
-            assets={assets}
+            brands={hub.brands}
+            assets={hub.assets}
+            canManageAccess
           />
         </CardContent>
       </Card>
