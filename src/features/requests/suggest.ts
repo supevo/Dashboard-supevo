@@ -36,13 +36,14 @@ function extractJson(raw: string): string {
 
 const CLARIFY_SYSTEM = `Du hilfst einer deutschen Marketing-Agentur, ein Kunden-Briefing vor der Umsetzung zu klären.
 
-Der Kunde hat ein Briefing eingereicht. Nenne die WENIGEN wirklich wichtigen Rückfragen, die zur sauberen Umsetzung noch fehlen – z. B. Format/Maße, Zielgruppe/Intention, gewünschte Kernbotschaft, Deadline, Umfang, Pflicht-Elemente (Logo, CI, Rabatte).
+Der Kunde hat ein Briefing eingereicht. Nenne die WENIGEN wirklich wichtigen Rückfragen, die zur sauberen Umsetzung noch fehlen – z. B. Format/Maße, Zielgruppe/Intention, gewünschte Kernbotschaft, Umfang, Pflicht-Elemente (Logo, CI, Rabatte).
 
 Antworte AUSSCHLIESSLICH mit JSON (kein Markdown, keine Code-Fences):
 { "questions": ["kurze, konkrete Frage", "..."] }
 
 Regeln:
 - Deutsch. 0 bis 4 Fragen. Lieber wenige, dafür die wichtigsten.
+- NIEMALS nach Deadline, Fertigstellungstermin, Zeitraum oder Timing fragen – Termine legt die Agentur selbst fest.
 - Nur fragen, was im Briefing NICHT schon beantwortet ist. Nichts Offensichtliches erfragen.
 - Kurze Fragen, direkt an den Kunden/das Team gerichtet.
 - Wenn das Briefing schon klar genug ist, gib eine leere Liste zurück.`;
@@ -81,11 +82,28 @@ export async function generateClarifyingQuestions(
 const FROM_CLARIFY_SYSTEM = `Du hilfst einer deutschen Marketing-Agentur, aus einem Kunden-Briefing plus Klärungs-Antworten EINE konkrete, umsetzbare Aufgabe zu machen.
 
 Antworte AUSSCHLIESSLICH mit JSON (kein Markdown, keine Code-Fences):
-{ "title": "kurzer, konkreter Aufgabentitel", "description": "klare Umsetzungs-Beschreibung mit allen bekannten Eckdaten (Format, Zielgruppe, Intention, Deadline …)", "priority": "low|medium|high|urgent" }
+{ "title": "kurzer, konkreter Aufgabentitel", "description": "gut gegliederte Umsetzungs-Beschreibung als Klartext", "priority": "low|medium|high|urgent" }
+
+Die "description" MUSS klar gegliedert sein (Klartext, KEIN Markdown), mit Leerzeilen zwischen den Abschnitten und dieser Struktur (nur zutreffende Abschnitte):
+
+Ziel:
+<1–2 Sätze, worum es geht>
+
+Anforderungen:
+- <Punkt>
+- <Punkt>
+
+Rahmen / Vorgaben:
+- <Format, Maße, CI, Pflicht-Elemente … falls bekannt>
+
+Offene Punkte:
+- <nur was wirklich unklar blieb>
 
 Regeln:
 - Deutsch. Genau EINE Aufgabe.
-- Beschreibung bündelt Briefing + Antworten zu einem klaren Arbeitsauftrag. Unbeantwortete Punkte kurz als "offen: …" vermerken, nichts erfinden.
+- Verwende echte Zeilenumbrüche (\\n) und Aufzählungen mit "- ".
+- Bündelt Briefing + Antworten. Nichts erfinden; unklare Punkte unter "Offene Punkte".
+- KEINE Deadline/Termine erwähnen – die legt die Agentur fest.
 - priority realistisch (Standard "medium").`;
 
 /**
