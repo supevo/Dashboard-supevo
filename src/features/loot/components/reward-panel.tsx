@@ -87,6 +87,10 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
     });
   }
 
+  // Nur noch nicht eingelöste Items zeigen; eingelöste verschwinden sofort
+  // aus dem Inventar (die Zeile bleibt in der DB für die Admin-Übersicht).
+  const openItems = shop.inventory.filter((it) => it.status === 'new');
+
   return (
     <div className="space-y-6">
       {/* Balance */}
@@ -160,14 +164,14 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
         })}
       </div>
 
-      {/* Inventory */}
+      {/* Inventory – nur noch nicht eingelöste Items; eingelöste verschwinden direkt */}
       <div>
         <h2 className="mb-2 text-lg font-semibold">Dein Inventar</h2>
-        {shop.inventory.length === 0 ? (
+        {openItems.length === 0 ? (
           <p className="text-sm text-muted-foreground">Noch nichts gewonnen. Öffne eine Box!</p>
         ) : (
           <ul className="space-y-2">
-            {shop.inventory.map((it) => (
+            {openItems.map((it) => (
               <li key={it.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
                 {it.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -190,15 +194,9 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
                   </div>
                   {it.description && <div className="text-xs text-muted-foreground">{it.description}</div>}
                 </div>
-                {it.status === 'new' ? (
-                  <Button size="sm" disabled={pending} onClick={() => redeem(it.id)}>
-                    Einlösen
-                  </Button>
-                ) : it.status === 'requested' ? (
-                  <span className="text-xs text-amber-500">angefragt …</span>
-                ) : (
-                  <span className="text-xs text-emerald-500">eingelöst ✓</span>
-                )}
+                <Button size="sm" disabled={pending} onClick={() => redeem(it.id)}>
+                  Einlösen
+                </Button>
               </li>
             ))}
           </ul>
