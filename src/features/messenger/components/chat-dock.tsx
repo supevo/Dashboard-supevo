@@ -27,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
+import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -123,14 +124,28 @@ function ConversationView({
               />
               <div
                 className={cn(
-                  'max-w-[75%] rounded-lg px-3 py-2 text-sm',
-                  m.isMine ? 'bg-primary text-primary-foreground' : 'border bg-background',
+                  'max-w-[75%] rounded-lg text-sm',
+                  m.stickerUrl
+                    ? ''
+                    : cn(
+                        'px-3 py-2',
+                        m.isMine ? 'bg-primary text-primary-foreground' : 'border bg-background',
+                      ),
                 )}
               >
                 <div className="mb-0.5 text-[11px] opacity-70">
                   {m.authorName} · {timeLabel(m.createdAt)}
                 </div>
-                <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                {m.stickerUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.stickerUrl}
+                    alt="Sticker"
+                    className="max-h-28 max-w-[140px] object-contain"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                )}
               </div>
             </div>
           ))
@@ -153,6 +168,7 @@ function ConversationView({
           }}
         />
         <EmojiPicker onPick={insertEmoji} />
+        <StickerPicker channelId={channelId} onSent={() => void load()} />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
     </div>

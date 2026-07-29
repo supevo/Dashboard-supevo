@@ -214,6 +214,73 @@ export async function sendChannelMessageAction(
   return successResult('');
 }
 
+/** Deletes a chat sticker (and its stored image). Agency staff of the org. */
+export async function deleteStickerAction(stickerId: string): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false };
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: sticker } = await supabase
+    .from('chat_stickers')
+    .select('storage_path')
+    .eq('id', stickerId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!sticker) return { ok: false };
+
+  const { error } = await supabase.from('chat_stickers').delete().eq('id', stickerId);
+  if (error) return { ok: false };
+
+  try {
+    const { FILES_BUCKET } = await import('@/lib/files/storage');
+    await createSupabaseServiceClient().storage
+      .from(FILES_BUCKET)
+      .remove([sticker.storage_path]);
+  } catch {
+    /* best-effort */
+  }
+  revalidatePath('/app/settings');
+  return { ok: true };
+}
+
+/** Sends a sticker (team image) into a channel/DM as its own message. */
+export async function sendStickerAction(
+  channelId: string,
+  stickerId: string,
+): Promise<{ ok: boolean }> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: channel } = await supabase
+    .from('chat_channels')
+    .select('organization_id')
+    .eq('id', channelId)
+    .maybeSingle();
+  if (!channel) return { ok: false };
+
+  // The sticker must belong to the channel's organization.
+  const { data: sticker } = await supabase
+    .from('chat_stickers')
+    .select('storage_path')
+    .eq('id', stickerId)
+    .eq('organization_id', channel.organization_id)
+    .maybeSingle();
+  if (!sticker) return { ok: false };
+
+  const { error } = await supabase.from('chat_channel_messages').insert({
+    channel_id: channelId,
+    organization_id: channel.organization_id,
+    author_id: user.id,
+    body: null,
+    sticker_path: sticker.storage_path,
+  });
+  if (error) return { ok: false };
+  return { ok: true };
+}
+
 /**
  * Parses @mentions from a message and notifies matched org members. Matching is
  * best-effort against first names and full names (case-insensitive). Uses the

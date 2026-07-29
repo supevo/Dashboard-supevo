@@ -5,6 +5,8 @@ import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
 import { BannerAdmin } from '@/features/gamification/components/banner-admin';
 import { listHubBanners } from '@/features/gamification/banner-queries';
+import { StickerManager } from '@/features/messenger/components/sticker-manager';
+import { listStickers } from '@/features/messenger/queries';
 import { buttonVariants } from '@/components/ui/button';
 import { de } from '@/lib/i18n/de';
 
@@ -13,7 +15,10 @@ export default async function SettingsPage() {
   const org = await getOrganization(orgId);
   if (!org) return null;
 
-  const hubBanners = await listHubBanners(orgId);
+  const [hubBanners, stickers] = await Promise.all([
+    listHubBanners(orgId),
+    listStickers(orgId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -47,6 +52,15 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <BannerAdmin banners={hubBanners} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🖼️ Chat-Sticker</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StickerManager stickers={stickers} />
         </CardContent>
       </Card>
 

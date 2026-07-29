@@ -966,7 +966,8 @@ export interface Database {
           channel_id: string;
           organization_id: string;
           author_id: string | null;
-          body: string;
+          body: string | null;
+          sticker_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -974,9 +975,29 @@ export interface Database {
           channel_id: string;
           organization_id: string;
           author_id?: string | null;
-          body: string;
+          body?: string | null;
+          sticker_path?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
+        Relationships: [];
+      };
+      chat_stickers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          storage_path: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          storage_path: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['chat_stickers']['Insert']>;
         Relationships: [];
       };
       chat_reads: {
