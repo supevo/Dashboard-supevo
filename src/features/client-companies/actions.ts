@@ -38,10 +38,12 @@ export async function createClientCompanyAction(
   const { orgId, name, contactEmail, notes } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'clientCompany.manage', orgId });
+  // Any agency staff member may add a client. The insert runs via the service
+  // client because the client_companies RLS insert policy is admin-only.
+  authorize(user, { type: 'clientCompany.create', orgId });
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  const service = createSupabaseServiceClient();
+  const { data, error } = await service
     .from('client_companies')
     .insert({
       organization_id: orgId,

@@ -30,16 +30,15 @@ export default async function ClientsPage() {
         )}
       </div>
 
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.clients.create}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CreateClientForm orgId={orgId} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Any agency staff member may add a client company. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.clients.create}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CreateClientForm orgId={orgId} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
