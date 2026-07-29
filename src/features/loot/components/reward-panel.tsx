@@ -19,6 +19,7 @@ interface Reveal {
   name: string;
   emoji: string;
   type: string;
+  imageUrl: string | null;
 }
 
 export function RewardPanel({ shop }: { shop: ShopData }) {
@@ -27,16 +28,23 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
 
-  function open(tier: string) {
+  function open(tier: string, free: boolean) {
     setError(null);
     start(async () => {
-      const res = await openBoxAction(tier);
+      const res = await openBoxAction(tier, { free });
       if (res.status !== 'success') {
         if (res.status === 'error') setError(res.message);
         return;
       }
-      const d = res.data as { name?: string; badgeEmoji?: string; type?: string } | undefined;
-      setReveal({ name: d?.name ?? 'Item', emoji: d?.badgeEmoji ?? '🎁', type: d?.type ?? 'physical' });
+      const d = res.data as
+        | { name?: string; badgeEmoji?: string; type?: string; imageUrl?: string | null }
+        | undefined;
+      setReveal({
+        name: d?.name ?? 'Item',
+        emoji: d?.badgeEmoji ?? '🎁',
+        type: d?.type ?? 'physical',
+        imageUrl: d?.imageUrl ?? null,
+      });
       router.refresh();
     });
   }
@@ -70,18 +78,53 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
       <div className="grid gap-4 sm:grid-cols-3">
         {shop.boxes.map((b) => {
           const meta = BOX_META[b.tier]!;
-          const canOpen = shop.balance >= b.price && b.itemCount > 0 && !pending;
+          const canBuy = shop.balance >= b.price && b.itemCount > 0 && !pending;
+          const canFree = b.free > 0 && b.itemCount > 0 && !pending;
           return (
-            <div key={b.tier} className={cn('flex flex-col items-center gap-2 rounded-lg border-2 bg-card p-4 text-center', meta.ring)}>
-              <span className="text-4xl" aria-hidden>{meta.emoji}</span>
+            <div
+              key={b.tier}
+              className={cn(
+                'flex flex-col items-center gap-2 rounded-lg border-2 bg-card p-4 text-center',
+                meta.ring,
+              )}
+            >
+              {b.artUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={b.artUrl}
+                  alt={meta.label}
+                  className="h-24 w-24 rounded-lg object-contain"
+                />
+              ) : (
+                <span className="text-4xl" aria-hidden>
+                  {meta.emoji}
+                </span>
+              )}
               <div className="font-semibold">{meta.label}</div>
+              {b.free > 0 && (
+                <div className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  🎁 {b.free} Gratis-Box{b.free > 1 ? 'en' : ''}
+                </div>
+              )}
               <div className="text-sm text-muted-foreground">🪙 {b.price} Coins</div>
               {b.itemCount === 0 ? (
                 <div className="text-xs text-muted-foreground">Noch keine Items</div>
               ) : (
-                <Button size="sm" disabled={!canOpen} onClick={() => open(b.tier)}>
-                  Öffnen
-                </Button>
+                <div className="flex flex-col items-center gap-1.5">
+                  {b.free > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!canFree}
+                      onClick={() => open(b.tier, true)}
+                    >
+                      Gratis öffnen
+                    </Button>
+                  )}
+                  <Button size="sm" disabled={!canBuy} onClick={() => open(b.tier, false)}>
+                    Öffnen
+                  </Button>
+                </div>
               )}
             </div>
           );
@@ -97,7 +140,18 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
           <ul className="space-y-2">
             {shop.inventory.map((it) => (
               <li key={it.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
-                <span className="text-2xl" aria-hidden>{it.type === 'badge' ? it.badgeEmoji ?? '🏅' : '🎁'}</span>
+                {it.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={it.imageUrl}
+                    alt={it.name}
+                    className="h-10 w-10 rounded object-cover"
+                  />
+                ) : (
+                  <span className="text-2xl" aria-hidden>
+                    {it.type === 'badge' ? it.badgeEmoji ?? '🏅' : '🎁'}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate text-sm font-medium">{it.name}</span>
@@ -126,7 +180,18 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
       <Modal open={reveal !== null} onClose={() => setReveal(null)} title="🎉 Gewonnen!">
         {reveal && (
           <div className="flex flex-col items-center gap-3 py-4 text-center">
-            <span className="text-6xl" aria-hidden>{reveal.emoji}</span>
+            {reveal.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={reveal.imageUrl}
+                alt={reveal.name}
+                className="h-32 w-32 rounded-lg object-contain"
+              />
+            ) : (
+              <span className="text-6xl" aria-hidden>
+                {reveal.emoji}
+              </span>
+            )}
             <div className="text-xl font-bold">{reveal.name}</div>
             <p className="text-sm text-muted-foreground">
               {reveal.type === 'badge'

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { getShopData, listLootItems, getLootConfig } from '@/features/loot/queries';
+import { listColleagues } from '@/features/team/colleague';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LootAdmin } from '@/features/loot/components/loot-admin';
 
@@ -12,9 +13,10 @@ export default async function RewardsPage() {
   const admin = isOrgAdmin(user, orgId);
   const shop = await getShopData(user.id, orgId);
 
-  const [items, config] = admin
-    ? await Promise.all([listLootItems(orgId), getLootConfig(orgId)])
-    : [[], shop.config];
+  const [items, config, roster] = admin
+    ? await Promise.all([listLootItems(orgId), getLootConfig(orgId), listColleagues(orgId)])
+    : [[], shop.config, []];
+  const colleagues = roster.map((c) => ({ userId: c.userId, name: c.name }));
 
   return (
     <div className="space-y-6">
@@ -33,7 +35,7 @@ export default async function RewardsPage() {
             <CardTitle>⚙️ Lootboxen verwalten (Admin)</CardTitle>
           </CardHeader>
           <CardContent>
-            <LootAdmin config={config} items={items} />
+            <LootAdmin config={config} items={items} colleagues={colleagues} />
           </CardContent>
         </Card>
       )}

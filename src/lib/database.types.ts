@@ -205,6 +205,9 @@ export interface Database {
           price_common: number;
           price_rare: number;
           price_super: number;
+          image_common: string | null;
+          image_rare: string | null;
+          image_super: string | null;
           updated_at: string;
         };
         Insert: {
@@ -213,6 +216,9 @@ export interface Database {
           price_common?: number;
           price_rare?: number;
           price_super?: number;
+          image_common?: string | null;
+          image_rare?: string | null;
+          image_super?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['loot_config']['Insert']>;
@@ -229,6 +235,7 @@ export interface Database {
           weight: number;
           badge_emoji: string | null;
           badge_name: string | null;
+          image_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -241,6 +248,7 @@ export interface Database {
           weight?: number;
           badge_emoji?: string | null;
           badge_name?: string | null;
+          image_path?: string | null;
         };
         Update: Partial<Database['public']['Tables']['loot_items']['Insert']>;
         Relationships: [];
@@ -272,6 +280,7 @@ export interface Database {
           badge_emoji: string | null;
           badge_name: string | null;
           box_tier: string | null;
+          image_path: string | null;
           status: string;
           won_at: string;
           redeemed_at: string | null;
@@ -286,11 +295,36 @@ export interface Database {
           badge_emoji?: string | null;
           badge_name?: string | null;
           box_tier?: string | null;
+          image_path?: string | null;
           status?: string;
           won_at?: string;
           redeemed_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['loot_inventory']['Insert']>;
+        Relationships: [];
+      };
+      loot_grants: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          box_tier: string;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+          opened_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          box_tier: string;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          opened_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['loot_grants']['Insert']>;
         Relationships: [];
       };
       xp_boosts: {

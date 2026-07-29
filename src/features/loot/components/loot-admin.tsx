@@ -4,15 +4,22 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   saveLootConfigAction,
-  addLootItemAction,
   deleteLootItemAction,
+  giftBoxAction,
 } from '@/features/loot/actions';
-import type { LootConfig, LootItem, BoxTier } from '@/features/loot/queries';
+import type { LootConfig, LootItem } from '@/features/loot/queries';
+import {
+  type BoxTier,
+  WEIGHT_MIN,
+  WEIGHT_MAX,
+  boxArtUrl,
+} from '@/features/loot/shared';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 const TIER_LABEL: Record<BoxTier, string> = {
   common: '📦 Common',
@@ -20,19 +27,35 @@ const TIER_LABEL: Record<BoxTier, string> = {
   super: '💎 Super Rare',
 };
 
+// Häufig genutzte Emojis für digitale Badges – anklickbar, Freitext bleibt möglich.
+const BADGE_EMOJIS = [
+  '🏅', '🥇', '🎖️', '🏆', '⭐', '🌟', '✨', '💎', '👑', '🔥',
+  '🚀', '🎯', '💪', '🧠', '🍀', '🦄', '🐙', '⚡', '❤️', '🎉',
+];
+
+interface Colleague {
+  userId: string;
+  name: string;
+}
+
 export function LootAdmin({
   config,
   items,
+  colleagues,
 }: {
   config: LootConfig;
   items: LootItem[];
+  colleagues: Colleague[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [cfg, setCfg] = useState(config);
 
+  // Neues Item
   const [boxTier, setBoxTier] = useState<BoxTier>('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -40,9 +63,17 @@ export function LootAdmin({
   const [weight, setWeight] = useState(10);
   const [badgeEmoji, setBadgeEmoji] = useState('🏅');
   const [badgeName, setBadgeName] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+
+  // Verschenken
+  const [giftUser, setGiftUser] = useState(colleagues[0]?.userId ?? '');
+  const [giftTier, setGiftTier] = useState<BoxTier>('common');
+  const [giftQty, setGiftQty] = useState(1);
+  const [giftNote, setGiftNote] = useState('');
 
   function saveConfig() {
     setError(null);
+    setNotice(null);
     start(async () => {
       const res = await saveLootConfigAction(cfg);
       if (res.status === 'error') setError(res.message);
@@ -50,18 +81,85 @@ export function LootAdmin({
     });
   }
 
-  function addItem() {
+  async function addItem() {
     setError(null);
+    setNotice(null);
+    if (name.trim().length < 2) {
+      setError('Bitte einen Namen angeben.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set('boxTier', boxTier);
+      fd.set('name', name);
+      fd.set('description', description);
+      fd.set('type', type);
+      fd.set('weight', String(weight));
+      fd.set('badgeEmoji', badgeEmoji);
+      fd.set('badgeName', badgeName);
+      if (photo) fd.set('file', photo);
+      const res = await fetch('/api/loot/items', { method: 'POST', body: fd });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? 'Fehler beim Hinzufügen.');
+      } else {
+        setName('');
+        setDescription('');
+        setBadgeName('');
+        setPhoto(null);
+        router.refresh();
+      }
+    } catch {
+      setError('Fehler beim Hinzufügen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadBoxArt(tier: BoxTier, file: File) {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      const res = await fetch(`/api/loot/box-art/${tier}`, { method: 'POST', body: fd });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        setError(json.error ?? 'Upload fehlgeschlagen.');
+      } else {
+        setNotice(`Box-Bild für ${TIER_LABEL[tier]} gespeichert.`);
+        router.refresh();
+      }
+    } catch {
+      setError('Upload fehlgeschlagen.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function gift() {
+    setError(null);
+    setNotice(null);
+    if (!giftUser) {
+      setError('Bitte einen Mitarbeiter wählen.');
+      return;
+    }
     start(async () => {
-      const res = await addLootItemAction({ boxTier, name, description, type, weight, badgeEmoji, badgeName });
+      const res = await giftBoxAction({
+        userId: giftUser,
+        boxTier: giftTier,
+        quantity: giftQty,
+        note: giftNote,
+      });
       if (res.status === 'error') {
         setError(res.message);
-        return;
+      } else if (res.status === 'success') {
+        setNotice(res.message ?? 'Box verschenkt.');
+        setGiftNote('');
+        router.refresh();
       }
-      setName('');
-      setDescription('');
-      setBadgeName('');
-      router.refresh();
     });
   }
 
@@ -70,6 +168,7 @@ export function LootAdmin({
   return (
     <div className="space-y-6">
       {error && <Alert variant="destructive">{error}</Alert>}
+      {notice && <Alert>{notice}</Alert>}
 
       {/* Config */}
       <div className="space-y-3 rounded-lg border p-4">
@@ -95,6 +194,39 @@ export function LootAdmin({
         <Button size="sm" variant="outline" disabled={pending} onClick={saveConfig}>Preise speichern</Button>
       </div>
 
+      {/* Box artwork */}
+      <div className="space-y-3 rounded-lg border p-4">
+        <div className="text-sm font-semibold">Box-Bilder</div>
+        <p className="text-xs text-muted-foreground">
+          Lade je Stufe ein eigenes Box-Bild hoch (empfohlen quadratisch, z. B. 512×512). Ohne Bild
+          wird ein Emoji angezeigt.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {(['common', 'rare', 'super'] as BoxTier[]).map((t) => (
+            <div key={t} className="flex flex-col items-center gap-2 rounded-lg border p-3 text-center">
+              <div className="text-xs font-medium">{TIER_LABEL[t]}</div>
+              {config.hasArt?.[t] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={boxArtUrl(t)} alt={t} className="h-20 w-20 rounded object-contain" />
+              ) : (
+                <div className="flex h-20 w-20 items-center justify-center rounded bg-muted text-2xl">📦</div>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                disabled={busy}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void uploadBoxArt(t, f);
+                  e.target.value = '';
+                }}
+                className="block w-full text-xs"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Add item */}
       <div className="space-y-3 rounded-lg border p-4">
         <div className="text-sm font-semibold">Item zu einer Box hinzufügen</div>
@@ -115,8 +247,16 @@ export function LootAdmin({
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Gewicht (Häufigkeit)</label>
-            <Input type="number" min={1} value={weight} onChange={(e) => setWeight(Math.max(1, Number(e.target.value) || 1))} />
+            <label className="text-xs text-muted-foreground">
+              Häufigkeit ({WEIGHT_MIN}–{WEIGHT_MAX})
+            </label>
+            <Input
+              type="number"
+              min={WEIGHT_MIN}
+              max={WEIGHT_MAX}
+              value={weight}
+              onChange={(e) => setWeight(Math.max(WEIGHT_MIN, Math.min(WEIGHT_MAX, Number(e.target.value) || WEIGHT_MIN)))}
+            />
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -129,22 +269,110 @@ export function LootAdmin({
             <Textarea rows={1} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={300} />
           </div>
         </div>
+
+        {type === 'physical' && (
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Foto des Loots (optional)</label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+              className="block text-sm"
+            />
+            {photo && <p className="text-xs text-muted-foreground">Ausgewählt: {photo.name}</p>}
+          </div>
+        )}
+
         {type === 'badge' && (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Badge-Emoji</label>
-              <Input value={badgeEmoji} onChange={(e) => setBadgeEmoji(e.target.value)} maxLength={8} className="w-24" />
+              <div className="flex flex-wrap gap-1.5">
+                {BADGE_EMOJIS.map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => setBadgeEmoji(em)}
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition hover:bg-muted',
+                      badgeEmoji === em && 'border-primary bg-primary/10 ring-1 ring-primary',
+                    )}
+                    aria-label={`Emoji ${em}`}
+                  >
+                    <span aria-hidden>{em}</span>
+                  </button>
+                ))}
+                <Input
+                  value={badgeEmoji}
+                  onChange={(e) => setBadgeEmoji(e.target.value)}
+                  maxLength={8}
+                  className="h-9 w-20"
+                  aria-label="Eigenes Emoji"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
+            <div className="space-y-1 sm:max-w-xs">
               <label className="text-xs text-muted-foreground">Badge-Name (optional)</label>
               <Input value={badgeName} onChange={(e) => setBadgeName(e.target.value)} maxLength={60} />
             </div>
           </div>
         )}
-        <Button size="sm" disabled={pending || name.trim().length < 2} onClick={addItem}>Item hinzufügen</Button>
+
+        <Button size="sm" disabled={busy || name.trim().length < 2} onClick={addItem}>
+          {busy ? 'Wird gespeichert …' : 'Item hinzufügen'}
+        </Button>
         <p className="text-xs text-muted-foreground">
-          Das Gewicht bestimmt die Ziehwahrscheinlichkeit innerhalb der Box (höher = häufiger). Seltene Items bekommen ein niedriges Gewicht.
+          Die Häufigkeit bestimmt die Ziehwahrscheinlichkeit innerhalb der Box: <b>{WEIGHT_MIN}</b> = sehr
+          selten, <b>{WEIGHT_MAX}</b> = sehr häufig. Seltene Top-Preise bekommen einen niedrigen Wert.
         </p>
+      </div>
+
+      {/* Gift a box */}
+      <div className="space-y-3 rounded-lg border p-4">
+        <div className="text-sm font-semibold">🎁 Box verschenken</div>
+        <p className="text-xs text-muted-foreground">
+          Schenke einem Mitarbeiter Gratis-Boxen – z. B. zum Testen oder in besonderen
+          Challenge-Wochen. Er öffnet sie kostenlos im Level Hub.
+        </p>
+        {colleagues.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Keine Mitarbeiter gefunden.</p>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="space-y-1 sm:col-span-2">
+                <label className="text-xs text-muted-foreground">Mitarbeiter</label>
+                <Select value={giftUser} onChange={(e) => setGiftUser(e.target.value)}>
+                  {colleagues.map((c) => (
+                    <option key={c.userId} value={c.userId}>{c.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Box</label>
+                <Select value={giftTier} onChange={(e) => setGiftTier(e.target.value as BoxTier)}>
+                  <option value="common">📦 Common</option>
+                  <option value="rare">🎁 Rare</option>
+                  <option value="super">💎 Super Rare</option>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Anzahl (1–20)</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={giftQty}
+                  onChange={(e) => setGiftQty(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Notiz (optional)</label>
+              <Input value={giftNote} onChange={(e) => setGiftNote(e.target.value)} maxLength={140} placeholder="z. B. Danke für die tolle Woche!" />
+            </div>
+            <Button size="sm" disabled={pending} onClick={gift}>Box verschenken</Button>
+          </>
+        )}
       </div>
 
       {/* Item lists */}
@@ -158,7 +386,12 @@ export function LootAdmin({
               <ul className="space-y-1.5">
                 {byTier(t).map((i) => (
                   <li key={i.id} className="flex items-center gap-2 text-sm">
-                    <span aria-hidden>{i.type === 'badge' ? i.badgeEmoji ?? '🏅' : '🎁'}</span>
+                    {i.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={i.imageUrl} alt="" className="h-6 w-6 rounded object-cover" />
+                    ) : (
+                      <span aria-hidden>{i.type === 'badge' ? i.badgeEmoji ?? '🏅' : '🎁'}</span>
+                    )}
                     <span className="min-w-0 flex-1 truncate">{i.name}</span>
                     <span className="text-xs text-muted-foreground">×{i.weight}</span>
                     <button

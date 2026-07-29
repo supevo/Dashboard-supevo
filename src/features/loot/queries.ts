@@ -1,11 +1,22 @@
 import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import {
+  type BoxTier,
+  lootItemImageUrl,
+  inventoryImageUrl,
+  boxArtUrl,
+} from '@/features/loot/shared';
+
+export type { BoxTier } from '@/features/loot/shared';
+export { WEIGHT_MIN, WEIGHT_MAX, lootItemImageUrl, inventoryImageUrl, boxArtUrl } from '@/features/loot/shared';
 
 export interface LootConfig {
   xpPerCoin: number;
   priceCommon: number;
   priceRare: number;
   priceSuper: number;
+  /** Whether custom box artwork was uploaded per tier. */
+  hasArt?: { common: boolean; rare: boolean; super: boolean };
 }
 
 export const DEFAULT_LOOT_CONFIG: LootConfig = {
@@ -13,9 +24,8 @@ export const DEFAULT_LOOT_CONFIG: LootConfig = {
   priceCommon: 20,
   priceRare: 50,
   priceSuper: 120,
+  hasArt: { common: false, rare: false, super: false },
 };
-
-export type BoxTier = 'common' | 'rare' | 'super';
 
 export interface LootItem {
   id: string;
@@ -26,6 +36,7 @@ export interface LootItem {
   weight: number;
   badgeEmoji: string | null;
   badgeName: string | null;
+  imageUrl: string | null;
 }
 
 export interface InventoryItem {
@@ -36,6 +47,7 @@ export interface InventoryItem {
   badgeEmoji: string | null;
   badgeName: string | null;
   boxTier: string | null;
+  imageUrl: string | null;
   status: 'new' | 'requested' | 'fulfilled';
   wonAt: string;
 }
@@ -44,6 +56,8 @@ export interface BoxInfo {
   tier: BoxTier;
   price: number;
   itemCount: number;
+  artUrl: string | null;
+  free: number;
 }
 
 export interface ShopData {
@@ -72,31 +86,41 @@ async function totalPoints(
 export async function getLootConfig(orgId: string): Promise<LootConfig> {
   const { data } = await createSupabaseServiceClient()
     .from('loot_config')
-    .select('xp_per_coin, price_common, price_rare, price_super')
+    .select('xp_per_coin, price_common, price_rare, price_super, image_common, image_rare, image_super')
     .eq('organization_id', orgId)
     .maybeSingle();
-  if (!data) return DEFAULT_LOOT_CONFIG;
+  if (!data) return { ...DEFAULT_LOOT_CONFIG };
   return {
     xpPerCoin: data.xp_per_coin,
     priceCommon: data.price_common,
     priceRare: data.price_rare,
     priceSuper: data.price_super,
+    hasArt: {
+      common: Boolean(data.image_common),
+      rare: Boolean(data.image_rare),
+      super: Boolean(data.image_super),
+    },
   };
 }
 
 /** Everything the reward page needs for a staff member. */
 export async function getShopData(userId: string, orgId: string): Promise<ShopData> {
   const service = createSupabaseServiceClient();
-  const [config, walletRes, itemsRes, invRes, points] = await Promise.all([
+  const [config, walletRes, itemsRes, invRes, grantsRes, points] = await Promise.all([
     getLootConfig(orgId),
     service.from('loot_wallets').select('coins_spent').eq('user_id', userId).maybeSingle(),
     service.from('loot_items').select('box_tier').eq('organization_id', orgId),
     service
       .from('loot_inventory')
-      .select('id, name, description, type, badge_emoji, badge_name, box_tier, status, won_at')
+      .select('id, name, description, type, badge_emoji, badge_name, box_tier, image_path, status, won_at')
       .eq('user_id', userId)
       .order('won_at', { ascending: false })
       .limit(100),
+    service
+      .from('loot_grants')
+      .select('box_tier')
+      .eq('user_id', userId)
+      .is('opened_at', null),
     totalPoints(service, userId),
   ]);
 
@@ -106,6 +130,11 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
   for (const it of itemsRes.data ?? []) {
     if (it.box_tier in counts) counts[it.box_tier as BoxTier] += 1;
   }
+  const free = { common: 0, rare: 0, super: 0 } as Record<BoxTier, number>;
+  for (const g of grantsRes.data ?? []) {
+    if (g.box_tier in free) free[g.box_tier as BoxTier] += 1;
+  }
+  const art = config.hasArt ?? { common: false, rare: false, super: false };
 
   return {
     balance: Math.max(0, earned - spent),
@@ -113,9 +142,9 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
     spent,
     config,
     boxes: [
-      { tier: 'common', price: config.priceCommon, itemCount: counts.common },
-      { tier: 'rare', price: config.priceRare, itemCount: counts.rare },
-      { tier: 'super', price: config.priceSuper, itemCount: counts.super },
+      { tier: 'common', price: config.priceCommon, itemCount: counts.common, artUrl: art.common ? boxArtUrl('common') : null, free: free.common },
+      { tier: 'rare', price: config.priceRare, itemCount: counts.rare, artUrl: art.rare ? boxArtUrl('rare') : null, free: free.rare },
+      { tier: 'super', price: config.priceSuper, itemCount: counts.super, artUrl: art.super ? boxArtUrl('super') : null, free: free.super },
     ],
     inventory: (invRes.data ?? []).map((r) => ({
       id: r.id,
@@ -125,6 +154,7 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
       badgeEmoji: r.badge_emoji,
       badgeName: r.badge_name,
       boxTier: r.box_tier,
+      imageUrl: r.image_path ? inventoryImageUrl(r.id) : null,
       status: r.status as 'new' | 'requested' | 'fulfilled',
       wonAt: r.won_at,
     })),
@@ -148,7 +178,7 @@ export async function getCoinBalance(userId: string, orgId: string): Promise<num
 export async function listLootItems(orgId: string): Promise<LootItem[]> {
   const { data } = await createSupabaseServiceClient()
     .from('loot_items')
-    .select('id, box_tier, name, description, type, weight, badge_emoji, badge_name')
+    .select('id, box_tier, name, description, type, weight, badge_emoji, badge_name, image_path')
     .eq('organization_id', orgId)
     .order('box_tier', { ascending: true })
     .order('created_at', { ascending: true });
@@ -161,5 +191,6 @@ export async function listLootItems(orgId: string): Promise<LootItem[]> {
     weight: r.weight,
     badgeEmoji: r.badge_emoji,
     badgeName: r.badge_name,
+    imageUrl: r.image_path ? lootItemImageUrl(r.id) : null,
   }));
 }

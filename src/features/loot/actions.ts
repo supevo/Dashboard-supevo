@@ -36,8 +36,15 @@ async function coinBalance(
   return Math.max(0, earned - (walletRes.data?.coins_spent ?? 0));
 }
 
-/** Opens a lootbox: spends coins, draws an item by weight, adds it to inventory. */
-export async function openBoxAction(tier: string): Promise<ActionResult> {
+/**
+ * Opens a lootbox, draws an item by weight and adds it to the inventory.
+ * A gifted free box (loot_grants) is consumed first and costs no coins;
+ * otherwise the box price in coins is spent.
+ */
+export async function openBoxAction(
+  tier: string,
+  opts?: { free?: boolean },
+): Promise<ActionResult> {
   const parsed = tierSchema.safeParse(tier);
   if (!parsed.success) return errorResult('Ungültige Box.');
 
@@ -50,12 +57,28 @@ export async function openBoxAction(tier: string): Promise<ActionResult> {
   const config = await getLootConfig(orgId);
   const price = priceFor(config, parsed.data);
 
-  const balance = await coinBalance(service, user.id, config.xpPerCoin);
-  if (balance < price) return errorResult('Nicht genug Coins für diese Box.');
+  // Prefer a gifted free box when requested (or when one is available).
+  let freeGrantId: string | null = null;
+  if (opts?.free) {
+    const { data: grant } = await service
+      .from('loot_grants')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('box_tier', parsed.data)
+      .is('opened_at', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!grant) return errorResult('Keine Gratis-Box dieser Stufe vorhanden.');
+    freeGrantId = grant.id;
+  } else {
+    const balance = await coinBalance(service, user.id, config.xpPerCoin);
+    if (balance < price) return errorResult('Nicht genug Coins für diese Box.');
+  }
 
   const { data: items } = await service
     .from('loot_items')
-    .select('name, description, type, weight, badge_emoji, badge_name')
+    .select('name, description, type, weight, badge_emoji, badge_name, image_path')
     .eq('organization_id', orgId)
     .eq('box_tier', parsed.data);
   if (!items || items.length === 0) return errorResult('Diese Box ist noch leer.');
@@ -72,36 +95,51 @@ export async function openBoxAction(tier: string): Promise<ActionResult> {
     }
   }
 
-  // Spend coins (best-effort; small teams don't race).
-  const { data: wallet } = await service
-    .from('loot_wallets')
-    .select('coins_spent')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  await service.from('loot_wallets').upsert({
-    user_id: user.id,
-    organization_id: orgId,
-    coins_spent: (wallet?.coins_spent ?? 0) + price,
-    updated_at: new Date().toISOString(),
-  });
+  if (freeGrantId) {
+    await service
+      .from('loot_grants')
+      .update({ opened_at: new Date().toISOString() })
+      .eq('id', freeGrantId)
+      .is('opened_at', null);
+  } else {
+    // Spend coins (best-effort; small teams don't race).
+    const { data: wallet } = await service
+      .from('loot_wallets')
+      .select('coins_spent')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    await service.from('loot_wallets').upsert({
+      user_id: user.id,
+      organization_id: orgId,
+      coins_spent: (wallet?.coins_spent ?? 0) + price,
+      updated_at: new Date().toISOString(),
+    });
+  }
 
-  await service.from('loot_inventory').insert({
-    organization_id: orgId,
-    user_id: user.id,
-    name: drawn.name,
-    description: drawn.description,
-    type: drawn.type,
-    badge_emoji: drawn.badge_emoji,
-    badge_name: drawn.badge_name,
-    box_tier: parsed.data,
-    status: 'new',
-  });
+  const { data: inserted } = await service
+    .from('loot_inventory')
+    .insert({
+      organization_id: orgId,
+      user_id: user.id,
+      name: drawn.name,
+      description: drawn.description,
+      type: drawn.type,
+      badge_emoji: drawn.badge_emoji,
+      badge_name: drawn.badge_name,
+      box_tier: parsed.data,
+      image_path: drawn.image_path,
+      status: 'new',
+    })
+    .select('id')
+    .maybeSingle();
 
   revalidatePath('/app/rewards');
+  revalidatePath('/app/kudos');
   return successResult('Box geöffnet!', {
     name: drawn.name,
     type: drawn.type,
     badgeEmoji: drawn.badge_emoji ?? '🎁',
+    imageUrl: drawn.image_path && inserted?.id ? `/api/loot/inventory/${inserted.id}/image` : null,
     tier: parsed.data,
   });
 }
@@ -203,37 +241,6 @@ export async function saveLootConfigAction(input: unknown): Promise<ActionResult
   return successResult('Einstellungen gespeichert.');
 }
 
-const itemSchema = z.object({
-  boxTier: z.enum(['common', 'rare', 'super']),
-  name: z.string().trim().min(2).max(80),
-  description: z.string().trim().max(300).optional().or(z.literal('')),
-  type: z.enum(['physical', 'badge']),
-  weight: z.coerce.number().int().min(1).max(1000),
-  badgeEmoji: z.string().trim().max(8).optional().or(z.literal('')),
-  badgeName: z.string().trim().max(60).optional().or(z.literal('')),
-});
-
-export async function addLootItemAction(input: unknown): Promise<ActionResult> {
-  const parsed = itemSchema.safeParse(input);
-  if (!parsed.success) return errorResult('Bitte alle Pflichtfelder ausfüllen.');
-  const orgId = await requireAdminOrg();
-  if (!orgId) return errorResult('Keine Berechtigung.');
-  const v = parsed.data;
-  const { error } = await createSupabaseServiceClient().from('loot_items').insert({
-    organization_id: orgId,
-    box_tier: v.boxTier,
-    name: v.name,
-    description: v.description || null,
-    type: v.type,
-    weight: v.weight,
-    badge_emoji: v.type === 'badge' ? v.badgeEmoji || '🏅' : null,
-    badge_name: v.type === 'badge' ? v.badgeName || v.name : null,
-  });
-  if (error) return errorResult(error.message);
-  revalidatePath('/app/rewards');
-  return successResult('Item hinzugefügt.');
-}
-
 export async function deleteLootItemAction(id: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(id).success) return errorResult('Ungültig.');
   const orgId = await requireAdminOrg();
@@ -246,4 +253,75 @@ export async function deleteLootItemAction(id: string): Promise<ActionResult> {
   if (error) return errorResult(error.message);
   revalidatePath('/app/rewards');
   return successResult('Gelöscht.');
+}
+
+// --- Gifting free boxes ------------------------------------------------------
+
+const giftSchema = z.object({
+  userId: z.string().uuid(),
+  boxTier: z.enum(['common', 'rare', 'super']),
+  quantity: z.coerce.number().int().min(1).max(20),
+  note: z.string().trim().max(140).optional().or(z.literal('')),
+});
+
+/**
+ * Gifts one or more free lootboxes to a staff member (e.g. for testing or a
+ * special challenge week). The recipient opens them for free in their Level Hub.
+ */
+export async function giftBoxAction(input: unknown): Promise<ActionResult> {
+  const parsed = giftSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Bitte Mitarbeiter, Box und Anzahl wählen.');
+  const admin = await requireUser();
+  const orgId = primaryAgencyOrgId(admin);
+  if (!orgId || !isOrgAdmin(admin, orgId)) return errorResult('Keine Berechtigung.');
+
+  const v = parsed.data;
+  const service = createSupabaseServiceClient();
+
+  // Recipient must be active staff in this org.
+  const { data: membership } = await service
+    .from('memberships')
+    .select('role')
+    .eq('organization_id', orgId)
+    .eq('user_id', v.userId)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (!membership || membership.role === 'client') {
+    return errorResult('Mitarbeiter nicht gefunden.');
+  }
+
+  const rows = Array.from({ length: v.quantity }, () => ({
+    organization_id: orgId,
+    user_id: v.userId,
+    box_tier: v.boxTier,
+    note: v.note || null,
+    created_by: admin.id,
+  }));
+  const { error } = await service.from('loot_grants').insert(rows);
+  if (error) return errorResult(error.message);
+
+  const tierLabel = v.boxTier === 'common' ? 'Common' : v.boxTier === 'rare' ? 'Rare' : 'Super Rare';
+  await createNotifications(
+    [
+      {
+        organizationId: orgId,
+        recipientId: v.userId,
+        type: 'award' as const,
+        title: '🎁 Gratis-Box geschenkt',
+        body:
+          v.quantity > 1
+            ? `Du hast ${v.quantity} ${tierLabel}-Boxen geschenkt bekommen – im Level Hub gratis öffnen!`
+            : `Du hast eine ${tierLabel}-Box geschenkt bekommen – im Level Hub gratis öffnen!`,
+        entityType: 'loot',
+        entityId: null,
+      },
+    ],
+    admin.id,
+  );
+
+  revalidatePath('/app/rewards');
+  revalidatePath('/app/kudos');
+  return successResult(
+    v.quantity > 1 ? `${v.quantity} Boxen verschenkt.` : 'Box verschenkt.',
+  );
 }
