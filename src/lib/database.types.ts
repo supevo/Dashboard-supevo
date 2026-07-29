@@ -549,6 +549,33 @@ export interface Database {
         >;
         Relationships: [];
       };
+      client_task_ratings: {
+        Row: {
+          id: string;
+          organization_id: string;
+          task_id: string;
+          client_company_id: string | null;
+          rated_by: string;
+          stars: number;
+          comment: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          task_id: string;
+          client_company_id?: string | null;
+          rated_by: string;
+          stars: number;
+          comment?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_task_ratings']['Insert']
+        >;
+        Relationships: [];
+      };
       task_ratings: {
         Row: {
           id: string;

@@ -13,6 +13,8 @@ import { CommentItem } from '@/features/comments/components/comment-item';
 import { FileUploader } from '@/features/files/components/file-uploader';
 import { FileItem } from '@/features/files/components/file-item';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
+import { getMyClientRating, isTaskDone } from '@/features/client-ratings/queries';
+import { ClientRatingPanel } from '@/features/client-ratings/components/client-rating-panel';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalTaskPage({
@@ -27,11 +29,13 @@ export default async function PortalTaskPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [comments, files, approvals, labels] = await Promise.all([
+  const [comments, files, approvals, labels, myRating, isDone] = await Promise.all([
     listTaskComments(taskId, user.id),
     listTaskFiles(taskId, user.id),
     listProjectApprovals(projectId),
     listTaskLabels(taskId),
+    getMyClientRating(taskId, user.id),
+    isTaskDone(taskId),
   ]);
   const pending = approvals.filter(
     (a) => a.taskId === taskId && a.status === 'pending',
@@ -82,6 +86,17 @@ export default async function PortalTaskPage({
                 <DecideApprovalForm approvalId={a.id} />
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {isDone && (
+        <Card>
+          <CardHeader>
+            <CardTitle>⭐ Ihre Bewertung</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ClientRatingPanel taskId={taskId} projectId={projectId} initial={myRating} />
           </CardContent>
         </Card>
       )}
