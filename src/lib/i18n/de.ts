@@ -959,7 +959,7 @@ export const de = {
   news: {
     title: 'Aktuelles aus Ihrer Branche',
     topic: 'Thema',
-    footer: 'Von der KI täglich für Sie zusammengestellt. Links führen zu den Originalquellen.',
+    footer: 'Aktuelle Schlagzeilen aus Ihrer Branche. Links führen zu den Originalquellen.',
   },
   marketingReport: {
     title: 'Berichte',

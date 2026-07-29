@@ -1,20 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { de } from '@/lib/i18n/de';
 import type { NewsItem } from '@/features/news/rss';
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const h = Math.floor(diff / 3_600_000);
-  if (h < 1) return 'gerade eben';
-  if (h < 24) return `vor ${h} Std.`;
-  const d = Math.floor(h / 24);
-  return `vor ${d} ${d === 1 ? 'Tag' : 'Tagen'}`;
-}
+import { NewsCard } from '@/features/news/components/news-card';
 
 /**
- * Industry news ticker for the client portal: current, curated headlines that
- * link out to the original (free) articles. Read-only server component.
+ * Industry news for the client portal, shown as a blog-style post gallery:
+ * each headline is a card with a cover image (or coloured fallback) and title,
+ * linking out to the original (free) article. Read-only server component.
  */
 export function NewsTicker({
   items,
@@ -36,27 +28,12 @@ export function NewsTicker({
         </div>
       </CardHeader>
       <CardContent>
-        <ul className="divide-y">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((it, i) => (
-            <li key={`${it.url}-${i}`} className="py-2">
-              <a
-                href={it.url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="group flex flex-col gap-0.5"
-              >
-                <span className="text-sm font-medium text-foreground group-hover:text-primary group-hover:underline">
-                  {it.title}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {it.source}
-                  {it.publishedAt ? ` · ${timeAgo(it.publishedAt)}` : ''}
-                </span>
-              </a>
-            </li>
+            <NewsCard key={`${it.url}-${i}`} item={it} />
           ))}
-        </ul>
-        <p className="mt-3 text-[11px] text-muted-foreground">{de.news.footer}</p>
+        </div>
+        <p className="mt-4 text-[11px] text-muted-foreground">{de.news.footer}</p>
       </CardContent>
     </Card>
   );
