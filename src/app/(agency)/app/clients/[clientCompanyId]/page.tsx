@@ -32,8 +32,9 @@ import { ReportsManager } from '@/features/marketing-reports/components/reports-
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
-import { listCompanyAssets } from '@/features/assets/queries';
+import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
@@ -57,7 +58,7 @@ export default async function ClientDetailPage({
     marketingReports,
     inquiryEndpoint,
     inquiries,
-    assets,
+    hub,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -65,20 +66,21 @@ export default async function ClientDetailPage({
     listMarketingReports(clientCompanyId),
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
-    listCompanyAssets(clientCompanyId),
+    listCompanyHub(clientCompanyId),
   ]);
 
-  // Billing / contacts are admin-only.
-  const [contacts, membership, billingEntity, billingEntities, invoices] =
-    isAdmin
-      ? await Promise.all([
-          listClientContacts(orgId, clientCompanyId),
-          getClientMembership(clientCompanyId),
-          getBillingEntityForClient(orgId, clientCompanyId),
-          listBillingEntities(orgId),
-          listClientInvoices(clientCompanyId),
-        ])
-      : [[], null, null, [], []];
+  // Contacts are visible/manageable by all agency staff (they add clients).
+  const contacts = await listClientContacts(orgId, clientCompanyId);
+
+  // Billing is admin-only.
+  const [membership, billingEntity, billingEntities, invoices] = isAdmin
+    ? await Promise.all([
+        getClientMembership(clientCompanyId),
+        getBillingEntityForClient(orgId, clientCompanyId),
+        listBillingEntities(orgId),
+        listClientInvoices(clientCompanyId),
+      ])
+    : [null, null, [], []];
 
   return (
     <div className="space-y-6">
@@ -131,9 +133,11 @@ export default async function ClientDetailPage({
         </CardHeader>
         <CardContent>
           <AssetHubManager
-            orgId={orgId}
             clientCompanyId={clientCompanyId}
-            assets={assets}
+            brands={hub.brands}
+            assets={hub.assets}
+            canReveal
+            secretVaultEnabled={isSecretVaultEnabled()}
           />
         </CardContent>
       </Card>
@@ -244,41 +248,43 @@ export default async function ClientDetailPage({
               />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.clients.inviteContact}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.clients.contacts}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contacts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {de.clients.noContacts}
-                </p>
-              ) : (
-                <ul className="divide-y">
-                  {contacts.map((c) => (
-                    <ContactRow
-                      key={c.id}
-                      orgId={orgId}
-                      clientCompanyId={clientCompanyId}
-                      contact={c}
-                    />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
+
+      {/* Kontakte: für alle Agentur-Mitarbeiter (Einladen + Liste). */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.clients.inviteContact}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.clients.contacts}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {contacts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {de.clients.noContacts}
+            </p>
+          ) : (
+            <ul className="divide-y">
+              {contacts.map((c) => (
+                <ContactRow
+                  key={c.id}
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  contact={c}
+                  canManage={isAdmin}
+                />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -92,7 +92,20 @@ export default async function AgencyLayout({
       status={gamification.status}
       coins={coins}
       searchEnabled
-      rightRail={<TeamRail />}
+      userMenuInRail
+      rightRail={
+        <TeamRail
+          selfMenu={{
+            userId: user.id,
+            name: user.fullName ?? user.email,
+            hasAvatar: Boolean(profile?.avatar_url),
+            items: menuItems,
+            level: gamification.level,
+            progressPct: gamification.progressPct,
+            status: gamification.status,
+          }}
+        />
+      }
     >
       {children}
       <ChatDock />

@@ -25,6 +25,7 @@ export type Permission =
   | { type: 'member.deactivate'; orgId: string; targetUserId: string }
   | { type: 'member.reactivate'; orgId: string; targetUserId: string }
   | { type: 'clientCompany.manage'; orgId: string }
+  | { type: 'clientCompany.create'; orgId: string }
   | { type: 'clientContact.manage'; orgId: string }
   | { type: 'invitation.manage'; orgId: string }
   | { type: 'project.create'; orgId: string }
@@ -72,6 +73,10 @@ export function can(user: CurrentUser, permission: Permission): boolean {
     case 'organization.viewActivity':
     case 'member.list':
       return isOrgAdmin(user, permission.orgId);
+
+    case 'clientCompany.create':
+      // Any agency staff member may add a new client company.
+      return isAgencyStaffInOrg(user, permission.orgId);
 
     case 'project.create': {
       // Agency admins and project managers may create projects.

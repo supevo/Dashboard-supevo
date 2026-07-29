@@ -466,16 +466,40 @@ export interface Database {
         };
         Relationships: [];
       };
+      client_brands: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          name: string;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_brands']['Insert']
+        >;
+        Relationships: [];
+      };
       client_assets: {
         Row: {
           id: string;
           organization_id: string;
           client_company_id: string;
+          brand_id: string | null;
           category: string;
           title: string;
           url: string | null;
           username: string | null;
           notes: string | null;
+          secret_encrypted: string | null;
+          client_visible: boolean;
           storage_path: string | null;
           file_name: string | null;
           mime_type: string | null;
@@ -487,11 +511,14 @@ export interface Database {
           id?: string;
           organization_id: string;
           client_company_id: string;
+          brand_id?: string | null;
           category: string;
           title: string;
           url?: string | null;
           username?: string | null;
           notes?: string | null;
+          secret_encrypted?: string | null;
+          client_visible?: boolean;
           storage_path?: string | null;
           file_name?: string | null;
           mime_type?: string | null;
@@ -943,7 +970,8 @@ export interface Database {
           channel_id: string;
           organization_id: string;
           author_id: string | null;
-          body: string;
+          body: string | null;
+          sticker_path: string | null;
           created_at: string;
         };
         Insert: {
@@ -951,9 +979,29 @@ export interface Database {
           channel_id: string;
           organization_id: string;
           author_id?: string | null;
-          body: string;
+          body?: string | null;
+          sticker_path?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
+        Relationships: [];
+      };
+      chat_stickers: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          storage_path: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          storage_path: string;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['chat_stickers']['Insert']>;
         Relationships: [];
       };
       chat_reads: {

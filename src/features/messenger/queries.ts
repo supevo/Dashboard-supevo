@@ -32,6 +32,8 @@ export interface ChannelMessage {
   authorHasAvatar: boolean;
   authorStatus: string | null;
   body: string;
+  /** Set when the message is a sticker (team image); render instead of body. */
+  stickerUrl: string | null;
   createdAt: string;
   isMine: boolean;
 }
@@ -172,7 +174,7 @@ export async function listChannelMessages(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('chat_channel_messages')
-    .select('id, author_id, body, created_at')
+    .select('id, author_id, body, sticker_path, created_at')
     .eq('channel_id', channelId)
     .order('created_at', { ascending: true })
     .limit(limit);
@@ -205,9 +207,33 @@ export async function listChannelMessages(
       authorName: profile?.full_name ?? 'Unbekannt',
       authorHasAvatar: Boolean(profile?.avatar_url),
       authorStatus: profile?.status ?? null,
-      body: m.body,
+      body: m.body ?? '',
+      stickerUrl: m.sticker_path
+        ? `/api/chat-stickers/image?path=${encodeURIComponent(m.sticker_path)}`
+        : null,
       createdAt: m.created_at,
       isMine: m.author_id === currentUserId,
     };
   });
+}
+
+export interface StickerItem {
+  id: string;
+  name: string;
+  url: string;
+}
+
+/** Lists the org's chat stickers (agency staff, RLS-scoped). */
+export async function listStickers(orgId: string): Promise<StickerItem[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('chat_stickers')
+    .select('id, name, storage_path')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false });
+  return (data ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    url: `/api/chat-stickers/image?path=${encodeURIComponent(s.storage_path)}`,
+  }));
 }

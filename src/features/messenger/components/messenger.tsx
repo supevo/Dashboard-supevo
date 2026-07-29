@@ -16,6 +16,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { Button } from '@/components/ui/button';
+import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
+import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -60,6 +62,18 @@ function MessagePane({
   const [state, action] = useActionState(sendChannelMessageAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  function insertEmoji(emoji: string) {
+    const el = inputRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + emoji + el.value.slice(end);
+    const pos = start + emoji.length;
+    el.setSelectionRange(pos, pos);
+    el.focus();
+  }
 
   const load = useCallback(async () => {
     try {
@@ -119,8 +133,13 @@ function MessagePane({
               />
               <div
                 className={cn(
-                  'max-w-[75%] rounded-lg px-3 py-2 text-sm',
-                  m.isMine ? 'bg-primary text-primary-foreground' : 'bg-background border',
+                  'max-w-[75%] rounded-lg text-sm',
+                  m.stickerUrl
+                    ? ''
+                    : cn(
+                        'px-3 py-2',
+                        m.isMine ? 'bg-primary text-primary-foreground' : 'bg-background border',
+                      ),
                 )}
               >
                 <div className="mb-0.5 text-xs opacity-70">
@@ -132,7 +151,16 @@ function MessagePane({
                     minute: '2-digit',
                   })}
                 </div>
-                <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                {m.stickerUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.stickerUrl}
+                    alt="Sticker"
+                    className="max-h-32 max-w-[160px] object-contain"
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                )}
               </div>
             </div>
           ))
@@ -142,6 +170,7 @@ function MessagePane({
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-3">
         <input type="hidden" name="channelId" value={channel.id} />
         <Textarea
+          ref={inputRef}
           name="body"
           required
           rows={1}
@@ -154,6 +183,8 @@ function MessagePane({
             }
           }}
         />
+        <EmojiPicker onPick={insertEmoji} />
+        <StickerPicker channelId={channel.id} onSent={() => void load()} />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
     </section>

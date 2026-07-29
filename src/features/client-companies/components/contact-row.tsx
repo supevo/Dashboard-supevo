@@ -11,10 +11,13 @@ export function ContactRow({
   orgId,
   clientCompanyId,
   contact,
+  canManage = true,
 }: {
   orgId: string;
   clientCompanyId: string;
   contact: ClientContactRow;
+  /** Removing a contact stays admin-only; hide the control otherwise. */
+  canManage?: boolean;
 }) {
   const [state, formAction] = useActionState(
     removeClientContactAction,
@@ -30,14 +33,16 @@ export function ContactRow({
           <div className="text-xs text-destructive">{state.message}</div>
         )}
       </div>
-      <form action={formAction}>
-        <input type="hidden" name="orgId" value={orgId} />
-        <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
-        <input type="hidden" name="contactId" value={contact.id} />
-        <SubmitButton variant="outline" size="sm">
-          {de.clients.remove}
-        </SubmitButton>
-      </form>
+      {canManage && (
+        <form action={formAction}>
+          <input type="hidden" name="orgId" value={orgId} />
+          <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+          <input type="hidden" name="contactId" value={contact.id} />
+          <SubmitButton variant="outline" size="sm">
+            {de.clients.remove}
+          </SubmitButton>
+        </form>
+      )}
     </li>
   );
 }
