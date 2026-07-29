@@ -27,6 +27,8 @@ interface AppShellProps {
   levelProgressPct?: number;
   status?: 'online' | 'afk' | 'dnd';
   coins?: number;
+  /** Optional permanent right sidebar (e.g. the team rail). */
+  rightRail?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -44,6 +46,7 @@ export function AppShell({
   levelProgressPct,
   status,
   coins,
+  rightRail,
   children,
 }: AppShellProps) {
   return (
@@ -102,6 +105,7 @@ export function AppShell({
         <PresenceTracker />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
+      {rightRail}
     </div>
   );
 }
