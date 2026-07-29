@@ -47,14 +47,36 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Bitte einen Namen angeben.' }, { status: 400 });
   }
   const description = String(form.get('description') ?? '').trim().slice(0, 300);
-  const type = String(form.get('type') ?? 'physical') === 'badge' ? 'badge' : 'physical';
+  const rawType = String(form.get('type') ?? 'physical');
+  const type = rawType === 'badge' ? 'badge' : rawType === 'banner' ? 'banner' : 'physical';
   const weight = Math.max(WEIGHT_MIN, Math.min(WEIGHT_MAX, Number(form.get('weight')) || 10));
   const badgeEmoji = String(form.get('badgeEmoji') ?? '').trim().slice(0, 8);
   const badgeName = String(form.get('badgeName') ?? '').trim().slice(0, 60);
+  const bannerImageId = String(form.get('bannerImageId') ?? '').trim();
   const file = form.get('file');
 
-  const itemId = randomUUID();
   const service = createSupabaseServiceClient();
+
+  // Banner items must reference an exclusive banner belonging to this org.
+  if (type === 'banner') {
+    const { data: banner } = await service
+      .from('hub_banner_images')
+      .select('id, exclusive')
+      .eq('id', bannerImageId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!banner) {
+      return NextResponse.json({ error: 'Bitte ein Titelbild wählen.' }, { status: 400 });
+    }
+    if (!banner.exclusive) {
+      return NextResponse.json(
+        { error: 'Nur als „exklusiv" markierte Titelbilder können Lootbox-Items sein.' },
+        { status: 400 },
+      );
+    }
+  }
+
+  const itemId = randomUUID();
   let imagePath: string | null = null;
 
   if (file instanceof File && file.size > 0) {
@@ -86,6 +108,7 @@ export async function POST(request: NextRequest) {
     badge_emoji: type === 'badge' ? badgeEmoji || '🏅' : null,
     badge_name: type === 'badge' ? badgeName || name : null,
     image_path: imagePath,
+    banner_image_id: type === 'banner' ? bannerImageId : null,
   });
   if (error) {
     if (imagePath) await service.storage.from(FILES_BUCKET).remove([imagePath]);

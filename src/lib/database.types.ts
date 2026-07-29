@@ -151,6 +151,7 @@ export interface Database {
           organization_id: string;
           name: string;
           unlock_level: number;
+          exclusive: boolean;
           storage_path: string;
           created_by: string | null;
           created_at: string;
@@ -160,6 +161,7 @@ export interface Database {
           organization_id: string;
           name: string;
           unlock_level?: number;
+          exclusive?: boolean;
           storage_path: string;
           created_by?: string | null;
         };
@@ -242,6 +244,7 @@ export interface Database {
           badge_emoji: string | null;
           badge_name: string | null;
           image_path: string | null;
+          banner_image_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -255,6 +258,7 @@ export interface Database {
           badge_emoji?: string | null;
           badge_name?: string | null;
           image_path?: string | null;
+          banner_image_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['loot_items']['Insert']>;
         Relationships: [];
@@ -287,6 +291,7 @@ export interface Database {
           badge_name: string | null;
           box_tier: string | null;
           image_path: string | null;
+          banner_image_id: string | null;
           status: string;
           won_at: string;
           redeemed_at: string | null;
@@ -302,6 +307,7 @@ export interface Database {
           badge_name?: string | null;
           box_tier?: string | null;
           image_path?: string | null;
+          banner_image_id?: string | null;
           status?: string;
           won_at?: string;
           redeemed_at?: string | null;
