@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { METRIC_BY_KEY } from '@/features/gamification/challenge-metrics';
 import { weekInfo } from '@/features/gamification/week';
+import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 
 export type ChallengeKind = 'weekly' | 'team';
 
@@ -58,6 +59,7 @@ export async function getActiveCustomChallenges(
     .like('key', 'cbadge\\_%');
   const owned = new Set((ownedRows ?? []).map((r) => r.key));
 
+  const factor = await xpFactor(orgId);
   const teamCache = new Map<string, number>();
   const challenges: CustomChallengeView[] = [];
 
@@ -84,7 +86,7 @@ export async function getActiveCustomChallenges(
           user_id: userId,
           organization_id: orgId,
           kind: `cchal_${r.id}_${week.id}`,
-          points: r.xp,
+          points: applyBoost(r.xp, factor),
           task_id: null,
         });
       // Badge once ever (idempotent).

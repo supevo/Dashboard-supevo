@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { weekInfo, hashWeek } from '@/features/gamification/week';
 import { getActiveCustomChallenges } from '@/features/gamification/custom-challenges';
+import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 
 /**
  * Weekly challenges. A fixed pool; each ISO week three are picked
@@ -151,6 +152,7 @@ export async function getWeeklyChallenges(
   };
 
   const ownedRare = new Set((rareRows.data ?? []).map((r) => r.key));
+  const factor = await xpFactor(orgId);
 
   const challenges: WeeklyChallenge[] = [];
   for (const c of selected) {
@@ -163,7 +165,7 @@ export async function getWeeklyChallenges(
         user_id: userId,
         organization_id: orgId,
         kind,
-        points: c.xp,
+        points: applyBoost(c.xp, factor),
         task_id: null,
       });
       if (error && error.code !== '23505') console.error('challenge xp failed', error);

@@ -2,13 +2,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
 import { listOrgChallenges } from '@/features/gamification/custom-challenges';
 import { METRIC_OPTIONS } from '@/features/gamification/challenge-metrics';
+import { listXpBoosts } from '@/features/gamification/xp-boost';
 import { ChallengeAdmin } from '@/features/gamification/components/challenge-admin';
+import { XpBoostAdmin } from '@/features/gamification/components/xp-boost-admin';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ChallengesAdminPage() {
   const { orgId } = await requireOrgAdminPage();
-  const challenges = await listOrgChallenges(orgId);
+  const [challenges, boosts] = await Promise.all([
+    listOrgChallenges(orgId),
+    listXpBoosts(orgId),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -25,6 +30,15 @@ export default async function ChallengesAdminPage() {
         </CardHeader>
         <CardContent>
           <ChallengeAdmin challenges={challenges} metricOptions={METRIC_OPTIONS} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>⚡ Double-XP-Woche</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <XpBoostAdmin boosts={boosts} />
         </CardContent>
       </Card>
     </div>

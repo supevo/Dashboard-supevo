@@ -198,6 +198,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      xp_boosts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          factor: number;
+          banner_path: string | null;
+          starts_at: string;
+          ends_at: string;
+          active: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title?: string;
+          factor?: number;
+          banner_path?: string | null;
+          starts_at?: string;
+          ends_at: string;
+          active?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['xp_boosts']['Insert']>;
+        Relationships: [];
+      };
       custom_challenges: {
         Row: {
           id: string;

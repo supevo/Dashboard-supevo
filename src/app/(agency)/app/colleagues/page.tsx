@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { listColleagues } from '@/features/team/colleague';
+import { getActiveXpBoost } from '@/features/gamification/xp-boost';
+import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banner';
 import { Avatar } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { de } from '@/lib/i18n/de';
@@ -9,10 +11,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function ColleaguesPage() {
   const { orgId } = await requireAgencyPage();
-  const colleagues = await listColleagues(orgId);
+  const [colleagues, xpBoost] = await Promise.all([
+    listColleagues(orgId),
+    getActiveXpBoost(orgId),
+  ]);
 
   return (
     <div className="space-y-6">
+      <XpBoostBanner boost={xpBoost} />
       <div>
         <h1 className="text-2xl font-bold">{de.nav.colleagues}</h1>
         <p className="text-sm text-muted-foreground">{de.colleagues.subtitle}</p>

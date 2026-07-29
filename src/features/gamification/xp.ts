@@ -1,5 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 
 /** Automatic XP awards. Tweak the economy here. */
 export const XP_MISSION = 10; // completing a task
@@ -58,6 +59,7 @@ async function awardStreak(
   supabase: Supabase,
   userId: string,
   orgId: string,
+  factor: number,
 ): Promise<void> {
   const { data } = await supabase
     .from('xp_events')
@@ -74,7 +76,7 @@ async function awardStreak(
         user_id: userId,
         organization_id: orgId,
         kind: m.kind,
-        points: m.points,
+        points: applyBoost(m.points, factor),
         task_id: null,
       });
     }
@@ -97,11 +99,14 @@ export async function awardTaskXp(params: {
   const { userId, orgId, taskId, dueDate, completedAt } = params;
   const supabase = await createSupabaseServerClient();
 
+  // Double-XP-Woche: multiply automatic XP while a boost is running.
+  const factor = await xpFactor(orgId);
+
   await insertIgnore(supabase, {
     user_id: userId,
     organization_id: orgId,
     kind: 'mission',
-    points: XP_MISSION,
+    points: applyBoost(XP_MISSION, factor),
     task_id: taskId,
   });
 
@@ -111,10 +116,10 @@ export async function awardTaskXp(params: {
       user_id: userId,
       organization_id: orgId,
       kind: 'ontime',
-      points: XP_ONTIME,
+      points: applyBoost(XP_ONTIME, factor),
       task_id: taskId,
     });
   }
 
-  await awardStreak(supabase, userId, orgId);
+  await awardStreak(supabase, userId, orgId, factor);
 }
