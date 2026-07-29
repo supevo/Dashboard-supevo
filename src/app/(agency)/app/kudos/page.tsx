@@ -103,7 +103,7 @@ export default async function KudosPage() {
           className="absolute inset-0"
           style={{ background: hub.bannerBackground }}
         />
-        <div aria-hidden className="absolute inset-0 bg-background/45 backdrop-blur-[2px]" />
+        <div aria-hidden className="absolute inset-0 bg-background/35" />
 
         {/* Titelbild-Auswahl */}
         <div className="absolute right-3 top-3 z-10">
