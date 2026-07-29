@@ -16,6 +16,7 @@ import { DecideApprovalForm } from '@/features/approvals/components/decide-appro
 import { getMyClientRating, isTaskDone } from '@/features/client-ratings/queries';
 import { ClientRatingPanel } from '@/features/client-ratings/components/client-rating-panel';
 import { ClientBriefingEditor } from '@/features/tasks/components/client-briefing-editor';
+import { EditableTaskTitle } from '@/features/tasks/components/editable-task-title';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalTaskPage({
@@ -51,7 +52,14 @@ export default async function PortalTaskPage({
         >
           ← {de.portal.back}
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{task.title}</h1>
+        <div className="mt-2">
+          <EditableTaskTitle
+            projectId={projectId}
+            taskId={taskId}
+            title={task.title}
+            canManage
+          />
+        </div>
         {labels.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {labels.map((l) => (

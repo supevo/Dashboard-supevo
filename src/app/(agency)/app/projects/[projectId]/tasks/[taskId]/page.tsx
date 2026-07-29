@@ -86,7 +86,7 @@ export default async function TaskDetailPage({
             projectId={projectId}
             taskId={taskId}
             title={task.title}
-            canManage={task.canManage}
+            canManage
           />
         </div>
         <p className="text-sm text-muted-foreground">
