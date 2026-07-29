@@ -1,5 +1,6 @@
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
+import { levelForPoints } from '@/features/kudos/badges';
 
 /**
  * Large circular XP-progress ring. Shows the level in the centre, or – when an
@@ -66,8 +67,8 @@ export function LevelRing({
             </span>
             <span className="text-3xl font-bold leading-tight">{level}</span>
             <span className="text-xs text-muted-foreground">
-              {/* XP within the current level, matching the ring fill (each level = 100 XP). */}
-              {Math.max(0, points - (level - 1) * 100)}/100 XP
+              {/* XP within the current level (progressive curve). */}
+              {levelForPoints(points).intoLevel}/{levelForPoints(points).span} XP
             </span>
           </>
         )}

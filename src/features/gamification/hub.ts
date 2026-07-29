@@ -56,6 +56,8 @@ export interface LevelHub {
   level: number;
   levelProgressPct: number;
   nextLevelPoints: number;
+  xpIntoLevel: number; // XP earned within the current level
+  xpForLevel: number; // XP needed to complete the current level
   league: LeagueStanding;
   daysInCompany: number;
   stats: HubStats;
@@ -132,12 +134,16 @@ export async function getLevelHub(
   const received = kudosReceivedRes.data ?? [];
   // Level/XP = peer kudos + automatic XP ledger (missions, on-time, streaks).
   const points = received.reduce((n, k) => n + (k.points ?? 0), 0) + xpPoints;
-  const { level, next } = levelForPoints(points);
+  const levelInfo = levelForPoints(points);
+  const { level, next } = levelInfo;
 
   const skills = (skillsRes.data ?? [])
     .slice()
     .sort((a, b) => b.level - a.level);
-  const competences = skills.reduce((n, s) => n + (s.level ?? 0), 0);
+  // One competence point per skill mastered above level 5 (a strong skill),
+  // instead of summing all skill points (which produced huge numbers).
+  const COMPETENCE_THRESHOLD = 5;
+  const competences = skills.filter((s) => (s.level ?? 0) > COMPETENCE_THRESHOLD).length;
   const preferences = (prefsRes.data ?? [])
     .slice()
     .sort((a, b) => b.level - a.level);
@@ -188,8 +194,10 @@ export async function getLevelHub(
     specialty: skills[0]?.name ?? null,
     points,
     level,
-    levelProgressPct: Math.max(0, Math.min(100, points % 100)),
+    levelProgressPct: levelInfo.progressPct,
     nextLevelPoints: next,
+    xpIntoLevel: levelInfo.intoLevel,
+    xpForLevel: levelInfo.span,
     league: leagueForPoints(points),
     daysInCompany,
     stats: {

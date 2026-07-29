@@ -31,14 +31,23 @@ export interface TenureBadge {
   emoji: string;
 }
 
-/** Service-anniversary milestones, ascending. */
+/**
+ * Service-anniversary milestones, ascending. Each year has its own badge with
+ * a distinctive name (not just "X Jahre dabei"). The tenure in years is still
+ * shown separately via formatTenure().
+ */
 export const TENURE_BADGES: TenureBadge[] = [
-  { minDays: 182, name: '6 Monate dabei', emoji: '🌱' },
-  { minDays: 365, name: '1 Jahr dabei', emoji: '🎉' },
-  { minDays: 730, name: '2 Jahre dabei', emoji: '🥈' },
-  { minDays: 1095, name: '3 Jahre dabei', emoji: '🥇' },
-  { minDays: 1826, name: '5 Jahre dabei', emoji: '🏆' },
-  { minDays: 3652, name: '10 Jahre dabei', emoji: '💎' },
+  { minDays: 182, name: 'Frisch eingezogen', emoji: '🌱' },
+  { minDays: 365, name: 'Wurzeln geschlagen', emoji: '🌿' },
+  { minDays: 730, name: 'Fest verwachsen', emoji: '🌳' },
+  { minDays: 1096, name: 'Eingespieltes Zahnrad', emoji: '⚙️' },
+  { minDays: 1461, name: 'Fels in der Brandung', emoji: '🪨' },
+  { minDays: 1826, name: 'Alter Hase', emoji: '🎖️' },
+  { minDays: 2192, name: 'Urgestein', emoji: '🗿' },
+  { minDays: 2557, name: 'Anker der Crew', emoji: '⚓' },
+  { minDays: 2922, name: 'Leuchtturm', emoji: '🗼' },
+  { minDays: 3287, name: 'Lebende Institution', emoji: '🏛️' },
+  { minDays: 3652, name: 'Lebende Legende', emoji: '💎' },
 ];
 
 /** The highest tenure milestone reached, or null when under six months. */

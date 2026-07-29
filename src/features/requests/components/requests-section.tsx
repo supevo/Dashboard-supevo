@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   acceptSuggestionAction,
   setRequestStatusAction,
+  deleteClientRequestAction,
 } from '@/features/requests/actions';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
@@ -38,6 +39,34 @@ function AcceptForm({
         <option value="false">{de.task.clientVisible}</option>
       </Select>
       <SubmitButton size="sm">{de.requests.accept}</SubmitButton>
+    </form>
+  );
+}
+
+function DeleteForm({
+  clientCompanyId,
+  requestId,
+}: {
+  clientCompanyId: string;
+  requestId: string;
+}) {
+  const [state, action] = useActionState(deleteClientRequestAction, idleResult);
+  const router = useRouter();
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+  return (
+    <form
+      action={action}
+      onSubmit={(e) => {
+        if (!confirm(de.requests.deleteConfirm)) e.preventDefault();
+      }}
+    >
+      <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+      <input type="hidden" name="requestId" value={requestId} />
+      <SubmitButton size="sm" variant="ghost">
+        {de.requests.delete}
+      </SubmitButton>
     </form>
   );
 }
@@ -169,6 +198,7 @@ export function RequestsSection({
                 variant="outline"
               />
             )}
+            <DeleteForm clientCompanyId={clientCompanyId} requestId={r.id} />
           </div>
         </div>
       ))}

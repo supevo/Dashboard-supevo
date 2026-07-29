@@ -352,6 +352,8 @@ export const de = {
     aiNoQuestions: 'Das Briefing ist klar genug – ich erstelle direkt eine Aufgabe daraus.',
     aiCreateTask: 'Aufgabe erstellen',
     aiCreating: 'Erstelle …',
+    delete: 'Löschen',
+    deleteConfirm: 'Dieses Briefing wirklich endgültig löschen?',
     edit: 'Bearbeiten',
     saveEdit: 'Änderungen speichern',
     myTitle: 'Meine Briefings',

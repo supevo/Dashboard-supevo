@@ -131,7 +131,7 @@ export default async function KudosPage() {
               <div className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
                 {de.level.title} {hub.level}
                 <span className="ml-2 text-sm font-medium text-muted-foreground">
-                  {Math.max(0, hub.points - (hub.level - 1) * 100)}/100 XP
+                  {hub.xpIntoLevel}/{hub.xpForLevel} XP
                 </span>
               </div>
               <div className="mt-3 max-w-sm">

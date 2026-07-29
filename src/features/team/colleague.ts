@@ -5,10 +5,21 @@ import { hasAgencyAccess } from '@/features/auth/access';
 import { levelForPoints } from '@/features/kudos/badges';
 import { leagueForPoints, type LeagueStanding } from '@/features/gamification/leagues';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
+import {
+  resolveActiveBanner,
+  type CustomBanner,
+} from '@/features/gamification/banners';
 
 export interface NamedLevel {
   name: string;
   level: number;
+}
+
+export interface ColleagueStats {
+  missions: number;
+  socialActivity: number;
+  competences: number;
+  helpfulness: number;
 }
 
 export interface ColleagueProfile {
@@ -22,10 +33,16 @@ export interface ColleagueProfile {
   daysInCompany: number;
   points: number;
   level: number;
+  levelProgressPct: number;
+  xpIntoLevel: number;
+  xpForLevel: number;
   league: LeagueStanding;
+  bannerBackground: string;
+  stats: ColleagueStats;
   skills: NamedLevel[];
   preferences: NamedLevel[];
-  badges: WallBadge[];
+  badges: WallBadge[]; // earned only (compact list)
+  badgeWall: WallBadge[]; // full wall (earned + locked)
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -128,18 +145,32 @@ export async function getColleagueProfile(
     .maybeSingle();
   if (!membership) return null; // not a teammate in this org
 
-  const [profileRes, skillsRes, prefsRes, kudosRes, xpRes, badges] = await Promise.all([
-    service.from('profiles').select('full_name, avatar_url, status, created_at').eq('id', targetUserId).maybeSingle(),
+  const [
+    profileRes,
+    skillsRes,
+    prefsRes,
+    kudosRes,
+    kudosGivenRes,
+    missionsRes,
+    xpRes,
+    bannersRes,
+    badges,
+  ] = await Promise.all([
+    service.from('profiles').select('full_name, avatar_url, status, created_at, hub_banner').eq('id', targetUserId).maybeSingle(),
     service.from('employee_skills').select('name, level').eq('user_id', targetUserId),
     service.from('work_preferences').select('name, level').eq('user_id', targetUserId),
     service.from('kudos').select('points').eq('to_user_id', targetUserId),
+    service.from('kudos').select('id', { count: 'exact', head: true }).eq('from_user_id', targetUserId),
+    service.from('tasks').select('id', { count: 'exact', head: true }).eq('completed_by', targetUserId),
     service.from('xp_events').select('points').eq('user_id', targetUserId),
+    service.from('hub_banner_images').select('id, name, unlock_level').eq('organization_id', orgId),
     getBadgeWall(targetUserId, orgId),
   ]);
 
   const profile = profileRes.data;
+  const received = kudosRes.data ?? [];
   const points =
-    (kudosRes.data ?? []).reduce((n, k) => n + (k.points ?? 0), 0) +
+    received.reduce((n, k) => n + (k.points ?? 0), 0) +
     (xpRes.data ?? []).reduce((n, x) => n + (x.points ?? 0), 0);
 
   const joinedAt =
@@ -148,6 +179,15 @@ export async function getColleagueProfile(
 
   const sortByLevel = (rows: { name: string; level: number }[] | null) =>
     (rows ?? []).slice().sort((a, b) => b.level - a.level).map((r) => ({ name: r.name, level: r.level }));
+  const skills = sortByLevel(skillsRes.data);
+
+  const levelInfo = levelForPoints(points);
+  const customBanners: CustomBanner[] = (bannersRes.data ?? []).map((b) => ({
+    id: b.id,
+    name: b.name,
+    unlockLevel: b.unlock_level,
+  }));
+  const banner = resolveActiveBanner(profile?.hub_banner ?? null, levelInfo.level, customBanners);
 
   return {
     userId: targetUserId,
@@ -159,10 +199,21 @@ export async function getColleagueProfile(
     joinedExplicit: membership.joined_company_at ?? null,
     daysInCompany,
     points,
-    level: levelForPoints(points).level,
+    level: levelInfo.level,
+    levelProgressPct: levelInfo.progressPct,
+    xpIntoLevel: levelInfo.intoLevel,
+    xpForLevel: levelInfo.span,
     league: leagueForPoints(points),
-    skills: sortByLevel(skillsRes.data),
+    bannerBackground: banner.background,
+    stats: {
+      missions: missionsRes.count ?? 0,
+      socialActivity: kudosGivenRes.count ?? 0,
+      competences: skills.filter((s) => s.level > 5).length,
+      helpfulness: received.length,
+    },
+    skills,
     preferences: sortByLevel(prefsRes.data),
     badges: badges.filter((b) => b.earned),
+    badgeWall: badges,
   };
 }

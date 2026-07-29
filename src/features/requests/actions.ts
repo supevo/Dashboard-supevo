@@ -399,6 +399,54 @@ export async function createTaskFromBriefingAction(input: {
   return successResult('Aufgabe aus Briefing erstellt.');
 }
 
+const deleteSchema = z.object({
+  clientCompanyId: z.string().uuid(),
+  requestId: z.string().uuid(),
+});
+
+/**
+ * Permanently deletes a client briefing. RLS-gates the read (so only agency
+ * staff who may see the request get past it), then the service client removes
+ * the row.
+ */
+export async function deleteClientRequestAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = deleteSchema.safeParse({
+    clientCompanyId: formData.get('clientCompanyId'),
+    requestId: formData.get('requestId'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { clientCompanyId, requestId } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { data: req } = await supabase
+    .from('client_requests')
+    .select('id, organization_id')
+    .eq('id', requestId)
+    .maybeSingle();
+  if (!req) return errorResult(de.errors.FORBIDDEN);
+
+  const { error } = await createSupabaseServiceClient()
+    .from('client_requests')
+    .delete()
+    .eq('id', requestId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: req.organization_id,
+    action: 'delete',
+    entityType: 'client_request',
+    entityId: requestId,
+  });
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  return successResult('Briefing gelöscht.');
+}
+
 const statusSchema = z.object({
   clientCompanyId: z.string().uuid(),
   requestId: z.string().uuid(),

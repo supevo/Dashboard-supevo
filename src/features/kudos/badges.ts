@@ -22,9 +22,45 @@ export function badgeLabel(key: string): string {
   return b ? `${b.emoji} ${b.label}` : key;
 }
 
-/** Level thresholds from cumulative points. */
-export function levelForPoints(points: number): { level: number; next: number } {
-  const level = Math.floor(points / 100) + 1;
-  const next = level * 100; // points needed for the next level
-  return { level, next };
+/**
+ * Progressive level curve: each level costs more XP than the one before, so
+ * higher levels take longer. Level L → L+1 needs `BASE + (L-1)*STEP` points.
+ */
+const LEVEL_BASE = 100;
+const LEVEL_STEP = 20;
+
+/** XP needed to advance FROM `level` to `level + 1`. */
+function levelRequirement(level: number): number {
+  return LEVEL_BASE + (level - 1) * LEVEL_STEP;
+}
+
+export interface LevelInfo {
+  level: number;
+  next: number; // cumulative points needed to reach the next level
+  levelStart: number; // cumulative points at the start of the current level
+  intoLevel: number; // points earned within the current level
+  span: number; // points needed to complete the current level
+  progressPct: number; // 0..100 within the current level
+}
+
+/** Level + progress from cumulative points, using the progressive curve. */
+export function levelForPoints(points: number): LevelInfo {
+  const p = Math.max(0, points);
+  let level = 1;
+  let start = 0;
+  // Advance while the current level's requirement is fully covered.
+  while (p >= start + levelRequirement(level)) {
+    start += levelRequirement(level);
+    level += 1;
+  }
+  const span = levelRequirement(level);
+  const intoLevel = p - start;
+  return {
+    level,
+    next: start + span,
+    levelStart: start,
+    intoLevel,
+    span,
+    progressPct: Math.max(0, Math.min(100, Math.round((intoLevel / span) * 100))),
+  };
 }

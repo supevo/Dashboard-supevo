@@ -29,9 +29,7 @@ export async function getMyGamification(userId: string): Promise<MyGamification>
 
   const points =
     (kudos ?? []).reduce((s, k) => s + (k.points ?? 0), 0) + xpPoints;
-  const { level } = levelForPoints(points);
-  // Points are earned in 100-point levels; progress is the remainder.
-  const progressPct = Math.max(0, Math.min(100, points % 100));
+  const { level, progressPct } = levelForPoints(points);
 
   return {
     points,
