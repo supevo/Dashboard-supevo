@@ -44,6 +44,7 @@ export const de = {
     team: 'Team',
     colleagues: 'Kollegen',
     challenges: 'Challenges',
+    rewards: 'Belohnungen',
     kudos: 'Anerkennung',
     awards: 'Auszeichnungen',
     recognition: 'Anerkennung & Auszeichnungen',
