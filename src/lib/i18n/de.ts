@@ -251,6 +251,9 @@ export const de = {
     filter: 'Typ',
     all: 'Alle',
     unread: 'ungelesen',
+    viewAll: 'Alle ansehen',
+    desktopEnable: 'Desktop-Töne & Hinweise',
+    desktopOn: 'Desktop-Hinweise sind aktiv',
   },
   notificationType: {
     task_assigned: 'Aufgabe zugewiesen',

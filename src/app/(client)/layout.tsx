@@ -62,6 +62,7 @@ export default async function ClientLayout({
       navItems={navItems}
       menuItems={MENU_ITEMS}
       areaLabel="Kundenportal"
+      area="portal"
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}
