@@ -13,3 +13,5 @@ export const lootItemImageUrl = (id: string) => `/api/loot/items/${id}/image`;
 export const inventoryImageUrl = (id: string) => `/api/loot/inventory/${id}/image`;
 /** Image URL for a box's artwork (per tier). */
 export const boxArtUrl = (tier: BoxTier) => `/api/loot/box-art/${tier}`;
+/** Video URL for a box's opening animation (per tier). */
+export const boxVideoUrl = (tier: BoxTier) => `/api/loot/box-video/${tier}`;

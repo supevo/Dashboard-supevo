@@ -117,19 +117,21 @@ export function LootAdmin({
     }
   }
 
-  async function uploadBoxArt(tier: BoxTier, file: File) {
+  async function uploadBoxAsset(kind: 'box-art' | 'box-video', tier: BoxTier, file: File) {
     setError(null);
     setNotice(null);
     setBusy(true);
     try {
       const fd = new FormData();
       fd.set('file', file);
-      const res = await fetch(`/api/loot/box-art/${tier}`, { method: 'POST', body: fd });
+      const res = await fetch(`/api/loot/${kind}/${tier}`, { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
         setError(json.error ?? 'Upload fehlgeschlagen.');
       } else {
-        setNotice(`Box-Bild für ${TIER_LABEL[tier]} gespeichert.`);
+        setNotice(
+          `${kind === 'box-video' ? 'Öffnungs-Video' : 'Box-Bild'} für ${TIER_LABEL[tier]} gespeichert.`,
+        );
         router.refresh();
       }
     } catch {
@@ -194,12 +196,14 @@ export function LootAdmin({
         <Button size="sm" variant="outline" disabled={pending} onClick={saveConfig}>Preise speichern</Button>
       </div>
 
-      {/* Box artwork */}
+      {/* Box artwork + opening video */}
       <div className="space-y-3 rounded-lg border p-4">
-        <div className="text-sm font-semibold">Box-Bilder</div>
+        <div className="text-sm font-semibold">Box-Bilder & Öffnungs-Videos</div>
         <p className="text-xs text-muted-foreground">
-          Lade je Stufe ein eigenes Box-Bild hoch (empfohlen quadratisch, z. B. 512×512). Ohne Bild
-          wird ein Emoji angezeigt.
+          Lade je Stufe ein Box-Bild (empfohlen quadratisch, z. B. 512×512) und optional ein
+          Öffnungs-Video (MP4/WebM, max. 30 MB, am besten kurz) hoch. Das Video wird beim Öffnen
+          abgespielt, danach erscheint das Item. Ohne Bild wird ein Emoji angezeigt, ohne Video
+          erscheint das Item direkt.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           {(['common', 'rare', 'super'] as BoxTier[]).map((t) => (
@@ -211,17 +215,36 @@ export function LootAdmin({
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded bg-muted text-2xl">📦</div>
               )}
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void uploadBoxArt(t, f);
-                  e.target.value = '';
-                }}
-                className="block w-full text-xs"
-              />
+              <div className="w-full space-y-1 text-left">
+                <label className="text-[11px] text-muted-foreground">Box-Bild</label>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadBoxAsset('box-art', t, f);
+                    e.target.value = '';
+                  }}
+                  className="block w-full text-xs"
+                />
+              </div>
+              <div className="w-full space-y-1 text-left">
+                <label className="text-[11px] text-muted-foreground">
+                  Öffnungs-Video {config.hasVideo?.[t] ? '🎬 ✓' : '(optional)'}
+                </label>
+                <input
+                  type="file"
+                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadBoxAsset('box-video', t, f);
+                    e.target.value = '';
+                  }}
+                  className="block w-full text-xs"
+                />
+              </div>
             </div>
           ))}
         </div>

@@ -5,10 +5,11 @@ import {
   lootItemImageUrl,
   inventoryImageUrl,
   boxArtUrl,
+  boxVideoUrl,
 } from '@/features/loot/shared';
 
 export type { BoxTier } from '@/features/loot/shared';
-export { WEIGHT_MIN, WEIGHT_MAX, lootItemImageUrl, inventoryImageUrl, boxArtUrl } from '@/features/loot/shared';
+export { WEIGHT_MIN, WEIGHT_MAX, lootItemImageUrl, inventoryImageUrl, boxArtUrl, boxVideoUrl } from '@/features/loot/shared';
 
 export interface LootConfig {
   xpPerCoin: number;
@@ -17,6 +18,8 @@ export interface LootConfig {
   priceSuper: number;
   /** Whether custom box artwork was uploaded per tier. */
   hasArt?: { common: boolean; rare: boolean; super: boolean };
+  /** Whether an opening video was uploaded per tier. */
+  hasVideo?: { common: boolean; rare: boolean; super: boolean };
 }
 
 export const DEFAULT_LOOT_CONFIG: LootConfig = {
@@ -25,6 +28,7 @@ export const DEFAULT_LOOT_CONFIG: LootConfig = {
   priceRare: 50,
   priceSuper: 120,
   hasArt: { common: false, rare: false, super: false },
+  hasVideo: { common: false, rare: false, super: false },
 };
 
 export interface LootItem {
@@ -57,6 +61,7 @@ export interface BoxInfo {
   price: number;
   itemCount: number;
   artUrl: string | null;
+  videoUrl: string | null;
   free: number;
 }
 
@@ -86,7 +91,9 @@ async function totalPoints(
 export async function getLootConfig(orgId: string): Promise<LootConfig> {
   const { data } = await createSupabaseServiceClient()
     .from('loot_config')
-    .select('xp_per_coin, price_common, price_rare, price_super, image_common, image_rare, image_super')
+    .select(
+      'xp_per_coin, price_common, price_rare, price_super, image_common, image_rare, image_super, video_common, video_rare, video_super',
+    )
     .eq('organization_id', orgId)
     .maybeSingle();
   if (!data) return { ...DEFAULT_LOOT_CONFIG };
@@ -99,6 +106,11 @@ export async function getLootConfig(orgId: string): Promise<LootConfig> {
       common: Boolean(data.image_common),
       rare: Boolean(data.image_rare),
       super: Boolean(data.image_super),
+    },
+    hasVideo: {
+      common: Boolean(data.video_common),
+      rare: Boolean(data.video_rare),
+      super: Boolean(data.video_super),
     },
   };
 }
@@ -135,6 +147,7 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
     if (g.box_tier in free) free[g.box_tier as BoxTier] += 1;
   }
   const art = config.hasArt ?? { common: false, rare: false, super: false };
+  const vid = config.hasVideo ?? { common: false, rare: false, super: false };
 
   return {
     balance: Math.max(0, earned - spent),
@@ -142,9 +155,9 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
     spent,
     config,
     boxes: [
-      { tier: 'common', price: config.priceCommon, itemCount: counts.common, artUrl: art.common ? boxArtUrl('common') : null, free: free.common },
-      { tier: 'rare', price: config.priceRare, itemCount: counts.rare, artUrl: art.rare ? boxArtUrl('rare') : null, free: free.rare },
-      { tier: 'super', price: config.priceSuper, itemCount: counts.super, artUrl: art.super ? boxArtUrl('super') : null, free: free.super },
+      { tier: 'common', price: config.priceCommon, itemCount: counts.common, artUrl: art.common ? boxArtUrl('common') : null, videoUrl: vid.common ? boxVideoUrl('common') : null, free: free.common },
+      { tier: 'rare', price: config.priceRare, itemCount: counts.rare, artUrl: art.rare ? boxArtUrl('rare') : null, videoUrl: vid.rare ? boxVideoUrl('rare') : null, free: free.rare },
+      { tier: 'super', price: config.priceSuper, itemCount: counts.super, artUrl: art.super ? boxArtUrl('super') : null, videoUrl: vid.super ? boxVideoUrl('super') : null, free: free.super },
     ],
     inventory: (invRes.data ?? []).map((r) => ({
       id: r.id,

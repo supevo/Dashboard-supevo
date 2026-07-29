@@ -208,6 +208,9 @@ export interface Database {
           image_common: string | null;
           image_rare: string | null;
           image_super: string | null;
+          video_common: string | null;
+          video_rare: string | null;
+          video_super: string | null;
           updated_at: string;
         };
         Insert: {
@@ -219,6 +222,9 @@ export interface Database {
           image_common?: string | null;
           image_rare?: string | null;
           image_super?: string | null;
+          video_common?: string | null;
+          video_rare?: string | null;
+          video_super?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['loot_config']['Insert']>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { openBoxAction, redeemItemAction } from '@/features/loot/actions';
 import type { ShopData } from '@/features/loot/queries';
@@ -28,23 +28,52 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
   const [error, setError] = useState<string | null>(null);
   const [reveal, setReveal] = useState<Reveal | null>(null);
 
+  // Opening animation: while a box video plays we hold the drawn item back and
+  // only reveal it once the video has finished (or is skipped).
+  const [openingVideo, setOpeningVideo] = useState<string | null>(null);
+  const [videoDone, setVideoDone] = useState(false);
+  const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
+
+  // When both the video finished and the item was drawn, show the reveal.
+  useEffect(() => {
+    if (openingVideo && videoDone && pendingReveal) {
+      setOpeningVideo(null);
+      setVideoDone(false);
+      setReveal(pendingReveal);
+      setPendingReveal(null);
+    }
+  }, [openingVideo, videoDone, pendingReveal]);
+
   function open(tier: string, free: boolean) {
     setError(null);
+    const box = shop.boxes.find((b) => b.tier === tier);
+    const video = box?.videoUrl ?? null;
+    if (video) {
+      setVideoDone(false);
+      setPendingReveal(null);
+      setOpeningVideo(video);
+    }
     start(async () => {
       const res = await openBoxAction(tier, { free });
       if (res.status !== 'success') {
         if (res.status === 'error') setError(res.message);
+        setOpeningVideo(null);
         return;
       }
       const d = res.data as
         | { name?: string; badgeEmoji?: string; type?: string; imageUrl?: string | null }
         | undefined;
-      setReveal({
+      const drawn: Reveal = {
         name: d?.name ?? 'Item',
         emoji: d?.badgeEmoji ?? '🎁',
         type: d?.type ?? 'physical',
         imageUrl: d?.imageUrl ?? null,
-      });
+      };
+      if (video) {
+        setPendingReveal(drawn);
+      } else {
+        setReveal(drawn);
+      }
       router.refresh();
     });
   }
@@ -175,6 +204,33 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
           </ul>
         )}
       </div>
+
+      {/* Opening animation (box video) – plays before the reveal */}
+      {openingVideo && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/90 p-4">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={openingVideo}
+            autoPlay
+            muted
+            playsInline
+            onEnded={() => setVideoDone(true)}
+            onError={() => setVideoDone(true)}
+            className="max-h-[70vh] w-auto max-w-full rounded-lg"
+          />
+          {videoDone && !pendingReveal ? (
+            <p className="text-sm text-white/70">Box wird geöffnet …</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setVideoDone(true)}
+              className="rounded-full border border-white/30 px-4 py-1.5 text-sm text-white/80 hover:bg-white/10"
+            >
+              Überspringen
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Reveal */}
       <Modal open={reveal !== null} onClose={() => setReveal(null)} title="🎉 Gewonnen!">
