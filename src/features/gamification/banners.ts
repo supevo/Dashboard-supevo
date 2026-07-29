@@ -23,56 +23,18 @@ export interface Banner {
 /** Standard-Banner – immer verfügbar (Level 0). */
 export const DEFAULT_BANNER_KEY = 'aurora';
 
+/**
+ * Nur noch EIN neutrales Standard-Banner im Code (dezenter Verlauf). Die
+ * bunten Deko-Verläufe wurden entfernt – Titelbilder kommen jetzt aus den
+ * hochgeladenen Bildern. Das Standard-Banner dient nur als Fallback, wenn
+ * (noch) kein Bild gewählt/hochgeladen ist.
+ */
 export const BANNERS: Banner[] = [
   {
     key: 'aurora',
-    name: 'Aurora',
-    gradient: 'linear-gradient(120deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)',
+    name: 'Standard',
+    gradient: 'linear-gradient(120deg, #312e81 0%, #4f46e5 55%, #7c3aed 100%)',
     unlockLevel: 0,
-  },
-  {
-    key: 'sunrise',
-    name: 'Morgenrot',
-    gradient: 'linear-gradient(120deg, #f97316 0%, #f43f5e 55%, #a855f7 100%)',
-    unlockLevel: 2,
-  },
-  {
-    key: 'ocean',
-    name: 'Tiefsee',
-    gradient: 'linear-gradient(120deg, #0ea5e9 0%, #2563eb 55%, #4f46e5 100%)',
-    unlockLevel: 4,
-  },
-  {
-    key: 'forest',
-    name: 'Waldlichtung',
-    gradient: 'linear-gradient(120deg, #10b981 0%, #059669 50%, #0d9488 100%)',
-    unlockLevel: 6,
-  },
-  {
-    key: 'ember',
-    name: 'Glut',
-    gradient: 'linear-gradient(120deg, #f59e0b 0%, #ef4444 55%, #b91c1c 100%)',
-    unlockLevel: 8,
-  },
-  {
-    key: 'nebula',
-    name: 'Nebel',
-    gradient:
-      'radial-gradient(circle at 20% 30%, #7c3aed 0%, transparent 45%), radial-gradient(circle at 80% 70%, #db2777 0%, transparent 45%), linear-gradient(120deg, #1e1b4b, #312e81)',
-    unlockLevel: 10,
-  },
-  {
-    key: 'gold',
-    name: 'Goldrausch',
-    gradient: 'linear-gradient(120deg, #fbbf24 0%, #d97706 50%, #92400e 100%)',
-    unlockLevel: 15,
-  },
-  {
-    key: 'midnight',
-    name: 'Mitternacht',
-    gradient:
-      'linear-gradient(120deg, #0f172a 0%, #1e293b 45%, #334155 100%)',
-    unlockLevel: 20,
   },
 ];
 
