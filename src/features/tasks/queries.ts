@@ -102,6 +102,7 @@ export interface BoardTask {
   priority: TaskPriority;
   isInternal: boolean;
   isBlocked: boolean;
+  isExpress: boolean;
   dueDate: string | null;
   columnId: string;
   position: number;
@@ -160,7 +161,7 @@ export async function getBoardView(
   const { data: tasks } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at, completed_by',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by',
     )
     .eq('board_id', board.id)
     .eq('is_archived', false)
@@ -170,7 +171,7 @@ export async function getBoardView(
   const { data: archivedRows } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, due_date, column_id, position, lock_version, column_entered_at, completed_by',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by',
     )
     .eq('board_id', board.id)
     .eq('is_archived', true)
@@ -295,6 +296,7 @@ export async function getBoardView(
     priority: t.priority,
     isInternal: t.is_internal,
     isBlocked: t.is_blocked,
+    isExpress: t.is_express,
     dueDate: t.due_date,
     columnId: t.column_id,
     position: t.position,

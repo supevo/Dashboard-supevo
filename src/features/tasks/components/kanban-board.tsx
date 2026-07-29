@@ -48,6 +48,8 @@ export function KanbanBoard({
   reorderOnly = false,
   allowColumnMove = false,
   basePath = '/app/projects',
+  expressPickMode = false,
+  onExpressPick,
 }: {
   projectId: string;
   board: BoardView;
@@ -66,6 +68,10 @@ export function KanbanBoard({
   allowColumnMove?: boolean;
   /** Route prefix for opening a task, e.g. '/app/projects' or '/portal/projects'. */
   basePath?: string;
+  /** Express-Ticket pick mode: a card click redeems the ticket instead of
+   *  opening the task. The parent shows the badge/hint and handles the redeem. */
+  expressPickMode?: boolean;
+  onExpressPick?: (taskId: string) => void;
 }) {
   const router = useRouter();
   const canDrag = canManage || canMove || reorderOnly;
@@ -421,11 +427,19 @@ export function KanbanBoard({
                       ) {
                         return;
                       }
+                      if (expressPickMode) {
+                        if (!task.isExpress) onExpressPick?.(task.id);
+                        return;
+                      }
                       router.push(`${basePath}/${projectId}/tasks/${task.id}`);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
+                        if (expressPickMode) {
+                          if (!task.isExpress) onExpressPick?.(task.id);
+                          return;
+                        }
                         router.push(
                           `${basePath}/${projectId}/tasks/${task.id}`,
                         );
@@ -435,6 +449,11 @@ export function KanbanBoard({
                       'cursor-pointer rounded-md border-l-4 bg-background p-2 shadow-sm transition hover:shadow-md',
                       PRIORITY_CLASS[task.priority],
                       canDrag && 'active:cursor-grabbing',
+                      expressPickMode &&
+                        !task.isExpress &&
+                        'cursor-copy ring-2 ring-violet-400/60 hover:ring-violet-500',
+                      expressPickMode && task.isExpress && 'opacity-50',
+                      task.isExpress && 'express-pulse',
                       dragOver?.taskId === task.id &&
                         !dragOver.after &&
                         'shadow-[inset_0_2px_0_0_hsl(var(--primary))]',
@@ -443,7 +462,18 @@ export function KanbanBoard({
                         'shadow-[inset_0_-2px_0_0_hsl(var(--primary))]',
                     )}
                   >
-                    <div className="text-sm font-medium">{task.title}</div>
+                    <div className="flex items-start gap-1.5 text-sm font-medium">
+                      {task.isExpress && (
+                        <span
+                          className="shrink-0 animate-bounce"
+                          title="Express-Ticket – springt in der Warteschlange nach vorn"
+                          aria-label="Express-Ticket"
+                        >
+                          🚀
+                        </span>
+                      )}
+                      <span className="min-w-0">{task.title}</span>
+                    </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                       {task.labels.map((l) => (
                         <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />

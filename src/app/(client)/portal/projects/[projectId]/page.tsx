@@ -6,7 +6,8 @@ import { getProject } from '@/features/projects/queries';
 import { getBoardView } from '@/features/tasks/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
-import { KanbanBoard } from '@/features/tasks/components/kanban-board';
+import { ExpressBoard } from '@/features/express/components/express-board';
+import { getExpressStatus } from '@/features/express/queries';
 import { AddClientTask } from '@/features/tasks/components/add-client-task';
 import { SubmitRequestForm } from '@/features/requests/components/submit-request-form';
 import { de } from '@/lib/i18n/de';
@@ -22,9 +23,10 @@ export default async function PortalProjectPage({
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, approvals] = await Promise.all([
+  const [board, approvals, expressStatus] = await Promise.all([
     getBoardView(projectId),
     listProjectApprovals(projectId),
+    getExpressStatus(project.clientCompanyId),
   ]);
 
   // Flatten client-visible tasks (RLS already removed internal ones).
@@ -78,14 +80,10 @@ export default async function PortalProjectPage({
               <p className="mb-3 text-sm text-muted-foreground">
                 {de.portal.reorderHint}
               </p>
-              <KanbanBoard
+              <ExpressBoard
                 projectId={projectId}
                 board={board}
-                members={[]}
-                canManage={false}
-                reorderOnly
-                allowColumnMove
-                basePath="/portal/projects"
+                status={expressStatus}
               />
             </>
           )}

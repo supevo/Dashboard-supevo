@@ -124,6 +124,7 @@ const updateClientProfileSchema = z.object({
   industry: z.string().trim().max(500).optional().or(z.literal('')),
   brands: z.string().trim().max(2000).optional().or(z.literal('')),
   interests: z.string().trim().max(2000).optional().or(z.literal('')),
+  expressTicketsPerMonth: z.coerce.number().int().min(0).max(10),
 });
 
 /** Updates a client's descriptive profile (industry, brands, interests). */
@@ -137,9 +138,17 @@ export async function updateClientProfileAction(
     industry: formData.get('industry') ?? '',
     brands: formData.get('brands') ?? '',
     interests: formData.get('interests') ?? '',
+    expressTicketsPerMonth: formData.get('expressTicketsPerMonth') ?? 0,
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { orgId, clientCompanyId, industry, brands, interests } = parsed.data;
+  const {
+    orgId,
+    clientCompanyId,
+    industry,
+    brands,
+    interests,
+    expressTicketsPerMonth,
+  } = parsed.data;
 
   const user = await requireUser();
   authorize(user, { type: 'clientCompany.manage', orgId });
@@ -151,6 +160,7 @@ export async function updateClientProfileAction(
       industry: industry || null,
       brands: brands || null,
       interests: interests || null,
+      express_tickets_per_month: expressTicketsPerMonth,
     })
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId);

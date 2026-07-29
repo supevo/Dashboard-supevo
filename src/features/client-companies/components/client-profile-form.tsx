@@ -17,12 +17,14 @@ export function ClientProfileForm({
   industry,
   brands,
   interests,
+  expressTicketsPerMonth,
 }: {
   orgId: string;
   clientCompanyId: string;
   industry: string | null;
   brands: string | null;
   interests: string | null;
+  expressTicketsPerMonth: number;
 }) {
   const [state, action] = useActionState(updateClientProfileAction, idleResult);
   const router = useRouter();
@@ -62,6 +64,24 @@ export function ClientProfileForm({
           defaultValue={interests ?? ''}
           placeholder={de.clientProfile.interestsHint}
         />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="expressTicketsPerMonth">
+          🚀 Express-Tickets pro Monat
+        </Label>
+        <Input
+          id="expressTicketsPerMonth"
+          name="expressTicketsPerMonth"
+          type="number"
+          min={0}
+          max={10}
+          defaultValue={expressTicketsPerMonth}
+          className="w-24"
+        />
+        <p className="text-xs text-muted-foreground">
+          Wie viele Aufgaben der Kunde pro Monat vorziehen darf (0–10). Setzt
+          sich am 1. jedes Monats zurück.
+        </p>
       </div>
       <SubmitButton size="sm">{de.common.save}</SubmitButton>
     </form>

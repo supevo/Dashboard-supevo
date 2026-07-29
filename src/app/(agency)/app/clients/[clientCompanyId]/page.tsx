@@ -110,6 +110,7 @@ export default async function ClientDetailPage({
               industry={company.industry}
               brands={company.brands}
               interests={company.interests}
+              expressTicketsPerMonth={company.expressTicketsPerMonth}
             />
           </CardContent>
         </Card>

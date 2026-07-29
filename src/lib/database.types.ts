@@ -53,6 +53,7 @@ export type NotificationType =
   | 'award'
   | 'pulse_reminder'
   | 'weekly_report_due'
+  | 'express_redeemed'
   | 'inquiry';
 export type ActivityAction =
   | 'create'
@@ -436,6 +437,7 @@ export interface Database {
           industry: string | null;
           brands: string | null;
           interests: string | null;
+          express_tickets_per_month: number;
           billing_entity_id: string | null;
           is_active: boolean;
           created_by: string | null;
@@ -452,6 +454,7 @@ export interface Database {
           industry?: string | null;
           brands?: string | null;
           interests?: string | null;
+          express_tickets_per_month?: number;
           billing_entity_id?: string | null;
           is_active?: boolean;
           created_by?: string | null;
@@ -1371,6 +1374,7 @@ export interface Database {
           position: number;
           is_internal: boolean;
           is_blocked: boolean;
+          is_express: boolean;
           is_archived: boolean;
           lock_version: number;
           column_entered_at: string;
@@ -1398,6 +1402,7 @@ export interface Database {
           position?: number;
           is_internal?: boolean;
           is_blocked?: boolean;
+          is_express?: boolean;
           is_archived?: boolean;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
@@ -1406,6 +1411,29 @@ export interface Database {
           completed_by?: string | null;
           completed_at?: string | null;
         };
+        Relationships: [];
+      };
+      express_ticket_redemptions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          task_id: string | null;
+          redeemed_by: string | null;
+          period: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          task_id?: string | null;
+          redeemed_by?: string | null;
+          period: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['express_ticket_redemptions']['Insert']
+        >;
         Relationships: [];
       };
       task_views: {
