@@ -7,6 +7,7 @@ import {
   deleteAssetAction,
   createBrandAction,
   deleteBrandAction,
+  revealAssetSecretAction,
 } from '@/features/assets/actions';
 import type { AssetView, Brand } from '@/features/assets/queries';
 import { validateUpload } from '@/lib/files/validation';
@@ -39,13 +40,16 @@ export function AssetHubManager({
   clientCompanyId,
   brands,
   assets,
-  canManageAccess,
+  canReveal,
+  secretVaultEnabled,
 }: {
   clientCompanyId: string;
   brands: Brand[];
   assets: AssetView[];
-  /** Agency staff: may add/see team-internal access references. */
-  canManageAccess: boolean;
+  /** Agency staff: may reveal (decrypt) stored access passwords. */
+  canReveal: boolean;
+  /** True when SECRET_ENCRYPTION_KEY is configured (password field available). */
+  secretVaultEnabled: boolean;
 }) {
   const router = useRouter();
   const [targetBrand, setTargetBrand] = useState('');
@@ -55,9 +59,7 @@ export function AssetHubManager({
     { id: null, name: 'Allgemein' },
     ...brands.map((b) => ({ id: b.id, name: b.name })),
   ];
-  const categories: AssetView['category'][] = canManageAccess
-    ? ['logo', 'guideline', 'access']
-    : ['logo', 'guideline'];
+  const categories: AssetView['category'][] = ['logo', 'guideline', 'access'];
 
   return (
     <div className="space-y-6">
@@ -91,9 +93,12 @@ export function AssetHubManager({
 
         <div className="grid gap-3 md:grid-cols-2">
           <AddLinkForm clientCompanyId={clientCompanyId} brandId={targetBrand} />
-          {canManageAccess && (
-            <AddAccessForm clientCompanyId={clientCompanyId} brandId={targetBrand} />
-          )}
+          <AddAccessForm
+            clientCompanyId={clientCompanyId}
+            brandId={targetBrand}
+            teamOnly={canReveal}
+            secretVaultEnabled={secretVaultEnabled}
+          />
         </div>
       </div>
 
@@ -134,6 +139,7 @@ export function AssetHubManager({
                               key={a.id}
                               asset={a}
                               clientCompanyId={clientCompanyId}
+                              canReveal={canReveal}
                             />
                           ))}
                         </ul>
@@ -348,9 +354,14 @@ function AddLinkForm({
 function AddAccessForm({
   clientCompanyId,
   brandId,
+  teamOnly,
+  secretVaultEnabled,
 }: {
   clientCompanyId: string;
   brandId: string;
+  /** True for the agency view (entry stays team-internal). */
+  teamOnly: boolean;
+  secretVaultEnabled: boolean;
 }) {
   const [state, action] = useActionState(addAssetLinkAction, idleResult);
   const router = useRouter();
@@ -364,7 +375,9 @@ function AddAccessForm({
 
   return (
     <form ref={formRef} action={action} className="space-y-2 rounded-lg border p-3">
-      <div className="text-sm font-semibold">🔑 Zugang hinterlegen (nur Team)</div>
+      <div className="text-sm font-semibold">
+        🔑 {teamOnly ? 'Zugang hinterlegen (nur Team)' : 'Login / Zugang hinterlegen'}
+      </div>
       {state.status === 'success' && state.message && (
         <Alert variant="success">{state.message}</Alert>
       )}
@@ -375,14 +388,29 @@ function AddAccessForm({
       <Input name="title" placeholder="Dienst (z. B. Instagram, WordPress)" required />
       <Input name="url" type="url" placeholder="Login-URL https://…" />
       <Input name="username" placeholder="Benutzername / Login" />
+      {secretVaultEnabled && (
+        <>
+          <Input
+            name="secret"
+            type="password"
+            autoComplete="new-password"
+            placeholder="Passwort (verschlüsselt gespeichert)"
+          />
+          <p className="text-xs text-muted-foreground">
+            🔒 Passwort wird verschlüsselt gespeichert (AES-256). Nur das
+            Agentur-Team kann es später anzeigen.
+          </p>
+        </>
+      )}
       <Textarea
         name="notes"
         rows={2}
-        placeholder="Hinweis / Link zum Passwort-Manager (kein Passwort hier eintragen)"
+        placeholder={
+          secretVaultEnabled
+            ? 'Notiz (optional)'
+            : 'Hinweis / Link zum Passwort-Manager (kein Passwort hier eintragen)'
+        }
       />
-      <p className="text-xs text-muted-foreground">
-        Aus Sicherheitsgründen keine Passwörter speichern – nur Verweise.
-      </p>
       <SubmitButton size="sm">Speichern</SubmitButton>
     </form>
   );
@@ -415,15 +443,32 @@ function DeleteBrandButton({
 function AssetRow({
   asset,
   clientCompanyId,
+  canReveal,
 }: {
   asset: AssetView;
   clientCompanyId: string;
+  canReveal: boolean;
 }) {
   const [state, formAction] = useActionState(deleteAssetAction, idleResult);
   const router = useRouter();
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  const [revealError, setRevealError] = useState<string | null>(null);
   useEffect(() => {
     if (state.status === 'success') router.refresh();
   }, [state, router]);
+
+  async function reveal() {
+    setRevealing(true);
+    setRevealError(null);
+    try {
+      const res = await revealAssetSecretAction(asset.id);
+      if (res.ok && res.secret !== undefined) setRevealed(res.secret);
+      else setRevealError(res.error ?? 'Konnte nicht anzeigen.');
+    } finally {
+      setRevealing(false);
+    }
+  }
 
   return (
     <li className="flex items-center justify-between gap-2 p-2 text-sm">
@@ -451,6 +496,25 @@ function AssetRow({
             </a>
           )}
         </div>
+        {asset.hasSecret && (
+          <div className="mt-0.5 text-xs">
+            {revealed !== null ? (
+              <span className="font-mono text-foreground">🔓 {revealed}</span>
+            ) : canReveal ? (
+              <button
+                type="button"
+                disabled={revealing}
+                onClick={() => void reveal()}
+                className="text-primary hover:underline"
+              >
+                🔒 Passwort anzeigen
+              </button>
+            ) : (
+              <span className="text-muted-foreground">🔒 Passwort hinterlegt</span>
+            )}
+            {revealError && <span className="ml-2 text-destructive">{revealError}</span>}
+          </div>
+        )}
         {asset.notes && (
           <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted-foreground">
             {asset.notes}

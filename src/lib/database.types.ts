@@ -498,6 +498,8 @@ export interface Database {
           url: string | null;
           username: string | null;
           notes: string | null;
+          secret_encrypted: string | null;
+          client_visible: boolean;
           storage_path: string | null;
           file_name: string | null;
           mime_type: string | null;
@@ -515,6 +517,8 @@ export interface Database {
           url?: string | null;
           username?: string | null;
           notes?: string | null;
+          secret_encrypted?: string | null;
+          client_visible?: boolean;
           storage_path?: string | null;
           file_name?: string | null;
           mime_type?: string | null;

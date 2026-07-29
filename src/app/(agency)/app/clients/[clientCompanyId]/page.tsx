@@ -34,6 +34,7 @@ import { InquirySettings } from '@/features/inquiries/components/inquiry-setting
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
@@ -134,7 +135,8 @@ export default async function ClientDetailPage({
             clientCompanyId={clientCompanyId}
             brands={hub.brands}
             assets={hub.assets}
-            canManageAccess
+            canReveal
+            secretVaultEnabled={isSecretVaultEnabled()}
           />
         </CardContent>
       </Card>

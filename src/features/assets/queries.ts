@@ -22,6 +22,8 @@ export interface AssetView {
   sizeBytes: number | null;
   /** True when this asset is a stored file (downloadable), false for pure links. */
   hasFile: boolean;
+  /** True when an access entry has an encrypted password stored (agency reveals). */
+  hasSecret: boolean;
   createdAt: string;
 }
 
@@ -33,6 +35,7 @@ interface AssetRow {
   url: string | null;
   username: string | null;
   notes: string | null;
+  secret_encrypted: string | null;
   storage_path: string | null;
   file_name: string | null;
   mime_type: string | null;
@@ -40,6 +43,8 @@ interface AssetRow {
   created_at: string;
 }
 
+// Never selects secret_encrypted's value into a client-facing shape beyond a
+// boolean; the ciphertext stays server-side.
 function toView(row: AssetRow): AssetView {
   return {
     id: row.id,
@@ -53,12 +58,13 @@ function toView(row: AssetRow): AssetView {
     mimeType: row.mime_type,
     sizeBytes: row.size_bytes,
     hasFile: Boolean(row.storage_path),
+    hasSecret: Boolean(row.secret_encrypted),
     createdAt: row.created_at,
   };
 }
 
 const SELECT =
-  'id, brand_id, category, title, url, username, notes, storage_path, file_name, mime_type, size_bytes, created_at';
+  'id, brand_id, category, title, url, username, notes, secret_encrypted, storage_path, file_name, mime_type, size_bytes, created_at';
 
 export interface CompanyHub {
   brands: Brand[];
@@ -128,7 +134,10 @@ export async function listClientHub(): Promise<ClientHub | null> {
         .from('client_assets')
         .select(SELECT)
         .eq('client_company_id', companyId)
-        .in('category', ['guideline', 'logo'])
+        // Logos + guidelines, plus access logins the client themselves may see.
+        .or(
+          'category.in.(guideline,logo),and(category.eq.access,client_visible.eq.true)',
+        )
         .order('created_at', { ascending: false }),
     ]);
 

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { listClientHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 
 export default async function ClientHubPage() {
   await requireClientPage();
@@ -28,7 +29,8 @@ export default async function ClientHubPage() {
               clientCompanyId={hub.clientCompanyId}
               brands={hub.brands}
               assets={hub.assets}
-              canManageAccess={false}
+              canReveal={false}
+              secretVaultEnabled={isSecretVaultEnabled()}
             />
           ) : (
             <p className="text-sm text-muted-foreground">
