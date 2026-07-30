@@ -6,6 +6,7 @@ import { fetchRssItems, fetchOgImage, googleNewsUrl, type NewsItem } from './rss
 import { berlinToday } from '@/lib/time';
 
 const MAX_ITEMS = 6;
+const MAX_BRANDS = 5;
 
 export interface ClientNews {
   items: NewsItem[];
@@ -13,16 +14,67 @@ export interface ClientNews {
   topic: string;
 }
 
-/** Builds the news search topic from the client's industry (+ brands). */
-function buildTopic(company: {
+/** Splits the free-text brands field into a clean list of brand names. */
+function parseBrands(brands: string | null): string[] {
+  return (brands ?? '')
+    .split(/[,;\n]/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Builds the news search queries from the client's industry + brands. One query
+ * per brand (so several brands each get their own headlines instead of only the
+ * first), plus a human-readable label for the UI. Falls back to industry/name
+ * when no brands are set.
+ */
+function buildTopics(company: {
   industry: string | null;
   brands: string | null;
   name: string | null;
-}): string {
+}): { queries: string[]; label: string } {
   const industry = (company.industry ?? '').trim();
-  const brands = (company.brands ?? '').trim();
-  if (industry && brands) return `${industry} ${brands.split(/[,;\n]/)[0]?.trim() ?? ''}`.trim();
-  return industry || brands || company.name || 'Marketing';
+  const brands = parseBrands(company.brands).slice(0, MAX_BRANDS);
+  if (brands.length > 0) {
+    const queries = brands.map((b) => (industry ? `${industry} ${b}` : b));
+    return { queries, label: brands.join(', ') };
+  }
+  const fallback = industry || company.name || 'Marketing';
+  return { queries: [fallback], label: fallback };
+}
+
+/**
+ * Merges several per-brand feeds into one balanced list: round-robin picks the
+ * newest item from each brand in turn, so no single brand dominates. De-dupes by
+ * URL and normalised title.
+ */
+function mergeBalanced(feeds: NewsItem[][], max: number): NewsItem[] {
+  const lists = feeds.map((f) =>
+    f
+      .slice()
+      .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')),
+  );
+  const seen = new Set<string>();
+  const out: NewsItem[] = [];
+  const key = (it: NewsItem) => (it.url || it.title).toLowerCase();
+  const titleKey = (it: NewsItem) =>
+    `t:${it.title.toLowerCase().replace(/\s+/g, ' ').trim()}`;
+
+  for (let round = 0; out.length < max; round++) {
+    let progressed = false;
+    for (const list of lists) {
+      const it = list[round];
+      if (!it) continue;
+      progressed = true;
+      if (seen.has(key(it)) || seen.has(titleKey(it))) continue;
+      seen.add(key(it));
+      seen.add(titleKey(it));
+      out.push(it);
+      if (out.length >= max) break;
+    }
+    if (!progressed) break;
+  }
+  return out;
 }
 
 /**
@@ -78,7 +130,10 @@ export async function getClientNews(
     service.from('client_companies').select('industry, brands, name').eq('id', clientCompanyId).maybeSingle(),
   ]);
 
-  const topic = buildTopic(company ?? { industry: null, brands: null, name: null });
+  const { queries, label } = buildTopics(
+    company ?? { industry: null, brands: null, name: null },
+  );
+  const topic = label;
   const cachedItems = (cache?.items as NewsItem[] | undefined) ?? [];
   // Refresh once per CALENDAR day (Europe/Berlin): a new day → new news, even if
   // less than 24 h have passed since the last fetch. A rolling 24 h window left
@@ -92,8 +147,17 @@ export async function getClientNews(
   // Stale or missing → refresh now (this render).
   let items: NewsItem[] = [];
   try {
-    const fetched = await fetchRssItems(googleNewsUrl(topic), 25);
-    items = await curate(fetched, topic);
+    if (queries.length > 1) {
+      // Several brands → one feed each, interleaved so all brands are covered.
+      const perBrand = Math.max(6, Math.ceil((MAX_ITEMS * 2) / queries.length));
+      const feeds = await Promise.all(
+        queries.map((q) => fetchRssItems(googleNewsUrl(q), perBrand)),
+      );
+      items = mergeBalanced(feeds, MAX_ITEMS);
+    } else {
+      const fetched = await fetchRssItems(googleNewsUrl(queries[0] ?? topic), 25);
+      items = await curate(fetched, topic);
+    }
     // Best-effort: pull a real preview image (og:image) per headline. Runs only
     // on refresh (≤ once/day), in parallel, and degrades to the colour cover.
     items = await Promise.all(
