@@ -8,7 +8,7 @@ import { primaryAgencyOrgId } from '@/features/auth/session';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { createNotifications } from '@/features/notifications/create';
-import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
+import { resolveClientQueue, embedItems } from '@/features/marketing-plan/embed';
 import {
   type ActionResult,
   errorResult,
@@ -213,77 +213,32 @@ export async function embedPlanAction(planId: string): Promise<ActionResult> {
   const plan = await planForOrg(service, planId, orgId);
   if (!plan) return errorResult('Plan nicht gefunden.');
 
-  // Client's first project → its first board → queue column.
-  const { data: project } = await service
-    .from('projects')
-    .select('id')
-    .eq('client_company_id', plan.client_company_id)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!project) return errorResult('Der Kunde hat noch kein Projekt/Board.');
-
-  const { data: board } = await service
-    .from('boards')
-    .select('id')
-    .eq('project_id', project.id)
-    .order('position', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  if (!board) return errorResult('Kein Board vorhanden.');
-
-  const { data: columns } = await service
-    .from('board_columns')
-    .select('id, column_key, position')
-    .eq('board_id', board.id)
-    .order('position', { ascending: true });
-  const target =
-    (columns ?? []).find((c) => c.column_key === 'queue') ?? (columns ?? [])[0];
-  if (!target) return errorResult('Keine Spalte vorhanden.');
+  const target = await resolveClientQueue(service, plan.client_company_id);
+  if (!target) return errorResult('Der Kunde hat noch kein Projekt/Board.');
 
   const { data: items } = await service
     .from('marketing_plan_items')
-    .select('id, month, title, description, status')
+    .select('id, month, title, description')
     .eq('plan_id', planId)
     .in('status', ['accepted', 'proposed', 'change_requested']);
   if (!items || items.length === 0) {
     return errorResult('Keine übernehmbaren Maßnahmen (bereits übernommen?).');
   }
 
-  let basePos = Date.now();
-  let embedded = 0;
-  for (const item of items) {
-    const due = `${plan.year}-${String(item.month).padStart(2, '0')}-01`;
-    const { data: task } = await service
-      .from('tasks')
-      .insert({
-        organization_id: orgId,
-        project_id: project.id,
-        board_id: board.id,
-        column_id: target.id,
-        title: item.title,
-        description: item.description ?? null,
-        priority: 'medium',
-        is_internal: false,
-        due_date: due,
-        created_by: user.id,
-        position: (basePos += 1000),
-      })
-      .select('id')
-      .single();
-    if (task) {
-      await service
-        .from('marketing_plan_items')
-        .update({ status: 'embedded', task_id: task.id, updated_at: new Date().toISOString() })
-        .eq('id', item.id);
-      await autoEstimateTaskMinutes(task.id, item.title, item.description ?? null);
-      embedded += 1;
-    }
-  }
+  const embedded = await embedItems(
+    service,
+    {
+      orgId,
+      clientCompanyId: plan.client_company_id,
+      year: plan.year,
+      createdBy: user.id,
+      target,
+    },
+    items,
+  );
 
   revalidatePath(`/app/clients/${plan.client_company_id}`);
-  revalidatePath(`/app/projects/${project.id}`);
+  revalidatePath(`/app/projects/${target.projectId}`);
   return successResult(`${embedded} Maßnahme(n) ins Kanban übernommen.`);
 }
 

@@ -212,6 +212,43 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['feedback']['Insert']>;
         Relationships: [];
       };
+      client_onboarding: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          contract_signed_at: string | null;
+          contract_signer: string | null;
+          contract_pdf_path: string | null;
+          sepa_signed_at: string | null;
+          sepa_signer: string | null;
+          sepa_account_holder: string | null;
+          sepa_iban_encrypted: string | null;
+          sepa_iban_last4: string | null;
+          sepa_mandate_ref: string | null;
+          sepa_pdf_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          contract_signed_at?: string | null;
+          contract_signer?: string | null;
+          contract_pdf_path?: string | null;
+          sepa_signed_at?: string | null;
+          sepa_signer?: string | null;
+          sepa_account_holder?: string | null;
+          sepa_iban_encrypted?: string | null;
+          sepa_iban_last4?: string | null;
+          sepa_mandate_ref?: string | null;
+          sepa_pdf_path?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_onboarding']['Insert']>;
+        Relationships: [];
+      };
       marketing_plans: {
         Row: {
           id: string;

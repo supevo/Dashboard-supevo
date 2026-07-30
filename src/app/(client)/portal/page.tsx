@@ -6,6 +6,8 @@ import { getMyClientCompany, getMySatisfaction } from '@/features/satisfaction/q
 import { SatisfactionWidget } from '@/features/satisfaction/components/satisfaction-widget';
 import { getClientNews } from '@/features/news/service';
 import { NewsTicker } from '@/features/news/components/news-ticker';
+import { getMyOnboarding } from '@/features/onboarding/queries';
+import { OnboardingStepper } from '@/features/onboarding/components/onboarding-stepper';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -27,6 +29,7 @@ export default async function ClientDashboardPage() {
   const news = company
     ? await getClientNews(company.clientCompanyId, company.organizationId)
     : null;
+  const onboarding = await getMyOnboarding();
 
   return (
     <div className="space-y-6">
@@ -36,6 +39,10 @@ export default async function ClientDashboardPage() {
           Schön, dass Sie da sind, {user.fullName ?? user.email}.
         </p>
       </div>
+
+      {onboarding && !onboarding.complete && (
+        <OnboardingStepper status={onboarding} />
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <StatTile label={de.dashboard.open} value={d.openCount} />
