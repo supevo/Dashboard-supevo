@@ -431,12 +431,13 @@ export default async function KudosPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {hub.radar.length + hub.preferences.length >= 3 && (
+              {hub.skills.length + hub.preferences.length >= 3 && (
                 <SkillRadar
-                  skills={hub.radar}
-                  preferences={hub.preferences
-                    .slice(0, 6)
-                    .map((p) => ({ label: p.name, level: p.level }))}
+                  skills={hub.skills.map((s) => ({ label: s.name, level: s.level }))}
+                  preferences={hub.preferences.map((p) => ({
+                    label: p.name,
+                    level: p.level,
+                  }))}
                 />
               )}
               {hub.skills.length > 0 ? (
