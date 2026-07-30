@@ -11,6 +11,7 @@ import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
 import { getExpressStatus } from '@/features/express/queries';
 import { ExpressHeaderBadge } from '@/features/express/components/express-header-badge';
+import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { de } from '@/lib/i18n/de';
 
 const NAV_ITEMS: NavItem[] = [
@@ -79,6 +80,7 @@ export default async function ClientLayout({
       }
     >
       {children}
+      <FeedbackWidget />
     </AppShell>
   );
 }

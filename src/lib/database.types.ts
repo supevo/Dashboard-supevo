@@ -54,7 +54,8 @@ export type NotificationType =
   | 'pulse_reminder'
   | 'weekly_report_due'
   | 'express_redeemed'
-  | 'inquiry';
+  | 'inquiry'
+  | 'feedback';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -176,6 +177,39 @@ export interface Database {
         Update: Partial<
           Database['public']['Tables']['hub_banner_images']['Insert']
         >;
+        Relationships: [];
+      };
+      feedback: {
+        Row: {
+          id: string;
+          organization_id: string;
+          author_id: string | null;
+          author_name: string | null;
+          author_role: string;
+          kind: string;
+          title: string;
+          message: string | null;
+          status: string;
+          admin_notes: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          author_id?: string | null;
+          author_name?: string | null;
+          author_role?: string;
+          kind?: string;
+          title: string;
+          message?: string | null;
+          status?: string;
+          admin_notes?: string | null;
+          position?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['feedback']['Insert']>;
         Relationships: [];
       };
       hub_frame_images: {
