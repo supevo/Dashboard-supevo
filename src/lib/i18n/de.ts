@@ -275,6 +275,7 @@ export const de = {
     inquiry: 'Website-Anfrage',
     weekly_report_due: 'Wochenbericht fällig',
     express_redeemed: 'Express-Ticket eingelöst',
+    feedback: 'Feedback',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

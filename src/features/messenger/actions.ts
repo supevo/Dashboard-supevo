@@ -340,6 +340,45 @@ async function notifyMentions(
   );
 }
 
+const FILE_TTL_DAYS = 60;
+
+/**
+ * Toggles the "important" flag on a chat file. keep=true → the file is kept
+ * permanently (no auto-delete); keep=false → it expires again 60 days from now.
+ * Agency staff of the file's org only.
+ */
+export async function toggleChatFileKeepAction(
+  messageId: string,
+  keep: boolean,
+): Promise<{ ok: boolean }> {
+  if (!z.string().uuid().safeParse(messageId).success) return { ok: false };
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false };
+
+  const service = createSupabaseServiceClient();
+  const { data: msg } = await service
+    .from('chat_channel_messages')
+    .select('organization_id, file_path')
+    .eq('id', messageId)
+    .maybeSingle();
+  if (
+    !msg ||
+    !msg.file_path ||
+    !user.memberships.some((m) => m.organizationId === msg.organization_id)
+  ) {
+    return { ok: false };
+  }
+
+  const expires = keep
+    ? null
+    : new Date(Date.now() + FILE_TTL_DAYS * 86_400_000).toISOString();
+  const { error } = await service
+    .from('chat_channel_messages')
+    .update({ file_keep: keep, file_expires_at: expires })
+    .eq('id', messageId);
+  return { ok: !error };
+}
+
 /** Marks a channel as read up to now for the current user. */
 export async function markChannelRead(channelId: string): Promise<void> {
   const user = await requireUser();

@@ -1,5 +1,4 @@
 import 'server-only';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { requireUser } from '@/lib/authz/authorize';
@@ -38,9 +37,12 @@ export async function resolveAssetAccess(
     return { orgId: company.organization_id, isAgency: true };
   }
 
-  // Client contact of this company (RLS-scoped: a user only sees their own rows).
-  const supabase = await createSupabaseServerClient();
-  const { data: contact } = await supabase
+  // Client contact of this company. Checked via the service client with an
+  // explicit user_id filter (RLS-independent): a client's portal access hangs on
+  // exactly this row, but the RLS-scoped read didn't reliably return it, which
+  // wrongly blocked legitimate uploads. Filtering by the authenticated user's id
+  // is just as safe as relying on RLS here.
+  const { data: contact } = await service
     .from('client_contacts')
     .select('id')
     .eq('client_company_id', clientCompanyId)

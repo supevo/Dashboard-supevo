@@ -34,6 +34,9 @@ import { InquirySettings } from '@/features/inquiries/components/inquiry-setting
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { getPlan } from '@/features/marketing-plan/queries';
+import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
+import { getOnboarding } from '@/features/onboarding/queries';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -68,6 +71,10 @@ export default async function ClientDetailPage({
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
   ]);
+
+  const planYear = new Date().getFullYear();
+  const marketingPlan = await getPlan(clientCompanyId, planYear);
+  const onboarding = await getOnboarding(clientCompanyId, orgId);
 
   // Contacts are visible/manageable by all agency staff (they add clients).
   const contacts = await listClientContacts(orgId, clientCompanyId);
@@ -122,6 +129,72 @@ export default async function ClientDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🚀 Onboarding</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Digitaler Onboarding-Status des Kunden (Vertrag, SEPA, Plan).
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-2 text-sm">
+            <li className="flex items-center justify-between gap-2">
+              <span>{onboarding.contractSignedAt ? '✅' : '⬜'} Vertrag unterschrieben</span>
+              {onboarding.contractPdfPath && (
+                <a
+                  href={`/api/onboarding/contract?client=${clientCompanyId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  PDF ansehen
+                </a>
+              )}
+            </li>
+            <li className="flex items-center justify-between gap-2">
+              <span>
+                {onboarding.sepaSignedAt ? '✅' : '⬜'} SEPA-Mandat
+                {onboarding.sepaIbanLast4 ? ` · IBAN ••••${onboarding.sepaIbanLast4}` : ''}
+                {onboarding.sepaMandateRef ? ` · ${onboarding.sepaMandateRef}` : ''}
+              </span>
+              {onboarding.sepaPdfPath && (
+                <a
+                  href={`/api/onboarding/sepa?client=${clientCompanyId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  PDF ansehen
+                </a>
+              )}
+            </li>
+            <li>{onboarding.planAccepted ? '✅' : '⬜'} Marketingplan akzeptiert</li>
+          </ul>
+          {onboarding.complete && (
+            <p className="mt-2 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              Onboarding abgeschlossen 🎉
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
+            geben; akzeptierte Maßnahmen ins Kanban übernehmen.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PlanManager
+            clientCompanyId={clientCompanyId}
+            plan={marketingPlan}
+            year={planYear}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

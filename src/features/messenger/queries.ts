@@ -25,6 +25,18 @@ export interface TeamMember {
   status: string | null;
 }
 
+export interface ChannelFile {
+  name: string;
+  mime: string;
+  size: number;
+  isImage: boolean;
+  keep: boolean;
+  removed: boolean;
+  expiresAt: string | null;
+  /** Streaming/download URL (null when the file was auto-deleted after 60 days). */
+  url: string | null;
+}
+
 export interface ChannelMessage {
   id: string;
   authorId: string | null;
@@ -34,8 +46,77 @@ export interface ChannelMessage {
   body: string;
   /** Set when the message is a sticker (team image); render instead of body. */
   stickerUrl: string | null;
+  /** Set when the message carries an uploaded file. */
+  file: ChannelFile | null;
   createdAt: string;
   isMine: boolean;
+}
+
+interface RawMessage {
+  id: string;
+  author_id: string | null;
+  body: string | null;
+  sticker_path: string | null;
+  file_path: string | null;
+  file_name: string | null;
+  file_mime: string | null;
+  file_size: number | null;
+  file_keep: boolean;
+  file_removed: boolean;
+  file_expires_at: string | null;
+  created_at: string;
+}
+
+const MESSAGE_COLUMNS =
+  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, created_at';
+
+/** Resolves author profiles and maps raw message rows to ChannelMessage. */
+async function mapMessages(
+  rows: RawMessage[],
+  currentUserId: string,
+): Promise<ChannelMessage[]> {
+  if (rows.length === 0) return [];
+  const authorIds = [
+    ...new Set(rows.map((m) => m.author_id).filter((v): v is string => !!v)),
+  ];
+  const service = createSupabaseServiceClient();
+  const { data: profiles } = authorIds.length
+    ? await service
+        .from('profiles')
+        .select('id, full_name, avatar_url, status')
+        .in('id', authorIds)
+    : { data: [] as { id: string; full_name: string | null; avatar_url: string | null; status: string | null }[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
+
+  return rows.map((m) => {
+    const profile = m.author_id ? profileById.get(m.author_id) : undefined;
+    const file: ChannelFile | null = m.file_name
+      ? {
+          name: m.file_name,
+          mime: m.file_mime ?? 'application/octet-stream',
+          size: m.file_size ?? 0,
+          isImage: (m.file_mime ?? '').startsWith('image/'),
+          keep: m.file_keep,
+          removed: m.file_removed || !m.file_path,
+          expiresAt: m.file_expires_at,
+          url: m.file_removed || !m.file_path ? null : `/api/chat-files/${m.id}/download`,
+        }
+      : null;
+    return {
+      id: m.id,
+      authorId: m.author_id,
+      authorName: profile?.full_name ?? 'Unbekannt',
+      authorHasAvatar: Boolean(profile?.avatar_url),
+      authorStatus: profile?.status ?? null,
+      body: m.body ?? '',
+      stickerUrl: m.sticker_path
+        ? `/api/chat-stickers/image?path=${encodeURIComponent(m.sticker_path)}`
+        : null,
+      file,
+      createdAt: m.created_at,
+      isMine: m.author_id === currentUserId,
+    };
+  });
 }
 
 /** Lists the org's accessible channels (public + private the user is in). */
@@ -90,7 +171,7 @@ export async function listDmConversations(
     .in('id', otherIds);
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
 
-  return dmIds
+  const conversations = dmIds
     .map((id) => {
       const otherId = otherByChannel.get(id);
       if (!otherId) return null;
@@ -104,6 +185,16 @@ export async function listDmConversations(
       };
     })
     .filter((d): d is DmConversation => d !== null);
+
+  // Dedupe by conversation partner: legacy data can hold more than one DM channel
+  // for the same pair (created before the dm_key guard), which showed a person
+  // multiple times in the list. Keep one entry per person.
+  const seen = new Set<string>();
+  return conversations.filter((c) => {
+    if (seen.has(c.otherUserId)) return false;
+    seen.add(c.otherUserId);
+    return true;
+  });
 }
 
 /** Lists the org's active agency team members (for DMs / private members). */
@@ -174,47 +265,35 @@ export async function listChannelMessages(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('chat_channel_messages')
-    .select('id, author_id, body, sticker_path, created_at')
+    .select(MESSAGE_COLUMNS)
     .eq('channel_id', channelId)
     .order('created_at', { ascending: true })
     .limit(limit);
-  if (!data || data.length === 0) return [];
+  return mapMessages((data ?? []) as RawMessage[], currentUserId);
+}
 
-  const authorIds = [
-    ...new Set(data.map((m) => m.author_id).filter((v): v is string => !!v)),
-  ];
-  const service = createSupabaseServiceClient();
-  const { data: profiles } = authorIds.length
-    ? await service
-        .from('profiles')
-        .select('id, full_name, avatar_url, status')
-        .in('id', authorIds)
-    : {
-        data: [] as {
-          id: string;
-          full_name: string | null;
-          avatar_url: string | null;
-          status: string | null;
-        }[],
-      };
-  const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
-
-  return data.map((m) => {
-    const profile = m.author_id ? profileById.get(m.author_id) : undefined;
-    return {
-      id: m.id,
-      authorId: m.author_id,
-      authorName: profile?.full_name ?? 'Unbekannt',
-      authorHasAvatar: Boolean(profile?.avatar_url),
-      authorStatus: profile?.status ?? null,
-      body: m.body ?? '',
-      stickerUrl: m.sticker_path
-        ? `/api/chat-stickers/image?path=${encodeURIComponent(m.sticker_path)}`
-        : null,
-      createdAt: m.created_at,
-      isMine: m.author_id === currentUserId,
-    };
-  });
+/**
+ * Full-text-ish search within a channel: matches message text OR file name
+ * (case-insensitive). RLS restricts to channels the user may see. Newest first.
+ */
+export async function searchChannelMessages(
+  channelId: string,
+  currentUserId: string,
+  query: string,
+  limit = 50,
+): Promise<ChannelMessage[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const supabase = await createSupabaseServerClient();
+  const like = `%${q.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+  const { data } = await supabase
+    .from('chat_channel_messages')
+    .select(MESSAGE_COLUMNS)
+    .eq('channel_id', channelId)
+    .or(`body.ilike.${like},file_name.ilike.${like}`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return mapMessages((data ?? []) as RawMessage[], currentUserId);
 }
 
 export interface StickerItem {

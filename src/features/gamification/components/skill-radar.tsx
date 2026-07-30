@@ -13,15 +13,26 @@ export function SkillRadar({
   preferences = [],
   size = 320,
   max = 10,
+  maxSkills = 10,
+  maxPrefs = 6,
 }: {
   skills: RadarSkill[];
   preferences?: RadarSkill[];
   size?: number;
   max?: number;
+  /** Cap on how many axes each series contributes (highest values first). */
+  maxSkills?: number;
+  maxPrefs?: number;
 }) {
+  // Highest-value entries first, capped so the chart stays readable. Capping
+  // here (not in the caller) means every skill shown in the list can reach the
+  // graph as long as it ranks within maxSkills.
+  const topSkills = [...skills].sort((a, b) => b.level - a.level).slice(0, maxSkills);
+  const topPrefs = [...preferences].sort((a, b) => b.level - a.level).slice(0, maxPrefs);
+
   // Union of axes: competences first, then preference-only labels.
-  const skillMap = new Map(skills.map((s) => [s.label, s.level]));
-  const prefMap = new Map(preferences.map((p) => [p.label, p.level]));
+  const skillMap = new Map(topSkills.map((s) => [s.label, s.level]));
+  const prefMap = new Map(topPrefs.map((p) => [p.label, p.level]));
   const axes: string[] = [...skillMap.keys()];
   for (const label of prefMap.keys()) if (!skillMap.has(label)) axes.push(label);
 
@@ -120,6 +131,9 @@ export function SkillRadar({
               className="fill-muted-foreground text-[10px]"
             >
               <tspan className="fill-foreground font-medium">{label}</tspan>
+              <tspan dx="4">
+                {skillMap.get(label) ?? prefMap.get(label) ?? 0}/{max}
+              </tspan>
             </text>
           );
         })}

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
+import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { TeamRail } from '@/features/presence/components/team-rail';
 import { getMyGamification } from '@/features/gamification/queries';
 import { getCoinBalance } from '@/features/loot/queries';
@@ -32,6 +33,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/app/team', label: de.nav.team },
   { href: '/app/challenges', label: de.nav.challenges },
   { href: '/app/rewards', label: de.nav.rewards },
+  { href: '/app/feedback', label: '💬 Feedback' },
   { href: '/app/workload', label: de.nav.workload },
   { href: '/app/cockpit', label: de.nav.cockpit },
 ];
@@ -110,6 +112,7 @@ export default async function AgencyLayout({
     >
       {children}
       <ChatDock meId={user.id} meName={user.fullName ?? user.email} />
+      <FeedbackWidget />
     </AppShell>
   );
 }

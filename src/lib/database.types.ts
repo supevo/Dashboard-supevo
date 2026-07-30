@@ -54,7 +54,8 @@ export type NotificationType =
   | 'pulse_reminder'
   | 'weekly_report_due'
   | 'express_redeemed'
-  | 'inquiry';
+  | 'inquiry'
+  | 'feedback';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -175,6 +176,134 @@ export interface Database {
         };
         Update: Partial<
           Database['public']['Tables']['hub_banner_images']['Insert']
+        >;
+        Relationships: [];
+      };
+      feedback: {
+        Row: {
+          id: string;
+          organization_id: string;
+          author_id: string | null;
+          author_name: string | null;
+          author_role: string;
+          kind: string;
+          title: string;
+          message: string | null;
+          status: string;
+          admin_notes: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          author_id?: string | null;
+          author_name?: string | null;
+          author_role?: string;
+          kind?: string;
+          title: string;
+          message?: string | null;
+          status?: string;
+          admin_notes?: string | null;
+          position?: number;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['feedback']['Insert']>;
+        Relationships: [];
+      };
+      client_onboarding: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          contract_signed_at: string | null;
+          contract_signer: string | null;
+          contract_pdf_path: string | null;
+          sepa_signed_at: string | null;
+          sepa_signer: string | null;
+          sepa_account_holder: string | null;
+          sepa_iban_encrypted: string | null;
+          sepa_iban_last4: string | null;
+          sepa_mandate_ref: string | null;
+          sepa_pdf_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          contract_signed_at?: string | null;
+          contract_signer?: string | null;
+          contract_pdf_path?: string | null;
+          sepa_signed_at?: string | null;
+          sepa_signer?: string | null;
+          sepa_account_holder?: string | null;
+          sepa_iban_encrypted?: string | null;
+          sepa_iban_last4?: string | null;
+          sepa_mandate_ref?: string | null;
+          sepa_pdf_path?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_onboarding']['Insert']>;
+        Relationships: [];
+      };
+      marketing_plans: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          year: number;
+          title: string;
+          status: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          accepted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          year: number;
+          title?: string;
+          status?: string;
+          created_by?: string | null;
+          updated_at?: string;
+          accepted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['marketing_plans']['Insert']>;
+        Relationships: [];
+      };
+      marketing_plan_items: {
+        Row: {
+          id: string;
+          plan_id: string;
+          month: number;
+          title: string;
+          description: string | null;
+          status: string;
+          client_note: string | null;
+          position: number;
+          task_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          plan_id: string;
+          month?: number;
+          title: string;
+          description?: string | null;
+          status?: string;
+          client_note?: string | null;
+          position?: number;
+          task_id?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['marketing_plan_items']['Insert']
         >;
         Relationships: [];
       };
@@ -1005,6 +1134,13 @@ export interface Database {
           author_id: string | null;
           body: string | null;
           sticker_path: string | null;
+          file_path: string | null;
+          file_name: string | null;
+          file_mime: string | null;
+          file_size: number | null;
+          file_keep: boolean;
+          file_removed: boolean;
+          file_expires_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -1014,6 +1150,13 @@ export interface Database {
           author_id?: string | null;
           body?: string | null;
           sticker_path?: string | null;
+          file_path?: string | null;
+          file_name?: string | null;
+          file_mime?: string | null;
+          file_size?: number | null;
+          file_keep?: boolean;
+          file_removed?: boolean;
+          file_expires_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
         Relationships: [];

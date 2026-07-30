@@ -32,6 +32,8 @@ export interface ChallengeDef {
   key: string;
   title: string;
   emoji: string;
+  /** Kurz erklärt, wie man die Challenge abschließt (unter dem Titel gezeigt). */
+  hint: string;
   metric: WeekMetric;
   target: number;
   xp: number;
@@ -42,13 +44,13 @@ export interface ChallengeDef {
 // effiziente Arbeit statt reiner Aktivität (kein „Aufgaben anlegen/verschieben
 // für Punkte" mehr – das war gamebar).
 export const CHALLENGE_POOL: ChallengeDef[] = [
-  { key: 'sprint', title: 'Wochensprint', emoji: '🏃', metric: 'missionsWeek', target: 10, xp: 50, rare: { key: 'sprinter', name: 'Sprinter', emoji: '🏃‍♂️', reason: 'Challenge „Wochensprint" gemeistert' } },
-  { key: 'marathon', title: 'Wochenmarathon', emoji: '🔥', metric: 'missionsWeek', target: 20, xp: 80, rare: { key: 'unaufhaltsam', name: 'Unaufhaltsam', emoji: '🚀', reason: 'Challenge „Wochenmarathon" gemeistert' } },
-  { key: 'efficient', title: 'Effizienz-Woche', emoji: '🎯', metric: 'efficientWeek', target: 5, xp: 40, rare: { key: 'praezise', name: 'Präzise', emoji: '🎯', reason: 'Challenge „Effizienz-Woche" gemeistert' } },
-  { key: 'efficientpro', title: 'Punktlandung', emoji: '🏹', metric: 'efficientWeek', target: 10, xp: 70, rare: { key: 'punktlandung', name: 'Punktlandung', emoji: '🏹', reason: 'Challenge „Punktlandung" gemeistert' } },
-  { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️', reason: 'Challenge „Pünktlichkeitsprofi" gemeistert' } },
-  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
-  { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', metric: 'timerWeek', target: 10, xp: 25 },
+  { key: 'sprint', title: 'Wochensprint', emoji: '🏃', hint: 'Schließe 10 Aufgaben in dieser Woche ab.', metric: 'missionsWeek', target: 10, xp: 50, rare: { key: 'sprinter', name: 'Sprinter', emoji: '🏃‍♂️', reason: 'Challenge „Wochensprint" gemeistert' } },
+  { key: 'marathon', title: 'Wochenmarathon', emoji: '🔥', hint: 'Schließe 20 Aufgaben in dieser Woche ab.', metric: 'missionsWeek', target: 20, xp: 80, rare: { key: 'unaufhaltsam', name: 'Unaufhaltsam', emoji: '🚀', reason: 'Challenge „Wochenmarathon" gemeistert' } },
+  { key: 'efficient', title: 'Effizienz-Woche', emoji: '🎯', hint: 'Erledige 5 Aufgaben innerhalb der geschätzten Zeit.', metric: 'efficientWeek', target: 5, xp: 40, rare: { key: 'praezise', name: 'Präzise', emoji: '🎯', reason: 'Challenge „Effizienz-Woche" gemeistert' } },
+  { key: 'efficientpro', title: 'Punktlandung', emoji: '🏹', hint: 'Erledige 10 Aufgaben innerhalb der geschätzten Zeit.', metric: 'efficientWeek', target: 10, xp: 70, rare: { key: 'punktlandung', name: 'Punktlandung', emoji: '🏹', reason: 'Challenge „Punktlandung" gemeistert' } },
+  { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', hint: 'Erledige 5 Aufgaben pünktlich bis zur Deadline.', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️', reason: 'Challenge „Pünktlichkeitsprofi" gemeistert' } },
+  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', hint: 'Vergib 5-mal Kudos an Kolleg:innen.', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
+  { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', hint: 'Erfasse 10-mal Zeit auf Aufgaben.', metric: 'timerWeek', target: 10, xp: 25 },
 ];
 
 /** All rare badges obtainable through challenges (for the collectible display). */
@@ -60,6 +62,8 @@ export interface WeeklyChallenge {
   key: string;
   title: string;
   emoji: string;
+  /** How to complete it – shown under the title. */
+  hint: string | null;
   progress: number;
   target: number;
   xp: number;
@@ -101,6 +105,7 @@ export async function getWeeklyChallenges(
         key: c.id,
         title: c.kind === 'team' ? `👥 ${c.title}` : c.title,
         emoji: c.emoji,
+        hint: c.description,
         progress: c.progress,
         target: c.target,
         xp: c.xp,
@@ -189,6 +194,7 @@ export async function getWeeklyChallenges(
       key: c.key,
       title: c.title,
       emoji: c.emoji,
+      hint: c.hint,
       progress: Math.min(progress, c.target),
       target: c.target,
       xp: c.xp,

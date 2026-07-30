@@ -23,11 +23,17 @@ export function BannerPicker({
   selected,
   customBanners,
   coins = 0,
+  variant = 'pill',
+  onOpen,
 }: {
   level: number;
   selected: string | null;
   customBanners: CustomBanner[];
   coins?: number;
+  /** 'pill' = eigenständiger Button, 'menu' = Zeile im Zahnrad-Menü. */
+  variant?: 'pill' | 'menu';
+  /** Callback, wenn das Modal geöffnet wird (z. B. um das Menü zu schliessen). */
+  onOpen?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -62,10 +68,17 @@ export function BannerPicker({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className="rounded-full border border-white/40 bg-black/25 px-3 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/40"
+        onClick={() => {
+          onOpen?.();
+          setOpen(true);
+        }}
+        className={
+          variant === 'menu'
+            ? 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted'
+            : 'rounded-full border border-white/40 bg-black/25 px-3 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/40'
+        }
       >
-        🎨 Titelbild
+        🎨 <span>Titelbild</span>
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="Titelbild wählen">

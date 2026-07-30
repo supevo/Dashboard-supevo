@@ -6,8 +6,13 @@ import { useRouter } from 'next/navigation';
 import {
   createChannelAction,
   sendChannelMessageAction,
+  toggleChatFileKeepAction,
 } from '@/features/messenger/actions';
-import type { ChatChannel, ChannelMessage } from '@/features/messenger/queries';
+import type {
+  ChatChannel,
+  ChannelMessage,
+  ChannelFile,
+} from '@/features/messenger/queries';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
@@ -23,6 +28,85 @@ import { TypingIndicator } from '@/features/messenger/components/typing-indicato
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function daysLeft(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
+}
+
+/** Renders an uploaded chat file: image preview or file chip + keep toggle. */
+export function FileBlock({
+  messageId,
+  file,
+  onChanged,
+}: {
+  messageId: string;
+  file: ChannelFile;
+  onChanged: () => void;
+}) {
+  const [kept, setKept] = useState(file.keep);
+  const [busy, setBusy] = useState(false);
+  const left = daysLeft(file.expiresAt);
+
+  const toggle = async () => {
+    const next = !kept;
+    setKept(next);
+    setBusy(true);
+    await toggleChatFileKeepAction(messageId, next);
+    setBusy(false);
+    onChanged();
+  };
+
+  if (file.removed || !file.url) {
+    return (
+      <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+        🗑️ {file.name} · nach 60 Tagen automatisch gelöscht
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      {file.isImage ? (
+        <a href={file.url} target="_blank" rel="noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={file.url}
+            alt={file.name}
+            className="max-h-56 max-w-[280px] rounded-md border object-contain"
+          />
+        </a>
+      ) : (
+        <a
+          href={file.url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm text-foreground hover:bg-muted"
+        >
+          <span className="text-lg" aria-hidden>📎</span>
+          <span className="min-w-0">
+            <span className="block max-w-[220px] truncate font-medium">{file.name}</span>
+            <span className="text-xs text-muted-foreground">{formatSize(file.size)}</span>
+          </span>
+        </a>
+      )}
+      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <input type="checkbox" checked={kept} disabled={busy} onChange={toggle} className="h-3 w-3" />
+        {kept ? (
+          <span>⭐ wichtig – dauerhaft gesichert</span>
+        ) : (
+          <span>löscht automatisch{left != null ? ` in ${left} Tagen` : ''} · als wichtig markieren</span>
+        )}
+      </label>
+    </div>
+  );
+}
 
 function CreateChannel({ onDone }: { onDone: () => void }) {
   const [state, action] = useActionState(createChannelAction, idleResult);
@@ -70,6 +154,11 @@ function MessagePane({
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<ChannelMessage[] | null>(null);
 
   function insertEmoji(emoji: string) {
     const el = inputRef.current;
@@ -95,6 +184,72 @@ function MessagePane({
     }
   }, [channel.id]);
 
+  async function uploadFile(file: File) {
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const createRes = await fetch('/api/chat-files/create-upload-url', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channelId: channel.id, fileName: file.name, mimeType: file.type, sizeBytes: file.size }),
+      });
+      const created = (await createRes.json()) as {
+        path?: string; token?: string; storagePath?: string; error?: string;
+      };
+      if (!createRes.ok || !created.path || !created.token || !created.storagePath) {
+        setUploadError(created.error ?? 'Upload fehlgeschlagen.');
+        return;
+      }
+      const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
+      const supabase = createSupabaseBrowserClient();
+      const { error: upErr } = await supabase.storage
+        .from('files')
+        .uploadToSignedUrl(created.path, created.token, file, { contentType: file.type });
+      if (upErr) {
+        setUploadError('Upload fehlgeschlagen.');
+        return;
+      }
+      const finRes = await fetch('/api/chat-files/finalize', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          channelId: channel.id,
+          storagePath: created.storagePath,
+          fileName: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+        }),
+      });
+      const fin = (await finRes.json()) as { ok?: boolean; error?: string };
+      if (!finRes.ok || !fin.ok) {
+        setUploadError(fin.error ?? 'Upload fehlgeschlagen.');
+        return;
+      }
+      await load();
+    } catch {
+      setUploadError('Upload fehlgeschlagen.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  const runSearch = useCallback(async () => {
+    const q = search.trim();
+    if (q.length < 2) {
+      setResults(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/chat/channels/${channel.id}/search?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = (await res.json()) as { messages: ChannelMessage[] };
+      setResults(data.messages);
+    } catch {
+      /* ignore */
+    }
+  }, [search, channel.id]);
+
   // Reset to the server-provided messages when the channel changes, then poll.
   useEffect(() => {
     setMessages(initialMessages);
@@ -119,11 +274,62 @@ function MessagePane({
   return (
     <section className="flex min-w-0 flex-1 flex-col">
       <header className="border-b px-4 py-3">
-        <div className="font-semibold"># {channel.name}</div>
-        {channel.description && (
-          <div className="text-xs text-muted-foreground">{channel.description}</div>
-        )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-semibold"># {channel.name}</div>
+            {channel.description && (
+              <div className="truncate text-xs text-muted-foreground">{channel.description}</div>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); void runSearch(); }
+                if (e.key === 'Escape') { setSearch(''); setResults(null); }
+              }}
+              placeholder="🔍 Suchen…"
+              className="h-8 w-32 text-sm sm:w-48"
+            />
+            {results !== null && (
+              <button
+                type="button"
+                onClick={() => { setSearch(''); setResults(null); }}
+                className="rounded px-1.5 text-sm text-muted-foreground hover:bg-muted"
+                aria-label="Suche schließen"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
       </header>
+
+      {results !== null && (
+        <div className="border-b bg-muted/20 p-3">
+          <div className="mb-2 text-xs font-semibold text-muted-foreground">
+            {results.length} Treffer für „{search.trim()}&ldquo;
+          </div>
+          {results.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Nichts gefunden.</p>
+          ) : (
+            <ul className="max-h-52 space-y-2 overflow-y-auto">
+              {results.map((m) => (
+                <li key={m.id} className="rounded-md border bg-background p-2 text-xs">
+                  <div className="mb-0.5 text-muted-foreground">
+                    {m.authorName} ·{' '}
+                    {new Date(m.createdAt).toLocaleDateString('de-DE')}
+                  </div>
+                  <div className="break-words">
+                    {m.file ? `📎 ${m.file.name}` : m.body}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-4">
         {messages.length === 0 ? (
@@ -141,7 +347,7 @@ function MessagePane({
               <div
                 className={cn(
                   'max-w-[75%] rounded-lg text-sm',
-                  m.stickerUrl
+                  m.stickerUrl || m.file
                     ? ''
                     : cn(
                         'px-3 py-2',
@@ -165,6 +371,8 @@ function MessagePane({
                     alt="Sticker"
                     className="max-h-32 max-w-[160px] object-contain"
                   />
+                ) : m.file ? (
+                  <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
                 ) : (
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
@@ -176,8 +384,33 @@ function MessagePane({
 
       <TypingIndicator names={typing} />
 
+      {uploadError && (
+        <Alert variant="destructive" className="mx-3 text-xs">
+          {uploadError}
+        </Alert>
+      )}
+
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-3">
         <input type="hidden" name="channelId" value={channel.id} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadFile(f);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          aria-label="Datei anhängen"
+          title="Datei anhängen (max. 25 MB)"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted disabled:opacity-50"
+        >
+          {uploading ? '⏳' : '📎'}
+        </button>
         <Textarea
           ref={inputRef}
           name="body"

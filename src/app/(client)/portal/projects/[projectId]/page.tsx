@@ -10,6 +10,7 @@ import { ExpressBoard } from '@/features/express/components/express-board';
 import { getExpressStatus } from '@/features/express/queries';
 import { AddClientTask } from '@/features/tasks/components/add-client-task';
 import { SubmitRequestForm } from '@/features/requests/components/submit-request-form';
+import { listClientRecurringTasks } from '@/features/recurring/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectPage({
@@ -23,10 +24,11 @@ export default async function PortalProjectPage({
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, approvals, expressStatus] = await Promise.all([
+  const [board, approvals, expressStatus, recurring] = await Promise.all([
     getBoardView(projectId),
     listProjectApprovals(projectId),
     getExpressStatus(project.clientCompanyId),
+    listClientRecurringTasks(projectId),
   ]);
 
   // Flatten client-visible tasks (RLS already removed internal ones).
@@ -89,6 +91,32 @@ export default async function PortalProjectPage({
           )}
         </CardContent>
       </Card>
+
+      {recurring.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dauerhafte Aufgaben an denen wir aktuell arbeiten</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Diese Leistungen erbringen wir wiederkehrend für euch – auch ohne
+              neue Aufgabe von eurer Seite.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y">
+              {recurring.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    🔁 {r.title}
+                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {r.scheduleLabel}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
