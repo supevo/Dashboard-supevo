@@ -28,6 +28,8 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { useChatTyping } from '@/features/messenger/use-chat-typing';
+import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -56,10 +58,15 @@ function UnreadBadge({ count }: { count: number }) {
 function ConversationView({
   channelId,
   title,
+  meId,
+  meName,
 }: {
   channelId: string;
   title: string;
+  meId: string;
+  meName: string;
 }) {
+  const { typing, notifyTyping } = useChatTyping(channelId, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   const [state, action] = useActionState(sendChannelMessageAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
@@ -151,6 +158,8 @@ function ConversationView({
           ))
         )}
       </div>
+      <TypingIndicator names={typing} />
+
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
         <Textarea
@@ -160,6 +169,7 @@ function ConversationView({
           rows={1}
           placeholder={de.messenger.messagePlaceholder}
           className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
+          onChange={notifyTyping}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -237,7 +247,7 @@ function CreateChannel({
   );
 }
 
-export function ChatDock() {
+export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [dms, setDms] = useState<DmConversation[]>([]);
@@ -467,7 +477,13 @@ export function ChatDock() {
         </aside>
 
         {activeId && activeTitle ? (
-          <ConversationView key={activeId} channelId={activeId} title={activeTitle} />
+          <ConversationView
+            key={activeId}
+            channelId={activeId}
+            title={activeTitle}
+            meId={meId}
+            meName={meName}
+          />
         ) : (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
             {de.messenger.selectChannel}

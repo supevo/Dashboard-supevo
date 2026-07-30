@@ -31,6 +31,8 @@ export default async function ChannelPage({
         channels={channels}
         activeChannel={channel}
         initialMessages={messages}
+        meId={user.id}
+        meName={user.fullName ?? user.email}
       />
     </div>
   );
