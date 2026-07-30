@@ -5,6 +5,8 @@ import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 /** Automatic XP awards. Tweak the economy here. */
 export const XP_MISSION = 10; // completing a task
 export const XP_ONTIME = 5; // bonus when finished on or before the due date
+export const XP_EFFICIENT = 8; // finished within the KI-estimated effort
+export const XP_CLIENT_PRAISE = 12; // bonus when the client rates the task ≥ 4★
 
 export const STREAK_MILESTONES: { days: number; kind: string; points: number }[] = [
   { days: 3, kind: 'streak_3', points: 15 },
@@ -121,5 +123,61 @@ export async function awardTaskXp(params: {
     });
   }
 
+  // Efficient: tracked time stayed within the KI-estimated effort. Rewards the
+  // outcome ("delivered promptly"), independent of whether the client engages.
+  const { data: t } = await supabase
+    .from('tasks')
+    .select('estimated_minutes, actual_minutes')
+    .eq('id', taskId)
+    .maybeSingle();
+  const estimate = t?.estimated_minutes ?? null;
+  const actual = t?.actual_minutes ?? 0;
+  if (estimate != null && estimate > 0 && actual > 0 && actual <= estimate) {
+    await insertIgnore(supabase, {
+      user_id: userId,
+      organization_id: orgId,
+      kind: 'efficient',
+      points: applyBoost(XP_EFFICIENT, factor),
+      task_id: taskId,
+    });
+  }
+
   await awardStreak(supabase, userId, orgId, factor);
+}
+
+/**
+ * Bonus XP when a client rates a completed task highly (≥ 4★). Awarded to the
+ * person who finished the task. Idempotent per task (unique on user+kind+task).
+ * A no-op when the task has no completer or the rating is below the bar.
+ */
+export async function awardClientPraiseXp(params: {
+  orgId: string;
+  taskId: string;
+  stars: number;
+}): Promise<void> {
+  const { orgId, taskId, stars } = params;
+  if (stars < 4) return;
+  // Triggered by a client → write via the service client (a client can't insert
+  // an XP event for an agency user under RLS).
+  const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+  const service = createSupabaseServiceClient();
+  const { data: task } = await service
+    .from('tasks')
+    .select('completed_by')
+    .eq('id', taskId)
+    .maybeSingle();
+  const completer = task?.completed_by;
+  if (!completer) return;
+
+  const factor = await xpFactor(orgId);
+  const { error } = await service.from('xp_events').insert({
+    user_id: completer,
+    organization_id: orgId,
+    kind: 'client_praise',
+    points: applyBoost(XP_CLIENT_PRAISE, factor),
+    task_id: taskId,
+  });
+  if (error && error.code !== '23505') {
+    console.error('client_praise xp insert failed', error);
+  }
 }
