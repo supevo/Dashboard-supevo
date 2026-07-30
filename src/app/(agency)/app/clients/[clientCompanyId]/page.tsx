@@ -113,6 +113,7 @@ export default async function ClientDetailPage({
             <ClientProfileForm
               orgId={orgId}
               clientCompanyId={clientCompanyId}
+              contactEmail={company.contactEmail}
               industry={company.industry}
               brands={company.brands}
               interests={company.interests}

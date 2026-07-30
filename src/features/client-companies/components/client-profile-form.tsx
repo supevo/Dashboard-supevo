@@ -14,6 +14,7 @@ import { SubmitButton } from '@/components/ui/submit-button';
 export function ClientProfileForm({
   orgId,
   clientCompanyId,
+  contactEmail,
   industry,
   brands,
   interests,
@@ -21,6 +22,7 @@ export function ClientProfileForm({
 }: {
   orgId: string;
   clientCompanyId: string;
+  contactEmail: string | null;
   industry: string | null;
   brands: string | null;
   interests: string | null;
@@ -41,6 +43,20 @@ export function ClientProfileForm({
       <input type="hidden" name="orgId" value={orgId} />
       <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
 
+      <div className="space-y-1">
+        <Label htmlFor="contactEmail">Kontakt-E-Mail</Label>
+        <Input
+          id="contactEmail"
+          name="contactEmail"
+          type="email"
+          defaultValue={contactEmail ?? ''}
+          placeholder="kontakt@kunde.de"
+        />
+        <p className="text-xs text-muted-foreground">
+          Empfänger für den Wochenrückblick. Bei ungültiger Domain lehnt der
+          Mailserver den Versand ab.
+        </p>
+      </div>
       <div className="space-y-1">
         <Label htmlFor="industry">{de.clientProfile.industry}</Label>
         <Input id="industry" name="industry" defaultValue={industry ?? ''} />

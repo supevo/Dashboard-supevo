@@ -123,6 +123,13 @@ export async function updateClientCompanyAction(
 const updateClientProfileSchema = z.object({
   orgId: z.string().uuid(),
   clientCompanyId: z.string().uuid(),
+  contactEmail: z
+    .string()
+    .trim()
+    .max(320)
+    .email()
+    .optional()
+    .or(z.literal('')),
   industry: z.string().trim().max(500).optional().or(z.literal('')),
   brands: z.string().trim().max(2000).optional().or(z.literal('')),
   interests: z.string().trim().max(2000).optional().or(z.literal('')),
@@ -137,15 +144,19 @@ export async function updateClientProfileAction(
   const parsed = updateClientProfileSchema.safeParse({
     orgId: formData.get('orgId'),
     clientCompanyId: formData.get('clientCompanyId'),
+    contactEmail: formData.get('contactEmail') ?? '',
     industry: formData.get('industry') ?? '',
     brands: formData.get('brands') ?? '',
     interests: formData.get('interests') ?? '',
     expressTicketsPerMonth: formData.get('expressTicketsPerMonth') ?? 0,
   });
-  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  if (!parsed.success) {
+    return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
+  }
   const {
     orgId,
     clientCompanyId,
+    contactEmail,
     industry,
     brands,
     interests,
@@ -159,6 +170,7 @@ export async function updateClientProfileAction(
   const { error } = await supabase
     .from('client_companies')
     .update({
+      contact_email: contactEmail || null,
       industry: industry || null,
       brands: brands || null,
       interests: interests || null,
