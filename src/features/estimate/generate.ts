@@ -16,9 +16,19 @@ export async function estimateTaskMinutes(
   description: string | null,
 ): Promise<number | null> {
   const result = await completeText({
-    system: `Du schaetzt den Arbeitsaufwand fuer eine Aufgabe einer Marketing-Agentur.
-Gib eine realistische Schaetzung in MINUTEN (reine Arbeitszeit, ohne Wartezeiten).
-Antworte AUSSCHLIESSLICH mit JSON: {"minutes": <ganze Zahl>}. Zwischen 15 und 4800.`,
+    system: `Du schaetzt den reinen Arbeitsaufwand fuer eine Aufgabe einer Marketing-Agentur in MINUTEN (ohne Warte-/Abstimmungszeiten).
+Nutze die GESAMTE Bandbreite realistisch: winzige Aenderungen kosten wenige Minuten, grosse Aufbauten viele Stunden bis mehrere Tage. Ueberschaetze Kleinigkeiten NICHT und unterschaetze grosse Projekte NICHT.
+
+Kalibrierung (reine Arbeitszeit):
+- Tippfehler / kleine Textaenderung: 5-15 Min
+- Kleines Bild oder Detail anpassen: 15-30 Min
+- Einzelnen Social-Media-Post erstellen: 30-60 Min
+- Blogartikel schreiben: 120-240 Min
+- Landingpage aufbauen: 240-600 Min
+- Website mit mehreren Seiten: 900-2400 Min
+- Kompletter Onlineshop-Aufbau: 2400-4800 Min (mehrere Tage)
+
+Antworte AUSSCHLIESSLICH mit JSON: {"minutes": <ganze Zahl>}. Zwischen 5 und 4800.`,
     prompt: `Titel: ${title}\n${description ? `Beschreibung: ${description}` : ''}`,
     maxTokens: 60,
   });
@@ -27,7 +37,7 @@ Antworte AUSSCHLIESSLICH mit JSON: {"minutes": <ganze Zahl>}. Zwischen 15 und 48
     const parsed = JSON.parse(extractJson(result.text)) as { minutes?: unknown };
     const m = Number(parsed.minutes);
     if (!Number.isFinite(m)) return null;
-    return Math.min(4800, Math.max(15, Math.round(m)));
+    return Math.min(4800, Math.max(5, Math.round(m)));
   } catch {
     return null;
   }
