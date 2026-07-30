@@ -315,6 +315,7 @@ export default async function KudosPage() {
                       emoji: b.emoji,
                       earned: b.earned,
                       reason: BADGE_REASON.get(b.key) ?? b.name,
+                      count: b.count,
                     }))}
                   />
                 </div>

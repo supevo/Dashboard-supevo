@@ -153,6 +153,8 @@ export interface WallBadge {
   name: string;
   emoji: string;
   earned: boolean;
+  /** How often earned (>1 shows a count bubble). Optional; catalog badges = 1. */
+  count?: number;
 }
 
 /** Gathers every metric a badge might need, then evaluates the catalog. */

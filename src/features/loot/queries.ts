@@ -186,12 +186,16 @@ export interface LootBadge {
   key: string;
   name: string;
   emoji: string;
+  /** How often this badge was won (same name + emoji collapses into one). */
+  count: number;
 }
 
 /**
  * A user's redeemed lootbox badges (type 'badge', status 'fulfilled'). These
  * carry their own emoji/name (not in the fixed BADGE_CATALOG), so the Level Hub
- * surfaces them in the collectible-badge wall.
+ * surfaces them in the collectible-badge wall. Identical badges (same name +
+ * emoji) are collapsed into one entry with a count, so winning the same badge
+ * twice shows a "2" instead of two tiles.
  */
 export async function listLootBadges(userId: string): Promise<LootBadge[]> {
   const service = createSupabaseServiceClient();
@@ -202,11 +206,20 @@ export async function listLootBadges(userId: string): Promise<LootBadge[]> {
     .eq('type', 'badge')
     .eq('status', 'fulfilled')
     .order('won_at', { ascending: false });
-  return (data ?? []).map((r) => ({
-    key: `loot_${r.id}`,
-    name: r.badge_name ?? r.name,
-    emoji: r.badge_emoji ?? '🏅',
-  }));
+
+  const byBadge = new Map<string, LootBadge>();
+  for (const r of data ?? []) {
+    const name = r.badge_name ?? r.name;
+    const emoji = r.badge_emoji ?? '🏅';
+    const dedupeKey = `${emoji}|${name.toLowerCase().trim()}`;
+    const existing = byBadge.get(dedupeKey);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      byBadge.set(dedupeKey, { key: `loot_${r.id}`, name, emoji, count: 1 });
+    }
+  }
+  return [...byBadge.values()];
 }
 
 /** Just the spendable coin balance – light query for the header chip. */
