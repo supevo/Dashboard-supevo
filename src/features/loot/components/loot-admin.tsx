@@ -57,11 +57,13 @@ export function LootAdmin({
   items,
   colleagues,
   banners,
+  frames = [],
 }: {
   config: LootConfig;
   items: LootItem[];
   colleagues: Colleague[];
   banners: ExclusiveBanner[];
+  frames?: ExclusiveBanner[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -75,12 +77,13 @@ export function LootAdmin({
   const [boxTier, setBoxTier] = useState<BoxTier>('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'physical' | 'badge' | 'banner'>('physical');
+  const [type, setType] = useState<'physical' | 'badge' | 'banner' | 'frame'>('physical');
   const [weight, setWeight] = useState(10);
   const [badgeEmoji, setBadgeEmoji] = useState('🏅');
   const [badgeName, setBadgeName] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [bannerImageId, setBannerImageId] = useState(banners[0]?.id ?? '');
+  const [frameImageId, setFrameImageId] = useState(frames[0]?.id ?? '');
 
   // Verschenken
   const [giftUser, setGiftUser] = useState(colleagues[0]?.userId ?? '');
@@ -101,11 +104,21 @@ export function LootAdmin({
   async function addItem() {
     setError(null);
     setNotice(null);
-    // Für Banner den Titelbild-Namen als Fallback nehmen.
+    // Für Banner/Rahmen den Namen als Fallback nehmen.
     const bannerName = banners.find((b) => b.id === bannerImageId)?.name ?? '';
-    const effectiveName = type === 'banner' && name.trim().length < 2 ? bannerName : name;
+    const frameName = frames.find((f) => f.id === frameImageId)?.name ?? '';
+    const effectiveName =
+      type === 'banner' && name.trim().length < 2
+        ? bannerName
+        : type === 'frame' && name.trim().length < 2
+          ? frameName
+          : name;
     if (type === 'banner' && !bannerImageId) {
       setError('Bitte ein exklusives Titelbild wählen.');
+      return;
+    }
+    if (type === 'frame' && !frameImageId) {
+      setError('Bitte einen exklusiven Rahmen wählen.');
       return;
     }
     if (effectiveName.trim().length < 2) {
@@ -123,6 +136,7 @@ export function LootAdmin({
       fd.set('badgeEmoji', badgeEmoji);
       fd.set('badgeName', badgeName);
       if (type === 'banner') fd.set('bannerImageId', bannerImageId);
+      if (type === 'frame') fd.set('frameImageId', frameImageId);
       if (photo) fd.set('file', photo);
       const res = await fetch('/api/loot/items', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -289,10 +303,11 @@ export function LootAdmin({
           </div>
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Typ</label>
-            <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge' | 'banner')}>
+            <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge' | 'banner' | 'frame')}>
               <option value="physical">Physisch (du löst ein)</option>
               <option value="badge">Badge (digital, automatisch)</option>
               <option value="banner">Titelbild (nur über Lootbox)</option>
+              <option value="frame">Profilrahmen (nur über Lootbox)</option>
             </Select>
           </div>
           <div className="space-y-1">
@@ -358,6 +373,45 @@ export function LootAdmin({
           </div>
         )}
 
+        {type === 'frame' && (
+          <div className="space-y-2">
+            {frames.length === 0 ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Noch keine exklusiven Rahmen. Lade zuerst unter{' '}
+                <b>Einstellungen → Profilrahmen</b> einen Rahmen hoch und markiere ihn als
+                „exklusiv (nur über Lootbox)&ldquo;.
+              </p>
+            ) : (
+              <>
+                <label className="text-xs text-muted-foreground">Exklusiver Rahmen</label>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={frameImageId}
+                    onChange={(e) => setFrameImageId(e.target.value)}
+                    className="sm:max-w-xs"
+                  >
+                    {frames.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </Select>
+                  {frameImageId && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={frames.find((f) => f.id === frameImageId)?.imageUrl}
+                      alt=""
+                      className="h-12 w-12 rounded object-contain"
+                    />
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Wer dieses Item zieht und einlöst, schaltet den Rahmen exklusiv im Level
+                  Hub frei. Ohne eigenen Namen wird der Rahmen-Name verwendet.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+
         {type === 'physical' && (
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Foto des Loots (optional)</label>
@@ -412,7 +466,9 @@ export function LootAdmin({
             busy ||
             (type === 'banner'
               ? !bannerImageId
-              : name.trim().length < 2)
+              : type === 'frame'
+                ? !frameImageId
+                : name.trim().length < 2)
           }
           onClick={addItem}
         >

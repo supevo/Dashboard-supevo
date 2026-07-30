@@ -167,6 +167,7 @@ export function TeamRailClient({
           progressPct={selfMenu.progressPct}
           status={selfMenu.status}
           size="lg"
+          frameUrl={selfMenu.frameUrl}
         />
       </div>
 

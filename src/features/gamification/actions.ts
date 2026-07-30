@@ -15,6 +15,7 @@ import {
   parseCustomBannerKey,
   customBannerKey,
 } from '@/features/gamification/banners';
+import { parseFrameKey, customFrameKey } from '@/features/gamification/frames';
 import { getCoinBalance } from '@/features/loot/queries';
 
 /**
@@ -210,6 +211,162 @@ export async function deleteHubBannerAction(bannerId: string): Promise<void> {
   await service.storage.from(FILES_BUCKET).remove([banner.storage_path]);
 
   revalidatePath('/app/settings');
+  revalidatePath('/app/kudos');
+}
+
+// --- Profilrahmen -----------------------------------------------------------
+
+/** Computes the current user's level (kudos + XP), like the hub. */
+async function currentUserLevel(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+): Promise<number> {
+  const [kudosRes, xpPoints] = await Promise.all([
+    supabase.from('kudos').select('points').eq('to_user_id', userId),
+    getXpPoints(userId),
+  ]);
+  const points =
+    (kudosRes.data ?? []).reduce((n, k) => n + (k.points ?? 0), 0) + xpPoints;
+  return levelForPoints(points).level;
+}
+
+/**
+ * Sets (or clears) the Level-Hub profile frame for the current user. Passing an
+ * empty key / "none" clears it back to the XP ring. Server-side gate: the frame
+ * must exist and be unlocked (by level, purchase or lootbox win).
+ */
+export async function setFrameAction(key: string): Promise<void> {
+  const clean = key.trim();
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Kein Rahmen → XP-Ring.
+  if (!clean || clean === 'none') {
+    await supabase.from('profiles').update({ hub_frame: null }).eq('id', user.id);
+    revalidatePath('/app/kudos');
+    return;
+  }
+
+  const frameId = parseFrameKey(clean);
+  if (!frameId) return;
+
+  const { data: img } = await supabase
+    .from('hub_frame_images')
+    .select('unlock_level, exclusive')
+    .eq('id', frameId)
+    .maybeSingle();
+  if (!img) return;
+
+  // Besitz (per Lootbox gewonnen ODER mit Coins gekauft) schaltet immer frei.
+  const { data: owned } = await supabase
+    .from('achievements')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('key', `frame_${frameId}`)
+    .maybeSingle();
+
+  let unlockLevel: number;
+  if (owned) {
+    unlockLevel = 0;
+  } else if (img.exclusive) {
+    return; // Sonderrahmen nur über Lootbox – ohne Besitz gesperrt.
+  } else {
+    unlockLevel = img.unlock_level;
+  }
+
+  const level = await currentUserLevel(supabase, user.id);
+  if (level < unlockLevel) return;
+
+  await supabase
+    .from('profiles')
+    .update({ hub_frame: customFrameKey(frameId) })
+    .eq('id', user.id);
+  revalidatePath('/app/kudos');
+}
+
+/**
+ * Buys a level-locked profile frame early with coins. Non-exclusive frames with
+ * a coin price only. Spends the coins and grants ownership as achievement
+ * 'frame_<id>'.
+ */
+export async function buyFrameAction(
+  frameId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!z.string().uuid().safeParse(frameId).success) {
+    return { ok: false, error: 'Ungültig.' };
+  }
+  const user = await requireUser();
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return { ok: false, error: 'Keine Organisation.' };
+
+  const service = createSupabaseServiceClient();
+  const { data: frame } = await service
+    .from('hub_frame_images')
+    .select('id, exclusive, coin_price, organization_id')
+    .eq('id', frameId)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!frame) return { ok: false, error: 'Rahmen nicht gefunden.' };
+  if (frame.exclusive) return { ok: false, error: 'Nur über Lootbox erhältlich.' };
+  const price = frame.coin_price ?? 0;
+  if (price <= 0) return { ok: false, error: 'Dieser Rahmen ist nicht käuflich.' };
+
+  const key = `frame_${frameId}`;
+  const { data: owned } = await service
+    .from('achievements')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('key', key)
+    .maybeSingle();
+  if (owned) return { ok: false, error: 'Bereits freigeschaltet.' };
+
+  const balance = await getCoinBalance(user.id, orgId);
+  if (balance < price) return { ok: false, error: 'Nicht genug Coins.' };
+
+  const { data: wallet } = await service
+    .from('loot_wallets')
+    .select('coins_spent')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  await service.from('loot_wallets').upsert({
+    user_id: user.id,
+    organization_id: orgId,
+    coins_spent: (wallet?.coins_spent ?? 0) + price,
+    updated_at: new Date().toISOString(),
+  });
+  await service
+    .from('achievements')
+    .upsert(
+      { user_id: user.id, organization_id: orgId, key },
+      { onConflict: 'user_id,key', ignoreDuplicates: true },
+    );
+
+  revalidatePath('/app/kudos');
+  return { ok: true };
+}
+
+/** Deletes an uploaded profile frame (row + stored image). Admins only. */
+export async function deleteHubFrameAction(frameId: string): Promise<void> {
+  const parsed = z.string().uuid().safeParse(frameId);
+  if (!parsed.success) return;
+
+  const user = await requireUser();
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId || !isOrgAdmin(user, orgId)) return; // admins only
+
+  const service = createSupabaseServiceClient();
+  const { data: frame } = await service
+    .from('hub_frame_images')
+    .select('storage_path')
+    .eq('id', parsed.data)
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  if (!frame) return;
+
+  await service.from('hub_frame_images').delete().eq('id', parsed.data);
+  await service.storage.from(FILES_BUCKET).remove([frame.storage_path]);
+
+  revalidatePath('/app/rewards');
   revalidatePath('/app/kudos');
 }
 

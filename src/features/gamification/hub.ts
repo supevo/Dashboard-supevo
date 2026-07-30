@@ -16,6 +16,11 @@ import {
   resolveActiveBanner,
   type CustomBanner,
 } from '@/features/gamification/banners';
+import {
+  resolveActiveFrame,
+  type CustomFrame,
+  type ResolvedFrame,
+} from '@/features/gamification/frames';
 
 export interface HubStats {
   missions: number; // tasks completed by the user
@@ -73,6 +78,9 @@ export interface LevelHub {
   bannerKey: string; // aktiv angezeigtes Titelbild (Schlüssel)
   bannerBackground: string; // CSS-background für das aktive Titelbild
   customBanners: CustomBanner[]; // hochgeladene Titelbilder der Org (mit Level)
+  frame: ResolvedFrame | null; // aktiver Profilrahmen (ersetzt den XP-Ring); null = Ring
+  frameKey: string | null; // gewählter Rahmen-Schlüssel (für den Picker)
+  customFrames: CustomFrame[]; // hochgeladene Profilrahmen der Org (mit Level)
 }
 
 /**
@@ -100,8 +108,9 @@ export async function getLevelHub(
     milestones,
     badgeWall,
     customBannersRes,
+    customFramesRes,
   ] = await Promise.all([
-    supabase.from('profiles').select('full_name, avatar_url, created_at, hub_banner').eq('id', userId).maybeSingle(),
+    supabase.from('profiles').select('full_name, avatar_url, created_at, hub_banner, hub_frame').eq('id', userId).maybeSingle(),
     supabase
       .from('memberships')
       .select('role, created_at, joined_company_at')
@@ -125,6 +134,12 @@ export async function getLevelHub(
       .select('id, name, unlock_level, exclusive, coin_price')
       .eq('organization_id', orgId)
       .order('unlock_level', { ascending: true }),
+    // Uploaded profile frames (org-scoped via service client).
+    createSupabaseServiceClient()
+      .from('hub_frame_images')
+      .select('id, name, unlock_level, exclusive, coin_price')
+      .eq('organization_id', orgId)
+      .order('unlock_level', { ascending: true }),
   ]);
 
   // Exklusive (nur über Lootbox erhältliche) Titelbilder, die diese Person
@@ -145,6 +160,24 @@ export async function getLevelHub(
     exclusive: Boolean(b.exclusive),
     owned: ownedBannerIds.has(b.id),
     coinPrice: b.coin_price ?? 0,
+  }));
+
+  // Owned profile frames (lootbox win / coin purchase) as achievements 'frame_<id>'.
+  const { data: ownedFrameRows } = await createSupabaseServiceClient()
+    .from('achievements')
+    .select('key')
+    .eq('user_id', userId)
+    .like('key', 'frame_%');
+  const ownedFrameIds = new Set(
+    (ownedFrameRows ?? []).map((r) => r.key.slice('frame_'.length)),
+  );
+  const customFrames: CustomFrame[] = (customFramesRes.data ?? []).map((f) => ({
+    id: f.id,
+    name: f.name,
+    unlockLevel: f.unlock_level,
+    exclusive: Boolean(f.exclusive),
+    owned: ownedFrameIds.has(f.id),
+    coinPrice: f.coin_price ?? 0,
   }));
 
   const profile = profileRes.data;
@@ -197,6 +230,13 @@ export async function getLevelHub(
     customBanners,
   );
 
+  // Aktiver Profilrahmen (ersetzt den XP-Ring). null = Ring bleibt.
+  const activeFrame = resolveActiveFrame(
+    profile?.hub_frame ?? null,
+    level,
+    customFrames,
+  );
+
   const roleLabels: Record<string, string> = {
     owner: 'Inhaber:in',
     admin: 'Administrator:in',
@@ -234,5 +274,8 @@ export async function getLevelHub(
     bannerKey: activeBanner.key,
     bannerBackground: activeBanner.background,
     customBanners,
+    frame: activeFrame,
+    frameKey: profile?.hub_frame ?? null,
+    customFrames,
   };
 }

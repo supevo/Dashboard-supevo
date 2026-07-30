@@ -78,7 +78,7 @@ export async function openBoxAction(
 
   const { data: items } = await service
     .from('loot_items')
-    .select('name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id')
+    .select('name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id, frame_image_id')
     .eq('organization_id', orgId)
     .eq('box_tier', parsed.data);
   if (!items || items.length === 0) return errorResult('Diese Box ist noch leer.');
@@ -129,18 +129,21 @@ export async function openBoxAction(
       box_tier: parsed.data,
       image_path: drawn.image_path,
       banner_image_id: drawn.banner_image_id ?? null,
+      frame_image_id: drawn.frame_image_id ?? null,
       status: 'new',
     })
     .select('id')
     .maybeSingle();
 
-  // Reveal-Bild: Banner zeigen das Titelbild selbst, physische ihr Foto.
+  // Reveal-Bild: Banner/Rahmen zeigen ihr Bild selbst, physische ihr Foto.
   const revealImage =
     drawn.type === 'banner' && drawn.banner_image_id
       ? `/api/hub-banners/${drawn.banner_image_id}`
-      : drawn.image_path && inserted?.id
-        ? `/api/loot/inventory/${inserted.id}/image`
-        : null;
+      : drawn.type === 'frame' && drawn.frame_image_id
+        ? `/api/hub-frames/${drawn.frame_image_id}`
+        : drawn.image_path && inserted?.id
+          ? `/api/loot/inventory/${inserted.id}/image`
+          : null;
 
   revalidatePath('/app/rewards');
   revalidatePath('/app/kudos');
@@ -161,7 +164,7 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
 
   const { data: item } = await service
     .from('loot_inventory')
-    .select('id, organization_id, name, type, status, banner_image_id')
+    .select('id, organization_id, name, type, status, banner_image_id, frame_image_id')
     .eq('id', inventoryId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -190,6 +193,30 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
     revalidatePath('/app/rewards');
     revalidatePath('/app/kudos');
     return successResult('Titelbild freigeschaltet – im Level Hub unter „🎨 Titelbild" wählbar.');
+  }
+
+  if (item.type === 'frame') {
+    // Rahmen freischalten: als achievement 'frame_<frameId>' gutschreiben,
+    // dann ist er im Level-Hub-Rahmen-Picker auswählbar.
+    if (item.frame_image_id) {
+      await service
+        .from('achievements')
+        .upsert(
+          {
+            user_id: user.id,
+            organization_id: item.organization_id,
+            key: `frame_${item.frame_image_id}`,
+          },
+          { onConflict: 'user_id,key', ignoreDuplicates: true },
+        );
+    }
+    await service
+      .from('loot_inventory')
+      .update({ status: 'fulfilled', redeemed_at: new Date().toISOString() })
+      .eq('id', item.id);
+    revalidatePath('/app/rewards');
+    revalidatePath('/app/kudos');
+    return successResult('Rahmen freigeschaltet – im Level Hub unter „🖼️ Rahmen" wählbar.');
   }
 
   if (item.type === 'badge') {

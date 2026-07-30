@@ -11,6 +11,8 @@ export interface RailSelfMenu {
   level?: number;
   progressPct?: number;
   status?: 'online' | 'afk' | 'dnd';
+  /** Active profile frame URL (replaces the XP ring), or null for the ring. */
+  frameUrl?: string | null;
 }
 
 /** Server wrapper: fetches the team rail and renders the client rail (agency). */

@@ -45,6 +45,7 @@ function LevelAvatar({
   level,
   progressPct,
   box = 52,
+  frameUrl,
 }: {
   userId: string;
   name: string;
@@ -53,30 +54,43 @@ function LevelAvatar({
   progressPct: number;
   /** Outer diameter in px (everything scales from this). */
   box?: number;
+  /** When set, an uploaded profile frame replaces the XP ring. */
+  frameUrl?: string | null;
 }) {
   const stroke = 3;
   const r = box / 2 - stroke - 1;
-  const inset = Math.round(box * 0.135);
+  const framed = Boolean(frameUrl);
+  const inset = framed ? Math.round(box * 0.14) : Math.round(box * 0.135);
   const avatar = box - inset * 2;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(100, progressPct)) / 100);
   return (
     <div className="relative shrink-0" style={{ width: box, height: box }}>
-      <svg viewBox={`0 0 ${box} ${box}`} className="absolute inset-0 -rotate-90">
-        <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted" />
-        <circle
-          cx={box / 2}
-          cy={box / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          className="text-primary transition-[stroke-dashoffset] duration-500"
+      {framed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={frameUrl!}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
-      </svg>
+      ) : (
+        <svg viewBox={`0 0 ${box} ${box}`} className="absolute inset-0 -rotate-90">
+          <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted" />
+          <circle
+            cx={box / 2}
+            cy={box / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            className="text-primary transition-[stroke-dashoffset] duration-500"
+          />
+        </svg>
+      )}
       <div className="absolute" style={{ inset }}>
         <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="lg" style={{ width: avatar, height: avatar }} />
       </div>
@@ -97,6 +111,7 @@ export function UserMenu({
   progressPct = 0,
   status = 'online',
   size = 'default',
+  frameUrl = null,
 }: {
   userId: string;
   name: string;
@@ -107,6 +122,8 @@ export function UserMenu({
   status?: Status;
   /** 'lg' renders a ~20% larger profile (used in the sidebar rail). */
   size?: 'default' | 'lg';
+  /** Uploaded profile frame that replaces the XP ring, if the user set one. */
+  frameUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Status>(status);
@@ -158,6 +175,7 @@ export function UserMenu({
             level={level}
             progressPct={progressPct}
             box={large ? 62 : 52}
+            frameUrl={frameUrl}
           />
         ) : (
           <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="md" />

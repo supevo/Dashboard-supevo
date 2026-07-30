@@ -3,6 +3,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { getShopData, listLootItems, getLootConfig, listRedemptions } from '@/features/loot/queries';
 import { listHubBanners } from '@/features/gamification/banner-queries';
+import { listHubFrames } from '@/features/gamification/frame-queries';
 import { listColleagues } from '@/features/team/colleague';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LootAdmin } from '@/features/loot/components/loot-admin';
@@ -15,20 +16,24 @@ export default async function RewardsPage() {
   const admin = isOrgAdmin(user, orgId);
   const shop = await getShopData(user.id, orgId);
 
-  const [items, config, roster, redemptions, hubBanners] = admin
+  const [items, config, roster, redemptions, hubBanners, hubFrames] = admin
     ? await Promise.all([
         listLootItems(orgId),
         getLootConfig(orgId),
         listColleagues(orgId),
         listRedemptions(orgId),
         listHubBanners(orgId),
+        listHubFrames(orgId),
       ])
-    : [[], shop.config, [], [], []];
+    : [[], shop.config, [], [], [], []];
   const colleagues = roster.map((c) => ({ userId: c.userId, name: c.name }));
-  // Nur exklusive Titelbilder können Lootbox-Items werden.
+  // Nur exklusive Titelbilder/Rahmen können Lootbox-Items werden.
   const exclusiveBanners = hubBanners
     .filter((b) => b.exclusive)
     .map((b) => ({ id: b.id, name: b.name, imageUrl: b.imageUrl }));
+  const exclusiveFrames = hubFrames
+    .filter((f) => f.exclusive)
+    .map((f) => ({ id: f.id, name: f.name, imageUrl: f.imageUrl }));
 
   return (
     <div className="space-y-6">
@@ -58,7 +63,7 @@ export default async function RewardsPage() {
             <CardTitle>⚙️ Lootboxen verwalten (Admin)</CardTitle>
           </CardHeader>
           <CardContent>
-            <LootAdmin config={config} items={items} colleagues={colleagues} banners={exclusiveBanners} />
+            <LootAdmin config={config} items={items} colleagues={colleagues} banners={exclusiveBanners} frames={exclusiveFrames} />
           </CardContent>
         </Card>
       )}
