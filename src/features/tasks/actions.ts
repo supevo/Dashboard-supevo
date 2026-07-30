@@ -536,7 +536,9 @@ export async function moveTaskAction(
     const completedAt = new Date().toISOString();
     const { data: doneTask } = await supabase
       .from('tasks')
-      .update({ completed_by: user.id, completed_at: completedAt })
+      // Fertig → kein Express-Status mehr (das Ticket war für die Bearbeitung,
+      // nicht für die erledigte Aufgabe).
+      .update({ completed_by: user.id, completed_at: completedAt, is_express: false })
       .eq('id', taskId)
       .select('due_date')
       .maybeSingle();
