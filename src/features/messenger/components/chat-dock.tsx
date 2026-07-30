@@ -30,6 +30,7 @@ import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
+import { playChatPing } from '@/features/messenger/notify-sound';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -253,6 +254,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [dms, setDms] = useState<DmConversation[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
+  const prevUnreadRef = useRef<number | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
@@ -281,6 +283,13 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       setChannels(data.channels);
       setDms(data.dms);
       setMembers(data.members);
+      // Ping when the total unread count rises (a new message arrived). Skip the
+      // very first load so we don't ping for pre-existing unreads.
+      const total = Object.values(data.unread ?? {}).reduce((a, b) => a + b, 0);
+      if (prevUnreadRef.current !== null && total > prevUnreadRef.current) {
+        playChatPing();
+      }
+      prevUnreadRef.current = total;
       setUnread(data.unread ?? {});
       setActiveId((cur) => {
         const known = [...data.channels, ...data.dms].some((c) => c.id === cur);

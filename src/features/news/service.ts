@@ -3,8 +3,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { completeText } from '@/lib/ai/complete';
 import { logger } from '@/lib/logger';
 import { fetchRssItems, fetchOgImage, googleNewsUrl, type NewsItem } from './rss';
+import { berlinToday } from '@/lib/time';
 
-const TTL_MS = 24 * 60 * 60 * 1000; // refresh at most once per day
 const MAX_ITEMS = 6;
 
 export interface ClientNews {
@@ -80,8 +80,13 @@ export async function getClientNews(
 
   const topic = buildTopic(company ?? { industry: null, brands: null, name: null });
   const cachedItems = (cache?.items as NewsItem[] | undefined) ?? [];
+  // Refresh once per CALENDAR day (Europe/Berlin): a new day → new news, even if
+  // less than 24 h have passed since the last fetch. A rolling 24 h window left
+  // the news looking stale on a fresh day.
   const fresh =
-    cache?.fetched_at && Date.now() - new Date(cache.fetched_at).getTime() < TTL_MS;
+    cache?.fetched_at &&
+    cachedItems.length > 0 &&
+    berlinToday(new Date(cache.fetched_at)) === berlinToday();
   if (fresh) return { items: cachedItems, fetchedAt: cache!.fetched_at, topic };
 
   // Stale or missing → refresh now (this render).

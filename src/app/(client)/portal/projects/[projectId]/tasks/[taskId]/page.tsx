@@ -60,6 +60,11 @@ export default async function PortalTaskPage({
             canManage
           />
         </div>
+        {task.isExpress && (
+          <span className="express-pulse mt-2 inline-flex items-center gap-1 rounded-full border border-violet-500 px-2.5 py-1 text-xs font-semibold text-violet-600 dark:text-violet-300">
+            🚀 Express – wird vorgezogen
+          </span>
+        )}
         {labels.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {labels.map((l) => (
