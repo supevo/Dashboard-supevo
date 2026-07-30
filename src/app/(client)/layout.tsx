@@ -17,6 +17,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
   { href: '/portal/projects', label: de.nav.projects },
   { href: '/portal/hub', label: 'Marken-Hub' },
+  { href: '/portal/access', label: 'Zugänge' },
   { href: '/portal/approvals', label: de.nav.approvals },
   { href: '/portal/reports', label: de.nav.reports },
   { href: '/portal/membership', label: de.nav.membership },
