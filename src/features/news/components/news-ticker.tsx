@@ -30,7 +30,7 @@ export function NewsTicker({
       <CardContent>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((it, i) => (
-            <NewsCard key={`${it.url}-${i}`} item={it} />
+            <NewsCard key={`${it.url}-${i}`} item={it} topic={topic} />
           ))}
         </div>
         <p className="mt-4 text-[11px] text-muted-foreground">{de.news.footer}</p>
