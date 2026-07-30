@@ -24,17 +24,24 @@ export function SkillRadar({
   maxSkills?: number;
   maxPrefs?: number;
 }) {
-  // Highest-value entries first, capped so the chart stays readable. Capping
-  // here (not in the caller) means every skill shown in the list can reach the
-  // graph as long as it ranks within maxSkills.
-  const topSkills = [...skills].sort((a, b) => b.level - a.level).slice(0, maxSkills);
-  const topPrefs = [...preferences].sort((a, b) => b.level - a.level).slice(0, maxPrefs);
+  // Full value lookups first — both series keep their real value on every axis,
+  // so a label that survives selection never plots as a phantom 0 just because
+  // the *other* series didn't rank it. This was the bug: capping per series
+  // before building the maps made the rose polygon spike to the centre.
+  const skillMap = new Map(skills.map((s) => [s.label, s.level] as const));
+  const prefMap = new Map(preferences.map((p) => [p.label, p.level] as const));
 
-  // Union of axes: competences first, then preference-only labels.
-  const skillMap = new Map(topSkills.map((s) => [s.label, s.level]));
-  const prefMap = new Map(topPrefs.map((p) => [p.label, p.level]));
-  const axes: string[] = [...skillMap.keys()];
-  for (const label of prefMap.keys()) if (!skillMap.has(label)) axes.push(label);
+  // Candidate axes = every label from either series, ranked by combined
+  // relevance (whichever series values it higher) so the most meaningful axes
+  // survive the cap. Cap the union, not each series, to keep the chart readable.
+  const maxAxes = Math.max(maxSkills, maxPrefs);
+  const axes: string[] = [...new Set([...skillMap.keys(), ...prefMap.keys()])]
+    .sort(
+      (a, b) =>
+        Math.max(prefMap.get(b) ?? 0, skillMap.get(b) ?? 0) -
+        Math.max(prefMap.get(a) ?? 0, skillMap.get(a) ?? 0),
+    )
+    .slice(0, maxAxes);
 
   const n = axes.length;
   const cx = size / 2;

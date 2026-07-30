@@ -465,20 +465,25 @@ export default async function KudosPage() {
                 <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
               )}
 
-              {/* Lieblingsarbeit (Herzen) – direkt unter den Fähigkeiten */}
+              {/* Lieblingsarbeit – rote Balken (wie die Fähigkeiten, nur rot). */}
               <div className="border-t pt-3">
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
-                  ♥ {t.prefsTitle}
+                  {t.prefsTitle}
                 </div>
                 {hub.preferences.length > 0 ? (
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-2">
                     {hub.preferences.map((p) => (
-                      <li key={p.name} className="flex items-center justify-between gap-2 text-sm">
-                        <span className="min-w-0 truncate">{p.name}</span>
-                        <span className="shrink-0 text-rose-500" aria-label={`${p.level} von 10`}>
-                          {'♥'.repeat(Math.min(5, Math.round(p.level / 2))) || '♥'}
-                          <span className="ml-1 text-xs text-muted-foreground">{p.level}/10</span>
-                        </span>
+                      <li key={p.name}>
+                        <div className="mb-0.5 flex items-center justify-between text-xs">
+                          <span className="font-medium">{p.name}</span>
+                          <span className="text-muted-foreground">{p.level}/10</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-rose-500"
+                            style={{ width: `${(p.level / 10) * 100}%` }}
+                          />
+                        </div>
                       </li>
                     ))}
                   </ul>
