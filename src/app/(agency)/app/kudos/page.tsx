@@ -11,13 +11,12 @@ import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure
 import { BADGE_REASON } from '@/features/gamification/badge-catalog';
 import { BadgeUnlockOverlay } from '@/features/gamification/components/badge-unlock-overlay';
 import { WallBadges } from '@/features/gamification/components/wall-badges';
-import { BannerPicker } from '@/features/gamification/components/banner-picker';
 import { getActiveXpBoost } from '@/features/gamification/xp-boost';
 import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banner';
 import { getShopData } from '@/features/loot/queries';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LevelRing } from '@/features/gamification/components/level-ring';
-import { FramePicker } from '@/features/gamification/components/frame-picker';
+import { HubCustomizeMenu } from '@/features/gamification/components/hub-customize-menu';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
 import { cn } from '@/lib/utils';
@@ -111,20 +110,16 @@ export default async function KudosPage() {
           style={{ background: hub.bannerBackground }}
         />
 
-        {/* Titelbild- & Rahmen-Auswahl */}
-        <div className="absolute right-3 top-3 z-10 flex gap-2">
-          <FramePicker
+        {/* Titelbild- & Rahmen-Auswahl – gebündelt in einem dezenten Zahnrad unten rechts */}
+        <div className="absolute bottom-3 right-3 z-10">
+          <HubCustomizeMenu
             level={hub.level}
-            selected={hub.frameKey}
+            coins={shop.balance}
+            frameKey={hub.frameKey}
             customFrames={hub.customFrames}
-            coins={shop.balance}
             preview={{ userId: user.id, name: hub.name, hasAvatar: hub.hasAvatar }}
-          />
-          <BannerPicker
-            level={hub.level}
-            selected={hub.bannerKey}
+            bannerKey={hub.bannerKey}
             customBanners={hub.customBanners}
-            coins={shop.balance}
           />
         </div>
 
