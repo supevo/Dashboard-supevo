@@ -2,7 +2,13 @@ import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { completeText } from '@/lib/ai/complete';
 import { logger } from '@/lib/logger';
-import { fetchRssItems, fetchOgImage, googleNewsUrl, type NewsItem } from './rss';
+import {
+  fetchRssItems,
+  fetchOgImage,
+  resolveArticleUrl,
+  googleNewsUrl,
+  type NewsItem,
+} from './rss';
 import { berlinToday } from '@/lib/time';
 
 const MAX_ITEMS = 6;
@@ -158,12 +164,17 @@ export async function getClientNews(
       const fetched = await fetchRssItems(googleNewsUrl(queries[0] ?? topic), 25);
       items = await curate(fetched, topic);
     }
-    // Best-effort: pull a real preview image (og:image) per headline. Runs only
-    // on refresh (≤ once/day), in parallel, and degrades to the colour cover.
+    // Best-effort: pull a real preview image (og:image) per headline. Google
+    // News links are interstitials, so we first resolve the real publisher URL
+    // and read og:image from there. Runs only on refresh (≤ once/day), in
+    // parallel, and degrades to the colour cover. The outbound link stays the
+    // Google URL (which reliably works); only the image uses the resolved URL.
     items = await Promise.all(
-      items.map(async (it) =>
-        it.imageUrl ? it : { ...it, imageUrl: await fetchOgImage(it.url) },
-      ),
+      items.map(async (it) => {
+        if (it.imageUrl) return it;
+        const articleUrl = await resolveArticleUrl(it.url);
+        return { ...it, imageUrl: await fetchOgImage(articleUrl) };
+      }),
     );
   } catch (e) {
     logger.warn('client_news.refresh_failed', { error: (e as Error).message });
