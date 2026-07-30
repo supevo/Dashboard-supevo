@@ -3,6 +3,7 @@ import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
+import { PomodoroTimer } from '@/components/layout/pomodoro-timer';
 import { TeamRail } from '@/features/presence/components/team-rail';
 import { getMyGamification } from '@/features/gamification/queries';
 import { getCoinBalance } from '@/features/loot/queries';
@@ -95,6 +96,7 @@ export default async function AgencyLayout({
       coins={coins}
       searchEnabled
       userMenuInRail
+      sidebarFooter={<PomodoroTimer />}
       rightRail={
         <TeamRail
           selfMenu={{
