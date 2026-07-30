@@ -1134,6 +1134,13 @@ export interface Database {
           author_id: string | null;
           body: string | null;
           sticker_path: string | null;
+          file_path: string | null;
+          file_name: string | null;
+          file_mime: string | null;
+          file_size: number | null;
+          file_keep: boolean;
+          file_removed: boolean;
+          file_expires_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -1143,6 +1150,13 @@ export interface Database {
           author_id?: string | null;
           body?: string | null;
           sticker_path?: string | null;
+          file_path?: string | null;
+          file_name?: string | null;
+          file_mime?: string | null;
+          file_size?: number | null;
+          file_keep?: boolean;
+          file_removed?: boolean;
+          file_expires_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
         Relationships: [];

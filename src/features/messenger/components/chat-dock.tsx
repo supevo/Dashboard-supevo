@@ -28,6 +28,7 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { playChatPing } from '@/features/messenger/notify-sound';
@@ -133,7 +134,7 @@ function ConversationView({
               <div
                 className={cn(
                   'max-w-[75%] rounded-lg text-sm',
-                  m.stickerUrl
+                  m.stickerUrl || m.file
                     ? ''
                     : cn(
                         'px-3 py-2',
@@ -151,6 +152,8 @@ function ConversationView({
                     alt="Sticker"
                     className="max-h-28 max-w-[140px] object-contain"
                   />
+                ) : m.file ? (
+                  <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
                 ) : (
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
