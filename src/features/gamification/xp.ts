@@ -3,20 +3,23 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 
 /** Automatic XP awards. Tweak the economy here. */
-export const XP_MISSION = 10; // base mission award (≈ a typical ~45-min task)
 export const XP_ONTIME = 5; // bonus when finished on or before the due date
 
+/** XP je geschätzter Stunde – die Missions-XP sind strikt proportional dazu. */
+export const XP_PER_HOUR = 10;
+
 /**
- * Mission XP scaled by the task's effort (KI-estimated minutes). A dampened
- * square-root curve: a big task rewards more than a 10-minute one, but a
- * multi-day build doesn't dwarf everything. Anchored so a ~45-min task ≈ the
- * base 10 XP. Falls back to a mid default when no effort is known.
+ * Mission XP, strictly proportional to the task's effort (KI-estimated minutes):
+ * XP_PER_HOUR XP per estimated hour, no upper cap – the only fair basis is the
+ * estimated time. A 10-min task earns little, a multi-day build earns a lot,
+ * always in proportion. Falls back to a mid default (45 min) when no effort is
+ * known; minimum 1 so any completed task still counts.
  *
- *   10 min → 5 · 60 min → 12 · 240 min (4 h) → 23 · 480 min → 33 · 4800 → ~104
+ *   30 min → 5 · 60 min → 10 · 240 min (4 h) → 40 · 480 min → 80 · 2400 → 400
  */
 export function missionXpForEffort(minutes: number | null | undefined): number {
   const m = minutes && minutes > 0 ? minutes : 45;
-  return Math.max(3, Math.min(150, Math.round(1.5 * Math.sqrt(m))));
+  return Math.max(1, Math.round((m / 60) * XP_PER_HOUR));
 }
 export const XP_EFFICIENT = 8; // finished within the KI-estimated effort
 export const XP_CLIENT_PRAISE = 12; // bonus when the client rates the task ≥ 4★
