@@ -13,7 +13,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { gatherClientWeek } from './context';
+import { gatherClientWeek, getRecapRecipients } from './context';
 import { generateRecap } from './generate';
 
 const idSchema = z.object({ clientCompanyId: z.string().uuid() });
@@ -31,11 +31,14 @@ export async function createRecapDraftAction(
   const user = await requireUser();
   if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
 
-  const ctx = await gatherClientWeek(parsed.data.clientCompanyId);
+  const [ctx, recipients] = await Promise.all([
+    gatherClientWeek(parsed.data.clientCompanyId),
+    getRecapRecipients(parsed.data.clientCompanyId),
+  ]);
   if (!ctx.hasActivity) {
     return successResult('', {
       hasActivity: false,
-      contactEmail: ctx.contactEmail,
+      recipients,
     });
   }
 
@@ -45,7 +48,7 @@ export async function createRecapDraftAction(
   return successResult('', {
     hasActivity: true,
     draft,
-    contactEmail: ctx.contactEmail,
+    recipients,
   });
 }
 
@@ -75,12 +78,18 @@ export async function sendRecapAction(
   const service = createSupabaseServiceClient();
   const { data: company } = await service
     .from('client_companies')
-    .select('name, contact_email, organization_id')
+    .select('name, organization_id')
     .eq('id', clientCompanyId)
     .maybeSingle();
   if (!company) return errorResult(de.errors.FORBIDDEN);
-  if (!company.contact_email) {
-    return errorResult('Für diesen Kunden ist keine E-Mail-Adresse hinterlegt.');
+
+  // Recipients: the client's contact persons (the people actually working in the
+  // portal). Company contact_email is only a fallback (handled in the helper).
+  const recipients = await getRecapRecipients(clientCompanyId);
+  if (recipients.length === 0) {
+    return errorResult(
+      'Für diesen Kunden sind keine Ansprechpartner mit E-Mail-Adresse hinterlegt.',
+    );
   }
 
   // The draft already carries the greeting ("Hallo, anbei euer Wochenrückblick")
@@ -92,7 +101,7 @@ export async function sendRecapAction(
     bodyLines: body.split('\n').filter(Boolean),
   });
   const sent = await sendEmailResult({
-    to: company.contact_email,
+    to: recipients,
     subject: 'Ihr Wochenrückblick',
     html,
     text,

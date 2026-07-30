@@ -23,11 +23,14 @@ export function RecapSection({
   const [sendState, sendAction] = useActionState(sendRecapAction, idleResult);
   const [body, setBody] = useState('');
   const [noActivity, setNoActivity] = useState(false);
+  const [recipients, setRecipients] = useState<string[]>([]);
 
   useEffect(() => {
     if (draftState.status === 'success') {
       const hasActivity = draftState.data?.hasActivity === true;
       setNoActivity(!hasActivity);
+      const rcpts = draftState.data?.recipients;
+      setRecipients(Array.isArray(rcpts) ? (rcpts as string[]) : []);
       if (hasActivity && typeof draftState.data?.draft === 'string') {
         setBody(draftState.data.draft);
       }
@@ -65,6 +68,11 @@ export function RecapSection({
             onChange={(e) => setBody(e.target.value)}
             rows={10}
           />
+          <p className="text-xs text-muted-foreground">
+            {recipients.length > 0
+              ? `Empfänger (Ansprechpartner): ${recipients.join(', ')}`
+              : 'Kein Ansprechpartner mit E-Mail-Adresse hinterlegt – bitte im Kundenprofil ergänzen.'}
+          </p>
           {sendState.status === 'error' && (
             <Alert variant="destructive">{sendState.message}</Alert>
           )}

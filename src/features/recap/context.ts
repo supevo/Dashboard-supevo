@@ -12,6 +12,46 @@ export interface RecapContext {
   contactEmail: string | null;
 }
 
+/**
+ * Recipients of a client's recap: the account emails of the client's contact
+ * persons (client_contacts → profiles.email) — the people actually working in
+ * the portal. Falls back to the company's single contact_email when no contact
+ * carries an address yet. De-duplicated. Service client (agency-verified callers).
+ */
+export async function getRecapRecipients(
+  clientCompanyId: string,
+): Promise<string[]> {
+  const service = createSupabaseServiceClient();
+
+  const [{ data: contacts }, { data: company }] = await Promise.all([
+    service
+      .from('client_contacts')
+      .select('user_id')
+      .eq('client_company_id', clientCompanyId),
+    service
+      .from('client_companies')
+      .select('contact_email')
+      .eq('id', clientCompanyId)
+      .maybeSingle(),
+  ]);
+
+  const userIds = (contacts ?? []).map((c) => c.user_id);
+  let recipients: string[] = [];
+  if (userIds.length > 0) {
+    const { data: profiles } = await service
+      .from('profiles')
+      .select('email')
+      .in('id', userIds);
+    recipients = (profiles ?? [])
+      .map((p) => p.email)
+      .filter((e): e is string => typeof e === 'string' && e.trim().length > 0);
+  }
+  if (recipients.length === 0 && company?.contact_email) {
+    recipients = [company.contact_email];
+  }
+  return [...new Set(recipients.map((e) => e.trim()))];
+}
+
 function daysAgoIso(days: number): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - days);
