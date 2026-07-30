@@ -6,6 +6,42 @@ import { isAiEnabled } from '@/lib/ai/complete';
 import { gatherBriefingContext } from './context';
 import { generateBriefing, type BriefingPriority } from './generate';
 import { bumpCounter } from '@/features/gamification/actions';
+import type { TaskStatus } from '@/features/tasks/components/task-status-control';
+
+/**
+ * Current Kanban status per task id, mapped onto the four standard columns
+ * (queue/active/review/done). Tasks in custom columns are omitted. Used to seed
+ * the status dropdown on the KI-Übersicht priorities.
+ */
+export async function currentTaskStatuses(
+  taskIds: string[],
+): Promise<Record<string, TaskStatus>> {
+  if (taskIds.length === 0) return {};
+  const service = createSupabaseServiceClient();
+  const { data: tasks } = await service
+    .from('tasks')
+    .select('id, column_id')
+    .in('id', taskIds);
+  const columnIds = [...new Set((tasks ?? []).map((t) => t.column_id))];
+  if (columnIds.length === 0) return {};
+  const { data: columns } = await service
+    .from('board_columns')
+    .select('id, column_key, is_done_column')
+    .in('id', columnIds);
+  const keyByColumn = new Map(
+    (columns ?? []).map((c) => [
+      c.id,
+      (c.is_done_column ? 'done' : c.column_key) as string,
+    ]),
+  );
+  const out: Record<string, TaskStatus> = {};
+  for (const t of tasks ?? []) {
+    const key = keyByColumn.get(t.column_id);
+    if (key === 'queue' || key === 'active' || key === 'review' || key === 'done')
+      out[t.id] = key;
+  }
+  return out;
+}
 
 export interface StoredBriefing {
   summary: string;

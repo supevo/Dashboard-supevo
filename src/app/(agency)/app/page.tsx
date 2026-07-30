@@ -5,6 +5,7 @@ import { getAgencyDashboard } from '@/features/dashboard/queries';
 import { getWorkStatus } from '@/features/time-tracking/queries';
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
+import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { PulseWidget } from '@/features/pulse/components/pulse-widget';
@@ -87,13 +88,17 @@ export default async function AgencyDashboardPage() {
             ) : (
               <ul className="divide-y">
                 {d.myActive.map((t) => (
-                  <li key={t.id} className="py-2 text-sm">
+                  <li
+                    key={t.id}
+                    className="flex items-center justify-between gap-3 py-2 text-sm"
+                  >
                     <Link
                       href={`/app/tasks/${t.id}`}
-                      className="text-primary hover:underline"
+                      className="min-w-0 flex-1 truncate text-primary hover:underline"
                     >
                       {t.title}
                     </Link>
+                    <TaskStatusControl taskId={t.id} status={t.status ?? null} />
                   </li>
                 ))}
               </ul>
