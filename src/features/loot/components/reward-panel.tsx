@@ -244,7 +244,9 @@ export function RewardPanel({ shop }: { shop: ShopData }) {
                 ? 'Digitales Item – im Inventar auf „Einlösen" tippen, dann landet es direkt in deinem Profil.'
                 : reveal.type === 'banner'
                   ? 'Exklusives Titelbild! Im Inventar auf „Einlösen" tippen – danach im Level Hub unter „🎨 Titelbild" wählbar.'
-                  : 'Landet in deinem Inventar. Zum Einlösen dort auf „Einlösen" tippen.'}
+                  : reveal.type === 'frame'
+                    ? 'Exklusiver Profilrahmen! Im Inventar auf „Einlösen" tippen – danach im Level Hub unter „🖼️ Rahmen" wählbar.'
+                    : 'Landet in deinem Inventar. Zum Einlösen dort auf „Einlösen" tippen.'}
             </p>
             <Button size="sm" onClick={() => setReveal(null)}>Weiter</Button>
           </div>

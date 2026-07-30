@@ -48,11 +48,19 @@ export async function POST(request: NextRequest) {
   }
   const description = String(form.get('description') ?? '').trim().slice(0, 300);
   const rawType = String(form.get('type') ?? 'physical');
-  const type = rawType === 'badge' ? 'badge' : rawType === 'banner' ? 'banner' : 'physical';
+  const type =
+    rawType === 'badge'
+      ? 'badge'
+      : rawType === 'banner'
+        ? 'banner'
+        : rawType === 'frame'
+          ? 'frame'
+          : 'physical';
   const weight = Math.max(WEIGHT_MIN, Math.min(WEIGHT_MAX, Number(form.get('weight')) || 10));
   const badgeEmoji = String(form.get('badgeEmoji') ?? '').trim().slice(0, 8);
   const badgeName = String(form.get('badgeName') ?? '').trim().slice(0, 60);
   const bannerImageId = String(form.get('bannerImageId') ?? '').trim();
+  const frameImageId = String(form.get('frameImageId') ?? '').trim();
   const file = form.get('file');
 
   const service = createSupabaseServiceClient();
@@ -71,6 +79,25 @@ export async function POST(request: NextRequest) {
     if (!banner.exclusive) {
       return NextResponse.json(
         { error: 'Nur als „exklusiv" markierte Titelbilder können Lootbox-Items sein.' },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Frame items must reference an exclusive frame belonging to this org.
+  if (type === 'frame') {
+    const { data: frame } = await service
+      .from('hub_frame_images')
+      .select('id, exclusive')
+      .eq('id', frameImageId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!frame) {
+      return NextResponse.json({ error: 'Bitte einen Rahmen wählen.' }, { status: 400 });
+    }
+    if (!frame.exclusive) {
+      return NextResponse.json(
+        { error: 'Nur als „exklusiv" markierte Rahmen können Lootbox-Items sein.' },
         { status: 400 },
       );
     }
@@ -109,6 +136,7 @@ export async function POST(request: NextRequest) {
     badge_name: type === 'badge' ? badgeName || name : null,
     image_path: imagePath,
     banner_image_id: type === 'banner' ? bannerImageId : null,
+    frame_image_id: type === 'frame' ? frameImageId : null,
   });
   if (error) {
     if (imagePath) await service.storage.from(FILES_BUCKET).remove([imagePath]);

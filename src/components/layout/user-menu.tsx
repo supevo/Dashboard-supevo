@@ -44,35 +44,55 @@ function LevelAvatar({
   hasAvatar,
   level,
   progressPct,
+  box = 52,
+  frameUrl,
 }: {
   userId: string;
   name: string;
   hasAvatar: boolean;
   level: number;
   progressPct: number;
+  /** Outer diameter in px (everything scales from this). */
+  box?: number;
+  /** When set, an uploaded profile frame replaces the XP ring. */
+  frameUrl?: string | null;
 }) {
-  const r = 22;
+  const stroke = 3;
+  const r = box / 2 - stroke - 1;
+  const framed = Boolean(frameUrl);
+  const inset = framed ? Math.round(box * 0.14) : Math.round(box * 0.135);
+  const avatar = box - inset * 2;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(100, progressPct)) / 100);
   return (
-    <div className="relative h-[52px] w-[52px] shrink-0">
-      <svg viewBox="0 0 52 52" className="absolute inset-0 -rotate-90">
-        <circle cx="26" cy="26" r={r} fill="none" stroke="currentColor" strokeWidth="3" className="text-muted" />
-        <circle
-          cx="26"
-          cy="26"
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          className="text-primary transition-[stroke-dashoffset] duration-500"
+    <div className="relative shrink-0" style={{ width: box, height: box }}>
+      {framed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={frameUrl!}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
-      </svg>
-      <div className="absolute inset-[7px]">
-        <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="lg" className="h-[38px] w-[38px]" />
+      ) : (
+        <svg viewBox={`0 0 ${box} ${box}`} className="absolute inset-0 -rotate-90">
+          <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke="currentColor" strokeWidth={stroke} className="text-muted" />
+          <circle
+            cx={box / 2}
+            cy={box / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            className="text-primary transition-[stroke-dashoffset] duration-500"
+          />
+        </svg>
+      )}
+      <div className="absolute" style={{ inset }}>
+        <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="lg" style={{ width: avatar, height: avatar }} />
       </div>
       <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-primary px-1.5 text-[10px] font-bold leading-4 text-primary-foreground shadow">
         {de.level.short} {level}
@@ -90,6 +110,8 @@ export function UserMenu({
   level,
   progressPct = 0,
   status = 'online',
+  size = 'default',
+  frameUrl = null,
 }: {
   userId: string;
   name: string;
@@ -98,6 +120,10 @@ export function UserMenu({
   level?: number;
   progressPct?: number;
   status?: Status;
+  /** 'lg' renders a ~20% larger profile (used in the sidebar rail). */
+  size?: 'default' | 'lg';
+  /** Uploaded profile frame that replaces the XP ring, if the user set one. */
+  frameUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Status>(status);
@@ -130,6 +156,7 @@ export function UserMenu({
   };
 
   const st = STATUS[current];
+  const large = size === 'lg';
 
   return (
     <div className="relative" ref={ref}>
@@ -147,17 +174,19 @@ export function UserMenu({
             hasAvatar={hasAvatar}
             level={level}
             progressPct={progressPct}
+            box={large ? 62 : 52}
+            frameUrl={frameUrl}
           />
         ) : (
           <Avatar userId={userId} name={name} hasAvatar={hasAvatar} size="md" />
         )}
         <span className="hidden text-left sm:block">
-          <span className="flex items-center gap-1 text-sm font-medium">
+          <span className={cn('flex items-center gap-1 font-medium', large ? 'text-base' : 'text-sm')}>
             {name}
             <ChevronDown className="text-muted-foreground" />
           </span>
           {gamified && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className={cn('flex items-center gap-1 text-muted-foreground', large ? 'text-sm' : 'text-xs')}>
               <span className={cn('inline-block h-2 w-2 rounded-full', st.dot)} />
               {st.icon} {de.presence[current]}
             </span>

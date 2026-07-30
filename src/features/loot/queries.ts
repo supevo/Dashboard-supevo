@@ -8,6 +8,7 @@ import {
   boxVideoUrl,
 } from '@/features/loot/shared';
 import { customBannerImageUrl } from '@/features/gamification/banners';
+import { frameImageUrl } from '@/features/gamification/frames';
 
 export type { BoxTier } from '@/features/loot/shared';
 export { WEIGHT_MIN, WEIGHT_MAX, lootItemImageUrl, inventoryImageUrl, boxArtUrl, boxVideoUrl } from '@/features/loot/shared';
@@ -37,7 +38,7 @@ export interface LootItem {
   boxTier: BoxTier;
   name: string;
   description: string | null;
-  type: 'physical' | 'badge' | 'banner';
+  type: 'physical' | 'badge' | 'banner' | 'frame';
   weight: number;
   badgeEmoji: string | null;
   badgeName: string | null;
@@ -48,7 +49,7 @@ export interface InventoryItem {
   id: string;
   name: string;
   description: string | null;
-  type: 'physical' | 'badge';
+  type: 'physical' | 'badge' | 'banner' | 'frame';
   badgeEmoji: string | null;
   badgeName: string | null;
   boxTier: string | null;
@@ -125,7 +126,7 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
     service.from('loot_items').select('box_tier').eq('organization_id', orgId),
     service
       .from('loot_inventory')
-      .select('id, name, description, type, badge_emoji, badge_name, box_tier, image_path, banner_image_id, status, won_at')
+      .select('id, name, description, type, badge_emoji, badge_name, box_tier, image_path, banner_image_id, frame_image_id, status, won_at')
       .eq('user_id', userId)
       .order('won_at', { ascending: false })
       .limit(100),
@@ -164,19 +165,48 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
       id: r.id,
       name: r.name,
       description: r.description,
-      type: r.type as 'physical' | 'badge',
+      type: r.type as 'physical' | 'badge' | 'banner' | 'frame',
       badgeEmoji: r.badge_emoji,
       badgeName: r.badge_name,
       boxTier: r.box_tier,
       imageUrl: r.banner_image_id
         ? customBannerImageUrl(r.banner_image_id)
-        : r.image_path
-          ? inventoryImageUrl(r.id)
-          : null,
+        : r.frame_image_id
+          ? frameImageUrl(r.frame_image_id)
+          : r.image_path
+            ? inventoryImageUrl(r.id)
+            : null,
       status: r.status as 'new' | 'requested' | 'fulfilled',
       wonAt: r.won_at,
     })),
   };
+}
+
+export interface LootBadge {
+  key: string;
+  name: string;
+  emoji: string;
+}
+
+/**
+ * A user's redeemed lootbox badges (type 'badge', status 'fulfilled'). These
+ * carry their own emoji/name (not in the fixed BADGE_CATALOG), so the Level Hub
+ * surfaces them in the collectible-badge wall.
+ */
+export async function listLootBadges(userId: string): Promise<LootBadge[]> {
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('loot_inventory')
+    .select('id, name, badge_name, badge_emoji')
+    .eq('user_id', userId)
+    .eq('type', 'badge')
+    .eq('status', 'fulfilled')
+    .order('won_at', { ascending: false });
+  return (data ?? []).map((r) => ({
+    key: `loot_${r.id}`,
+    name: r.badge_name ?? r.name,
+    emoji: r.badge_emoji ?? '🏅',
+  }));
 }
 
 /** Just the spendable coin balance – light query for the header chip. */
@@ -239,7 +269,7 @@ export async function listRedemptions(orgId: string): Promise<Redemption[]> {
 export async function listLootItems(orgId: string): Promise<LootItem[]> {
   const { data } = await createSupabaseServiceClient()
     .from('loot_items')
-    .select('id, box_tier, name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id')
+    .select('id, box_tier, name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id, frame_image_id')
     .eq('organization_id', orgId)
     .order('box_tier', { ascending: true })
     .order('created_at', { ascending: true });
@@ -248,14 +278,16 @@ export async function listLootItems(orgId: string): Promise<LootItem[]> {
     boxTier: r.box_tier as BoxTier,
     name: r.name,
     description: r.description,
-    type: r.type as 'physical' | 'badge' | 'banner',
+    type: r.type as 'physical' | 'badge' | 'banner' | 'frame',
     weight: r.weight,
     badgeEmoji: r.badge_emoji,
     badgeName: r.badge_name,
     imageUrl: r.banner_image_id
       ? customBannerImageUrl(r.banner_image_id)
-      : r.image_path
-        ? lootItemImageUrl(r.id)
-        : null,
+      : r.frame_image_id
+        ? frameImageUrl(r.frame_image_id)
+        : r.image_path
+          ? lootItemImageUrl(r.id)
+          : null,
   }));
 }

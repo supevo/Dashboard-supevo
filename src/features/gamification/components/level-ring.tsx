@@ -12,6 +12,7 @@ export function LevelRing({
   progressPct,
   size = 200,
   avatar,
+  frameUrl,
 }: {
   level: number;
   points: number;
@@ -19,37 +20,51 @@ export function LevelRing({
   size?: number;
   /** When set, the profile picture is shown inside the ring instead of text. */
   avatar?: { userId: string; name: string; hasAvatar: boolean };
+  /** When set, an uploaded profile frame replaces the XP ring. */
+  frameUrl?: string | null;
 }) {
   const stroke = 12;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c * (1 - Math.max(0, Math.min(100, progressPct)) / 100);
-  const inner = size - stroke * 2 - 10; // avatar diameter inside the ring
+  const framed = Boolean(frameUrl);
+  // Avatar diameter: smaller when framed so the frame border stays visible.
+  const inner = framed ? Math.round(size * 0.72) : size - stroke * 2 - 10;
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          className="text-muted"
+      {framed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={frameUrl!}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={stroke}
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          className="text-emerald-500 transition-[stroke-dashoffset] duration-700"
-        />
-      </svg>
+      ) : (
+        <svg viewBox={`0 0 ${size} ${size}`} className="absolute inset-0 -rotate-90">
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={stroke}
+            className="text-muted"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            className="text-violet-700 transition-[stroke-dashoffset] duration-700 dark:text-violet-500"
+          />
+        </svg>
+      )}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         {avatar ? (
           <Avatar

@@ -111,6 +111,7 @@ export interface Database {
           status: string;
           last_seen_at: string | null;
           hub_banner: string | null;
+          hub_frame: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -123,6 +124,7 @@ export interface Database {
           status?: string;
           last_seen_at?: string | null;
           hub_banner?: string | null;
+          hub_frame?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];
@@ -173,6 +175,33 @@ export interface Database {
         };
         Update: Partial<
           Database['public']['Tables']['hub_banner_images']['Insert']
+        >;
+        Relationships: [];
+      };
+      hub_frame_images: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          unlock_level: number;
+          exclusive: boolean;
+          coin_price: number;
+          storage_path: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          unlock_level?: number;
+          exclusive?: boolean;
+          coin_price?: number;
+          storage_path: string;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['hub_frame_images']['Insert']
         >;
         Relationships: [];
       };
@@ -251,6 +280,7 @@ export interface Database {
           badge_name: string | null;
           image_path: string | null;
           banner_image_id: string | null;
+          frame_image_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -265,6 +295,7 @@ export interface Database {
           badge_name?: string | null;
           image_path?: string | null;
           banner_image_id?: string | null;
+          frame_image_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['loot_items']['Insert']>;
         Relationships: [];
@@ -298,6 +329,7 @@ export interface Database {
           box_tier: string | null;
           image_path: string | null;
           banner_image_id: string | null;
+          frame_image_id: string | null;
           status: string;
           won_at: string;
           redeemed_at: string | null;
@@ -314,6 +346,7 @@ export interface Database {
           box_tier?: string | null;
           image_path?: string | null;
           banner_image_id?: string | null;
+          frame_image_id?: string | null;
           status?: string;
           won_at?: string;
           redeemed_at?: string | null;

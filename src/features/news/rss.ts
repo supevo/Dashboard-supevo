@@ -60,6 +60,78 @@ function metaContent(html: string, prop: string): string | null {
 }
 
 /**
+ * Resolves the REAL publisher article URL from a Google News RSS link.
+ *
+ * Google News `<link>`s point at `news.google.com/rss/articles/<id>` – a JS
+ * interstitial, not the article – so fetching og:image there yields nothing.
+ * We ask Google's own resolver endpoint (the same one the interstitial uses) to
+ * turn the id into the publisher URL. Fully best-effort: any failure returns the
+ * original Google link, so callers never break and behaviour never regresses.
+ * Used only for image lookup, never for the outbound link.
+ */
+export async function resolveArticleUrl(googleUrl: string): Promise<string> {
+  try {
+    const u = new URL(googleUrl);
+    if (u.hostname !== 'news.google.com') return googleUrl;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const i = parts.findIndex((p) => p === 'articles' || p === 'read');
+    const id = i >= 0 ? parts[i + 1] : undefined;
+    if (!id) return googleUrl;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      // Step 1: read the signature + timestamp Google embeds in the interstitial.
+      const pageRes = await fetch(googleUrl, {
+        headers: { 'user-agent': 'Mozilla/5.0 (compatible; SupevoNews/1.0)' },
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      const html = await pageRes.text();
+      const sig = html.match(/data-n-a-sg="([^"]+)"/)?.[1];
+      const ts = html.match(/data-n-a-ts="([^"]+)"/)?.[1];
+      if (!sig || !ts) return googleUrl;
+
+      // Step 2: ask the resolver endpoint for the real URL.
+      const inner = JSON.stringify([
+        'garturlreq',
+        [
+          ['X', 'X', ['X', 'X'], null, null, 1, 1, 'US:en', null, 1, null, null,
+            null, null, null, 0, 1],
+          'X', 'X', 1, [1, 1, 1], 1, 1, null, 0, 0, null, 0,
+        ],
+        id,
+        Number(ts),
+        sig,
+      ]);
+      const payload = JSON.stringify([[['Fbv4je', inner, null, 'generic']]]);
+      const res = await fetch(
+        'https://news.google.com/_/DotsSplashUi/data/batchexecute',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'user-agent': 'Mozilla/5.0 (compatible; SupevoNews/1.0)',
+          },
+          body: 'f.req=' + encodeURIComponent(payload),
+          signal: controller.signal,
+          cache: 'no-store',
+        },
+      );
+      const text = await res.text();
+      const at = text.indexOf('garturlres');
+      if (at === -1) return googleUrl;
+      const real = text.slice(at).match(/https?:\/\/[^\\"]+/)?.[0];
+      return real ?? googleUrl;
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return googleUrl;
+  }
+}
+
+/**
  * Best-effort preview image for an article: fetches the page and reads its Open
  * Graph / Twitter image. Follows redirects (Google News links point at a
  * redirect that lands on the real article). Returns an https URL or null.

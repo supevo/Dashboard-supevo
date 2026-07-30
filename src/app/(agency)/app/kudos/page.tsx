@@ -17,6 +17,7 @@ import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banne
 import { getShopData } from '@/features/loot/queries';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LevelRing } from '@/features/gamification/components/level-ring';
+import { FramePicker } from '@/features/gamification/components/frame-picker';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { StatTile } from '@/features/gamification/components/stat-tile';
 import { cn } from '@/lib/utils';
@@ -110,8 +111,15 @@ export default async function KudosPage() {
           style={{ background: hub.bannerBackground }}
         />
 
-        {/* Titelbild-Auswahl */}
-        <div className="absolute right-3 top-3 z-10">
+        {/* Titelbild- & Rahmen-Auswahl */}
+        <div className="absolute right-3 top-3 z-10 flex gap-2">
+          <FramePicker
+            level={hub.level}
+            selected={hub.frameKey}
+            customFrames={hub.customFrames}
+            coins={shop.balance}
+            preview={{ userId: user.id, name: hub.name, hasAvatar: hub.hasAvatar }}
+          />
           <BannerPicker
             level={hub.level}
             selected={hub.bannerKey}
@@ -126,6 +134,7 @@ export default async function KudosPage() {
             points={hub.points}
             progressPct={hub.levelProgressPct}
             avatar={{ userId: user.id, name: hub.name, hasAvatar: hub.hasAvatar }}
+            frameUrl={hub.frame?.imageUrl ?? null}
           />
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <div className="inline-block rounded-lg bg-background/70 px-4 py-3 backdrop-blur">
@@ -134,7 +143,7 @@ export default async function KudosPage() {
                 {hub.specialty ? `${hub.specialty} · ` : ''}
                 {hub.roleLabel}
               </p>
-              <div className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="mt-1 text-lg font-bold text-violet-700 dark:text-violet-400">
                 {de.level.title} {hub.level}
                 <span className="ml-2 text-sm font-medium text-muted-foreground">
                   {hub.xpIntoLevel}/{hub.xpForLevel} XP
@@ -180,17 +189,7 @@ export default async function KudosPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
-          {/* Belohnungen: Coins, Lootboxen & Inventar direkt im Level Hub */}
-          <Card id="belohnungen" className="scroll-mt-20">
-            <CardHeader>
-              <CardTitle>{t.rewards.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RewardPanel shop={shop} />
-            </CardContent>
-          </Card>
-
-          {/* Wochenchallenges */}
+          {/* Wochenchallenges (über den Belohnungen) */}
           <Card>
             <CardHeader>
               <div className="flex items-baseline justify-between gap-2">
@@ -269,7 +268,17 @@ export default async function KudosPage() {
             </CardContent>
           </Card>
 
-          {/* Auszeichnungen: Trophäen + Badge-Wand (direkt unter den Wochenchallenges) */}
+          {/* Belohnungen: Coins, Lootboxen & Inventar (unter den Wochenchallenges) */}
+          <Card id="belohnungen" className="scroll-mt-20">
+            <CardHeader>
+              <CardTitle>{t.rewards.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RewardPanel shop={shop} />
+            </CardContent>
+          </Card>
+
+          {/* Auszeichnungen: Trophäen + Badge-Wand */}
           <Card>
             <CardHeader>
               <CardTitle>{t.achievements}</CardTitle>
@@ -426,7 +435,14 @@ export default async function KudosPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {hub.radar.length >= 3 && <SkillRadar skills={hub.radar} />}
+              {hub.radar.length + hub.preferences.length >= 3 && (
+                <SkillRadar
+                  skills={hub.radar}
+                  preferences={hub.preferences
+                    .slice(0, 6)
+                    .map((p) => ({ label: p.name, level: p.level }))}
+                />
+              )}
               {hub.skills.length > 0 ? (
                 <ul className="space-y-2">
                   {hub.skills.map((s) => (

@@ -5,6 +5,8 @@ import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
 import { BannerAdmin } from '@/features/gamification/components/banner-admin';
 import { listHubBanners } from '@/features/gamification/banner-queries';
+import { FrameAdmin } from '@/features/gamification/components/frame-admin';
+import { listHubFrames } from '@/features/gamification/frame-queries';
 import { StickerManager } from '@/features/messenger/components/sticker-manager';
 import { listStickers } from '@/features/messenger/queries';
 import { buttonVariants } from '@/components/ui/button';
@@ -15,8 +17,9 @@ export default async function SettingsPage() {
   const org = await getOrganization(orgId);
   if (!org) return null;
 
-  const [hubBanners, stickers] = await Promise.all([
+  const [hubBanners, hubFrames, stickers] = await Promise.all([
     listHubBanners(orgId),
+    listHubFrames(orgId),
     listStickers(orgId),
   ]);
 
@@ -52,6 +55,15 @@ export default async function SettingsPage() {
         </CardHeader>
         <CardContent>
           <BannerAdmin banners={hubBanners} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🖼️ Profilrahmen</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FrameAdmin frames={hubFrames} />
         </CardContent>
       </Card>
 

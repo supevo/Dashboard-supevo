@@ -71,9 +71,9 @@ export default async function AgencyLayout({
     .select('avatar_url')
     .eq('id', user.id)
     .maybeSingle();
-  const gamification = await getMyGamification(user.id);
-
   const orgId = primaryAgencyOrgId(user);
+  const gamification = await getMyGamification(user.id, orgId ?? undefined);
+
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
   const navItems = admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
@@ -103,6 +103,7 @@ export default async function AgencyLayout({
             level: gamification.level,
             progressPct: gamification.progressPct,
             status: gamification.status,
+            frameUrl: gamification.frameUrl,
           }}
         />
       }
