@@ -218,6 +218,9 @@ export default async function KudosPage() {
                         {c.done ? t.challengeDone : `+${c.xp} XP`}
                       </span>
                     </div>
+                    {c.hint && (
+                      <p className="mb-1 text-xs text-muted-foreground">{c.hint}</p>
+                    )}
                     <div className="flex items-center gap-2">
                       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                         <div

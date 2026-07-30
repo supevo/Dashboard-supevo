@@ -338,6 +338,49 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     return () => window.removeEventListener('supevo:open-dm', handler);
   }, []);
 
+  // Resizable dock: pinned bottom-right, so a top-left grip grows it up/left.
+  const [size, setSize] = useState({ w: 680, h: 520 });
+  const sizeRef = useRef(size);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('supevo:chat-size');
+      if (raw) {
+        const s = JSON.parse(raw) as { w?: number; h?: number };
+        if (s.w && s.h) {
+          const next = { w: s.w, h: s.h };
+          sizeRef.current = next;
+          setSize(next);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const resizeStart = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const onResizeDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    resizeStart.current = { x: e.clientX, y: e.clientY, w: sizeRef.current.w, h: sizeRef.current.h };
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+  };
+  const onResizeMove = (e: React.PointerEvent) => {
+    const s = resizeStart.current;
+    if (!s) return;
+    const w = Math.max(340, Math.min(window.innerWidth - 24, s.w + (s.x - e.clientX)));
+    const h = Math.max(320, Math.min(window.innerHeight - 24, s.h + (s.y - e.clientY)));
+    const next = { w, h };
+    sizeRef.current = next;
+    setSize(next);
+  };
+  const onResizeUp = () => {
+    if (!resizeStart.current) return;
+    resizeStart.current = null;
+    try {
+      localStorage.setItem('supevo:chat-size', JSON.stringify(sizeRef.current));
+    } catch {
+      /* ignore */
+    }
+  };
+
   const activeChannel = channels.find((c) => c.id === activeId);
   const activeDm = dms.find((d) => d.id === activeId);
   const activeTitle = activeChannel
@@ -364,8 +407,22 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex h-[520px] max-h-[calc(100vh-2rem)] w-[680px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
-      <div className="flex items-center justify-between border-b px-3 py-2">
+    <div
+      style={{ width: size.w, height: size.h }}
+      className="fixed bottom-4 right-4 z-50 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl"
+    >
+      {/* Ziehgriff oben links – zieht das Fenster größer/kleiner */}
+      <div
+        onPointerDown={onResizeDown}
+        onPointerMove={onResizeMove}
+        onPointerUp={onResizeUp}
+        title="Größe ändern"
+        className="absolute left-0 top-0 z-20 h-4 w-4 cursor-nwse-resize"
+        style={{ touchAction: 'none' }}
+      >
+        <span className="absolute left-1 top-1 h-2 w-2 border-l-2 border-t-2 border-muted-foreground/50" />
+      </div>
+      <div className="flex items-center justify-between border-b px-3 py-2 pl-5">
         <span className="text-sm font-semibold">{de.messenger.title}</span>
         <button
           type="button"

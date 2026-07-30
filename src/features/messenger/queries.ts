@@ -171,7 +171,7 @@ export async function listDmConversations(
     .in('id', otherIds);
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
 
-  return dmIds
+  const conversations = dmIds
     .map((id) => {
       const otherId = otherByChannel.get(id);
       if (!otherId) return null;
@@ -185,6 +185,16 @@ export async function listDmConversations(
       };
     })
     .filter((d): d is DmConversation => d !== null);
+
+  // Dedupe by conversation partner: legacy data can hold more than one DM channel
+  // for the same pair (created before the dm_key guard), which showed a person
+  // multiple times in the list. Keep one entry per person.
+  const seen = new Set<string>();
+  return conversations.filter((c) => {
+    if (seen.has(c.otherUserId)) return false;
+    seen.add(c.otherUserId);
+    return true;
+  });
 }
 
 /** Lists the org's active agency team members (for DMs / private members). */
