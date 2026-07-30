@@ -12,6 +12,7 @@ import {
   type EarnedAchievement,
 } from '@/features/gamification/achievements';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
+import { listLootBadges } from '@/features/loot/queries';
 import {
   resolveActiveBanner,
   type CustomBanner,
@@ -107,6 +108,7 @@ export async function getLevelHub(
     xpPoints,
     milestones,
     badgeWall,
+    lootBadges,
     customBannersRes,
     customFramesRes,
   ] = await Promise.all([
@@ -127,6 +129,7 @@ export async function getLevelHub(
     getXpPoints(userId),
     listAchievements(userId),
     getBadgeWall(userId, orgId),
+    listLootBadges(userId),
     // Org-scoped read via the service client so uploaded banners appear even if
     // the table's RLS select policy is missing.
     createSupabaseServiceClient()
@@ -270,7 +273,16 @@ export async function getLevelHub(
     badges,
     trophies,
     milestones,
-    badgeWall,
+    // Catalog badges + per-Lootbox gewonnene Badges (eigene Emoji/Namen).
+    badgeWall: [
+      ...badgeWall,
+      ...lootBadges.map((b) => ({
+        key: b.key,
+        name: b.name,
+        emoji: b.emoji,
+        earned: true,
+      })),
+    ],
     bannerKey: activeBanner.key,
     bannerBackground: activeBanner.background,
     customBanners,

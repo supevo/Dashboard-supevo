@@ -182,6 +182,33 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
   };
 }
 
+export interface LootBadge {
+  key: string;
+  name: string;
+  emoji: string;
+}
+
+/**
+ * A user's redeemed lootbox badges (type 'badge', status 'fulfilled'). These
+ * carry their own emoji/name (not in the fixed BADGE_CATALOG), so the Level Hub
+ * surfaces them in the collectible-badge wall.
+ */
+export async function listLootBadges(userId: string): Promise<LootBadge[]> {
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('loot_inventory')
+    .select('id, name, badge_name, badge_emoji')
+    .eq('user_id', userId)
+    .eq('type', 'badge')
+    .eq('status', 'fulfilled')
+    .order('won_at', { ascending: false });
+  return (data ?? []).map((r) => ({
+    key: `loot_${r.id}`,
+    name: r.badge_name ?? r.name,
+    emoji: r.badge_emoji ?? '🏅',
+  }));
+}
+
 /** Just the spendable coin balance – light query for the header chip. */
 export async function getCoinBalance(userId: string, orgId: string): Promise<number> {
   const service = createSupabaseServiceClient();
