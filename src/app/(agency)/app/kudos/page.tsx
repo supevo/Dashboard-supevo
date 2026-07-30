@@ -423,7 +423,8 @@ export default async function KudosPage() {
             </CardContent>
           </Card>
 
-          {/* Skills: radar + full list */}
+          {/* Fähigkeiten + Lieblingsarbeit: Radar, Skill-Liste und darunter die
+              Lieblingsarbeit – alles in einer Karte zusammengeführt. */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -463,35 +464,28 @@ export default async function KudosPage() {
               ) : (
                 <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
               )}
-            </CardContent>
-          </Card>
 
-          {/* Lieblingsarbeit (Herzen) */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>{t.prefsTitle}</CardTitle>
-                <Link href="/app/profile" className="text-xs text-primary hover:underline">
-                  {t.editInProfile}
-                </Link>
+              {/* Lieblingsarbeit (Herzen) – direkt unter den Fähigkeiten */}
+              <div className="border-t pt-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
+                  ♥ {t.prefsTitle}
+                </div>
+                {hub.preferences.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {hub.preferences.map((p) => (
+                      <li key={p.name} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="min-w-0 truncate">{p.name}</span>
+                        <span className="shrink-0 text-rose-500" aria-label={`${p.level} von 10`}>
+                          {'♥'.repeat(Math.min(5, Math.round(p.level / 2))) || '♥'}
+                          <span className="ml-1 text-xs text-muted-foreground">{p.level}/10</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t.prefsEmpty}</p>
+                )}
               </div>
-            </CardHeader>
-            <CardContent>
-              {hub.preferences.length > 0 ? (
-                <ul className="space-y-1.5">
-                  {hub.preferences.map((p) => (
-                    <li key={p.name} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0 truncate">{p.name}</span>
-                      <span className="shrink-0 text-rose-500" aria-label={`${p.level} von 10`}>
-                        {'♥'.repeat(Math.min(5, Math.round(p.level / 2))) || '♥'}
-                        <span className="ml-1 text-xs text-muted-foreground">{p.level}/10</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t.prefsEmpty}</p>
-              )}
             </CardContent>
           </Card>
 

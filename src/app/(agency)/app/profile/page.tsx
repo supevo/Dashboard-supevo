@@ -3,9 +3,8 @@ import { getCurrentUser } from '@/features/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AvatarUploader } from '@/features/profile/components/avatar-uploader';
 import { ProfileForm } from '@/features/profile/components/profile-form';
-import { SkillsSection } from '@/features/skills/components/skills-section';
+import { SkillsPrefsSection } from '@/features/skills/components/skills-prefs-section';
 import { listMySkills } from '@/features/skills/queries';
-import { PreferencesSection } from '@/features/preferences/components/preferences-section';
 import { listMyPreferences } from '@/features/preferences/queries';
 import { getKudosStats } from '@/features/kudos/queries';
 import { badgeLabel, levelForPoints } from '@/features/kudos/badges';
@@ -103,24 +102,14 @@ export default async function ProfilePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.skills.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SkillsSection skills={skills} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>❤️ {de.preferences.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PreferencesSection preferences={preferences} />
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>{de.skills.title} &amp; Lieblingsarbeit</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SkillsPrefsSection skills={skills} preferences={preferences} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
