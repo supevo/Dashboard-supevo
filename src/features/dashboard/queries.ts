@@ -3,10 +3,13 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getWorkStatus, getRunningTimer } from '@/features/time-tracking/queries';
 import { berlinToday } from '@/lib/time';
 import type { RunningTimer } from '@/features/time-tracking/queries';
+import type { TaskStatus } from '@/features/tasks/components/task-status-control';
 
 export interface DashboardTaskRef {
   id: string;
   title: string;
+  /** Current Kanban status, when it maps onto the four standard columns. */
+  status?: TaskStatus | null;
 }
 
 export interface AgencyDashboard {
@@ -58,10 +61,17 @@ export async function getAgencyDashboard(
   let dueTodayCount = 0;
   let blockedCount = 0;
 
+  const asStatus = (columnId: string): TaskStatus | null => {
+    const key = keyByColumn.get(columnId);
+    return key === 'queue' || key === 'active' || key === 'review'
+      ? key
+      : null;
+  };
+
   for (const t of tasks ?? []) {
     const done = isDone(t.column_id);
     if (myTaskIds.has(t.id) && !done) {
-      myActive.push({ id: t.id, title: t.title });
+      myActive.push({ id: t.id, title: t.title, status: asStatus(t.column_id) });
     }
     if (keyByColumn.get(t.column_id) === 'review') inReviewCount++;
     if (t.is_blocked) blockedCount++;

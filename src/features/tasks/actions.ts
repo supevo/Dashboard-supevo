@@ -525,6 +525,25 @@ export async function moveTaskAction(
     return errorResult(moveErrorMessage(error.message));
   }
 
+  await afterTaskMoved(supabase, user.id, taskId, targetColumnId);
+
+  revalidatePath('/app/projects');
+  return successResult('Aufgabe verschoben.');
+}
+
+type MoveSupabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
+
+/**
+ * Shared post-move bookkeeping used by both the drag-based move and the
+ * status dropdown: records completion + awards XP/badges when the task lands in
+ * a done column, then logs the status change to the activity feed.
+ */
+async function afterTaskMoved(
+  supabase: MoveSupabase,
+  userId: string,
+  taskId: string,
+  targetColumnId: string,
+): Promise<void> {
   // Record who finished the task when it lands in a done column, so colleagues
   // can award kudos for it and the completer earns the points.
   const { data: targetColumn } = await supabase
@@ -538,7 +557,7 @@ export async function moveTaskAction(
       .from('tasks')
       // Fertig → kein Express-Status mehr (das Ticket war für die Bearbeitung,
       // nicht für die erledigte Aufgabe).
-      .update({ completed_by: user.id, completed_at: completedAt, is_express: false })
+      .update({ completed_by: userId, completed_at: completedAt, is_express: false })
       .eq('id', taskId)
       .select('due_date')
       .maybeSingle();
@@ -546,28 +565,98 @@ export async function moveTaskAction(
     if (orgId) {
       // Automatic XP + milestone badges for finishing the task (idempotent).
       await awardTaskXp({
-        userId: user.id,
+        userId,
         orgId,
         taskId,
         dueDate: doneTask?.due_date ?? null,
         completedAt,
       });
-      await checkAndAwardAchievements(user.id, orgId);
+      await checkAndAwardAchievements(userId, orgId);
     }
   }
 
   // Log the move for the task's internal activity feed.
   await logActivity({
-    actorId: user.id,
+    actorId: userId,
     organizationId: targetColumn?.organization_id ?? null,
     action: 'status_change',
     entityType: 'task',
     entityId: taskId,
     metadata: { column: targetColumn?.name ?? '' },
   });
+}
 
+const setTaskStatusSchema = z.object({
+  taskId: z.string().uuid(),
+  status: z.enum(['queue', 'active', 'review', 'done']),
+});
+
+/**
+ * Sets a task's status by moving it to the matching board column – used by the
+ * status dropdown on the dashboard/KI-Übersicht so people can work straight
+ * from the overview without opening the board.
+ *
+ * The lock version is read fresh here (not passed from a possibly stale page
+ * load), and the target column is resolved from the task's own board, so the
+ * caller only needs the task id and the desired status.
+ */
+export async function setTaskStatusAction(
+  taskId: string,
+  status: 'queue' | 'active' | 'review' | 'done',
+): Promise<ActionResult> {
+  const parsed = setTaskStatusSchema.safeParse({ taskId, status });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Load the task (RLS-scoped) with its current column + lock version.
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, board_id, column_id, lock_version')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return errorResult(de.errors.FORBIDDEN);
+
+  // Resolve the target column from the task's own board columns.
+  const { data: columns } = await supabase
+    .from('board_columns')
+    .select('id, column_key, is_done_column')
+    .eq('board_id', task.board_id);
+  const target =
+    status === 'done'
+      ? (columns ?? []).find((c) => c.is_done_column) ??
+        (columns ?? []).find((c) => c.column_key === 'done')
+      : (columns ?? []).find((c) => c.column_key === status);
+  if (!target) return errorResult('Für diesen Status gibt es keine Spalte.');
+
+  // Already there → nothing to do.
+  if (task.column_id === target.id) return successResult('Status unverändert.');
+
+  // Append at the end of the target column.
+  const { data: last } = await supabase
+    .from('tasks')
+    .select('position')
+    .eq('column_id', target.id)
+    .is('deleted_at', null)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const newPosition = (last?.position ?? 0) + 1000;
+
+  const { error } = await supabase.rpc('move_task', {
+    p_task_id: taskId,
+    p_target_column_id: target.id,
+    p_new_position: newPosition,
+    p_expected_lock_version: task.lock_version,
+  });
+  if (error) return errorResult(moveErrorMessage(error.message));
+
+  await afterTaskMoved(supabase, user.id, taskId, target.id);
+
+  revalidatePath('/app');
   revalidatePath('/app/projects');
-  return successResult('Aufgabe verschoben.');
+  return successResult('Status aktualisiert.');
 }
 
 const setArchivedSchema = z.object({

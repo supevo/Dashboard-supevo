@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  TaskStatusControl,
+  type TaskStatus,
+} from '@/features/tasks/components/task-status-control';
 import { de } from '@/lib/i18n/de';
 
 interface Priority {
@@ -24,13 +28,14 @@ interface Briefing {
 interface ApiResponse {
   enabled: boolean;
   briefing: Briefing | null;
+  statuses?: Record<string, TaskStatus>;
 }
 
 type State =
   | { kind: 'loading' }
   | { kind: 'disabled' }
   | { kind: 'error' }
-  | { kind: 'ready'; briefing: Briefing | null };
+  | { kind: 'ready'; briefing: Briefing | null; statuses: Record<string, TaskStatus> };
 
 /**
  * "Guten Morgen" card: fetches the employee's AI briefing on mount (generated
@@ -53,7 +58,11 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
         setState({ kind: 'disabled' });
         return;
       }
-      setState({ kind: 'ready', briefing: data.briefing });
+      setState({
+        kind: 'ready',
+        briefing: data.briefing,
+        statuses: data.statuses ?? {},
+      });
     } catch {
       setState({ kind: 'error' });
     }
@@ -73,6 +82,7 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
   if (state.kind === 'disabled') return null;
 
   const briefing = state.kind === 'ready' ? state.briefing : null;
+  const statuses = state.kind === 'ready' ? state.statuses : {};
 
   // Time-aware greeting (Morgen/Tag/Abend) based on the viewer's local time.
   const hour = new Date().getHours();
@@ -138,17 +148,27 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
                   🎯 {de.briefing.priorities}
                 </div>
                 <div className="space-y-2">
-                  {briefing.priorities.map((p, i) => {
-                    const inner = (
+                  {briefing.priorities.map((p, i) => (
+                    <div
+                      key={i}
+                      className="rounded-lg border bg-background p-2.5"
+                    >
                       <div className="flex items-start gap-3">
                         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
                           {i + 1}
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="font-medium">
-                            {p.title}
-                            {p.taskId && (
-                              <span className="ml-1 text-xs text-primary">↗</span>
+                            {p.taskId ? (
+                              <Link
+                                href={`/app/tasks/${p.taskId}`}
+                                className="hover:underline"
+                              >
+                                {p.title}
+                                <span className="ml-1 text-xs text-primary">↗</span>
+                              </Link>
+                            ) : (
+                              p.title
                             )}
                           </div>
                           {p.reason && (
@@ -156,23 +176,18 @@ export function MorningBriefing({ firstName }: { firstName: string }) {
                               {p.reason}
                             </div>
                           )}
+                          {p.taskId && (
+                            <div className="mt-2">
+                              <TaskStatusControl
+                                taskId={p.taskId}
+                                status={statuses[p.taskId] ?? null}
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
-                    );
-                    return p.taskId ? (
-                      <Link
-                        key={i}
-                        href={`/app/tasks/${p.taskId}`}
-                        className="block rounded-lg border bg-background p-2.5 transition-colors hover:border-primary/50 hover:bg-primary/5"
-                      >
-                        {inner}
-                      </Link>
-                    ) : (
-                      <div key={i} className="rounded-lg border bg-background p-2.5">
-                        {inner}
-                      </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
