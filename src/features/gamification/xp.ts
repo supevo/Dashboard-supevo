@@ -3,8 +3,21 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 
 /** Automatic XP awards. Tweak the economy here. */
-export const XP_MISSION = 10; // completing a task
+export const XP_MISSION = 10; // base mission award (≈ a typical ~45-min task)
 export const XP_ONTIME = 5; // bonus when finished on or before the due date
+
+/**
+ * Mission XP scaled by the task's effort (KI-estimated minutes). A dampened
+ * square-root curve: a big task rewards more than a 10-minute one, but a
+ * multi-day build doesn't dwarf everything. Anchored so a ~45-min task ≈ the
+ * base 10 XP. Falls back to a mid default when no effort is known.
+ *
+ *   10 min → 5 · 60 min → 12 · 240 min (4 h) → 23 · 480 min → 33 · 4800 → ~104
+ */
+export function missionXpForEffort(minutes: number | null | undefined): number {
+  const m = minutes && minutes > 0 ? minutes : 45;
+  return Math.max(3, Math.min(150, Math.round(1.5 * Math.sqrt(m))));
+}
 export const XP_EFFICIENT = 8; // finished within the KI-estimated effort
 export const XP_CLIENT_PRAISE = 12; // bonus when the client rates the task ≥ 4★
 
@@ -104,11 +117,22 @@ export async function awardTaskXp(params: {
   // Double-XP-Woche: multiply automatic XP while a boost is running.
   const factor = await xpFactor(orgId);
 
+  // Effort drives the mission XP: a big task is worth more than a 10-min one.
+  const { data: t } = await supabase
+    .from('tasks')
+    .select('estimated_minutes, actual_minutes')
+    .eq('id', taskId)
+    .maybeSingle();
+  const estimate = t?.estimated_minutes ?? null;
+  const actual = t?.actual_minutes ?? 0;
+  // Prefer the KI estimate; fall back to tracked time; else a mid default.
+  const effort = estimate ?? (actual > 0 ? actual : null);
+
   await insertIgnore(supabase, {
     user_id: userId,
     organization_id: orgId,
     kind: 'mission',
-    points: applyBoost(XP_MISSION, factor),
+    points: applyBoost(missionXpForEffort(effort), factor),
     task_id: taskId,
   });
 
@@ -125,13 +149,6 @@ export async function awardTaskXp(params: {
 
   // Efficient: tracked time stayed within the KI-estimated effort. Rewards the
   // outcome ("delivered promptly"), independent of whether the client engages.
-  const { data: t } = await supabase
-    .from('tasks')
-    .select('estimated_minutes, actual_minutes')
-    .eq('id', taskId)
-    .maybeSingle();
-  const estimate = t?.estimated_minutes ?? null;
-  const actual = t?.actual_minutes ?? 0;
   if (estimate != null && estimate > 0 && actual > 0 && actual <= estimate) {
     await insertIgnore(supabase, {
       user_id: userId,
