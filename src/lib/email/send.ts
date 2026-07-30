@@ -69,10 +69,16 @@ function transporter(cfg: NonNullable<ReturnType<typeof smtpConfig>>) {
   return cachedTransport;
 }
 
+export interface SendResult {
+  ok: boolean;
+  /** Human-readable reason when ok = false (surfaceable to admins). */
+  error?: string;
+}
+
 async function sendViaSmtp(
   cfg: NonNullable<ReturnType<typeof smtpConfig>>,
   input: SendEmailInput,
-): Promise<boolean> {
+): Promise<SendResult> {
   try {
     await transporter(cfg).sendMail({
       from: cfg.from,
@@ -85,17 +91,18 @@ async function sendViaSmtp(
         content: a.content,
       })),
     });
-    return true;
+    return { ok: true };
   } catch (e) {
-    logger.warn('email.smtp.error', { error: (e as Error).message });
-    return false;
+    const error = (e as Error).message;
+    logger.warn('email.smtp.error', { error });
+    return { ok: false, error: `SMTP: ${error}` };
   }
 }
 
 async function sendViaResend(
   cfg: NonNullable<ReturnType<typeof resendConfig>>,
   input: SendEmailInput,
-): Promise<boolean> {
+): Promise<SendResult> {
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -121,17 +128,18 @@ async function sendViaResend(
         status: res.status,
         detail: detail.slice(0, 300),
       });
-      return false;
+      return { ok: false, error: `Resend ${res.status}: ${detail.slice(0, 200)}` };
     }
-    return true;
+    return { ok: true };
   } catch (e) {
-    logger.warn('email.resend.error', { error: (e as Error).message });
-    return false;
+    const error = (e as Error).message;
+    logger.warn('email.resend.error', { error });
+    return { ok: false, error: `Resend: ${error}` };
   }
 }
 
-/** Sends one email via the configured backend. Returns true on success. */
-export async function sendEmail(input: SendEmailInput): Promise<boolean> {
+/** Sends one email via the configured backend, returning the failure reason. */
+export async function sendEmailResult(input: SendEmailInput): Promise<SendResult> {
   const smtp = smtpConfig();
   if (smtp) return sendViaSmtp(smtp, input);
 
@@ -139,5 +147,10 @@ export async function sendEmail(input: SendEmailInput): Promise<boolean> {
   if (resend) return sendViaResend(resend, input);
 
   logger.debug('email.skip.not_configured', { subject: input.subject });
-  return false;
+  return { ok: false, error: 'E-Mail-Versand ist nicht konfiguriert.' };
+}
+
+/** Sends one email via the configured backend. Returns true on success. */
+export async function sendEmail(input: SendEmailInput): Promise<boolean> {
+  return (await sendEmailResult(input)).ok;
 }

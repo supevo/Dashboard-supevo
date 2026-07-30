@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
-import { sendEmail, isEmailEnabled } from '@/lib/email/send';
+import { sendEmailResult, isEmailEnabled } from '@/lib/email/send';
 import { renderEmail } from '@/lib/email/templates';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
@@ -91,13 +91,17 @@ export async function sendRecapAction(
     intro: '',
     bodyLines: body.split('\n').filter(Boolean),
   });
-  const ok = await sendEmail({
+  const sent = await sendEmailResult({
     to: company.contact_email,
     subject: 'Ihr Wochenrückblick',
     html,
     text,
   });
-  if (!ok) return errorResult(de.errors.INTERNAL);
+  if (!sent.ok) {
+    return errorResult(
+      `E-Mail konnte nicht gesendet werden: ${sent.error ?? de.errors.INTERNAL}`,
+    );
+  }
 
   await logActivity({
     actorId: user.id,
