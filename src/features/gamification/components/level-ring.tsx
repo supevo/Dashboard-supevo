@@ -47,7 +47,7 @@ export function LevelRing({
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={offset}
-          className="text-emerald-500 transition-[stroke-dashoffset] duration-700"
+          className="text-violet-700 transition-[stroke-dashoffset] duration-700 dark:text-violet-500"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

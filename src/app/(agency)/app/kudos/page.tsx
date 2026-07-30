@@ -134,7 +134,7 @@ export default async function KudosPage() {
                 {hub.specialty ? `${hub.specialty} · ` : ''}
                 {hub.roleLabel}
               </p>
-              <div className="mt-1 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="mt-1 text-lg font-bold text-violet-700 dark:text-violet-400">
                 {de.level.title} {hub.level}
                 <span className="ml-2 text-sm font-medium text-muted-foreground">
                   {hub.xpIntoLevel}/{hub.xpForLevel} XP
@@ -180,17 +180,7 @@ export default async function KudosPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="space-y-6">
-          {/* Belohnungen: Coins, Lootboxen & Inventar direkt im Level Hub */}
-          <Card id="belohnungen" className="scroll-mt-20">
-            <CardHeader>
-              <CardTitle>{t.rewards.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RewardPanel shop={shop} />
-            </CardContent>
-          </Card>
-
-          {/* Wochenchallenges */}
+          {/* Wochenchallenges (über den Belohnungen) */}
           <Card>
             <CardHeader>
               <div className="flex items-baseline justify-between gap-2">
@@ -269,7 +259,17 @@ export default async function KudosPage() {
             </CardContent>
           </Card>
 
-          {/* Auszeichnungen: Trophäen + Badge-Wand (direkt unter den Wochenchallenges) */}
+          {/* Belohnungen: Coins, Lootboxen & Inventar (unter den Wochenchallenges) */}
+          <Card id="belohnungen" className="scroll-mt-20">
+            <CardHeader>
+              <CardTitle>{t.rewards.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RewardPanel shop={shop} />
+            </CardContent>
+          </Card>
+
+          {/* Auszeichnungen: Trophäen + Badge-Wand */}
           <Card>
             <CardHeader>
               <CardTitle>{t.achievements}</CardTitle>
@@ -426,7 +426,14 @@ export default async function KudosPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {hub.radar.length >= 3 && <SkillRadar skills={hub.radar} />}
+              {hub.radar.length + hub.preferences.length >= 3 && (
+                <SkillRadar
+                  skills={hub.radar}
+                  preferences={hub.preferences
+                    .slice(0, 6)
+                    .map((p) => ({ label: p.name, level: p.level }))}
+                />
+              )}
               {hub.skills.length > 0 ? (
                 <ul className="space-y-2">
                   {hub.skills.map((s) => (

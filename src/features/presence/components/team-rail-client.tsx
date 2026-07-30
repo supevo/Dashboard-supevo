@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Avatar } from '@/components/ui/avatar';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -69,7 +70,7 @@ function MemberRow({ m }: { m: RailMember }) {
         </span>
       </button>
 
-      {card && (
+      {card && createPortal(
         <div
           style={{ position: 'fixed', top: card.top, left: card.left, width: CARD_WIDTH }}
           className="z-50 rounded-xl border bg-card p-3 shadow-xl"
@@ -114,7 +115,8 @@ function MemberRow({ m }: { m: RailMember }) {
               Profil
             </Link>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </li>
   );
@@ -164,6 +166,7 @@ export function TeamRailClient({
           level={selfMenu.level}
           progressPct={selfMenu.progressPct}
           status={selfMenu.status}
+          size="lg"
         />
       </div>
 
