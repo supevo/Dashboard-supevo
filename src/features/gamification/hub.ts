@@ -281,6 +281,7 @@ export async function getLevelHub(
         name: b.name,
         emoji: b.emoji,
         earned: true,
+        count: b.count,
       })),
     ],
     bannerKey: activeBanner.key,
