@@ -212,6 +212,64 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['feedback']['Insert']>;
         Relationships: [];
       };
+      marketing_plans: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          year: number;
+          title: string;
+          status: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          accepted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          year: number;
+          title?: string;
+          status?: string;
+          created_by?: string | null;
+          updated_at?: string;
+          accepted_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['marketing_plans']['Insert']>;
+        Relationships: [];
+      };
+      marketing_plan_items: {
+        Row: {
+          id: string;
+          plan_id: string;
+          month: number;
+          title: string;
+          description: string | null;
+          status: string;
+          client_note: string | null;
+          position: number;
+          task_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          plan_id: string;
+          month?: number;
+          title: string;
+          description?: string | null;
+          status?: string;
+          client_note?: string | null;
+          position?: number;
+          task_id?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['marketing_plan_items']['Insert']
+        >;
+        Relationships: [];
+      };
       hub_frame_images: {
         Row: {
           id: string;

@@ -34,6 +34,8 @@ import { InquirySettings } from '@/features/inquiries/components/inquiry-setting
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { getPlan } from '@/features/marketing-plan/queries';
+import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -68,6 +70,9 @@ export default async function ClientDetailPage({
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
   ]);
+
+  const planYear = new Date().getFullYear();
+  const marketingPlan = await getPlan(clientCompanyId, planYear);
 
   // Contacts are visible/manageable by all agency staff (they add clients).
   const contacts = await listClientContacts(orgId, clientCompanyId);
@@ -122,6 +127,23 @@ export default async function ClientDetailPage({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
+            geben; akzeptierte Maßnahmen ins Kanban übernehmen.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PlanManager
+            clientCompanyId={clientCompanyId}
+            plan={marketingPlan}
+            year={planYear}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
