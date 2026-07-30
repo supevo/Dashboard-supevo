@@ -108,7 +108,7 @@ export default async function AgencyLayout({
       }
     >
       {children}
-      <ChatDock />
+      <ChatDock meId={user.id} meName={user.fullName ?? user.email} />
     </AppShell>
   );
 }

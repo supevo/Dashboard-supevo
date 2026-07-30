@@ -18,7 +18,8 @@ export type WeekMetric =
   | 'chatWeek'
   | 'timerWeek'
   | 'ontimeWeek'
-  | 'movesWeek';
+  | 'movesWeek'
+  | 'efficientWeek';
 
 export interface RareBadge {
   key: string;
@@ -37,16 +38,17 @@ export interface ChallengeDef {
   rare?: RareBadge;
 }
 
+// Ergebnis-orientiert: die Challenges belohnen abgeschlossene, pünktliche und
+// effiziente Arbeit statt reiner Aktivität (kein „Aufgaben anlegen/verschieben
+// für Punkte" mehr – das war gamebar).
 export const CHALLENGE_POOL: ChallengeDef[] = [
   { key: 'sprint', title: 'Wochensprint', emoji: '🏃', metric: 'missionsWeek', target: 10, xp: 50, rare: { key: 'sprinter', name: 'Sprinter', emoji: '🏃‍♂️', reason: 'Challenge „Wochensprint" gemeistert' } },
   { key: 'marathon', title: 'Wochenmarathon', emoji: '🔥', metric: 'missionsWeek', target: 20, xp: 80, rare: { key: 'unaufhaltsam', name: 'Unaufhaltsam', emoji: '🚀', reason: 'Challenge „Wochenmarathon" gemeistert' } },
-  { key: 'creator', title: 'Ideenschmiede', emoji: '🛠️', metric: 'createdWeek', target: 5, xp: 30 },
-  { key: 'factory', title: 'Vielbeschäftigt', emoji: '🏭', metric: 'createdWeek', target: 15, xp: 50, rare: { key: 'fabrik', name: 'Fabrik', emoji: '🏗️', reason: 'Challenge „Vielbeschäftigt" gemeistert' } },
-  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
-  { key: 'chatty', title: 'Kommunikator', emoji: '💬', metric: 'chatWeek', target: 30, xp: 25 },
-  { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', metric: 'timerWeek', target: 10, xp: 25 },
+  { key: 'efficient', title: 'Effizienz-Woche', emoji: '🎯', metric: 'efficientWeek', target: 5, xp: 40, rare: { key: 'praezise', name: 'Präzise', emoji: '🎯', reason: 'Challenge „Effizienz-Woche" gemeistert' } },
+  { key: 'efficientpro', title: 'Punktlandung', emoji: '🏹', metric: 'efficientWeek', target: 10, xp: 70, rare: { key: 'punktlandung', name: 'Punktlandung', emoji: '🏹', reason: 'Challenge „Punktlandung" gemeistert' } },
   { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️', reason: 'Challenge „Pünktlichkeitsprofi" gemeistert' } },
-  { key: 'organizer', title: 'Aufräumaktion', emoji: '🧹', metric: 'movesWeek', target: 20, xp: 20 },
+  { key: 'supporter', title: 'Teamgeist', emoji: '🤝', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
+  { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', metric: 'timerWeek', target: 10, xp: 25 },
 ];
 
 /** All rare badges obtainable through challenges (for the collectible display). */
@@ -129,6 +131,7 @@ export async function getWeeklyChallenges(
     timerRes,
     ontimeRes,
     movesRes,
+    efficientRes,
     rareRows,
   ] = await Promise.all([
     supabase.from('tasks').select('id', head).eq('completed_by', userId).gte('completed_at', since),
@@ -138,6 +141,7 @@ export async function getWeeklyChallenges(
     supabase.from('time_entries').select('id', head).eq('user_id', userId).gte('started_at', since),
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'ontime').gte('created_at', since),
     supabase.from('activity_log').select('id', head).eq('actor_id', userId).eq('action', 'status_change').gte('created_at', since),
+    supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'efficient').gte('created_at', since),
     supabase.from('achievements').select('key').eq('user_id', userId).like('key', 'rare\\_%'),
   ]);
 
@@ -149,6 +153,7 @@ export async function getWeeklyChallenges(
     timerWeek: timerRes.count ?? 0,
     ontimeWeek: ontimeRes.count ?? 0,
     movesWeek: movesRes.count ?? 0,
+    efficientWeek: efficientRes.count ?? 0,
   };
 
   const ownedRare = new Set((rareRows.data ?? []).map((r) => r.key));

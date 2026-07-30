@@ -1,5 +1,6 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { berlinToday } from '@/lib/time';
 
 export interface ExpressStatus {
@@ -42,6 +43,10 @@ export async function getExpressStatus(
 ): Promise<ExpressStatus> {
   const period = currentExpressPeriod();
   const supabase = await createSupabaseServerClient();
+  // The redemptions table has RLS enabled but no SELECT policy, so counting via
+  // the caller's client always returned 0 (limit never hit). Count via the
+  // service client instead.
+  const service = createSupabaseServiceClient();
 
   const [{ data: company }, { data: membership }, { count }] = await Promise.all([
     supabase
@@ -54,7 +59,7 @@ export async function getExpressStatus(
       .select('stage')
       .eq('client_company_id', clientCompanyId)
       .maybeSingle(),
-    supabase
+    service
       .from('express_ticket_redemptions')
       .select('id', { count: 'exact', head: true })
       .eq('client_company_id', clientCompanyId)

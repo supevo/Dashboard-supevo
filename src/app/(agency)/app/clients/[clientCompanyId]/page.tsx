@@ -124,11 +124,10 @@ export default async function ClientDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>🗂️ Asset-Hub</CardTitle>
+          <CardTitle>🗂️ Marken-Hub</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Marken-Guidelines, finale Logos &amp; Zugänge – dauerhaft hinterlegt.
-            Logos &amp; Guidelines sieht auch der Kunde im Portal; Zugänge bleiben
-            beim Team.
+            Marken-Guidelines &amp; finale Logos – dauerhaft hinterlegt und auch
+            für den Kunden im Portal sichtbar.
           </p>
         </CardHeader>
         <CardContent>
@@ -138,6 +137,27 @@ export default async function ClientDetailPage({
             assets={hub.assets}
             canReveal
             secretVaultEnabled={isSecretVaultEnabled()}
+            variant="assets"
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🔑 Zugänge</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
+            Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <AssetHubManager
+            clientCompanyId={clientCompanyId}
+            brands={hub.brands}
+            assets={hub.assets}
+            canReveal
+            secretVaultEnabled={isSecretVaultEnabled()}
+            variant="access"
           />
         </CardContent>
       </Card>

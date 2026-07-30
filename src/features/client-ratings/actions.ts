@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { createNotifications } from '@/features/notifications/create';
+import { awardClientPraiseXp } from '@/features/gamification/xp';
 import { de } from '@/lib/i18n/de';
 import { type ActionResult, errorResult, successResult } from '@/lib/action-result';
 
@@ -66,6 +67,9 @@ export async function rateTaskExecutionAction(input: {
     { onConflict: 'task_id,rated_by' },
   );
   if (error) return errorResult(de.errors.INTERNAL);
+
+  // Bonus XP for the person who finished the task when the client is happy (≥4★).
+  await awardClientPraiseXp({ orgId: task.organization_id, taskId, stars });
 
   // Notify agency staff on the project about the client feedback.
   const { data: members } = await service

@@ -86,9 +86,14 @@ export default async function TaskDetailPage({
             projectId={projectId}
             taskId={taskId}
             title={task.title}
-            canManage={task.canManage}
+            canManage
           />
         </div>
+        {task.isExpress && (
+          <span className="express-pulse mt-2 inline-flex items-center gap-1 rounded-full border border-violet-500 px-2.5 py-1 text-xs font-semibold text-violet-600 dark:text-violet-300">
+            🚀 Express-Aufgabe – vorgezogen
+          </span>
+        )}
         <p className="text-sm text-muted-foreground">
           {de.priority[task.priority]}
           {task.isInternal ? ` · ${de.kanban.internal}` : ''}

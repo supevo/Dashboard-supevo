@@ -27,8 +27,12 @@ export async function GET(
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 
+  // Resolve the avatar path via the service client: a client must be able to see
+  // agency authors' avatars (e.g. on comments), which the profiles RLS
+  // ("coworker-visible") would otherwise block. Any authenticated user may fetch
+  // an avatar by id — avatars are low-sensitivity and shown across the app.
   const supabase = await createSupabaseServerClient();
-  const { data: profile } = await supabase
+  const { data: profile } = await createSupabaseServiceClient()
     .from('profiles')
     .select('avatar_url')
     .eq('id', userId)

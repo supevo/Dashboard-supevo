@@ -32,3 +32,28 @@ Antworte AUSSCHLIESSLICH mit JSON: {"minutes": <ganze Zahl>}. Zwischen 15 und 48
     return null;
   }
 }
+
+/**
+ * Best-effort: estimates a freshly created task's effort and stores it in
+ * estimated_minutes (only when AI returns a value and no estimate is set yet).
+ * Uses the service client so it works regardless of the caller's RLS. Never
+ * throws — a failed estimate must not break task creation.
+ */
+export async function autoEstimateTaskMinutes(
+  taskId: string,
+  title: string,
+  description: string | null,
+): Promise<void> {
+  try {
+    const minutes = await estimateTaskMinutes(title, description);
+    if (minutes == null) return;
+    const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+    await createSupabaseServiceClient()
+      .from('tasks')
+      .update({ estimated_minutes: minutes })
+      .eq('id', taskId)
+      .is('estimated_minutes', null);
+  } catch {
+    /* best-effort */
+  }
+}

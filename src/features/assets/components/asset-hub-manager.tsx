@@ -42,6 +42,7 @@ export function AssetHubManager({
   assets,
   canReveal,
   secretVaultEnabled,
+  variant = 'assets',
 }: {
   clientCompanyId: string;
   brands: Brand[];
@@ -50,16 +51,53 @@ export function AssetHubManager({
   canReveal: boolean;
   /** True when SECRET_ENCRYPTION_KEY is configured (password field available). */
   secretVaultEnabled: boolean;
+  /** 'assets' = brands + logos + guidelines; 'access' = logins/Zugänge only. */
+  variant?: 'assets' | 'access';
 }) {
   const router = useRouter();
   const [targetBrand, setTargetBrand] = useState('');
+
+  // Zugänge ("access") live on their own page/menu entry — a flat list of
+  // logins, no brands or file uploads.
+  if (variant === 'access') {
+    const accessItems = assets.filter((a) => a.category === 'access');
+    return (
+      <div className="space-y-4">
+        <AddAccessForm
+          clientCompanyId={clientCompanyId}
+          brandId=""
+          teamOnly={canReveal}
+          secretVaultEnabled={secretVaultEnabled}
+        />
+        <div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {CATEGORY_LABEL.access}
+          </div>
+          {accessItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Noch nichts hinterlegt.</p>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {accessItems.map((a) => (
+                <AssetRow
+                  key={a.id}
+                  asset={a}
+                  clientCompanyId={clientCompanyId}
+                  canReveal={canReveal}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Sections to render: „Allgemein" (null) + every brand.
   const sections: { id: string | null; name: string }[] = [
     { id: null, name: 'Allgemein' },
     ...brands.map((b) => ({ id: b.id, name: b.name })),
   ];
-  const categories: AssetView['category'][] = ['logo', 'guideline', 'access'];
+  const categories: AssetView['category'][] = ['logo', 'guideline'];
 
   return (
     <div className="space-y-6">
@@ -91,15 +129,7 @@ export function AssetHubManager({
           onDone={() => router.refresh()}
         />
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <AddLinkForm clientCompanyId={clientCompanyId} brandId={targetBrand} />
-          <AddAccessForm
-            clientCompanyId={clientCompanyId}
-            brandId={targetBrand}
-            teamOnly={canReveal}
-            secretVaultEnabled={secretVaultEnabled}
-          />
-        </div>
+        <AddLinkForm clientCompanyId={clientCompanyId} brandId={targetBrand} />
       </div>
 
       <div className="space-y-5">
@@ -119,7 +149,7 @@ export function AssetHubManager({
                   />
                 )}
               </div>
-              {inSection.length === 0 ? (
+              {inSection.filter((a) => a.category !== 'access').length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   Noch nichts hinterlegt.
                 </p>

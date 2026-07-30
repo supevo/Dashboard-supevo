@@ -5,6 +5,8 @@ import { getAgencyDashboard } from '@/features/dashboard/queries';
 import { getWorkStatus } from '@/features/time-tracking/queries';
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
+import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
+import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { PulseWidget } from '@/features/pulse/components/pulse-widget';
 import { getMyPulse } from '@/features/pulse/queries';
 import { CoachingCard } from '@/features/coaching/components/coaching-card';
@@ -22,10 +24,11 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export default async function AgencyDashboardPage() {
   const { user, orgId } = await requireAgencyPage();
-  const [d, myPulse, workStatus] = await Promise.all([
+  const [d, myPulse, workStatus, weekly] = await Promise.all([
     getAgencyDashboard(user.id),
     getMyPulse(user.id),
     getWorkStatus(user.id),
+    getWeeklyChallenges(user.id, orgId),
   ]);
 
   return (
@@ -45,6 +48,8 @@ export default async function AgencyDashboardPage() {
       <MorningBriefing
         firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
       />
+
+      <WeeklyChallengesCard weekly={weekly} />
 
       <div className="grid gap-6 md:grid-cols-2">
         <PulseWidget initial={myPulse} />

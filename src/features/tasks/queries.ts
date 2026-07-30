@@ -11,6 +11,7 @@ export interface TaskDetail {
   priority: TaskPriority;
   isInternal: boolean;
   isBlocked: boolean;
+  isExpress: boolean;
   isArchived: boolean;
   dueDate: string | null;
   estimatedMinutes: number | null;
@@ -26,7 +27,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_archived, due_date, estimated_minutes, actual_minutes, lock_version',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, actual_minutes, lock_version',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -67,6 +68,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     priority: task.priority,
     isInternal: task.is_internal,
     isBlocked: task.is_blocked,
+    isExpress: task.is_express,
     isArchived: task.is_archived,
     dueDate: task.due_date,
     estimatedMinutes: task.estimated_minutes,

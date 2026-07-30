@@ -45,6 +45,8 @@ export type BadgeMetric =
   | 'dnd'
   | 'points'
   | 'ontime'
+  | 'efficient'
+  | 'clientPraise'
   | 'earlyBird'
   | 'nightOwl'
   | 'weekendWarrior'
@@ -124,6 +126,8 @@ export const BADGE_CATALOG: BadgeDef[] = [
   { key: 'punktesammler', name: 'Punktesammler', emoji: '💰', metric: 'points', threshold: 1000, reason: '1.000 XP gesammelt' },
   { key: 'lobhudler', name: 'Lobhudler', emoji: '👏', metric: 'ratingsGiven', threshold: 25, reason: '25 Mal Kollegen gelobt' },
   { key: 'deadline_held', name: 'Deadline-Held', emoji: '⏰', metric: 'ontime', threshold: 20, reason: '20 Mal pünktlich geliefert' },
+  { key: 'effizienz_ass', name: 'Effizienz-Ass', emoji: '🎯', metric: 'efficient', threshold: 20, reason: '20 Aufgaben im geschätzten Zeitrahmen erledigt' },
+  { key: 'kundenliebling', name: 'Kundenliebling', emoji: '🌟', metric: 'clientPraise', threshold: 5, reason: '5 Mal von Kunden mit ≥ 4★ bewertet' },
   // Dienstjubiläen (aus der Betriebszugehörigkeit) – eine Quelle: tenure.ts
   ...TENURE_BADGES.map((b) => ({
     key: `tenure_${b.minDays}`,
@@ -174,6 +178,8 @@ export async function getBadgeWall(
     skillsRes,
     kudosReceivedRes,
     ontimeRes,
+    efficientRes,
+    clientPraiseRes,
     filesRes,
     membershipRes,
     xpPoints,
@@ -193,6 +199,8 @@ export async function getBadgeWall(
     supabase.from('employee_skills').select('id', head).eq('user_id', userId),
     supabase.from('kudos').select('points, badge').eq('to_user_id', userId),
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'ontime'),
+    supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'efficient'),
+    supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'client_praise'),
     supabase.from('files').select('id', head).eq('uploaded_by', userId).is('deleted_at', null),
     supabase
       .from('memberships')
@@ -258,6 +266,8 @@ export async function getBadgeWall(
     dnd: counters.get('dnd') ?? 0,
     points,
     ontime: ontimeRes.count ?? 0,
+    efficient: efficientRes.count ?? 0,
+    clientPraise: clientPraiseRes.count ?? 0,
     earlyBird,
     nightOwl,
     weekendWarrior,

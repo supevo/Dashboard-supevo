@@ -18,6 +18,8 @@ import { SubmitButton } from '@/components/ui/submit-button';
 import { Button } from '@/components/ui/button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { useChatTyping } from '@/features/messenger/use-chat-typing';
+import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -54,10 +56,15 @@ function CreateChannel({ onDone }: { onDone: () => void }) {
 function MessagePane({
   channel,
   initialMessages,
+  meId,
+  meName,
 }: {
   channel: ChatChannel;
   initialMessages: ChannelMessage[];
+  meId: string;
+  meName: string;
 }) {
+  const { typing, notifyTyping } = useChatTyping(channel.id, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>(initialMessages);
   const [state, action] = useActionState(sendChannelMessageAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
@@ -167,6 +174,8 @@ function MessagePane({
         )}
       </div>
 
+      <TypingIndicator names={typing} />
+
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-3">
         <input type="hidden" name="channelId" value={channel.id} />
         <Textarea
@@ -176,6 +185,7 @@ function MessagePane({
           rows={1}
           placeholder={`${de.messenger.messagePlaceholder} #${channel.name}`}
           className="max-h-32 min-h-[40px] flex-1 resize-none"
+          onChange={notifyTyping}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -195,10 +205,14 @@ export function Messenger({
   channels,
   activeChannel,
   initialMessages,
+  meId,
+  meName,
 }: {
   channels: ChatChannel[];
   activeChannel: ChatChannel | null;
   initialMessages: ChannelMessage[];
+  meId: string;
+  meName: string;
 }) {
   const [creating, setCreating] = useState(false);
 
@@ -245,6 +259,8 @@ export function Messenger({
           key={activeChannel.id}
           channel={activeChannel}
           initialMessages={initialMessages}
+          meId={meId}
+          meName={meName}
         />
       ) : (
         <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">

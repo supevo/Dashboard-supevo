@@ -9,6 +9,7 @@ import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
 import { awardTaskXp } from '@/features/gamification/xp';
 import { checkAndAwardAchievements } from '@/features/gamification/achievements';
+import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -141,7 +142,12 @@ const renameTaskSchema = z.object({
   title: z.string().trim().min(2, 'Bitte gib einen Titel ein.').max(200),
 });
 
-/** Renames a task. RLS (can_manage_project) is the guard. */
+/**
+ * Renames a task. Any agency staff member OR a client who can see the task may
+ * rename it. Access is gated by an RLS-scoped read (agency staff see their org's
+ * tasks; clients see only client-visible tasks of their company); the write then
+ * runs via the service client so it isn't blocked by the manager-only RLS.
+ */
 export async function renameTaskAction(
   _prev: ActionResult,
   formData: FormData,
@@ -156,17 +162,23 @@ export async function renameTaskAction(
 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
-  const { error, count } = await supabase
-    .from('tasks')
-    .update({ title }, { count: 'exact' })
-    .eq('id', taskId);
 
+  // RLS read = the access gate: it only returns the task if the caller may see
+  // it (agency staff, or a client for a client-visible task).
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, organization_id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('tasks').update({ title }).eq('id', taskId);
   if (error) return errorResult(de.errors.INTERNAL);
-  if (!count) return errorResult(de.errors.FORBIDDEN);
 
   await logActivity({
     actorId: user.id,
-    organizationId: null,
+    organizationId: task.organization_id,
     action: 'update',
     entityType: 'task',
     entityId: taskId,
@@ -175,6 +187,8 @@ export async function renameTaskAction(
 
   revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
   revalidatePath(`/app/projects/${projectId}`);
+  revalidatePath(`/portal/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/portal/projects/${projectId}`);
   return successResult('Aufgabe umbenannt.');
 }
 
@@ -364,6 +378,9 @@ export async function createClientTaskAction(
     metadata: { title, source: 'client' },
   });
 
+  // KI schätzt den Aufwand direkt bei Erstellung (für XP / Zeitnah-Tracking).
+  await autoEstimateTaskMinutes(task.id, title, description ? description : null);
+
   // Alert the agency staff on this project so client requests are not missed.
   const { data: members } = await service
     .from('project_members')
@@ -470,6 +487,9 @@ export async function createTaskAction(
     entityId: task.id,
     metadata: { title },
   });
+
+  // KI schätzt den Aufwand direkt bei Erstellung (für XP / Zeitnah-Tracking).
+  await autoEstimateTaskMinutes(task.id, title, description ? description : null);
 
   revalidatePath(`/app/projects/${projectId}`);
   return successResult('Aufgabe erstellt.');
