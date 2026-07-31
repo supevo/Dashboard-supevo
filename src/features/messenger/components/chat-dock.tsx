@@ -28,6 +28,7 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
 import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
@@ -74,6 +75,7 @@ function ConversationView({
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function insertEmoji(emoji: string) {
     const el = inputRef.current;
@@ -164,6 +166,12 @@ function ConversationView({
       </div>
       <TypingIndicator names={typing} />
 
+      {uploadError && (
+        <Alert variant="destructive" className="mx-2 text-[11px]">
+          {uploadError}
+        </Alert>
+      )}
+
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
         <Textarea
@@ -180,6 +188,12 @@ function ConversationView({
               e.currentTarget.form?.requestSubmit();
             }
           }}
+        />
+        <ChatAttachButton
+          channelId={channelId}
+          onUploaded={() => void load()}
+          onError={setUploadError}
+          className="h-9 w-9 text-lg"
         />
         <EmojiPicker onPick={insertEmoji} />
         <StickerPicker channelId={channelId} onSent={() => void load()} />
