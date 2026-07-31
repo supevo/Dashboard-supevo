@@ -108,8 +108,8 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
           </div>
         )}
 
-        {/* 2. SEPA */}
-        {status.requiresSepa && (
+        {/* 2. SEPA – nur sichtbar, wenn die Agentur das Mandat freigegeben hat. */}
+        {status.requiresSepa && status.sepaReleased && (
           <div className="flex items-center gap-3">
             <StepDot done={sepaDone} active={contractOk && !sepaDone} />
             <div className="min-w-0 flex-1">
@@ -197,6 +197,13 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
             Erteile uns das SEPA-Lastschriftmandat. Deine IBAN wird verschlüsselt
             gespeichert.
           </p>
+          {status.sepaPreviewPath && (
+            <iframe
+              src={`/api/onboarding/sepa-preview?client=${status.clientCompanyId}`}
+              title="SEPA-Mandat"
+              className="h-64 w-full rounded-md border"
+            />
+          )}
           <Input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="Kontoinhaber" maxLength={140} />
           <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IBAN" maxLength={40} />
           <Input value={sName} onChange={(e) => setSName(e.target.value)} placeholder="Dein vollständiger Name" maxLength={120} />

@@ -19,6 +19,10 @@ export interface OnboardingStatus {
   sepaPdfPath: string | null;
   sepaIbanLast4: string | null;
   sepaMandateRef: string | null;
+  /** Agency-generated SEPA mandate preview (reviewed before release). */
+  sepaPreviewPath: string | null;
+  /** Whether the agency has released the SEPA mandate to the client. */
+  sepaReleased: boolean;
   planAccepted: boolean;
   complete: boolean;
 }
@@ -32,7 +36,7 @@ async function build(
     service
       .from('client_onboarding')
       .select(
-        'contract_signed_at, contract_pdf_path, sepa_signed_at, sepa_pdf_path, sepa_iban_last4, sepa_mandate_ref, started, requires_contract, requires_sepa, requires_plan, contract_template_path, contract_template_name',
+        'contract_signed_at, contract_pdf_path, sepa_signed_at, sepa_pdf_path, sepa_iban_last4, sepa_mandate_ref, started, requires_contract, requires_sepa, requires_plan, contract_template_path, contract_template_name, sepa_preview_path, sepa_released',
       )
       .eq('client_company_id', clientCompanyId)
       .maybeSingle(),
@@ -76,6 +80,8 @@ async function build(
     sepaPdfPath: ob?.sepa_pdf_path ?? null,
     sepaIbanLast4: ob?.sepa_iban_last4 ?? null,
     sepaMandateRef: ob?.sepa_mandate_ref ?? null,
+    sepaPreviewPath: ob?.sepa_preview_path ?? null,
+    sepaReleased: ob?.sepa_released ?? false,
     planAccepted,
     complete,
   };

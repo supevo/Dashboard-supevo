@@ -6,6 +6,8 @@ import {
   configureOnboardingAction,
   createContractTemplateUpload,
   finalizeContractTemplate,
+  generateSepaPreviewAction,
+  releaseSepaAction,
 } from '@/features/onboarding/agency-actions';
 import type { OnboardingStatus } from '@/features/onboarding/queries';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -77,6 +79,20 @@ export function OnboardingSetup({
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
     }
+  }
+
+  function runSepa(fn: () => Promise<{ status: string; message?: string }>) {
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      const res = await fn();
+      if (res.status === 'error') {
+        setError(res.message ?? 'Fehler.');
+        return;
+      }
+      setNotice(res.message ?? 'Erledigt.');
+      router.refresh();
+    });
   }
 
   function save(start: boolean) {
@@ -208,8 +224,47 @@ export function OnboardingSetup({
           checked={sepa}
           onChange={setSepa}
           label="SEPA-Mandat"
-          hint="Kunde erteilt ein SEPA-Lastschriftmandat (IBAN, Unterschrift)."
+          hint="PDF generieren, prüfen, freigeben – dann füllt der Kunde IBAN + Unterschrift aus."
         />
+        {sepa && (
+          <div className="ml-7 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => runSepa(() => generateSepaPreviewAction(clientCompanyId))}
+                disabled={pending}
+                className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+              >
+                {status.sepaPreviewPath ? '🔄 Vorschau neu erstellen' : '📄 SEPA-Vorschau erstellen'}
+              </button>
+              {status.sepaPreviewPath && (
+                <a
+                  href={`/api/onboarding/sepa-preview?client=${clientCompanyId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Vorschau ansehen ↗
+                </a>
+              )}
+            </div>
+            {status.sepaPreviewPath && !status.sepaReleased && (
+              <button
+                type="button"
+                onClick={() => runSepa(() => releaseSepaAction(clientCompanyId))}
+                disabled={pending}
+                className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                ✅ Freigeben &amp; an Kunden senden
+              </button>
+            )}
+            {status.sepaReleased && !status.sepaSignedAt && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                An Kunden gesendet – wartet auf Unterschrift.
+              </p>
+            )}
+          </div>
+        )}
         <Part
           checked={plan}
           onChange={setPlan}

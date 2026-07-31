@@ -276,6 +276,7 @@ export const de = {
     weekly_report_due: 'Wochenbericht fällig',
     express_redeemed: 'Express-Ticket eingelöst',
     feedback: 'Feedback',
+    onboarding: 'Onboarding',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

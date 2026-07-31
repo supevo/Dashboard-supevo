@@ -166,9 +166,8 @@ export async function signSepaAction(input: unknown): Promise<ActionResult> {
 
   const service = createSupabaseServiceClient();
   const signedAt = new Date().toISOString();
-  const mandateRef = `SUPEVO-${company.clientCompanyId.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
-  const [{ data: clientCompany }, { data: entity }] = await Promise.all([
+  const [{ data: clientCompany }, { data: entity }, { data: ob }] = await Promise.all([
     service.from('client_companies').select('name').eq('id', company.clientCompanyId).maybeSingle(),
     service
       .from('billing_entities')
@@ -177,7 +176,17 @@ export async function signSepaAction(input: unknown): Promise<ActionResult> {
       .order('is_default', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    service
+      .from('client_onboarding')
+      .select('sepa_mandate_ref')
+      .eq('client_company_id', company.clientCompanyId)
+      .maybeSingle(),
   ]);
+
+  // Reuse the reference from the agency-generated preview when present.
+  const mandateRef =
+    ob?.sepa_mandate_ref ||
+    `SUPEVO-${company.clientCompanyId.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
   const creditorName =
     entity?.company_name || entity?.name || (await orgName(service, company.organizationId));

@@ -55,7 +55,8 @@ export type NotificationType =
   | 'weekly_report_due'
   | 'express_redeemed'
   | 'inquiry'
-  | 'feedback';
+  | 'feedback'
+  | 'onboarding';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -233,6 +234,9 @@ export interface Database {
           requires_plan: boolean;
           contract_template_path: string | null;
           contract_template_name: string | null;
+          sepa_preview_path: string | null;
+          sepa_released: boolean;
+          sepa_released_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -256,6 +260,9 @@ export interface Database {
           requires_plan?: boolean;
           contract_template_path?: string | null;
           contract_template_name?: string | null;
+          sepa_preview_path?: string | null;
+          sepa_released?: boolean;
+          sepa_released_at?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['client_onboarding']['Insert']>;
