@@ -96,3 +96,51 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Coolere Scrollbalken: schlank, abgerundet, theme-aware. Der Daumen nutzt die
+   Primärfarbe (dezent), sitzt dank transparentem Rand + padding-box leicht
+   eingerückt und leuchtet beim Hover auf. Firefox nutzt scrollbar-color.
+--------------------------------------------------------------------------- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.45) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: hsl(var(--primary) / 0.4);
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--primary) / 0.75);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: hsl(var(--primary) / 0.9);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Optional: extra-schlanke Variante für kleine Panels (Chat, Listen). */
+.scrollbar-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  border-width: 1px;
+}
