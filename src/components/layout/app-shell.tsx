@@ -29,6 +29,9 @@ interface AppShellProps {
   coins?: number;
   /** Optional permanent right sidebar (e.g. the team rail). */
   rightRail?: React.ReactNode;
+  /** Optional content pinned to the bottom of the left sidebar (e.g. the
+   *  Pomodoro focus timer). Hidden on mobile with the rest of the sidebar. */
+  sidebarFooter?: React.ReactNode;
   /** Optional badge rendered in the header (e.g. the Express-Ticket credit). */
   headerBadge?: React.ReactNode;
   /** When true, the header user menu hides on desktop (the right rail shows it),
@@ -53,17 +56,18 @@ export function AppShell({
   coins,
   rightRail,
   headerBadge,
+  sidebarFooter,
   userMenuInRail = false,
   children,
 }: AppShellProps) {
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 border-r bg-card p-4 md:block">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-6">
           <p className="text-sm font-bold text-primary">{de.app.name}</p>
           <p className="text-xs text-muted-foreground">{areaLabel}</p>
         </div>
-        <nav className="space-y-1">
+        <nav className="space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -74,6 +78,9 @@ export function AppShell({
             </Link>
           ))}
         </nav>
+        {/* pb-16 keeps the footer clear of the floating feedback button that
+            sits fixed at the bottom-left corner. */}
+        {sidebarFooter && <div className="mt-auto pb-16 pt-4">{sidebarFooter}</div>}
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-2 border-b bg-card px-4 py-3 sm:px-6">
