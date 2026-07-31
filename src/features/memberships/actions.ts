@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
@@ -114,8 +115,13 @@ export async function setJoinDateAction(
   const user = await requireUser();
   if (!isOrgAdmin(user, orgId)) return errorResult(de.errors.FORBIDDEN);
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  // The join date is harmless tenure data, but the memberships RLS update policy
+  // forbids self-updates and any change to a super_admin row – so an admin (and
+  // especially a super_admin) can't set their OWN Eintrittsdatum through the
+  // RLS client. Authorization is already enforced above via isOrgAdmin, so we
+  // apply this one field with the service client.
+  const service = createSupabaseServiceClient();
+  const { error } = await service
     .from('memberships')
     .update({ joined_company_at: joinedAt === '' ? null : joinedAt })
     .eq('organization_id', orgId)
