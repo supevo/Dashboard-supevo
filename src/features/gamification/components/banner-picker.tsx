@@ -25,6 +25,9 @@ export function BannerPicker({
   coins = 0,
   variant = 'pill',
   onOpen,
+  open: controlledOpen,
+  onClose,
+  hideTrigger = false,
 }: {
   level: number;
   selected: string | null;
@@ -34,9 +37,24 @@ export function BannerPicker({
   variant?: 'pill' | 'menu';
   /** Callback, wenn das Modal geöffnet wird (z. B. um das Menü zu schliessen). */
   onOpen?: () => void;
+  /** Controlled mode: wenn gesetzt, steuert der Aufrufer die Sichtbarkeit. Das
+   *  Modal überlebt dann das Aus-/Einklappen eines übergeordneten Menüs. */
+  open?: boolean;
+  onClose?: () => void;
+  /** Eigenen Trigger-Button ausblenden (wenn der Aufrufer selbst öffnet). */
+  hideTrigger?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (v: boolean) => {
+    if (isControlled) {
+      if (!v) onClose?.();
+    } else {
+      setInternalOpen(v);
+    }
+  };
   const [current, setCurrent] = useState(selected ?? DEFAULT_BANNER_KEY);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -66,20 +84,22 @@ export function BannerPicker({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => {
-          onOpen?.();
-          setOpen(true);
-        }}
-        className={
-          variant === 'menu'
-            ? 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted'
-            : 'rounded-full border border-white/40 bg-black/25 px-3 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/40'
-        }
-      >
-        🎨 <span>Titelbild</span>
-      </button>
+      {!hideTrigger && (
+        <button
+          type="button"
+          onClick={() => {
+            onOpen?.();
+            setOpen(true);
+          }}
+          className={
+            variant === 'menu'
+              ? 'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-muted'
+              : 'rounded-full border border-white/40 bg-black/25 px-3 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/40'
+          }
+        >
+          🎨 <span>Titelbild</span>
+        </button>
+      )}
 
       <Modal open={open} onClose={() => setOpen(false)} title="Titelbild wählen">
         <div className="mb-3 text-xs text-muted-foreground">Dein Guthaben: 🪙 {coins}</div>
