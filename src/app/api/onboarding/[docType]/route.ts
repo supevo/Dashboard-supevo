@@ -11,7 +11,11 @@ export async function GET(
   { params }: { params: Promise<{ docType: string }> },
 ) {
   const { docType } = await params;
-  if (docType !== 'contract' && docType !== 'sepa') {
+  if (
+    docType !== 'contract' &&
+    docType !== 'sepa' &&
+    docType !== 'contract-template'
+  ) {
     return new NextResponse(null, { status: 404 });
   }
   const clientCompanyId = request.nextUrl.searchParams.get('client') ?? '';
@@ -27,10 +31,15 @@ export async function GET(
   const service = createSupabaseServiceClient();
   const { data: ob } = await service
     .from('client_onboarding')
-    .select('contract_pdf_path, sepa_pdf_path')
+    .select('contract_pdf_path, sepa_pdf_path, contract_template_path')
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
-  const path = docType === 'contract' ? ob?.contract_pdf_path : ob?.sepa_pdf_path;
+  const path =
+    docType === 'contract'
+      ? ob?.contract_pdf_path
+      : docType === 'sepa'
+        ? ob?.sepa_pdf_path
+        : ob?.contract_template_path;
   if (!path) return new NextResponse(null, { status: 404 });
 
   let blob: Blob | null = null;

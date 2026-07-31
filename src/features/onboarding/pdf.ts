@@ -113,6 +113,42 @@ export async function renderContractPdf(params: {
   return doc.save();
 }
 
+/**
+ * Signs an agency-provided contract PDF: keeps the original pages the client
+ * read and appends a signature page (signature image, name, timestamp, IP).
+ * The result is the legally meaningful signed document.
+ */
+export async function renderSignedContractFromTemplate(params: {
+  templateBytes: Uint8Array;
+  agencyName: string;
+  clientName: string;
+  signer: string;
+  signedAt: string;
+  ip: string;
+  signaturePng: string;
+}): Promise<Uint8Array> {
+  const doc = await PDFDocument.load(params.templateBytes);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([595.28, 841.89]);
+  const left = 50;
+  const maxW = 495;
+  let y = 780;
+
+  page.drawText('Unterschrift – Auftragsbestätigung', { x: left, y, size: 18, font: bold });
+  y -= 30;
+  page.drawText(`${params.agencyName}  ·  ${params.clientName}`, {
+    x: left, y, size: 11, font, color: rgb(0.35, 0.35, 0.4),
+  });
+  y -= 28;
+  y = paragraph(page, font,
+    `${params.clientName} bestätigt mit der digitalen Unterschrift den vorstehenden Dienstleistungsvertrag mit ${params.agencyName}. Der vollständige Vertragstext ist Bestandteil dieses Dokuments (vorstehende Seiten).`,
+    left, y, maxW);
+
+  await signatureBlock(doc, page, font, bold, params, left, y - 30);
+  return doc.save();
+}
+
 /** SEPA direct-debit mandate PDF. */
 export async function renderSepaPdf(params: {
   creditorName: string;

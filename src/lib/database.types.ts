@@ -227,6 +227,12 @@ export interface Database {
           sepa_iban_last4: string | null;
           sepa_mandate_ref: string | null;
           sepa_pdf_path: string | null;
+          started: boolean;
+          requires_contract: boolean;
+          requires_sepa: boolean;
+          requires_plan: boolean;
+          contract_template_path: string | null;
+          contract_template_name: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -244,6 +250,12 @@ export interface Database {
           sepa_iban_last4?: string | null;
           sepa_mandate_ref?: string | null;
           sepa_pdf_path?: string | null;
+          started?: boolean;
+          requires_contract?: boolean;
+          requires_sepa?: boolean;
+          requires_plan?: boolean;
+          contract_template_path?: string | null;
+          contract_template_name?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['client_onboarding']['Insert']>;
