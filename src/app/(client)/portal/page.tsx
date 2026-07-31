@@ -40,7 +40,7 @@ export default async function ClientDashboardPage() {
         </p>
       </div>
 
-      {onboarding && !onboarding.complete && (
+      {onboarding && onboarding.started && !onboarding.complete && (
         <OnboardingStepper status={onboarding} />
       )}
 

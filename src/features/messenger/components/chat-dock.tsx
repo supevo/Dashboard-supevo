@@ -28,6 +28,9 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
+import { PollBlock } from '@/features/messenger/components/poll-block';
+import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
@@ -74,6 +77,7 @@ function ConversationView({
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function insertEmoji(emoji: string) {
     const el = inputRef.current;
@@ -134,7 +138,7 @@ function ConversationView({
               <div
                 className={cn(
                   'max-w-[75%] rounded-lg text-sm',
-                  m.stickerUrl || m.file
+                  m.stickerUrl || m.file || m.poll
                     ? ''
                     : cn(
                         'px-3 py-2',
@@ -154,6 +158,8 @@ function ConversationView({
                   />
                 ) : m.file ? (
                   <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
+                ) : m.poll ? (
+                  <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
                 ) : (
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
@@ -163,6 +169,12 @@ function ConversationView({
         )}
       </div>
       <TypingIndicator names={typing} />
+
+      {uploadError && (
+        <Alert variant="destructive" className="mx-2 text-[11px]">
+          {uploadError}
+        </Alert>
+      )}
 
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
@@ -181,8 +193,19 @@ function ConversationView({
             }
           }}
         />
+        <ChatAttachButton
+          channelId={channelId}
+          onUploaded={() => void load()}
+          onError={setUploadError}
+          className="h-9 w-9 text-lg"
+        />
         <EmojiPicker onPick={insertEmoji} />
         <StickerPicker channelId={channelId} onSent={() => void load()} />
+        <PollComposer
+          channelId={channelId}
+          onCreated={() => void load()}
+          className="h-9 w-9 text-lg"
+        />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
     </div>

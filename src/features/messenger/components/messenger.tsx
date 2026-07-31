@@ -23,6 +23,9 @@ import { SubmitButton } from '@/components/ui/submit-button';
 import { Button } from '@/components/ui/button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
+import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
+import { PollBlock } from '@/features/messenger/components/poll-block';
+import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { cn } from '@/lib/utils';
@@ -154,8 +157,6 @@ function MessagePane({
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<ChannelMessage[] | null>(null);
@@ -183,56 +184,6 @@ function MessagePane({
       /* transient network error — next poll retries */
     }
   }, [channel.id]);
-
-  async function uploadFile(file: File) {
-    setUploadError(null);
-    setUploading(true);
-    try {
-      const createRes = await fetch('/api/chat-files/create-upload-url', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ channelId: channel.id, fileName: file.name, mimeType: file.type, sizeBytes: file.size }),
-      });
-      const created = (await createRes.json()) as {
-        path?: string; token?: string; storagePath?: string; error?: string;
-      };
-      if (!createRes.ok || !created.path || !created.token || !created.storagePath) {
-        setUploadError(created.error ?? 'Upload fehlgeschlagen.');
-        return;
-      }
-      const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
-      const supabase = createSupabaseBrowserClient();
-      const { error: upErr } = await supabase.storage
-        .from('files')
-        .uploadToSignedUrl(created.path, created.token, file, { contentType: file.type });
-      if (upErr) {
-        setUploadError('Upload fehlgeschlagen.');
-        return;
-      }
-      const finRes = await fetch('/api/chat-files/finalize', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          channelId: channel.id,
-          storagePath: created.storagePath,
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-        }),
-      });
-      const fin = (await finRes.json()) as { ok?: boolean; error?: string };
-      if (!finRes.ok || !fin.ok) {
-        setUploadError(fin.error ?? 'Upload fehlgeschlagen.');
-        return;
-      }
-      await load();
-    } catch {
-      setUploadError('Upload fehlgeschlagen.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
 
   const runSearch = useCallback(async () => {
     const q = search.trim();
@@ -347,7 +298,7 @@ function MessagePane({
               <div
                 className={cn(
                   'max-w-[75%] rounded-lg text-sm',
-                  m.stickerUrl || m.file
+                  m.stickerUrl || m.file || m.poll
                     ? ''
                     : cn(
                         'px-3 py-2',
@@ -373,6 +324,8 @@ function MessagePane({
                   />
                 ) : m.file ? (
                   <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
+                ) : m.poll ? (
+                  <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
                 ) : (
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
@@ -392,25 +345,12 @@ function MessagePane({
 
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-3">
         <input type="hidden" name="channelId" value={channel.id} />
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void uploadFile(f);
-          }}
+        <ChatAttachButton
+          channelId={channel.id}
+          onUploaded={() => void load()}
+          onError={setUploadError}
+          className="h-9 w-9 text-lg"
         />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          aria-label="Datei anhängen"
-          title="Datei anhängen (max. 25 MB)"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted disabled:opacity-50"
-        >
-          {uploading ? '⏳' : '📎'}
-        </button>
         <Textarea
           ref={inputRef}
           name="body"
@@ -428,6 +368,11 @@ function MessagePane({
         />
         <EmojiPicker onPick={insertEmoji} />
         <StickerPicker channelId={channel.id} onSent={() => void load()} />
+        <PollComposer
+          channelId={channel.id}
+          onCreated={() => void load()}
+          className="h-9 w-9 text-lg"
+        />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
     </section>

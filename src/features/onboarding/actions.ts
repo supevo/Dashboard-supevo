@@ -9,7 +9,11 @@ import { requireUser } from '@/lib/authz/authorize';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { encryptSecret } from '@/lib/crypto/secret-vault';
-import { renderContractPdf, renderSepaPdf } from '@/features/onboarding/pdf';
+import {
+  renderContractPdf,
+  renderSepaPdf,
+  renderSignedContractFromTemplate,
+} from '@/features/onboarding/pdf';
 import {
   type ActionResult,
   errorResult,
@@ -67,20 +71,45 @@ export async function signContractAction(input: unknown): Promise<ActionResult> 
 
   const service = createSupabaseServiceClient();
   const signedAt = new Date().toISOString();
-  const { data: clientCompany } = await service
-    .from('client_companies')
-    .select('name')
-    .eq('id', company.clientCompanyId)
-    .maybeSingle();
+  const [{ data: clientCompany }, { data: ob }] = await Promise.all([
+    service
+      .from('client_companies')
+      .select('name')
+      .eq('id', company.clientCompanyId)
+      .maybeSingle(),
+    service
+      .from('client_onboarding')
+      .select('contract_template_path')
+      .eq('client_company_id', company.clientCompanyId)
+      .maybeSingle(),
+  ]);
 
-  const pdf = await renderContractPdf({
+  const signParams = {
     agencyName: await orgName(service, company.organizationId),
     clientName: clientCompany?.name ?? 'Kunde',
     signer: parsed.data.signer,
     signedAt,
     ip: await clientIp(),
     signaturePng: parsed.data.signaturePng,
-  });
+  };
+
+  // When the agency deposited a contract PDF, sign that document (original pages
+  // + appended signature page); otherwise fall back to the generated record.
+  let templateBytes: Uint8Array | null = null;
+  if (ob?.contract_template_path) {
+    try {
+      const { data } = await service.storage
+        .from(FILES_BUCKET)
+        .download(ob.contract_template_path);
+      if (data) templateBytes = new Uint8Array(await data.arrayBuffer());
+    } catch {
+      templateBytes = null;
+    }
+  }
+
+  const pdf = templateBytes
+    ? await renderSignedContractFromTemplate({ ...signParams, templateBytes })
+    : await renderContractPdf(signParams);
 
   const path = `org/${company.organizationId}/company/${company.clientCompanyId}/onboarding/contract-${randomUUID()}.pdf`;
   if (!(await upload(service, path, pdf))) return errorResult('PDF konnte nicht gespeichert werden.');
@@ -137,9 +166,8 @@ export async function signSepaAction(input: unknown): Promise<ActionResult> {
 
   const service = createSupabaseServiceClient();
   const signedAt = new Date().toISOString();
-  const mandateRef = `SUPEVO-${company.clientCompanyId.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
-  const [{ data: clientCompany }, { data: entity }] = await Promise.all([
+  const [{ data: clientCompany }, { data: entity }, { data: ob }] = await Promise.all([
     service.from('client_companies').select('name').eq('id', company.clientCompanyId).maybeSingle(),
     service
       .from('billing_entities')
@@ -148,7 +176,17 @@ export async function signSepaAction(input: unknown): Promise<ActionResult> {
       .order('is_default', { ascending: false })
       .limit(1)
       .maybeSingle(),
+    service
+      .from('client_onboarding')
+      .select('sepa_mandate_ref')
+      .eq('client_company_id', company.clientCompanyId)
+      .maybeSingle(),
   ]);
+
+  // Reuse the reference from the agency-generated preview when present.
+  const mandateRef =
+    ob?.sepa_mandate_ref ||
+    `SUPEVO-${company.clientCompanyId.slice(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
 
   const creditorName =
     entity?.company_name || entity?.name || (await orgName(service, company.organizationId));

@@ -55,7 +55,8 @@ export type NotificationType =
   | 'weekly_report_due'
   | 'express_redeemed'
   | 'inquiry'
-  | 'feedback';
+  | 'feedback'
+  | 'onboarding';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -227,6 +228,15 @@ export interface Database {
           sepa_iban_last4: string | null;
           sepa_mandate_ref: string | null;
           sepa_pdf_path: string | null;
+          started: boolean;
+          requires_contract: boolean;
+          requires_sepa: boolean;
+          requires_plan: boolean;
+          contract_template_path: string | null;
+          contract_template_name: string | null;
+          sepa_preview_path: string | null;
+          sepa_released: boolean;
+          sepa_released_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -244,6 +254,15 @@ export interface Database {
           sepa_iban_last4?: string | null;
           sepa_mandate_ref?: string | null;
           sepa_pdf_path?: string | null;
+          started?: boolean;
+          requires_contract?: boolean;
+          requires_sepa?: boolean;
+          requires_plan?: boolean;
+          contract_template_path?: string | null;
+          contract_template_name?: string | null;
+          sepa_preview_path?: string | null;
+          sepa_released?: boolean;
+          sepa_released_at?: string | null;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['client_onboarding']['Insert']>;
@@ -1141,6 +1160,7 @@ export interface Database {
           file_keep: boolean;
           file_removed: boolean;
           file_expires_at: string | null;
+          poll_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -1157,8 +1177,53 @@ export interface Database {
           file_keep?: boolean;
           file_removed?: boolean;
           file_expires_at?: string | null;
+          poll_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
+        Relationships: [];
+      };
+      chat_polls: {
+        Row: {
+          id: string;
+          channel_id: string;
+          organization_id: string;
+          question: string;
+          options: string[];
+          allow_multiple: boolean;
+          closed: boolean;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          channel_id: string;
+          organization_id: string;
+          question: string;
+          options: string[];
+          allow_multiple?: boolean;
+          closed?: boolean;
+          created_by?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['chat_polls']['Insert']>;
+        Relationships: [];
+      };
+      chat_poll_votes: {
+        Row: {
+          id: string;
+          poll_id: string;
+          organization_id: string;
+          option_index: number;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          poll_id: string;
+          organization_id: string;
+          option_index: number;
+          user_id: string;
+        };
+        Update: Partial<Database['public']['Tables']['chat_poll_votes']['Insert']>;
         Relationships: [];
       };
       chat_stickers: {

@@ -37,6 +37,21 @@ export interface ChannelFile {
   url: string | null;
 }
 
+export interface ChannelPoll {
+  id: string;
+  question: string;
+  options: string[];
+  allowMultiple: boolean;
+  closed: boolean;
+  createdBy: string | null;
+  /** Vote count per option (same order as options). */
+  counts: number[];
+  /** Distinct people who cast at least one vote. */
+  totalVoters: number;
+  /** Option indices the current user has voted for. */
+  myVotes: number[];
+}
+
 export interface ChannelMessage {
   id: string;
   authorId: string | null;
@@ -48,6 +63,8 @@ export interface ChannelMessage {
   stickerUrl: string | null;
   /** Set when the message carries an uploaded file. */
   file: ChannelFile | null;
+  /** Set when the message is a poll (Abstimmung). */
+  poll: ChannelPoll | null;
   createdAt: string;
   isMine: boolean;
 }
@@ -64,11 +81,64 @@ interface RawMessage {
   file_keep: boolean;
   file_removed: boolean;
   file_expires_at: string | null;
+  poll_id: string | null;
   created_at: string;
 }
 
 const MESSAGE_COLUMNS =
-  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, created_at';
+  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, poll_id, created_at';
+
+/**
+ * Loads polls referenced by the given message rows and aggregates their votes
+ * into a ChannelPoll per poll id. Uses the service client (votes/polls are
+ * already authorized by the message read that produced these rows).
+ */
+async function loadPolls(
+  rows: RawMessage[],
+  currentUserId: string,
+): Promise<Map<string, ChannelPoll>> {
+  const pollIds = [
+    ...new Set(rows.map((m) => m.poll_id).filter((v): v is string => !!v)),
+  ];
+  const out = new Map<string, ChannelPoll>();
+  if (pollIds.length === 0) return out;
+
+  const service = createSupabaseServiceClient();
+  const [{ data: polls }, { data: votes }] = await Promise.all([
+    service
+      .from('chat_polls')
+      .select('id, question, options, allow_multiple, closed, created_by')
+      .in('id', pollIds),
+    service
+      .from('chat_poll_votes')
+      .select('poll_id, option_index, user_id')
+      .in('poll_id', pollIds),
+  ]);
+
+  for (const p of polls ?? []) {
+    const options = p.options ?? [];
+    const pollVotes = (votes ?? []).filter((v) => v.poll_id === p.id);
+    const counts = options.map(
+      (_, i) => pollVotes.filter((v) => v.option_index === i).length,
+    );
+    const voters = new Set(pollVotes.map((v) => v.user_id));
+    const myVotes = pollVotes
+      .filter((v) => v.user_id === currentUserId)
+      .map((v) => v.option_index);
+    out.set(p.id, {
+      id: p.id,
+      question: p.question,
+      options,
+      allowMultiple: p.allow_multiple,
+      closed: p.closed,
+      createdBy: p.created_by,
+      counts,
+      totalVoters: voters.size,
+      myVotes,
+    });
+  }
+  return out;
+}
 
 /** Resolves author profiles and maps raw message rows to ChannelMessage. */
 async function mapMessages(
@@ -87,6 +157,7 @@ async function mapMessages(
         .in('id', authorIds)
     : { data: [] as { id: string; full_name: string | null; avatar_url: string | null; status: string | null }[] };
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
+  const pollById = await loadPolls(rows, currentUserId);
 
   return rows.map((m) => {
     const profile = m.author_id ? profileById.get(m.author_id) : undefined;
@@ -113,6 +184,7 @@ async function mapMessages(
         ? `/api/chat-stickers/image?path=${encodeURIComponent(m.sticker_path)}`
         : null,
       file,
+      poll: m.poll_id ? pollById.get(m.poll_id) ?? null : null,
       createdAt: m.created_at,
       isMine: m.author_id === currentUserId,
     };

@@ -47,11 +47,15 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
   const [holder, setHolder] = useState('');
   const [iban, setIban] = useState('');
 
-  if (status.complete) return null;
+  if (!status.started || status.complete) return null;
 
   const contractDone = Boolean(status.contractSignedAt);
   const sepaDone = Boolean(status.sepaSignedAt);
   const planDone = status.planAccepted;
+
+  // A step is "active" once all earlier REQUIRED steps are done.
+  const contractOk = !status.requiresContract || contractDone;
+  const sepaOk = !status.requiresSepa || sepaDone;
 
   const signContract = () =>
     start(async () => {
@@ -87,66 +91,94 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {/* 1. Vertrag */}
-        <div className="flex items-center gap-3">
-          <StepDot done={contractDone} active={!contractDone} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">Vertrag unterschreiben</div>
-            <div className="text-xs text-muted-foreground">
-              {contractDone ? 'Erledigt – danke!' : 'Dienstleistungsvertrag digital bestätigen.'}
+        {status.requiresContract && (
+          <div className="flex items-center gap-3">
+            <StepDot done={contractDone} active={!contractDone} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">Vertrag unterschreiben</div>
+              <div className="text-xs text-muted-foreground">
+                {contractDone ? 'Erledigt – danke!' : 'Dienstleistungsvertrag lesen & digital unterschreiben.'}
+              </div>
             </div>
+            {!contractDone && (
+              <Button size="sm" onClick={() => setOpenContract(true)}>
+                Ansehen &amp; unterschreiben
+              </Button>
+            )}
           </div>
-          {!contractDone && (
-            <Button size="sm" onClick={() => setOpenContract(true)}>
-              Unterschreiben
-            </Button>
-          )}
-        </div>
+        )}
 
-        {/* 2. SEPA */}
-        <div className="flex items-center gap-3">
-          <StepDot done={sepaDone} active={contractDone && !sepaDone} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">SEPA-Mandat erteilen</div>
-            <div className="text-xs text-muted-foreground">
-              {sepaDone
-                ? `Erledigt – IBAN ••••${status.sepaIbanLast4 ?? ''}`
-                : 'Lastschriftmandat digital erteilen.'}
+        {/* 2. SEPA – nur sichtbar, wenn die Agentur das Mandat freigegeben hat. */}
+        {status.requiresSepa && status.sepaReleased && (
+          <div className="flex items-center gap-3">
+            <StepDot done={sepaDone} active={contractOk && !sepaDone} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">SEPA-Mandat erteilen</div>
+              <div className="text-xs text-muted-foreground">
+                {sepaDone
+                  ? `Erledigt – IBAN ••••${status.sepaIbanLast4 ?? ''}`
+                  : 'Lastschriftmandat digital erteilen.'}
+              </div>
             </div>
+            {!sepaDone && (
+              <Button size="sm" variant={contractOk ? 'default' : 'outline'} onClick={() => setOpenSepa(true)}>
+                Unterschreiben
+              </Button>
+            )}
           </div>
-          {!sepaDone && (
-            <Button size="sm" variant={contractDone ? 'default' : 'outline'} onClick={() => setOpenSepa(true)}>
-              Unterschreiben
-            </Button>
-          )}
-        </div>
+        )}
 
         {/* 3. Marketingplan */}
-        <div className="flex items-center gap-3">
-          <StepDot done={planDone} active={contractDone && sepaDone && !planDone} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">Marketingplan abstimmen</div>
-            <div className="text-xs text-muted-foreground">
-              {planDone ? 'Plan akzeptiert – wir legen los!' : 'Euren Jahresplan ansehen & freigeben.'}
+        {status.requiresPlan && (
+          <div className="flex items-center gap-3">
+            <StepDot done={planDone} active={contractOk && sepaOk && !planDone} />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">Marketingplan abstimmen</div>
+              <div className="text-xs text-muted-foreground">
+                {planDone ? 'Plan akzeptiert – wir legen los!' : 'Euren Jahresplan ansehen & freigeben.'}
+              </div>
             </div>
+            {!planDone && (
+              <Link
+                href="/portal/plan"
+                className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+              >
+                Zum Plan
+              </Link>
+            )}
           </div>
-          {!planDone && (
-            <Link
-              href="/portal/plan"
-              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
-            >
-              Zum Plan
-            </Link>
-          )}
-        </div>
+        )}
       </CardContent>
 
       {/* Vertrag-Modal */}
       <Modal open={openContract} onClose={() => setOpenContract(false)} title="Vertrag unterschreiben">
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Mit deiner Unterschrift bestätigst du den Dienstleistungsvertrag. Wir
-            speichern ein PDF mit Zeitstempel.
-          </p>
+          {status.contractTemplatePath ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Bitte lies den Vertrag und unterschreibe unten. Wir speichern das
+                signierte PDF mit Zeitstempel.
+              </p>
+              <iframe
+                src={`/api/onboarding/contract-template?client=${status.clientCompanyId}`}
+                title="Vertrag"
+                className="h-80 w-full rounded-md border"
+              />
+              <a
+                href={`/api/onboarding/contract-template?client=${status.clientCompanyId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-block text-xs text-primary hover:underline"
+              >
+                Vertrag in neuem Tab öffnen ↗
+              </a>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Mit deiner Unterschrift bestätigst du den Dienstleistungsvertrag. Wir
+              speichern ein PDF mit Zeitstempel.
+            </p>
+          )}
           <Input value={cName} onChange={(e) => setCName(e.target.value)} placeholder="Dein vollständiger Name" maxLength={120} />
           <SignaturePad onChange={setCSig} />
           {error && <Alert variant="destructive">{error}</Alert>}
@@ -165,6 +197,13 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
             Erteile uns das SEPA-Lastschriftmandat. Deine IBAN wird verschlüsselt
             gespeichert.
           </p>
+          {status.sepaPreviewPath && (
+            <iframe
+              src={`/api/onboarding/sepa-preview?client=${status.clientCompanyId}`}
+              title="SEPA-Mandat"
+              className="h-64 w-full rounded-md border"
+            />
+          )}
           <Input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="Kontoinhaber" maxLength={140} />
           <Input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="IBAN" maxLength={40} />
           <Input value={sName} onChange={(e) => setSName(e.target.value)} placeholder="Dein vollständiger Name" maxLength={120} />

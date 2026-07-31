@@ -214,6 +214,140 @@ export async function sendChannelMessageAction(
   return successResult('');
 }
 
+const createPollSchema = z.object({
+  channelId: z.string().uuid(),
+  question: z.string().trim().min(1).max(200),
+  options: z.array(z.string().trim().min(1).max(80)).min(2).max(10),
+  allowMultiple: z.boolean().optional(),
+});
+
+/**
+ * Starts a poll (Abstimmung) in a channel: creates the poll row and posts it as
+ * its own message so it appears inline in the stream.
+ */
+export async function createPollAction(input: {
+  channelId: string;
+  question: string;
+  options: string[];
+  allowMultiple: boolean;
+}): Promise<ActionResult> {
+  const parsed = createPollSchema.safeParse({
+    channelId: input.channelId,
+    question: input.question,
+    // Drop empty option rows before validating.
+    options: (input.options ?? []).map((o) => o.trim()).filter(Boolean),
+    allowMultiple: input.allowMultiple,
+  });
+  if (!parsed.success) {
+    return errorResult('Bitte Frage und mindestens zwei Optionen angeben.');
+  }
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: channel } = await supabase
+    .from('chat_channels')
+    .select('organization_id')
+    .eq('id', parsed.data.channelId)
+    .maybeSingle();
+  if (!channel) return errorResult(de.errors.FORBIDDEN);
+
+  const { data: poll, error: pollErr } = await supabase
+    .from('chat_polls')
+    .insert({
+      channel_id: parsed.data.channelId,
+      organization_id: channel.organization_id,
+      question: parsed.data.question,
+      options: parsed.data.options,
+      allow_multiple: parsed.data.allowMultiple ?? false,
+      created_by: user.id,
+    })
+    .select('id')
+    .maybeSingle();
+  if (pollErr || !poll) return errorResult(de.errors.FORBIDDEN);
+
+  const { error: msgErr } = await supabase.from('chat_channel_messages').insert({
+    channel_id: parsed.data.channelId,
+    organization_id: channel.organization_id,
+    author_id: user.id,
+    body: null,
+    poll_id: poll.id,
+  });
+  if (msgErr) return errorResult(de.errors.FORBIDDEN);
+
+  return successResult('Umfrage gestartet.');
+}
+
+/**
+ * Casts or retracts a vote on a poll option (toggle). For single-choice polls,
+ * voting a new option replaces the previous one. Closed polls reject votes.
+ */
+export async function votePollAction(
+  pollId: string,
+  optionIndex: number,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!z.string().uuid().safeParse(pollId).success) return { ok: false };
+  if (!Number.isInteger(optionIndex) || optionIndex < 0) return { ok: false };
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: poll } = await supabase
+    .from('chat_polls')
+    .select('id, organization_id, options, allow_multiple, closed')
+    .eq('id', pollId)
+    .maybeSingle();
+  if (!poll) return { ok: false };
+  if (poll.closed) return { ok: false, error: 'Diese Umfrage ist beendet.' };
+  if (optionIndex >= (poll.options?.length ?? 0)) return { ok: false };
+
+  // Existing vote for this exact option → toggle it off.
+  const { data: existing } = await supabase
+    .from('chat_poll_votes')
+    .select('id')
+    .eq('poll_id', pollId)
+    .eq('user_id', user.id)
+    .eq('option_index', optionIndex)
+    .maybeSingle();
+  if (existing) {
+    await supabase.from('chat_poll_votes').delete().eq('id', existing.id);
+    return { ok: true };
+  }
+
+  // Single-choice: clear the user's other vote(s) first.
+  if (!poll.allow_multiple) {
+    await supabase
+      .from('chat_poll_votes')
+      .delete()
+      .eq('poll_id', pollId)
+      .eq('user_id', user.id);
+  }
+
+  const { error } = await supabase.from('chat_poll_votes').insert({
+    poll_id: pollId,
+    organization_id: poll.organization_id,
+    option_index: optionIndex,
+    user_id: user.id,
+  });
+  return { ok: !error };
+}
+
+/** Closes a poll so no further votes can be cast. Creator (or super admin). */
+export async function closePollAction(pollId: string): Promise<{ ok: boolean }> {
+  if (!z.string().uuid().safeParse(pollId).success) return { ok: false };
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('chat_polls')
+    .update({ closed: true })
+    .eq('id', pollId);
+  return { ok: !error };
+}
+
 /** Deletes a chat sticker (and its stored image). Agency staff of the org. */
 export async function deleteStickerAction(stickerId: string): Promise<{ ok: boolean }> {
   const user = await requireUser();
