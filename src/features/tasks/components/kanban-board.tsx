@@ -475,9 +475,13 @@ export function KanbanBoard({
                       <span className="min-w-0">{task.title}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                      {task.labels.map((l) => (
-                        <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
-                      ))}
+                      {/* In der Fertig-Spalte die Label-Chips ausblenden (die
+                          Karte bleibt sauber, nur der Mitarbeiter bleibt sichtbar).
+                          Die Labels bleiben an der Aufgabe gespeichert. */}
+                      {!col.isDoneColumn &&
+                        task.labels.map((l) => (
+                          <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
+                        ))}
                       {/* Only flag INTERNAL tasks (not client-visible). Client-
                           visible is the norm, so no badge to keep cards clean. */}
                       {!reorderOnly && task.isInternal && (
