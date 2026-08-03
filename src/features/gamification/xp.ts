@@ -23,6 +23,7 @@ export function missionXpForEffort(minutes: number | null | undefined): number {
 }
 export const XP_EFFICIENT = 8; // finished within the KI-estimated effort
 export const XP_CLIENT_PRAISE = 12; // bonus when the client rates the task ≥ 4★
+export const XP_CLIENT_UPDATE = 2; // sending the client a "done" update
 
 export const STREAK_MILESTONES: { days: number; kind: string; points: number }[] = [
   { days: 3, kind: 'streak_3', points: 15 },
@@ -199,5 +200,31 @@ export async function awardClientPraiseXp(params: {
   });
   if (error && error.code !== '23505') {
     console.error('client_praise xp insert failed', error);
+  }
+}
+
+/**
+ * Small XP for keeping the client in the loop – awarded to the user who sent
+ * the "task done" update. Idempotent per task (unique on user+kind+task), so
+ * re-sending never double-awards.
+ */
+export async function awardClientUpdateXp(params: {
+  userId: string;
+  orgId: string;
+  taskId: string;
+}): Promise<void> {
+  const { userId, orgId, taskId } = params;
+  const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+  const service = createSupabaseServiceClient();
+  const factor = await xpFactor(orgId);
+  const { error } = await service.from('xp_events').insert({
+    user_id: userId,
+    organization_id: orgId,
+    kind: 'client_update',
+    points: applyBoost(XP_CLIENT_UPDATE, factor),
+    task_id: taskId,
+  });
+  if (error && error.code !== '23505') {
+    console.error('client_update xp insert failed', error);
   }
 }

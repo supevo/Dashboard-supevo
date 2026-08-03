@@ -5,6 +5,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getTaskDetail } from '@/features/tasks/queries';
 import { listProjectMembers } from '@/features/projects/queries';
 import { AssigneePicker } from '@/features/tasks/components/assignee-picker';
+import { ClientNotifyButton } from '@/features/tasks/components/client-notify-button';
 import { AutoAssignButton } from '@/features/tasks/components/auto-assign-button';
 import { listTaskComments } from '@/features/comments/queries';
 import { listTaskFiles } from '@/features/files/queries';
@@ -110,6 +111,13 @@ export default async function TaskDetailPage({
               projectId={projectId}
               taskId={taskId}
               isArchived={task.isArchived}
+            />
+          )}
+          {!task.isInternal && (
+            <ClientNotifyButton
+              taskId={taskId}
+              notified={Boolean(task.clientNotifiedAt)}
+              variant="card"
             />
           )}
         </div>

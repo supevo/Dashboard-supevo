@@ -12,6 +12,7 @@ import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { LabelChip } from '@/components/ui/label-chip';
+import { ClientNotifyButton } from '@/features/tasks/components/client-notify-button';
 import { Avatar } from '@/components/ui/avatar';
 import type { BoardColumn, BoardTask, BoardView } from '@/features/tasks/queries';
 import type { TaskPriority } from '@/lib/database.types';
@@ -482,6 +483,15 @@ export function KanbanBoard({
                         task.labels.map((l) => (
                           <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
                         ))}
+                      {/* Fertig + kundensichtbar (nur Mitarbeiterseite): Kunde
+                          über die erledigte Aufgabe informieren. */}
+                      {col.isDoneColumn && !reorderOnly && !task.isInternal && (
+                        <ClientNotifyButton
+                          taskId={task.id}
+                          notified={Boolean(task.clientNotifiedAt)}
+                          variant="chip"
+                        />
+                      )}
                       {/* Only flag INTERNAL tasks (not client-visible). Client-
                           visible is the norm, so no badge to keep cards clean. */}
                       {!reorderOnly && task.isInternal && (
