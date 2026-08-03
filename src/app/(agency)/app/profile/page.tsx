@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { AvatarUploader } from '@/features/profile/components/avatar-uploader';
 import { ProfileForm } from '@/features/profile/components/profile-form';
 import { SkillsPrefsSection } from '@/features/skills/components/skills-prefs-section';
+import { HrProfileForm } from '@/features/hr-profile/components/hr-profile-form';
+import { getMyHrProfile } from '@/features/hr-profile/queries';
 import { listMySkills } from '@/features/skills/queries';
 import { listMyPreferences } from '@/features/preferences/queries';
 import { getKudosStats } from '@/features/kudos/queries';
@@ -31,10 +33,11 @@ export default async function ProfilePage() {
     .eq('id', user.id)
     .maybeSingle();
 
-  const [skills, preferences, kudos] = await Promise.all([
+  const [skills, preferences, kudos, hrProfile] = await Promise.all([
     listMySkills(user.id),
     listMyPreferences(user.id),
     getKudosStats(user.id),
+    getMyHrProfile(user.id),
   ]);
   const { level, next } = levelForPoints(kudos.totalPoints);
 
@@ -108,6 +111,15 @@ export default async function ProfilePage() {
         </CardHeader>
         <CardContent>
           <SkillsPrefsSection skills={skills} preferences={preferences} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🗂️ Personal- &amp; Lohndaten</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HrProfileForm initial={hrProfile} />
         </CardContent>
       </Card>
     </div>

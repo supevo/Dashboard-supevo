@@ -177,6 +177,62 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['work_optimization_settings']['Insert']>;
         Relationships: [];
       };
+      employee_hr_profiles: {
+        Row: {
+          user_id: string;
+          organization_id: string;
+          date_of_birth: string | null;
+          place_of_birth: string | null;
+          nationality: string | null;
+          marital_status: string | null;
+          private_phone: string | null;
+          address_street: string | null;
+          address_house_no: string | null;
+          address_zip: string | null;
+          address_city: string | null;
+          address_country: string | null;
+          tax_id: string | null;
+          tax_class: string | null;
+          child_allowances: number | null;
+          religious_affiliation: string | null;
+          social_security_number: string | null;
+          health_insurance: string | null;
+          severely_disabled: boolean;
+          iban: string | null;
+          bic: string | null;
+          account_holder: string | null;
+          notes: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          organization_id: string;
+          date_of_birth?: string | null;
+          place_of_birth?: string | null;
+          nationality?: string | null;
+          marital_status?: string | null;
+          private_phone?: string | null;
+          address_street?: string | null;
+          address_house_no?: string | null;
+          address_zip?: string | null;
+          address_city?: string | null;
+          address_country?: string | null;
+          tax_id?: string | null;
+          tax_class?: string | null;
+          child_allowances?: number | null;
+          religious_affiliation?: string | null;
+          social_security_number?: string | null;
+          health_insurance?: string | null;
+          severely_disabled?: boolean;
+          iban?: string | null;
+          bic?: string | null;
+          account_holder?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
+        Relationships: [];
+      };
       hub_banner_images: {
         Row: {
           id: string;
