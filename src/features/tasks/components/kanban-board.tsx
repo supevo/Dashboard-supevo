@@ -76,6 +76,9 @@ export function KanbanBoard({
 }) {
   const router = useRouter();
   const canDrag = canManage || canMove || reorderOnly;
+  // In the client portal the internal assignee (name + avatar) must stay hidden;
+  // RLS blanks the name anyway, which otherwise renders as an empty chip.
+  const isPortal = basePath.startsWith('/portal');
   const [columns, setColumns] = useState<BoardColumn[]>(board.columns);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -541,21 +544,22 @@ export function KanbanBoard({
                           })}
                         </span>
                       )}
-                      {task.assignees.map((a) => (
-                        <span
-                          key={a.userId}
-                          className="flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary"
-                        >
-                          <Avatar
-                            userId={a.userId}
-                            name={a.name || '—'}
-                            hasAvatar={a.hasAvatar}
-                            status={a.status}
-                            size="sm"
-                          />
-                          {a.name || '—'}
-                        </span>
-                      ))}
+                      {!isPortal &&
+                        task.assignees.map((a) => (
+                          <span
+                            key={a.userId}
+                            className="flex items-center gap-1 rounded bg-primary/10 px-1 py-0.5 text-primary"
+                          >
+                            <Avatar
+                              userId={a.userId}
+                              name={a.name || '—'}
+                              hasAvatar={a.hasAvatar}
+                              status={a.status}
+                              size="sm"
+                            />
+                            {a.name || '—'}
+                          </span>
+                        ))}
                       {task.attachmentCount > 0 && (
                         <span
                           className="ml-auto flex items-center gap-0.5 text-sm font-medium text-muted-foreground"
