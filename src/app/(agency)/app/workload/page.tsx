@@ -14,7 +14,9 @@ import {
   getCurrentAbsenceByUser,
   type ActiveAbsence,
 } from '@/features/absences/queries';
-import { formatMinutes } from '@/lib/time';
+import { getTeamActivity } from '@/features/team-activity/queries';
+import { TeamActivityView } from '@/features/team-activity/components/team-activity-view';
+import { formatMinutes, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
 
@@ -141,13 +143,21 @@ function MemberRow({
   );
 }
 
-export default async function WorkloadPage() {
+export default async function WorkloadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ day?: string }>;
+}) {
   const { user, orgId } = await requireOrgAdminPage();
   const admin = isOrgAdmin(user, orgId);
-  const [{ members, counts }, absenceByUser, pulse] = await Promise.all([
+  const today = berlinToday();
+  const sp = await searchParams;
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? '') ? sp.day! : today;
+  const [{ members, counts }, absenceByUser, pulse, activity] = await Promise.all([
     getWorkloadOverview(orgId),
     getCurrentAbsenceByUser(),
     admin ? getPulseSummary(orgId) : Promise.resolve(null),
+    getTeamActivity(orgId, day),
   ]);
 
   return (
@@ -220,6 +230,11 @@ export default async function WorkloadPage() {
           </p>
         </CardContent>
       </Card>
+
+      <div className="pt-2">
+        <h2 className="mb-3 text-xl font-bold">Team-Aktivität</h2>
+        <TeamActivityView data={activity} maxDay={today} />
+      </div>
     </div>
   );
 }
