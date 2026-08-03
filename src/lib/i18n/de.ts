@@ -280,6 +280,7 @@ export const de = {
     task_done: 'Aufgabe erledigt',
     optimization: 'KI-Optimierung',
     birthday: 'Geburtstag',
+    reaction: 'Reaktion',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

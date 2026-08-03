@@ -1,5 +1,3 @@
-import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getClientDashboard } from '@/features/dashboard/queries';
 import { getMyClientCompany, getMySatisfaction } from '@/features/satisfaction/queries';
@@ -8,6 +6,8 @@ import { getClientNews } from '@/features/news/service';
 import { NewsTicker } from '@/features/news/components/news-ticker';
 import { getMyOnboarding } from '@/features/onboarding/queries';
 import { OnboardingStepper } from '@/features/onboarding/components/onboarding-stepper';
+import { getClientWeekWork } from '@/features/recap/client-week';
+import { WeekWorkCard } from '@/features/recap/components/week-work-card';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -30,6 +30,7 @@ export default async function ClientDashboardPage() {
     ? await getClientNews(company.clientCompanyId, company.organizationId)
     : null;
   const onboarding = await getMyOnboarding();
+  const weekWork = await getClientWeekWork();
 
   return (
     <div className="space-y-6">
@@ -56,29 +57,7 @@ export default async function ClientDashboardPage() {
 
       {company ? <SatisfactionWidget initial={mySatisfaction} /> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.dashboard.completed}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {d.completedRecent.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{de.dashboard.none}</p>
-          ) : (
-            <ul className="divide-y">
-              {d.completedRecent.map((t) => (
-                <li key={t.id} className="py-2 text-sm">
-                  <Link
-                    href={`/portal/tasks/${t.id}`}
-                    className="text-primary hover:underline"
-                  >
-                    {t.title}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <WeekWorkCard data={weekWork} />
     </div>
   );
 }

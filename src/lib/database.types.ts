@@ -59,7 +59,8 @@ export type NotificationType =
   | 'onboarding'
   | 'task_done'
   | 'optimization'
-  | 'birthday';
+  | 'birthday'
+  | 'reaction';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -234,6 +235,26 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
+        Relationships: [];
+      };
+      task_reactions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          task_id: string;
+          user_id: string;
+          emoji: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          task_id: string;
+          user_id: string;
+          emoji: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['task_reactions']['Insert']>;
         Relationships: [];
       };
       birthday_grants: {
