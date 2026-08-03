@@ -17,6 +17,13 @@ export interface WeeklyWorkSummary {
   targetHours: number;
   /** Pro-rated expected minutes up to and including today. */
   expectedMinutes: number;
+  /** How far behind the pro-rated pace right now (0 if on/over). At the end of
+   *  the week this equals the hours missing to the full weekly target. */
+  shortfallMinutes: number;
+  /** Minutes still missing to reach the full weekly target (0 if reached). */
+  remainingToTargetMinutes: number;
+  /** True from Friday on – the full weekly shortfall is now the number to act on. */
+  isWeekEnd: boolean;
   /** on = im Rahmen, low = zu wenig, over = über Plan. */
   status: 'on' | 'low' | 'over';
 }
@@ -82,14 +89,24 @@ export async function getWeeklyWorkSummary(
   const targetMinutes = targetHours * 60;
 
   // Elapsed workdays Mon–Fri including today (Sat/Sun count as the full 5).
-  const elapsedWorkdays = Math.min(5, berlinWeekday());
+  const weekday = berlinWeekday();
+  const elapsedWorkdays = Math.min(5, weekday);
   const expectedMinutes = Math.round((targetMinutes * elapsedWorkdays) / 5);
 
   const ratio = expectedMinutes > 0 ? weekMinutes / expectedMinutes : 1;
   const status: WeeklyWorkSummary['status'] =
     ratio >= 1.1 ? 'over' : ratio >= 0.9 ? 'on' : 'low';
 
-  return { weekMinutes, todayMinutes, targetHours, expectedMinutes, status };
+  return {
+    weekMinutes,
+    todayMinutes,
+    targetHours,
+    expectedMinutes,
+    shortfallMinutes: Math.max(0, expectedMinutes - weekMinutes),
+    remainingToTargetMinutes: Math.max(0, targetMinutes - weekMinutes),
+    isWeekEnd: weekday >= 5, // Fr, Sa, So
+    status,
+  };
 }
 
 export interface WorkStatus {

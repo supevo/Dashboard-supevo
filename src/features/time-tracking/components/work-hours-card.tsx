@@ -62,6 +62,29 @@ export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
         <span>Heute: {formatMinutes(summary.todayMinutes)}</span>
         <span>Erwartet bis heute: {formatMinutes(summary.expectedMinutes)}</span>
       </div>
+
+      {/* Fehlstunden klar sichtbar, damit nachgearbeitet werden kann. Ab
+          Freitag ist das der Rückstand aufs volle Wochen-Soll. */}
+      {summary.shortfallMinutes > 0 && (
+        <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          <span aria-hidden>⏳</span>
+          <div>
+            <span className="font-semibold">
+              {summary.isWeekEnd ? 'Dir fehlen diese Woche ' : 'Rückstand: '}
+              {formatMinutes(summary.shortfallMinutes)}
+            </span>{' '}
+            {summary.isWeekEnd
+              ? '– bitte noch nacharbeiten.'
+              : `– du liegst hinter dem Soll. Bis zum vollen Wochen-Soll fehlen noch ${formatMinutes(summary.remainingToTargetMinutes)}.`}
+          </div>
+        </div>
+      )}
+
+      {summary.status === 'over' && (
+        <div className="mt-3 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-700 dark:bg-sky-950/30 dark:text-sky-200">
+          ✅ Alles im grünen Bereich – du liegst über dem erwarteten Soll.
+        </div>
+      )}
     </div>
   );
 }
