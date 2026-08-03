@@ -12,7 +12,12 @@ import {
   successResult,
 } from '@/lib/action-result';
 import { isOrgAdmin } from '@/lib/authz/policies';
-import { changeRoleSchema, memberTargetSchema, joinDateSchema } from './schema';
+import {
+  changeRoleSchema,
+  memberTargetSchema,
+  joinDateSchema,
+  weeklyTargetSchema,
+} from './schema';
 
 /** Changes a member's role. The central policy rejects self-changes and
  *  super_admin; RLS enforces the same at the database level. */
@@ -141,6 +146,40 @@ export async function setJoinDateAction(
   revalidatePath('/app/team');
   revalidatePath('/app/kudos');
   return successResult('Eintrittsdatum gespeichert.');
+}
+
+/** Admins/super-admins set (or clear) a member's weekly target hours. */
+export async function setWeeklyTargetAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = weeklyTargetSchema.safeParse({
+    orgId: formData.get('orgId'),
+    targetUserId: formData.get('targetUserId'),
+    weeklyHours: formData.get('weeklyHours'),
+  });
+  if (!parsed.success) {
+    return errorResult(parsed.error.issues[0]?.message ?? de.errors.VALIDATION);
+  }
+  const { orgId, targetUserId, weeklyHours } = parsed.data;
+
+  const user = await requireUser();
+  if (!isOrgAdmin(user, orgId)) return errorResult(de.errors.FORBIDDEN);
+
+  const value = weeklyHours === '' ? null : Number(weeklyHours.replace(',', '.'));
+
+  // Service client: the memberships RLS update forbids self-updates and
+  // super_admin rows; authorization is enforced above via isOrgAdmin.
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('memberships')
+    .update({ weekly_target_hours: value })
+    .eq('organization_id', orgId)
+    .eq('user_id', targetUserId);
+  if (error) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath('/app/team');
+  return successResult('Wochen-Soll gespeichert.');
 }
 
 export async function deactivateMemberAction(

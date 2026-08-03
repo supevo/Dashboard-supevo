@@ -4,6 +4,8 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { getColleagueProfile } from '@/features/team/colleague';
 import { JoinDateEditor } from '@/features/team/components/join-date-editor';
+import { WeeklyTargetEditor } from '@/features/team/components/weekly-target-editor';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { StatTile } from '@/features/gamification/components/stat-tile';
@@ -28,6 +30,18 @@ export default async function ColleagueProfilePage({
 
   const p = await getColleagueProfile(orgId, userId);
   if (!p) notFound();
+
+  // Admin-only: the member's configured weekly target (null → app default).
+  let weeklyTarget: number | null = null;
+  if (admin) {
+    const { data } = await createSupabaseServiceClient()
+      .from('memberships')
+      .select('weekly_target_hours')
+      .eq('organization_id', orgId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    weeklyTarget = data?.weekly_target_hours ?? null;
+  }
 
   const t = de.hub;
   const league = p.league;
@@ -140,6 +154,13 @@ export default async function ColleagueProfilePage({
             <p className="mt-2 text-xs text-muted-foreground">
               Leer lassen + speichern setzt auf das Systemdatum zurück.
             </p>
+            <div className="mt-4 border-t pt-4">
+              <WeeklyTargetEditor orgId={orgId} targetUserId={p.userId} current={weeklyTarget} />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Wöchentliches Stunden-Soll für die &bdquo;Arbeitszeit&ldquo;-Anzeige.
+                Leer = Standard (40 Std).
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}

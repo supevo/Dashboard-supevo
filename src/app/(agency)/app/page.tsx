@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getAgencyDashboard } from '@/features/dashboard/queries';
-import { getWorkStatus } from '@/features/time-tracking/queries';
+import { getWorkStatus, getWeeklyWorkSummary } from '@/features/time-tracking/queries';
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
+import { WorkHoursCard } from '@/features/time-tracking/components/work-hours-card';
+import { isSuperAdmin } from '@/lib/authz/policies';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
@@ -25,11 +27,14 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export default async function AgencyDashboardPage() {
   const { user, orgId } = await requireAgencyPage();
-  const [d, myPulse, workStatus, weekly] = await Promise.all([
+  // Everyone but the super admin sees their own weekly hours vs. target.
+  const showHours = !isSuperAdmin(user);
+  const [d, myPulse, workStatus, weekly, hours] = await Promise.all([
     getAgencyDashboard(user.id),
     getMyPulse(user.id),
     getWorkStatus(user.id),
     getWeeklyChallenges(user.id, orgId),
+    showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
   ]);
 
   return (
@@ -45,6 +50,8 @@ export default async function AgencyDashboardPage() {
           <WorkClock orgId={orgId} status={workStatus} />
         </div>
       </div>
+
+      {hours && <WorkHoursCard summary={hours} />}
 
       <MorningBriefing
         firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}

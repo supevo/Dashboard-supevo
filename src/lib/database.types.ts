@@ -139,6 +139,7 @@ export interface Database {
           role: AppRole;
           status: MembershipStatus;
           joined_company_at: string | null;
+          weekly_target_hours: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -149,6 +150,7 @@ export interface Database {
           role: AppRole;
           status?: MembershipStatus;
           joined_company_at?: string | null;
+          weekly_target_hours?: number | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
         Relationships: [];
