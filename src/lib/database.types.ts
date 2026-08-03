@@ -57,7 +57,8 @@ export type NotificationType =
   | 'inquiry'
   | 'feedback'
   | 'onboarding'
-  | 'task_done';
+  | 'task_done'
+  | 'optimization';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -154,6 +155,26 @@ export interface Database {
           weekly_target_hours?: number | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
+        Relationships: [];
+      };
+      work_optimization_settings: {
+        Row: {
+          organization_id: string;
+          cadence: string;
+          auto_apply: boolean;
+          reassign: boolean;
+          last_run_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          cadence?: string;
+          auto_apply?: boolean;
+          reassign?: boolean;
+          last_run_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['work_optimization_settings']['Insert']>;
         Relationships: [];
       };
       hub_banner_images: {
