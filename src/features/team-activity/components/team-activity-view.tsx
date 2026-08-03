@@ -5,7 +5,19 @@ import type { MemberActivity, TeamActivity, PerfTrend } from '@/features/team-ac
 import { DayPicker } from '@/features/team-activity/components/day-picker';
 import { cn } from '@/lib/utils';
 
+const ABSENCE_LABEL: Record<string, string> = {
+  urlaub: 'Urlaub',
+  krank: 'Krank',
+  sonstiges: 'Abwesend',
+};
+
 function ClockBadge({ member }: { member: MemberActivity }) {
+  if (member.onAbsence)
+    return (
+      <span className="text-xs text-violet-600 dark:text-violet-400">
+        🌴 {ABSENCE_LABEL[member.absenceType ?? ''] ?? 'Abwesend'}
+      </span>
+    );
   if (!member.clockedIn)
     return <span className="text-xs text-muted-foreground">⚪ nicht eingestempelt</span>;
   if (member.onBreak)
@@ -24,6 +36,14 @@ function NameCell({ member }: { member: MemberActivity }) {
     <div className="flex items-center gap-2">
       <Avatar userId={member.userId} name={member.fullName ?? '—'} hasAvatar={member.hasAvatar} size="sm" />
       <span className="truncate text-sm font-medium">{member.fullName ?? 'Unbekannt'}</span>
+      {member.onAbsence && (
+        <span
+          className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/20 dark:text-violet-300"
+          title="Aktuell abwesend – niedrige Werte sind dadurch erklärbar"
+        >
+          🌴 {ABSENCE_LABEL[member.absenceType ?? ''] ?? 'Abwesend'}
+        </span>
+      )}
     </div>
   );
 }
@@ -172,7 +192,8 @@ export function TeamActivityView({
           <CardTitle>📊 Performance (letzte 30 Tage)</CardTitle>
           <p className="text-sm text-muted-foreground">
             Mehrdimensional statt Rangliste – als Gesprächsgrundlage, nicht als Bewertung.
-            Trend = diese Woche vs. letzte Woche.
+            Trend = diese Woche vs. letzte Woche. Abwesende (🌴 Urlaub/krank) sind
+            markiert – niedrige Zahlen sind dort erwartbar.
           </p>
         </CardHeader>
         <CardContent>

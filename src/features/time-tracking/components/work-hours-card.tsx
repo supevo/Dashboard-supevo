@@ -21,17 +21,26 @@ const STATUS: Record<
     badge: 'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
     bar: 'bg-sky-500',
   },
+  absent: {
+    label: '🌴 Abwesend',
+    badge: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+    bar: 'bg-violet-500',
+  },
 };
 
 /**
  * Shows the employee their own worked hours this week vs. their weekly target,
- * with a fair pro-rated status (im Rahmen / zu wenig / über Plan). Private view –
- * only the person themselves sees it (not shown to super admins).
+ * with a fair pro-rated status (im Rahmen / zu wenig / über Plan). Absence days
+ * (Urlaub/krank) reduce the target so time off never counts as "too little".
+ * Private view – only the person themselves sees it (not super admins).
  */
 export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
-  const targetMinutes = summary.targetHours * 60;
-  const pct = targetMinutes > 0 ? Math.min(100, (summary.weekMinutes / targetMinutes) * 100) : 0;
+  const effTargetMinutes = summary.effectiveTargetHours * 60;
+  const pct = effTargetMinutes > 0
+    ? Math.min(100, (summary.weekMinutes / effTargetMinutes) * 100)
+    : 100;
   const s = STATUS[summary.status];
+  const reduced = summary.effectiveTargetHours < summary.targetHours;
 
   return (
     <div className="rounded-lg border bg-card p-4">
@@ -47,7 +56,10 @@ export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
           {formatMinutes(summary.weekMinutes)}
         </span>
         <span className="text-sm text-muted-foreground">
-          / {summary.targetHours} Std Soll
+          / {summary.effectiveTargetHours} Std Soll
+          {reduced && (
+            <span className="ml-1 text-xs">(statt {summary.targetHours}, Abwesenheit)</span>
+          )}
         </span>
       </div>
 
@@ -61,11 +73,16 @@ export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
       <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
         <span>Heute: {formatMinutes(summary.todayMinutes)}</span>
         <span>Erwartet bis heute: {formatMinutes(summary.expectedMinutes)}</span>
+        {summary.absentWorkdays > 0 && (
+          <span>🌴 {summary.absentWorkdays} Abwesenheitstag(e) berücksichtigt</span>
+        )}
       </div>
 
-      {/* Fehlstunden klar sichtbar, damit nachgearbeitet werden kann. Ab
-          Freitag ist das der Rückstand aufs volle Wochen-Soll. */}
-      {summary.shortfallMinutes > 0 && (
+      {summary.onAbsenceToday ? (
+        <div className="mt-3 rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-700 dark:bg-violet-950/30 dark:text-violet-200">
+          🌴 Du bist heute abwesend – für heute wird keine Arbeitszeit erwartet. Gute Erholung!
+        </div>
+      ) : summary.shortfallMinutes > 0 ? (
         <div className="mt-3 flex items-start gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
           <span aria-hidden>⏳</span>
           <div>
@@ -75,16 +92,14 @@ export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
             </span>{' '}
             {summary.isWeekEnd
               ? '– bitte noch nacharbeiten.'
-              : `– du liegst hinter dem Soll. Bis zum vollen Wochen-Soll fehlen noch ${formatMinutes(summary.remainingToTargetMinutes)}.`}
+              : `– du liegst hinter dem Soll. Bis zum Wochen-Soll fehlen noch ${formatMinutes(summary.remainingToTargetMinutes)}.`}
           </div>
         </div>
-      )}
-
-      {summary.status === 'over' && (
+      ) : summary.status === 'over' ? (
         <div className="mt-3 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-700 dark:bg-sky-950/30 dark:text-sky-200">
           ✅ Alles im grünen Bereich – du liegst über dem erwarteten Soll.
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
