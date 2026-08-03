@@ -15,6 +15,19 @@ export const memberTargetSchema = z.object({
   targetUserId: z.string().uuid(),
 });
 
+export const weeklyTargetSchema = z.object({
+  orgId: z.string().uuid(),
+  targetUserId: z.string().uuid(),
+  // Empty string clears (falls back to the default); otherwise 0–80 hours.
+  weeklyHours: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === '' || (/^\d{1,3}([.,]\d{1,2})?$/.test(v) && Number(v.replace(',', '.')) <= 80),
+      'Bitte 0–80 Stunden angeben.',
+    ),
+});
+
 export const joinDateSchema = z.object({
   orgId: z.string().uuid(),
   targetUserId: z.string().uuid(),

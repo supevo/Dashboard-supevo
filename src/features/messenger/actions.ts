@@ -195,7 +195,11 @@ export async function sendChannelMessageAction(
     .maybeSingle();
   if (!channel) return errorResult(de.errors.FORBIDDEN);
 
-  const { error } = await supabase.from('chat_channel_messages').insert({
+  // Service client for the write: a pure super_admin is not is_agency_staff(),
+  // so the RLS insert with-check would reject them (channel access already
+  // verified by the RLS read above).
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('chat_channel_messages').insert({
     channel_id: parsed.data.channelId,
     organization_id: channel.organization_id,
     author_id: user.id,
@@ -245,6 +249,8 @@ export async function createPollAction(input: {
   const user = await requireUser();
   if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
 
+  // The RLS-scoped channel read is the access gate (returns the channel only if
+  // the user may see it – incl. private membership and super_admin).
   const supabase = await createSupabaseServerClient();
   const { data: channel } = await supabase
     .from('chat_channels')
@@ -253,7 +259,11 @@ export async function createPollAction(input: {
     .maybeSingle();
   if (!channel) return errorResult(de.errors.FORBIDDEN);
 
-  const { data: poll, error: pollErr } = await supabase
+  // Writes go through the service client: a pure super_admin is not
+  // is_agency_staff(), so the RLS insert with-check would reject them even
+  // though they legitimately have agency access.
+  const service = createSupabaseServiceClient();
+  const { data: poll, error: pollErr } = await service
     .from('chat_polls')
     .insert({
       channel_id: parsed.data.channelId,
@@ -267,7 +277,7 @@ export async function createPollAction(input: {
     .maybeSingle();
   if (pollErr || !poll) return errorResult(de.errors.FORBIDDEN);
 
-  const { error: msgErr } = await supabase.from('chat_channel_messages').insert({
+  const { error: msgErr } = await service.from('chat_channel_messages').insert({
     channel_id: parsed.data.channelId,
     organization_id: channel.organization_id,
     author_id: user.id,
@@ -293,6 +303,8 @@ export async function votePollAction(
   const user = await requireUser();
   if (!hasAgencyAccess(user)) return { ok: false };
 
+  // RLS read is the access gate; votes are written with the service client so a
+  // super_admin (not is_agency_staff()) can vote too.
   const supabase = await createSupabaseServerClient();
   const { data: poll } = await supabase
     .from('chat_polls')
@@ -303,8 +315,9 @@ export async function votePollAction(
   if (poll.closed) return { ok: false, error: 'Diese Umfrage ist beendet.' };
   if (optionIndex >= (poll.options?.length ?? 0)) return { ok: false };
 
+  const service = createSupabaseServiceClient();
   // Existing vote for this exact option → toggle it off.
-  const { data: existing } = await supabase
+  const { data: existing } = await service
     .from('chat_poll_votes')
     .select('id')
     .eq('poll_id', pollId)
@@ -312,20 +325,20 @@ export async function votePollAction(
     .eq('option_index', optionIndex)
     .maybeSingle();
   if (existing) {
-    await supabase.from('chat_poll_votes').delete().eq('id', existing.id);
+    await service.from('chat_poll_votes').delete().eq('id', existing.id);
     return { ok: true };
   }
 
   // Single-choice: clear the user's other vote(s) first.
   if (!poll.allow_multiple) {
-    await supabase
+    await service
       .from('chat_poll_votes')
       .delete()
       .eq('poll_id', pollId)
       .eq('user_id', user.id);
   }
 
-  const { error } = await supabase.from('chat_poll_votes').insert({
+  const { error } = await service.from('chat_poll_votes').insert({
     poll_id: pollId,
     organization_id: poll.organization_id,
     option_index: optionIndex,
@@ -404,7 +417,8 @@ export async function sendStickerAction(
     .maybeSingle();
   if (!sticker) return { ok: false };
 
-  const { error } = await supabase.from('chat_channel_messages').insert({
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('chat_channel_messages').insert({
     channel_id: channelId,
     organization_id: channel.organization_id,
     author_id: user.id,

@@ -18,27 +18,36 @@ export default async function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">{de.clients.title}</h1>
-        {isAdmin && (
+        <div className="flex items-center gap-2">
           <Link
-            href="/app/clients/import"
-            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            href="/app/clients/new"
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            ✨ {de.clientImport.open}
+            + Neuer Kunde (geführt)
           </Link>
-        )}
+          {isAdmin && (
+            <Link
+              href="/app/clients/import"
+              className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+            >
+              ✨ {de.clientImport.open}
+            </Link>
+          )}
+        </div>
       </div>
 
-      {/* Any agency staff member may add a client company. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.create}</CardTitle>
-        </CardHeader>
-        <CardContent>
+      {/* Schnellanlage (nur Stammdaten) – der geführte Flow oben führt durch
+          Kunde → Mitgliedschaft → Vertrag. */}
+      <details className="rounded-lg border bg-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+          {de.clients.create} (schnell, nur Stammdaten)
+        </summary>
+        <div className="border-t p-4">
           <CreateClientForm orgId={orgId} />
-        </CardContent>
-      </Card>
+        </div>
+      </details>
 
       <Card>
         <CardHeader>

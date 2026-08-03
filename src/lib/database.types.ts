@@ -56,7 +56,8 @@ export type NotificationType =
   | 'express_redeemed'
   | 'inquiry'
   | 'feedback'
-  | 'onboarding';
+  | 'onboarding'
+  | 'task_done';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -139,6 +140,7 @@ export interface Database {
           role: AppRole;
           status: MembershipStatus;
           joined_company_at: string | null;
+          weekly_target_hours: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -149,6 +151,7 @@ export interface Database {
           role: AppRole;
           status?: MembershipStatus;
           joined_company_at?: string | null;
+          weekly_target_hours?: number | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
         Relationships: [];
@@ -1706,6 +1709,7 @@ export interface Database {
           column_entered_at: string;
           reopen_count: number;
           completed_by: string | null;
+          client_notified_at: string | null;
           completed_at: string | null;
           created_at: string;
           updated_at: string;
@@ -1730,6 +1734,7 @@ export interface Database {
           is_blocked?: boolean;
           is_express?: boolean;
           is_archived?: boolean;
+          client_notified_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;

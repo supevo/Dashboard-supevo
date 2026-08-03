@@ -78,6 +78,22 @@ export async function getPlan(
 }
 
 /** The current client's plan to review (only when released, i.e. not draft). */
+/**
+ * Whether the current client has a marketing plan worth showing (any non-draft
+ * plan). Used to hide the Marketingplan nav item when none is deposited.
+ */
+export async function hasMyMarketingPlan(): Promise<boolean> {
+  const company = await getMyClientCompany();
+  if (!company) return false;
+  const service = createSupabaseServiceClient();
+  const { count } = await service
+    .from('marketing_plans')
+    .select('id', { count: 'exact', head: true })
+    .eq('client_company_id', company.clientCompanyId)
+    .neq('status', 'draft');
+  return (count ?? 0) > 0;
+}
+
 export async function getMyPlan(): Promise<MarketingPlan | null> {
   const company = await getMyClientCompany();
   if (!company) return null;

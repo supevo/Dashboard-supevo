@@ -8,15 +8,16 @@ import {
 } from '@/features/auth/session';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
+import { hasMyMarketingPlan } from '@/features/marketing-plan/queries';
 import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
 import { getExpressStatus } from '@/features/express/queries';
 import { ExpressHeaderBadge } from '@/features/express/components/express-header-badge';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { de } from '@/lib/i18n/de';
 
+// Marketingplan wird separat eingefügt, nur wenn ein Plan hinterlegt ist.
 const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
-  { href: '/portal/plan', label: '🗺️ Marketingplan' },
   { href: '/portal/projects', label: de.nav.projects },
   { href: '/portal/hub', label: 'Marken-Hub' },
   { href: '/portal/access', label: 'Zugänge' },
@@ -53,15 +54,19 @@ export default async function ClientLayout({
 
   // Show the inquiries inbox only when the agency has enabled it for this client.
   const company = await getMyClientCompany();
-  const inquiriesEnabled = company
-    ? await isInquiryInboxEnabled(company.clientCompanyId)
-    : false;
-  const navItems: NavItem[] = inquiriesEnabled
-    ? [
-        ...NAV_ITEMS,
-        { href: '/portal/inquiries', label: de.nav.inquiries },
-      ]
-    : NAV_ITEMS;
+  const [inquiriesEnabled, hasPlan] = await Promise.all([
+    company ? isInquiryInboxEnabled(company.clientCompanyId) : Promise.resolve(false),
+    hasMyMarketingPlan(),
+  ]);
+
+  // Build the nav: Marketingplan directly after the dashboard, but only when a
+  // plan is deposited; Anfragen only when the inbox is enabled.
+  const navItems: NavItem[] = [
+    NAV_ITEMS[0]!,
+    ...(hasPlan ? [{ href: '/portal/plan', label: '🗺️ Marketingplan' }] : []),
+    ...NAV_ITEMS.slice(1),
+    ...(inquiriesEnabled ? [{ href: '/portal/inquiries', label: de.nav.inquiries }] : []),
+  ];
 
   const expressStatus = company
     ? await getExpressStatus(company.clientCompanyId)

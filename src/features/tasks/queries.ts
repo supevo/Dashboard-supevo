@@ -19,6 +19,7 @@ export interface TaskDetail {
   lockVersion: number;
   assignees: TaskAssignee[];
   canManage: boolean;
+  clientNotifiedAt: string | null;
 }
 
 /** Loads a single task the user can access, with assignees and manage flag. */
@@ -27,7 +28,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, actual_minutes, lock_version',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, actual_minutes, lock_version, client_notified_at',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -81,6 +82,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
       status: statusById.get(id) ?? null,
     })),
     canManage: canManage === true,
+    clientNotifiedAt: task.client_notified_at,
   };
 }
 
@@ -116,6 +118,8 @@ export interface BoardTask {
   agingDays: number | null;
   /** Completed task awaiting the current viewer's kudos rating. */
   needsRating: boolean;
+  /** When the client was last notified that this task is done (null = never). */
+  clientNotifiedAt: string | null;
 }
 
 export interface BoardColumn {
@@ -163,7 +167,7 @@ export async function getBoardView(
   const { data: tasks } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at',
     )
     .eq('board_id', board.id)
     .eq('is_archived', false)
@@ -173,7 +177,7 @@ export async function getBoardView(
   const { data: archivedRows } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at',
     )
     .eq('board_id', board.id)
     .eq('is_archived', true)
@@ -308,6 +312,7 @@ export async function getBoardView(
     attachmentCount: attachmentsByTask.get(t.id) ?? 0,
     agingDays: withAging ? daysSince(t.column_entered_at) : null,
     needsRating: needsRatingFor(t),
+    clientNotifiedAt: t.client_notified_at,
   });
 
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({

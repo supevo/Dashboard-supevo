@@ -69,7 +69,8 @@ export async function createClientCompanyAction(
   });
 
   revalidatePath('/app/clients');
-  return successResult('Kundenunternehmen angelegt.');
+  // Expose the new id so the guided wizard can advance to the membership step.
+  return successResult('Kundenunternehmen angelegt.', { id: data.id });
 }
 
 export async function updateClientCompanyAction(

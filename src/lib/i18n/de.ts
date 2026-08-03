@@ -277,6 +277,7 @@ export const de = {
     express_redeemed: 'Express-Ticket eingelöst',
     feedback: 'Feedback',
     onboarding: 'Onboarding',
+    task_done: 'Aufgabe erledigt',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

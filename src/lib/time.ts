@@ -71,6 +71,26 @@ export function startOfBerlinDayUtc(now: Date = new Date()): string {
   ).toISOString();
 }
 
+/** Weekday for the Berlin calendar day of `now`: Mon=1 … Sun=7. */
+export function berlinWeekday(now: Date = new Date()): number {
+  const name = new Intl.DateTimeFormat('en-US', {
+    timeZone: APP_TIME_ZONE,
+    weekday: 'short',
+  }).format(now);
+  const map: Record<string, number> = {
+    Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
+  };
+  return map[name] ?? 1;
+}
+
+/** UTC ISO instant for Monday 00:00 (Europe/Berlin) of the current week. */
+export function startOfBerlinWeekUtc(now: Date = new Date()): string {
+  const wd = berlinWeekday(now); // 1..7
+  const todayStart = new Date(startOfBerlinDayUtc(now));
+  const monday = new Date(todayStart.getTime() - (wd - 1) * 86_400_000);
+  return monday.toISOString();
+}
+
 /** Europe/Berlin UTC offset (minutes) for a given instant. */
 function berlinOffsetMinutes(date: Date): number {
   const tzDate = new Date(

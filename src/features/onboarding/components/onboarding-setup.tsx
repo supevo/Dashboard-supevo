@@ -6,6 +6,7 @@ import {
   configureOnboardingAction,
   createContractTemplateUpload,
   finalizeContractTemplate,
+  generateContractFromMembershipAction,
   generateSepaPreviewAction,
   releaseSepaAction,
 } from '@/features/onboarding/agency-actions';
@@ -195,11 +196,20 @@ export function OnboardingSetup({
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
+                onClick={() => runSepa(() => generateContractFromMembershipAction(clientCompanyId))}
+                disabled={pending}
+                title="Erzeugt den Vertrag aus der eingestellten Mitgliedschaft (Preis, Paket, Startdatum)."
+                className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+              >
+                📝 Aus Mitgliedschaft generieren
+              </button>
+              <button
+                type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
                 className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
               >
-                {uploading ? '⏳ Lädt…' : templateName ? '📄 Vertrag ersetzen' : '📄 Vertrags-PDF hochladen'}
+                {uploading ? '⏳ Lädt…' : templateName ? '📄 PDF ersetzen' : '📄 PDF hochladen'}
               </button>
               {templateName && (
                 <a

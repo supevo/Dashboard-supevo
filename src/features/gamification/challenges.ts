@@ -19,7 +19,8 @@ export type WeekMetric =
   | 'timerWeek'
   | 'ontimeWeek'
   | 'movesWeek'
-  | 'efficientWeek';
+  | 'efficientWeek'
+  | 'clientUpdatesWeek';
 
 export interface RareBadge {
   key: string;
@@ -51,6 +52,7 @@ export const CHALLENGE_POOL: ChallengeDef[] = [
   { key: 'punctual', title: 'Pünktlichkeitsprofi', emoji: '⏰', hint: 'Erledige 5 Aufgaben pünktlich bis zur Deadline.', metric: 'ontimeWeek', target: 5, xp: 40, rare: { key: 'uhrwerk', name: 'Uhrwerk', emoji: '⚙️', reason: 'Challenge „Pünktlichkeitsprofi" gemeistert' } },
   { key: 'supporter', title: 'Teamgeist', emoji: '🤝', hint: 'Vergib 5-mal Kudos an Kolleg:innen.', metric: 'kudosGivenWeek', target: 5, xp: 30, rare: { key: 'herzensgut', name: 'Herzensgut', emoji: '💗', reason: 'Challenge „Teamgeist" gemeistert' } },
   { key: 'tracker', title: 'Zeitwächter', emoji: '⏱️', hint: 'Erfasse 10-mal Zeit auf Aufgaben.', metric: 'timerWeek', target: 10, xp: 25 },
+  { key: 'communicator', title: 'Draht zum Kunden', emoji: '📣', hint: 'Informiere 5-mal einen Kunden über eine erledigte Aufgabe.', metric: 'clientUpdatesWeek', target: 5, xp: 30, rare: { key: 'verbindung', name: 'Verbindungsprofi', emoji: '📣', reason: 'Challenge „Draht zum Kunden" gemeistert' } },
 ];
 
 /** All rare badges obtainable through challenges (for the collectible display). */
@@ -137,6 +139,7 @@ export async function getWeeklyChallenges(
     ontimeRes,
     movesRes,
     efficientRes,
+    clientUpdatesRes,
     rareRows,
   ] = await Promise.all([
     supabase.from('tasks').select('id', head).eq('completed_by', userId).gte('completed_at', since),
@@ -147,6 +150,7 @@ export async function getWeeklyChallenges(
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'ontime').gte('created_at', since),
     supabase.from('activity_log').select('id', head).eq('actor_id', userId).eq('action', 'status_change').gte('created_at', since),
     supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'efficient').gte('created_at', since),
+    supabase.from('xp_events').select('id', head).eq('user_id', userId).eq('kind', 'client_update').gte('created_at', since),
     supabase.from('achievements').select('key').eq('user_id', userId).like('key', 'rare\\_%'),
   ]);
 
@@ -159,6 +163,7 @@ export async function getWeeklyChallenges(
     ontimeWeek: ontimeRes.count ?? 0,
     movesWeek: movesRes.count ?? 0,
     efficientWeek: efficientRes.count ?? 0,
+    clientUpdatesWeek: clientUpdatesRes.count ?? 0,
   };
 
   const ownedRare = new Set((rareRows.data ?? []).map((r) => r.key));
