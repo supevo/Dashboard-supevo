@@ -279,6 +279,7 @@ export const de = {
     onboarding: 'Onboarding',
     task_done: 'Aufgabe erledigt',
     optimization: 'KI-Optimierung',
+    birthday: 'Geburtstag',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

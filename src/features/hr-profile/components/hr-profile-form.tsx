@@ -80,6 +80,15 @@ export function HrProfileForm({ initial }: { initial: HrProfile | null }) {
           <TF name="marital_status" label="Familienstand" value={initial?.marital_status ?? null} placeholder="z. B. ledig / verheiratet" />
           <TF name="private_phone" label="Telefon (privat)" type="tel" value={initial?.private_phone ?? null} />
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="show_birthday"
+            defaultChecked={initial?.show_birthday ?? true}
+            className="h-4 w-4"
+          />
+          Geburtstag (Tag &amp; Monat) im Team-Kalender anzeigen
+        </label>
       </section>
 
       {/* Address */}

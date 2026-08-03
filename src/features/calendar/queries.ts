@@ -1,5 +1,9 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  listTeamBirthdays,
+  type CalendarBirthday,
+} from '@/features/birthday/queries';
 
 export interface CalendarEvent {
   id: string;
@@ -30,6 +34,7 @@ export interface CalendarData {
   events: CalendarEvent[];
   absences: CalendarAbsence[];
   deadlines: CalendarDeadline[];
+  birthdays: CalendarBirthday[];
 }
 
 function hhmm(t: string | null): string | null {
@@ -38,6 +43,7 @@ function hhmm(t: string | null): string | null {
 
 /** Loads everything shown on the team calendar for the given month range. */
 export async function getCalendarData(
+  orgId: string,
   fromIso: string,
   toIso: string,
 ): Promise<CalendarData> {
@@ -135,5 +141,7 @@ export async function getCalendarData(
     }
   }
 
-  return { events, absences, deadlines };
+  const birthdays = await listTeamBirthdays(orgId, fromIso, toIso);
+
+  return { events, absences, deadlines, birthdays };
 }

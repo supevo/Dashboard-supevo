@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/work-optimization",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/birthdays",
+      "schedule": "0 3 * * *"
     }
   ]
 }

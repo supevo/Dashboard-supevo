@@ -6,6 +6,7 @@ import { ProfileForm } from '@/features/profile/components/profile-form';
 import { SkillsPrefsSection } from '@/features/skills/components/skills-prefs-section';
 import { HrProfileForm } from '@/features/hr-profile/components/hr-profile-form';
 import { getMyHrProfile } from '@/features/hr-profile/queries';
+import { hrCompleteness } from '@/features/hr-profile/completeness';
 import { listMySkills } from '@/features/skills/queries';
 import { listMyPreferences } from '@/features/preferences/queries';
 import { getKudosStats } from '@/features/kudos/queries';
@@ -116,7 +117,24 @@ export default async function ProfilePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>🗂️ Personal- &amp; Lohndaten</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>🗂️ Personal- &amp; Lohndaten</CardTitle>
+            {(() => {
+              const c = hrCompleteness(hrProfile);
+              return c.complete ? (
+                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  ✓ Vollständig
+                </span>
+              ) : (
+                <span
+                  className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/50 dark:text-amber-300"
+                  title={`Es fehlen noch: ${c.missing.join(', ')}`}
+                >
+                  ⚠ Unvollständig ({c.filled}/{c.total})
+                </span>
+              );
+            })()}
+          </div>
         </CardHeader>
         <CardContent>
           <HrProfileForm initial={hrProfile} />

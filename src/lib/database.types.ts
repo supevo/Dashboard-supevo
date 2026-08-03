@@ -58,7 +58,8 @@ export type NotificationType =
   | 'feedback'
   | 'onboarding'
   | 'task_done'
-  | 'optimization';
+  | 'optimization'
+  | 'birthday';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -202,6 +203,7 @@ export interface Database {
           bic: string | null;
           account_holder: string | null;
           notes: string | null;
+          show_birthday: boolean;
           updated_at: string;
         };
         Insert: {
@@ -228,9 +230,28 @@ export interface Database {
           bic?: string | null;
           account_holder?: string | null;
           notes?: string | null;
+          show_birthday?: boolean;
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
+        Relationships: [];
+      };
+      birthday_grants: {
+        Row: {
+          user_id: string;
+          year: number;
+          organization_id: string;
+          box_tier: string;
+          granted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          year: number;
+          organization_id: string;
+          box_tier?: string;
+          granted_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['birthday_grants']['Insert']>;
         Relationships: [];
       };
       hub_banner_images: {

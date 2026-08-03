@@ -64,6 +64,10 @@ const hrSchema = z.object({
     .union([z.literal('on'), z.literal('')])
     .optional()
     .transform((v) => v === 'on'),
+  show_birthday: z
+    .union([z.literal('on'), z.literal('')])
+    .optional()
+    .transform((v) => v === 'on'),
   iban: z
     .string()
     .trim()
@@ -126,6 +130,7 @@ export async function updateHrProfileAction(
       bic: v.bic ?? null,
       account_holder: v.account_holder ?? null,
       notes: v.notes ?? null,
+      show_birthday: v.show_birthday,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id' },
