@@ -60,7 +60,8 @@ export type NotificationType =
   | 'task_done'
   | 'optimization'
   | 'birthday'
-  | 'reaction';
+  | 'reaction'
+  | 'appointment';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -235,6 +236,78 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
+        Relationships: [];
+      };
+      appointment_requests: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          created_by: string | null;
+          topic: string;
+          note: string | null;
+          opt1_date: string;
+          opt1_time: string | null;
+          opt2_date: string | null;
+          opt2_time: string | null;
+          opt3_date: string | null;
+          opt3_time: string | null;
+          status: string;
+          confirmed_date: string | null;
+          confirmed_time: string | null;
+          confirmed_by: string | null;
+          calendar_event_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          created_by?: string | null;
+          topic: string;
+          note?: string | null;
+          opt1_date: string;
+          opt1_time?: string | null;
+          opt2_date?: string | null;
+          opt2_time?: string | null;
+          opt3_date?: string | null;
+          opt3_time?: string | null;
+          status?: string;
+          confirmed_date?: string | null;
+          confirmed_time?: string | null;
+          confirmed_by?: string | null;
+          calendar_event_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['appointment_requests']['Insert']>;
+        Relationships: [];
+      };
+      client_ideas: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string | null;
+          title: string;
+          description: string | null;
+          status: string;
+          task_id: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id?: string | null;
+          title: string;
+          description?: string | null;
+          status?: string;
+          task_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_ideas']['Insert']>;
         Relationships: [];
       };
       task_reactions: {

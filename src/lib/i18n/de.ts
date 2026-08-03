@@ -281,6 +281,7 @@ export const de = {
     optimization: 'KI-Optimierung',
     birthday: 'Geburtstag',
     reaction: 'Reaktion',
+    appointment: 'Termin',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

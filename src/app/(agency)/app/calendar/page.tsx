@@ -6,6 +6,8 @@ import { listClientCompanies } from '@/features/client-companies/queries';
 import { NewEventButton } from '@/features/calendar/components/new-event-button';
 import { EventList } from '@/features/calendar/components/event-list';
 import { IcalSubscribe } from '@/features/calendar/components/ical-subscribe';
+import { listPendingAppointments } from '@/features/appointments/queries';
+import { AppointmentInbox } from '@/features/appointments/components/appointment-inbox';
 import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -45,9 +47,10 @@ export default async function CalendarPage({
   const gridEnd = new Date(last);
   gridEnd.setUTCDate(last.getUTCDate() + (6 - endOffset));
 
-  const [data, clients] = await Promise.all([
+  const [data, clients, pendingAppointments] = await Promise.all([
     getCalendarData(orgId, iso(gridStart), iso(gridEnd)),
     listClientCompanies(orgId),
+    listPendingAppointments(orgId),
   ]);
 
   // Group entries by date.
@@ -110,6 +113,8 @@ export default async function CalendarPage({
           <NewEventButton clients={clients.map((c) => ({ id: c.id, name: c.name }))} defaultDate={`${year}-${String(month).padStart(2, '0')}-01`} />
         </div>
       </div>
+
+      <AppointmentInbox requests={pendingAppointments} />
 
       <Card>
         <CardContent className="overflow-x-auto p-2 sm:p-4">
