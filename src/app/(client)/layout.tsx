@@ -19,12 +19,15 @@ import { de } from '@/lib/i18n/de';
 const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
   { href: '/portal/projects', label: de.nav.projects },
+  { href: '/portal/ideas', label: '💡 Ideen' },
+  { href: '/portal/appointments', label: '📅 Termine' },
   { href: '/portal/hub', label: 'Marken-Hub' },
   { href: '/portal/access', label: 'Zugänge' },
   { href: '/portal/approvals', label: de.nav.approvals },
   { href: '/portal/reports', label: de.nav.reports },
   { href: '/portal/membership', label: de.nav.membership },
   { href: '/portal/invoices', label: 'Rechnungen' },
+  { href: '/portal/documents', label: '📁 Dokumente' },
 ];
 
 const MENU_ITEMS: UserMenuItem[] = [

@@ -3,7 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { isAgencyRole, type AppRole } from '@/lib/authz/roles';
-import { startOfBerlinDayUtc, startOfBerlinWeekUtc } from '@/lib/time';
+import { startOfBerlinDayUtc, startOfBerlinWeekUtc, berlinToday } from '@/lib/time';
 
 export type PerfTrend = 'up' | 'down' | 'flat';
 
@@ -32,6 +32,9 @@ export interface MemberActivity {
   avgStars: number | null;
   rework: number;
   trend: PerfTrend;
+  /** Currently on an approved absence (Urlaub/krank) – contextualizes low numbers. */
+  onAbsence: boolean;
+  absenceType: string | null;
 }
 
 export interface TeamActivity {
@@ -125,6 +128,17 @@ export async function getTeamActivity(
       .lt('created_at', dayEnd)
       .in('actor_id', userIds),
   ]);
+
+  // Currently active approved absences (real today within range).
+  const todayIso = berlinToday();
+  const { data: absenceRows } = await service
+    .from('absences')
+    .select('user_id, type')
+    .in('user_id', userIds)
+    .eq('status', 'approved')
+    .lte('start_date', todayIso)
+    .gte('end_date', todayIso);
+  const absenceByUser = new Map((absenceRows ?? []).map((a) => [a.user_id, a.type] as const));
 
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
   const keyByColumn = new Map((columns ?? []).map((c) => [c.id, c.column_key] as const));
@@ -295,6 +309,8 @@ export async function getTeamActivity(
       avgStars: stars && stars.n > 0 ? Math.round((stars.sum / stars.n) * 10) / 10 : null,
       rework: a.rework,
       trend,
+      onAbsence: absenceByUser.has(id),
+      absenceType: absenceByUser.get(id) ?? null,
     };
   });
 

@@ -16,6 +16,8 @@ import {
 } from '@/features/absences/queries';
 import { getTeamActivity } from '@/features/team-activity/queries';
 import { TeamActivityView } from '@/features/team-activity/components/team-activity-view';
+import { getOptimizationSettings } from '@/features/optimization/queries';
+import { OptimizationPanel } from '@/features/optimization/components/optimization-panel';
 import { formatMinutes, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -153,12 +155,14 @@ export default async function WorkloadPage({
   const today = berlinToday();
   const sp = await searchParams;
   const day = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? '') ? sp.day! : today;
-  const [{ members, counts }, absenceByUser, pulse, activity] = await Promise.all([
-    getWorkloadOverview(orgId),
-    getCurrentAbsenceByUser(),
-    admin ? getPulseSummary(orgId) : Promise.resolve(null),
-    getTeamActivity(orgId, day),
-  ]);
+  const [{ members, counts }, absenceByUser, pulse, activity, optimization] =
+    await Promise.all([
+      getWorkloadOverview(orgId),
+      getCurrentAbsenceByUser(),
+      admin ? getPulseSummary(orgId) : Promise.resolve(null),
+      getTeamActivity(orgId, day),
+      getOptimizationSettings(orgId),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -168,6 +172,19 @@ export default async function WorkloadPage({
       </div>
 
       <TeamBriefingCard />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🤖 KI-Arbeitsoptimierung</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Weist unbesetzte Aufgaben der best passenden, verfügbaren Person zu
+            und entlastet Überlastete/Abwesende – per Klick oder vollautomatisch.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <OptimizationPanel initial={optimization} />
+        </CardContent>
+      </Card>
 
       {pulse && <PulseSummaryCard summary={pulse} />}
 

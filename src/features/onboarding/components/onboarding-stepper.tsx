@@ -57,6 +57,16 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
   const contractOk = !status.requiresContract || contractDone;
   const sepaOk = !status.requiresSepa || sepaDone;
 
+  // Progress across the required steps (for the header bar).
+  const steps = [
+    status.requiresContract ? contractDone : null,
+    status.requiresSepa ? sepaDone : null,
+    status.requiresPlan ? planDone : null,
+  ].filter((s): s is boolean => s !== null);
+  const totalSteps = steps.length;
+  const doneSteps = steps.filter(Boolean).length;
+  const pct = totalSteps > 0 ? Math.round((doneSteps / totalSteps) * 100) : 0;
+
   const signContract = () =>
     start(async () => {
       setError(null);
@@ -88,6 +98,22 @@ export function OnboardingStepper({ status }: { status: OnboardingStatus }) {
           In wenigen Schritten seid ihr startklar. Alles digital – kein PDF-Hin
           und Her.
         </p>
+        {totalSteps > 0 && (
+          <div className="pt-1">
+            <div className="mb-1 flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>
+                Schritt {Math.min(doneSteps + 1, totalSteps)} von {totalSteps}
+              </span>
+              <span>{doneSteps}/{totalSteps} erledigt · {pct}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {/* 1. Vertrag */}

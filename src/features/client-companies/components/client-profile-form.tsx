@@ -53,8 +53,8 @@ export function ClientProfileForm({
           placeholder="kontakt@kunde.de"
         />
         <p className="text-xs text-muted-foreground">
-          Empfänger für den Wochenrückblick. Bei ungültiger Domain lehnt der
-          Mailserver den Versand ab.
+          Allgemeine Kontaktadresse des Unternehmens. Der Wochenrückblick geht
+          nicht hierhin, sondern an die Ansprechpartner (siehe unten).
         </p>
       </div>
       <div className="space-y-1">

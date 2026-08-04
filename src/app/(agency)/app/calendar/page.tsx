@@ -6,6 +6,8 @@ import { listClientCompanies } from '@/features/client-companies/queries';
 import { NewEventButton } from '@/features/calendar/components/new-event-button';
 import { EventList } from '@/features/calendar/components/event-list';
 import { IcalSubscribe } from '@/features/calendar/components/ical-subscribe';
+import { listPendingAppointments } from '@/features/appointments/queries';
+import { AppointmentInbox } from '@/features/appointments/components/appointment-inbox';
 import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
@@ -45,20 +47,26 @@ export default async function CalendarPage({
   const gridEnd = new Date(last);
   gridEnd.setUTCDate(last.getUTCDate() + (6 - endOffset));
 
-  const [data, clients] = await Promise.all([
-    getCalendarData(iso(gridStart), iso(gridEnd)),
+  const [data, clients, pendingAppointments] = await Promise.all([
+    getCalendarData(orgId, iso(gridStart), iso(gridEnd)),
     listClientCompanies(orgId),
+    listPendingAppointments(orgId),
   ]);
 
   // Group entries by date.
   const byDate = new Map<
     string,
-    { events: typeof data.events; absences: typeof data.absences; deadlines: typeof data.deadlines }
+    {
+      events: typeof data.events;
+      absences: typeof data.absences;
+      deadlines: typeof data.deadlines;
+      birthdays: typeof data.birthdays;
+    }
   >();
   const bucket = (d: string) => {
     let b = byDate.get(d);
     if (!b) {
-      b = { events: [], absences: [], deadlines: [] };
+      b = { events: [], absences: [], deadlines: [], birthdays: [] };
       byDate.set(d, b);
     }
     return b;
@@ -66,6 +74,7 @@ export default async function CalendarPage({
   data.events.forEach((e) => bucket(e.date).events.push(e));
   data.absences.forEach((a) => bucket(a.date).absences.push(a));
   data.deadlines.forEach((dl) => bucket(dl.date).deadlines.push(dl));
+  data.birthdays.forEach((b) => bucket(b.date).birthdays.push(b));
 
   // Build the day cells.
   const days: Date[] = [];
@@ -105,6 +114,8 @@ export default async function CalendarPage({
         </div>
       </div>
 
+      <AppointmentInbox requests={pendingAppointments} />
+
       <Card>
         <CardContent className="overflow-x-auto p-2 sm:p-4">
           <div className="min-w-[640px]">
@@ -134,6 +145,15 @@ export default async function CalendarPage({
                       {d.getUTCDate()}
                     </div>
                     <div className="space-y-0.5">
+                      {b?.birthdays.map((bd) => (
+                        <div
+                          key={bd.id}
+                          className="truncate rounded bg-pink-100 px-1 text-[10px] text-pink-800 dark:bg-pink-950/50 dark:text-pink-200"
+                          title={`${bd.userName} hat Geburtstag 🎂`}
+                        >
+                          🎂 {bd.userName}
+                        </div>
+                      ))}
                       {b?.events.map((e) => (
                         <div
                           key={e.id}
@@ -177,6 +197,7 @@ export default async function CalendarPage({
             <span>🟦 {de.calendar.legendEvent}</span>
             <span>🟨 {de.calendar.legendAbsence}</span>
             <span>📅 {de.calendar.legendDeadline}</span>
+            <span>🎂 Geburtstag</span>
           </div>
         </CardContent>
       </Card>

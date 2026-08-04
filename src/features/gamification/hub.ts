@@ -22,6 +22,12 @@ import {
   type CustomFrame,
   type ResolvedFrame,
 } from '@/features/gamification/frames';
+import { isBirthdayActive } from '@/features/birthday/queries';
+import {
+  BIRTHDAY_BADGE,
+  BIRTHDAY_BANNER_KEY,
+  BIRTHDAY_BANNER_GRADIENT,
+} from '@/features/birthday/helpers';
 
 export interface HubStats {
   missions: number; // tasks completed by the user
@@ -233,6 +239,15 @@ export async function getLevelHub(
     customBanners,
   );
 
+  // Am Geburtstag: festliches Titelbild + Happy-Birthday-Badge. Rein abgeleitet
+  // (nur am Tag sichtbar), also nicht farmbar – die einmalige Jahres-Belohnung
+  // hängt an birthday_grants (siehe ensureBirthdayGrant).
+  const birthdayActive = await isBirthdayActive(userId);
+  const bannerKey = birthdayActive ? BIRTHDAY_BANNER_KEY : activeBanner.key;
+  const bannerBackground = birthdayActive
+    ? BIRTHDAY_BANNER_GRADIENT
+    : activeBanner.background;
+
   // Aktiver Profilrahmen (ersetzt den XP-Ring). null = Ring bleibt.
   const activeFrame = resolveActiveFrame(
     profile?.hub_frame ?? null,
@@ -273,8 +288,19 @@ export async function getLevelHub(
     badges,
     trophies,
     milestones,
-    // Catalog badges + per-Lootbox gewonnene Badges (eigene Emoji/Namen).
+    // Happy-Birthday-Badge (nur am Tag) + Catalog-Badges + per-Lootbox gewonnene.
     badgeWall: [
+      ...(birthdayActive
+        ? [
+            {
+              key: BIRTHDAY_BADGE.key,
+              name: BIRTHDAY_BADGE.name,
+              emoji: BIRTHDAY_BADGE.emoji,
+              earned: true,
+              count: 1,
+            },
+          ]
+        : []),
       ...badgeWall,
       ...lootBadges.map((b) => ({
         key: b.key,
@@ -284,8 +310,8 @@ export async function getLevelHub(
         count: b.count,
       })),
     ],
-    bannerKey: activeBanner.key,
-    bannerBackground: activeBanner.background,
+    bannerKey,
+    bannerBackground,
     customBanners,
     frame: activeFrame,
     frameKey: profile?.hub_frame ?? null,

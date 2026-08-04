@@ -57,7 +57,11 @@ export type NotificationType =
   | 'inquiry'
   | 'feedback'
   | 'onboarding'
-  | 'task_done';
+  | 'task_done'
+  | 'optimization'
+  | 'birthday'
+  | 'reaction'
+  | 'appointment';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -154,6 +158,194 @@ export interface Database {
           weekly_target_hours?: number | null;
         };
         Update: Partial<Database['public']['Tables']['memberships']['Insert']>;
+        Relationships: [];
+      };
+      work_optimization_settings: {
+        Row: {
+          organization_id: string;
+          cadence: string;
+          auto_apply: boolean;
+          reassign: boolean;
+          last_run_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          cadence?: string;
+          auto_apply?: boolean;
+          reassign?: boolean;
+          last_run_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['work_optimization_settings']['Insert']>;
+        Relationships: [];
+      };
+      employee_hr_profiles: {
+        Row: {
+          user_id: string;
+          organization_id: string;
+          date_of_birth: string | null;
+          place_of_birth: string | null;
+          nationality: string | null;
+          marital_status: string | null;
+          private_phone: string | null;
+          address_street: string | null;
+          address_house_no: string | null;
+          address_zip: string | null;
+          address_city: string | null;
+          address_country: string | null;
+          tax_id: string | null;
+          tax_class: string | null;
+          child_allowances: number | null;
+          religious_affiliation: string | null;
+          social_security_number: string | null;
+          health_insurance: string | null;
+          severely_disabled: boolean;
+          iban: string | null;
+          bic: string | null;
+          account_holder: string | null;
+          notes: string | null;
+          show_birthday: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          organization_id: string;
+          date_of_birth?: string | null;
+          place_of_birth?: string | null;
+          nationality?: string | null;
+          marital_status?: string | null;
+          private_phone?: string | null;
+          address_street?: string | null;
+          address_house_no?: string | null;
+          address_zip?: string | null;
+          address_city?: string | null;
+          address_country?: string | null;
+          tax_id?: string | null;
+          tax_class?: string | null;
+          child_allowances?: number | null;
+          religious_affiliation?: string | null;
+          social_security_number?: string | null;
+          health_insurance?: string | null;
+          severely_disabled?: boolean;
+          iban?: string | null;
+          bic?: string | null;
+          account_holder?: string | null;
+          notes?: string | null;
+          show_birthday?: boolean;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
+        Relationships: [];
+      };
+      appointment_requests: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          created_by: string | null;
+          topic: string;
+          note: string | null;
+          opt1_date: string;
+          opt1_time: string | null;
+          opt2_date: string | null;
+          opt2_time: string | null;
+          opt3_date: string | null;
+          opt3_time: string | null;
+          status: string;
+          confirmed_date: string | null;
+          confirmed_time: string | null;
+          confirmed_by: string | null;
+          calendar_event_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          created_by?: string | null;
+          topic: string;
+          note?: string | null;
+          opt1_date: string;
+          opt1_time?: string | null;
+          opt2_date?: string | null;
+          opt2_time?: string | null;
+          opt3_date?: string | null;
+          opt3_time?: string | null;
+          status?: string;
+          confirmed_date?: string | null;
+          confirmed_time?: string | null;
+          confirmed_by?: string | null;
+          calendar_event_id?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['appointment_requests']['Insert']>;
+        Relationships: [];
+      };
+      client_ideas: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id: string | null;
+          title: string;
+          description: string | null;
+          status: string;
+          task_id: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          project_id?: string | null;
+          title: string;
+          description?: string | null;
+          status?: string;
+          task_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['client_ideas']['Insert']>;
+        Relationships: [];
+      };
+      task_reactions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          task_id: string;
+          user_id: string;
+          emoji: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          task_id: string;
+          user_id: string;
+          emoji: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['task_reactions']['Insert']>;
+        Relationships: [];
+      };
+      birthday_grants: {
+        Row: {
+          user_id: string;
+          year: number;
+          organization_id: string;
+          box_tier: string;
+          granted_at: string;
+        };
+        Insert: {
+          user_id: string;
+          year: number;
+          organization_id: string;
+          box_tier?: string;
+          granted_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['birthday_grants']['Insert']>;
         Relationships: [];
       };
       hub_banner_images: {

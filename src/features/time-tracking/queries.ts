@@ -6,26 +6,39 @@ import {
   startOfBerlinDayUtc,
   startOfBerlinWeekUtc,
   berlinWeekday,
+  berlinToday,
 } from '@/lib/time';
 
 /** Default weekly target when no explicit one is set for the member. */
 export const DEFAULT_WEEKLY_TARGET_HOURS = 40;
 
+function addDaysIso(isoDate: string, days: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export interface WeeklyWorkSummary {
   weekMinutes: number;
   todayMinutes: number;
   targetHours: number;
-  /** Pro-rated expected minutes up to and including today. */
+  /** Weekly target after subtracting absence days (Urlaub/krank). */
+  effectiveTargetHours: number;
+  /** Pro-rated expected minutes up to and including today (absence-aware). */
   expectedMinutes: number;
   /** How far behind the pro-rated pace right now (0 if on/over). At the end of
-   *  the week this equals the hours missing to the full weekly target. */
+   *  the week this equals the hours missing to the (absence-adjusted) target. */
   shortfallMinutes: number;
-  /** Minutes still missing to reach the full weekly target (0 if reached). */
+  /** Minutes still missing to reach the (absence-adjusted) weekly target. */
   remainingToTargetMinutes: number;
+  /** Approved absence workdays (Mon–Fri) in this week. */
+  absentWorkdays: number;
+  /** Whether the member is on an approved absence today. */
+  onAbsenceToday: boolean;
   /** True from Friday on – the full weekly shortfall is now the number to act on. */
   isWeekEnd: boolean;
-  /** on = im Rahmen, low = zu wenig, over = über Plan. */
-  status: 'on' | 'low' | 'over';
+  /** on = im Rahmen, low = zu wenig, over = über Plan, absent = heute abwesend. */
+  status: 'on' | 'low' | 'over' | 'absent';
 }
 
 /**
@@ -88,22 +101,56 @@ export async function getWeeklyWorkSummary(
   const targetHours = membership?.weekly_target_hours ?? DEFAULT_WEEKLY_TARGET_HOURS;
   const targetMinutes = targetHours * 60;
 
-  // Elapsed workdays Mon–Fri including today (Sat/Sun count as the full 5).
-  const weekday = berlinWeekday();
+  // This week's Monday–Friday dates (Berlin) for absence + elapsed calc.
+  const today = berlinToday();
+  const weekday = berlinWeekday(); // Mon=1 … Sun=7
+  const mondayIso = addDaysIso(today, -(weekday - 1));
+  const weekdays = [0, 1, 2, 3, 4].map((i) => addDaysIso(mondayIso, i));
+  const sundayIso = addDaysIso(mondayIso, 6);
+
+  // Approved absences (Urlaub/krank/…) overlapping this week – no work expected
+  // on those days, so they must not count as "too little".
+  const { data: absences } = await service
+    .from('absences')
+    .select('start_date, end_date')
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+    .lte('start_date', sundayIso)
+    .gte('end_date', mondayIso);
+  const isAbsent = (day: string) =>
+    (absences ?? []).some((a) => a.start_date <= day && day <= a.end_date);
+
+  const absentWorkdays = weekdays.filter(isAbsent).length;
+  const absentElapsedWorkdays = weekdays.filter((d) => d <= today && isAbsent(d)).length;
+  const onAbsenceToday = isAbsent(today);
+
+  // Elapsed / total workdays minus absence.
   const elapsedWorkdays = Math.min(5, weekday);
-  const expectedMinutes = Math.round((targetMinutes * elapsedWorkdays) / 5);
+  const effElapsed = Math.max(0, elapsedWorkdays - absentElapsedWorkdays);
+  const effWeekWorkdays = Math.max(0, 5 - absentWorkdays);
+
+  const expectedMinutes = Math.round((targetMinutes * effElapsed) / 5);
+  const effectiveTargetMinutes = Math.round((targetMinutes * effWeekWorkdays) / 5);
 
   const ratio = expectedMinutes > 0 ? weekMinutes / expectedMinutes : 1;
-  const status: WeeklyWorkSummary['status'] =
-    ratio >= 1.1 ? 'over' : ratio >= 0.9 ? 'on' : 'low';
+  const status: WeeklyWorkSummary['status'] = onAbsenceToday
+    ? 'absent'
+    : ratio >= 1.1
+      ? 'over'
+      : ratio >= 0.9
+        ? 'on'
+        : 'low';
 
   return {
     weekMinutes,
     todayMinutes,
     targetHours,
+    effectiveTargetHours: Math.round((effectiveTargetMinutes / 60) * 10) / 10,
     expectedMinutes,
-    shortfallMinutes: Math.max(0, expectedMinutes - weekMinutes),
-    remainingToTargetMinutes: Math.max(0, targetMinutes - weekMinutes),
+    shortfallMinutes: onAbsenceToday ? 0 : Math.max(0, expectedMinutes - weekMinutes),
+    remainingToTargetMinutes: Math.max(0, effectiveTargetMinutes - weekMinutes),
+    absentWorkdays,
+    onAbsenceToday,
     isWeekEnd: weekday >= 5, // Fr, Sa, So
     status,
   };

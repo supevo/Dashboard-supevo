@@ -14,6 +14,7 @@ import { WallBadges } from '@/features/gamification/components/wall-badges';
 import { getActiveXpBoost } from '@/features/gamification/xp-boost';
 import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banner';
 import { getShopData } from '@/features/loot/queries';
+import { ensureBirthdayGrant } from '@/features/birthday/grant';
 import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { HubCustomizeMenu } from '@/features/gamification/components/hub-customize-menu';
@@ -30,6 +31,9 @@ const t = de.hub;
 export default async function KudosPage() {
   const { user, orgId } = await requireAgencyPage();
   const admin = isOrgAdmin(user, orgId);
+  // Grant the birthday reward (once per year) before loading the hub, so the
+  // lootbox, Happy-Birthday badge and festive title image show up immediately.
+  await ensureBirthdayGrant(user.id, orgId);
   const [hub, feed, leaderboard, weekly, xpBoost, shop] = await Promise.all([
     getLevelHub(user.id, orgId),
     listRecentKudos(12),
