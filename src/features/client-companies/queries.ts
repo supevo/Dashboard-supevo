@@ -11,6 +11,7 @@ export interface ClientCompany {
   interests: string | null;
   expressTicketsPerMonth: number;
   billingEntityId: string | null;
+  accountManagerId: string | null;
   isActive: boolean;
   createdAt: string;
 }
@@ -38,6 +39,7 @@ export async function listClientCompanies(
     interests: null,
     expressTicketsPerMonth: 0,
     billingEntityId: null,
+    accountManagerId: null,
     isActive: c.is_active,
     createdAt: c.created_at,
   }));
@@ -50,7 +52,7 @@ export async function getClientCompany(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('client_companies')
-    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, is_active, created_at')
+    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, account_manager_id, is_active, created_at')
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId)
     .is('deleted_at', null)
@@ -67,6 +69,7 @@ export async function getClientCompany(
     interests: data.interests,
     expressTicketsPerMonth: data.express_tickets_per_month,
     billingEntityId: data.billing_entity_id,
+    accountManagerId: data.account_manager_id,
     isActive: data.is_active,
     createdAt: data.created_at,
   };

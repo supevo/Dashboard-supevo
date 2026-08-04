@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import {
   listChannels,
+  listClientChannels,
   getChannel,
   listChannelMessages,
 } from '@/features/messenger/queries';
@@ -16,8 +17,9 @@ export default async function ChannelPage({
   const { channelId } = await params;
   const { user, orgId } = await requireAgencyPage();
 
-  const [channels, channel] = await Promise.all([
+  const [channels, clientChannels, channel] = await Promise.all([
     listChannels(orgId),
+    listClientChannels(orgId),
     getChannel(channelId),
   ]);
   if (!channel) notFound();
@@ -29,6 +31,7 @@ export default async function ChannelPage({
       <h1 className="text-2xl font-bold">{de.messenger.title}</h1>
       <Messenger
         channels={channels}
+        clientChannels={clientChannels}
         activeChannel={channel}
         initialMessages={messages}
         meId={user.id}

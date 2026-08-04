@@ -8,6 +8,8 @@ import { getMyOnboarding } from '@/features/onboarding/queries';
 import { OnboardingStepper } from '@/features/onboarding/components/onboarding-stepper';
 import { getClientWeekWork } from '@/features/recap/client-week';
 import { WeekWorkCard } from '@/features/recap/components/week-work-card';
+import { getMyAccountManager } from '@/features/account-manager/queries';
+import { AccountManagerCard } from '@/features/account-manager/components/account-manager-card';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -31,6 +33,7 @@ export default async function ClientDashboardPage() {
     : null;
   const onboarding = await getMyOnboarding();
   const weekWork = await getClientWeekWork();
+  const accountManager = await getMyAccountManager();
 
   return (
     <div className="space-y-6">
@@ -40,6 +43,8 @@ export default async function ClientDashboardPage() {
           Schön, dass Sie da sind, {user.fullName ?? user.email}.
         </p>
       </div>
+
+      {accountManager && <AccountManagerCard manager={accountManager} />}
 
       {onboarding && onboarding.started && !onboarding.complete && (
         <OnboardingStepper status={onboarding} />

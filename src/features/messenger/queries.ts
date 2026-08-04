@@ -8,6 +8,8 @@ export interface ChatChannel {
   name: string;
   description: string | null;
   isPrivate: boolean;
+  /** 'channel' | 'dm' | 'client'. Client channels hide stickers. */
+  kind: string;
 }
 
 export interface DmConversation {
@@ -206,7 +208,43 @@ export async function listChannels(orgId: string): Promise<ChatChannel[]> {
     name: c.name,
     description: c.description,
     isPrivate: c.is_private,
+    kind: 'channel',
   }));
+}
+
+/**
+ * Lists the org's client chat channels (kind = 'client'), shown separately in
+ * the agency messenger. The company name is used as the channel label.
+ */
+export async function listClientChannels(orgId: string): Promise<ChatChannel[]> {
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('chat_channels')
+    .select('id, name, description, is_private, client_company_id')
+    .eq('organization_id', orgId)
+    .eq('kind', 'client')
+    .eq('is_archived', false);
+  const rows = data ?? [];
+  const companyIds = [
+    ...new Set(rows.map((c) => c.client_company_id).filter((v): v is string => !!v)),
+  ];
+  const nameById = new Map<string, string>();
+  if (companyIds.length > 0) {
+    const { data: companies } = await service
+      .from('client_companies')
+      .select('id, name')
+      .in('id', companyIds);
+    for (const c of companies ?? []) nameById.set(c.id, c.name);
+  }
+  return rows
+    .map((c) => ({
+      id: c.id,
+      name: c.client_company_id ? (nameById.get(c.client_company_id) ?? c.name) : c.name,
+      description: c.description,
+      isPrivate: c.is_private,
+      kind: 'client',
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Lists the current user's direct-message conversations with the other party. */
@@ -317,12 +355,27 @@ export async function getChannel(channelId: string): Promise<ChatChannel | null>
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('chat_channels')
-    .select('id, name, description, is_private')
+    .select('id, name, description, is_private, kind, client_company_id')
     .eq('id', channelId)
     .maybeSingle();
-  return data
-    ? { id: data.id, name: data.name, description: data.description, isPrivate: data.is_private }
-    : null;
+  if (!data) return null;
+  // For client channels, label with the company name.
+  let name = data.name;
+  if (data.kind === 'client' && data.client_company_id) {
+    const { data: company } = await createSupabaseServiceClient()
+      .from('client_companies')
+      .select('name')
+      .eq('id', data.client_company_id)
+      .maybeSingle();
+    if (company?.name) name = company.name;
+  }
+  return {
+    id: data.id,
+    name,
+    description: data.description,
+    isPrivate: data.is_private,
+    kind: data.kind,
+  };
 }
 
 /**
