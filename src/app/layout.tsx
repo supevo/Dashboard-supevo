@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { de } from '@/lib/i18n/de';
+import { ACTIVE_BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: de.app.name,
@@ -13,7 +14,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de" suppressHydrationWarning>
+    <html lang="de" data-brand={ACTIVE_BRAND} suppressHydrationWarning>
       <head>
         {/* Apply the stored (or system) theme before paint to avoid a flash. */}
         <script

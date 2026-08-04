@@ -36,6 +36,49 @@
     --ring: 210 90% 66%;
   }
 
+  /* =========================================================================
+     Supevo-Marke: zentrale Token-Overrides. Aktiv, wenn <html data-brand="supevo">
+     (gesteuert über src/lib/brand.ts). Da alle Komponenten diese Tokens nutzen,
+     zieht sich der Look automatisch durch – zum Zurückschalten reicht 'classic'.
+     Warmer Greige-Grund, Violett als Primärfarbe, größere Radien.
+     ========================================================================= */
+  :root[data-brand='supevo'] {
+    --background: 20 13% 91%;
+    --foreground: 265 12% 9%;
+    --card: 24 14% 98%;
+    --card-foreground: 265 12% 9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 24 12% 94%;
+    --muted-foreground: 265 6% 42%;
+    --destructive: 349 82% 53%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 20 12% 86%;
+    --input: 20 12% 86%;
+    --ring: 262 83% 58%;
+    --radius: 0.9rem;
+    /* Marken-Extras für Held-Momente (Level Hub, aktive Nav, CTAs). */
+    --aurora: linear-gradient(135deg, #f7b733 0%, #f97316 26%, #e11d48 57%, #7c3aed 100%);
+    --brand-orange: 25 95% 53%;
+    --brand-green: 96 46% 51%;
+  }
+
+  :root[data-brand='supevo'].dark {
+    --background: 330 8% 8%;
+    --foreground: 20 20% 95%;
+    --card: 330 7% 12%;
+    --card-foreground: 20 20% 95%;
+    --primary: 262 84% 69%;
+    --primary-foreground: 265 40% 10%;
+    --muted: 320 6% 16%;
+    --muted-foreground: 20 8% 68%;
+    --destructive: 349 78% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 320 6% 20%;
+    --input: 320 6% 22%;
+    --ring: 262 84% 69%;
+  }
+
   * {
     border-color: hsl(var(--border));
   }
@@ -43,6 +86,19 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+  }
+}
+
+/* Marken-Utilities (nur mit Supevo-Tokens sichtbar; sonst neutraler Fallback). */
+@layer utilities {
+  .bg-aurora {
+    background-image: var(--aurora, linear-gradient(135deg, #4f46e5, #7c3aed));
+  }
+  .font-accent {
+    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-style: italic;
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
 }
 
