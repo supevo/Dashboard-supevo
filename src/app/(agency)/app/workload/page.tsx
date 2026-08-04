@@ -166,9 +166,19 @@ export default async function WorkloadPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">{de.workload.title}</h1>
-        <p className="text-sm text-muted-foreground">{de.workload.subtitle}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">{de.workload.title}</h1>
+          <p className="text-sm text-muted-foreground">{de.workload.subtitle}</p>
+        </div>
+        {admin && (
+          <a
+            href="/app/time-import"
+            className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+          >
+            ⬆️ Stunden importieren
+          </a>
+        )}
       </div>
 
       <TeamBriefingCard />
