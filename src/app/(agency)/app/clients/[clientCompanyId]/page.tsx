@@ -10,6 +10,8 @@ import {
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
+import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
+import { listTeamMembers } from '@/features/messenger/queries';
 import {
   listBillingEntities,
   getBillingEntityForClient,
@@ -81,14 +83,15 @@ export default async function ClientDetailPage({
   const contacts = await listClientContacts(orgId, clientCompanyId);
 
   // Billing is admin-only.
-  const [membership, billingEntity, billingEntities, invoices] = isAdmin
+  const [membership, billingEntity, billingEntities, invoices, teamMembers] = isAdmin
     ? await Promise.all([
         getClientMembership(clientCompanyId),
         getBillingEntityForClient(orgId, clientCompanyId),
         listBillingEntities(orgId),
         listClientInvoices(clientCompanyId),
+        listTeamMembers(orgId),
       ])
-    : [null, null, [], []];
+    : [null, null, [], [], []];
 
   return (
     <div className="space-y-6">
@@ -111,6 +114,24 @@ export default async function ClientDetailPage({
           {company.isActive ? de.clients.active : de.clients.inactive}
         </p>
       </div>
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>👤 Verantwortlicher Ansprechpartner</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Wird dem Kunden im Portal angezeigt (Foto, Name, Direktkontakt).
+            </p>
+          </CardHeader>
+          <CardContent>
+            <AccountManagerForm
+              clientCompanyId={clientCompanyId}
+              currentManagerId={company.accountManagerId}
+              staff={(teamMembers ?? []).map((m) => ({ userId: m.userId, name: m.name }))}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {isAdmin && (
         <Card>

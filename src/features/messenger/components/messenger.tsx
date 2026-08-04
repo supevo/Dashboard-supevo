@@ -367,7 +367,10 @@ function MessagePane({
           }}
         />
         <EmojiPicker onPick={insertEmoji} />
-        <StickerPicker channelId={channel.id} onSent={() => void load()} />
+        {/* Sticker sind im Kunden-Chat für Kunde & Mitarbeiter deaktiviert. */}
+        {channel.kind !== 'client' && (
+          <StickerPicker channelId={channel.id} onSent={() => void load()} />
+        )}
         <PollComposer
           channelId={channel.id}
           onCreated={() => void load()}
@@ -381,12 +384,14 @@ function MessagePane({
 
 export function Messenger({
   channels,
+  clientChannels = [],
   activeChannel,
   initialMessages,
   meId,
   meName,
 }: {
   channels: ChatChannel[];
+  clientChannels?: ChatChannel[];
   activeChannel: ChatChannel | null;
   initialMessages: ChannelMessage[];
   meId: string;
@@ -428,6 +433,28 @@ export function Messenger({
                 # {c.name}
               </Link>
             ))
+          )}
+
+          {clientChannels.length > 0 && (
+            <>
+              <div className="px-2 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Kunden
+              </div>
+              {clientChannels.map((c) => (
+                <Link
+                  key={c.id}
+                  href={`/app/chat/${c.id}`}
+                  className={cn(
+                    'block truncate rounded px-2 py-1.5 text-sm hover:bg-muted',
+                    activeChannel?.id === c.id
+                      ? 'bg-muted font-medium text-foreground'
+                      : 'text-muted-foreground',
+                  )}
+                >
+                  💬 {c.name}
+                </Link>
+              ))}
+            </>
           )}
         </nav>
       </aside>

@@ -815,6 +815,7 @@ export interface Database {
           interests: string | null;
           express_tickets_per_month: number;
           billing_entity_id: string | null;
+          account_manager_id: string | null;
           is_active: boolean;
           created_by: string | null;
           created_at: string;
@@ -832,6 +833,7 @@ export interface Database {
           interests?: string | null;
           express_tickets_per_month?: number;
           billing_entity_id?: string | null;
+          account_manager_id?: string | null;
           is_active?: boolean;
           created_by?: string | null;
         };
@@ -1307,6 +1309,7 @@ export interface Database {
           kind: string;
           is_private: boolean;
           dm_key: string | null;
+          client_company_id: string | null;
           created_by: string | null;
           created_at: string;
         };
@@ -1319,6 +1322,7 @@ export interface Database {
           kind?: string;
           is_private?: boolean;
           dm_key?: string | null;
+          client_company_id?: string | null;
           created_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channels']['Insert']>;
