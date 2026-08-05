@@ -123,6 +123,8 @@ export interface BoardTask {
   needsRating: boolean;
   /** When the client was last notified that this task is done (null = never). */
   clientNotifiedAt: string | null;
+  /** Print-billing state: null | 'required' | 'settled' | 'dismissed'. */
+  printBillingStatus: string | null;
 }
 
 export interface BoardColumn {
@@ -170,7 +172,7 @@ export async function getBoardView(
   const { data: tasks } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at, print_billing_status',
     )
     .eq('board_id', board.id)
     .eq('is_archived', false)
@@ -180,7 +182,7 @@ export async function getBoardView(
   const { data: archivedRows } = await supabase
     .from('tasks')
     .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at',
+      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at, print_billing_status',
     )
     .eq('board_id', board.id)
     .eq('is_archived', true)
@@ -316,6 +318,7 @@ export async function getBoardView(
     agingDays: withAging ? daysSince(t.column_entered_at) : null,
     needsRating: needsRatingFor(t),
     clientNotifiedAt: t.client_notified_at,
+    printBillingStatus: t.print_billing_status,
   });
 
   const columnsOut: BoardColumn[] = (columns ?? []).map((c) => ({

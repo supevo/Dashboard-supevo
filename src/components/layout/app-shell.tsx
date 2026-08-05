@@ -4,6 +4,7 @@ import { NotificationBell } from '@/features/notifications/components/notificati
 import { PresenceTracker } from '@/components/layout/presence-tracker';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { MobileNav } from '@/components/layout/mobile-nav';
+import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { RunningTimer } from '@/components/layout/running-timer';
 import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
@@ -69,26 +70,7 @@ export function AppShell({
           <p className="text-sm font-bold text-primary">{de.app.name}</p>
           <p className="text-xs text-muted-foreground">{areaLabel}</p>
         </div>
-        <nav className="space-y-1 overflow-y-auto">
-          {navItems.map((item) =>
-            item.heading ? (
-              <div
-                key={`h-${item.label}`}
-                className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground first:pt-0"
-              >
-                {item.label}
-              </div>
-            ) : (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
-              >
-                {item.label}
-              </Link>
-            ),
-          )}
-        </nav>
+        <SidebarNav items={navItems} />
         {/* pb-16 keeps the footer clear of the floating feedback button that
             sits fixed at the bottom-left corner. */}
         {sidebarFooter && <div className="mt-auto pb-16 pt-4">{sidebarFooter}</div>}

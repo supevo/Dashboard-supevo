@@ -35,6 +35,7 @@ export function ClientChatDock({
   const [open, setOpen] = useState(false);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
+  const [unread, setUnread] = useState(0);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +50,26 @@ export function ClientChatDock({
         messages: ChannelMessage[];
       };
       setChannelId(data.channelId);
-      setMessages(data.messages ?? []);
+      const msgs = data.messages ?? [];
+      setMessages(msgs);
+      if (data.channelId) {
+        const key = `supevo-chat-seen-${data.channelId}`;
+        const seen = localStorage.getItem(key);
+        const latest = msgs[msgs.length - 1]?.createdAt ?? '';
+        if (seen === null) {
+          // First load: baseline to now, don't badge historical messages.
+          if (latest) localStorage.setItem(key, latest);
+          setUnread(0);
+        } else {
+          setUnread(
+            msgs.filter((m) => m.authorId !== meId && m.createdAt > seen).length,
+          );
+        }
+      }
     } catch {
       /* transient — next poll retries */
     }
-  }, []);
+  }, [meId]);
 
   // Open on external event (e.g. the "Chat starten" button on the dashboard).
   useEffect(() => {
@@ -62,13 +78,20 @@ export function ClientChatDock({
     return () => window.removeEventListener(OPEN_CLIENT_CHAT_EVENT, handler);
   }, []);
 
-  // Poll only while open.
+  // Poll always (faster while open) so the closed button can show an unread badge.
   useEffect(() => {
-    if (!open) return;
     void load();
-    const t = setInterval(() => void load(), POLL_MS);
+    const t = setInterval(() => void load(), open ? POLL_MS : 25_000);
     return () => clearInterval(t);
-  }, [open, load]);
+  }, [load, open]);
+
+  // While open, mark the latest message as seen and clear the badge.
+  useEffect(() => {
+    if (!open || !channelId) return;
+    const latest = messages[messages.length - 1]?.createdAt;
+    if (latest) localStorage.setItem(`supevo-chat-seen-${channelId}`, latest);
+    setUnread(0);
+  }, [open, channelId, messages]);
 
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,6 +127,11 @@ export function ClientChatDock({
         className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
       >
         💬 Chat
+        {unread > 0 && (
+          <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
       </button>
     );
   }

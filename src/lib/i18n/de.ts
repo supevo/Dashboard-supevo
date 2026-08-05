@@ -282,6 +282,7 @@ export const de = {
     birthday: 'Geburtstag',
     reaction: 'Reaktion',
     appointment: 'Termin',
+    print_billing: 'Drucksachen-Abrechnung',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

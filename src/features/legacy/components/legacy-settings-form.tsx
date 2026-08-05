@@ -22,6 +22,15 @@ function centsToInput(cents: number | null): string {
   return (cents / 100).toFixed(2).replace('.', ',');
 }
 
+/** Parses a German decimal input ("180", "180,00") to cents, or null. */
+function inputToCents(s: string): number | null {
+  const t = s.trim();
+  if (!t) return null;
+  const n = t.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  const v = Number.parseFloat(n);
+  return Number.isFinite(v) && v >= 0 ? Math.round(v * 100) : null;
+}
+
 /**
  * Admin control to mark a client as a legacy customer and configure its package,
  * an optional free-entry net price (for negotiated discounts) and – for the
@@ -45,12 +54,17 @@ export function LegacySettingsForm({
   const router = useRouter();
   const [legacy, setLegacy] = useState(isLegacy);
   const [pkg, setPkg] = useState<LegacyPackage>(settings?.package ?? 'care');
+  const [customStr, setCustomStr] = useState(
+    centsToInput(settings?.customPriceCents ?? null),
+  );
 
   useEffect(() => {
     if (state.status === 'success') router.refresh();
   }, [state, router]);
 
   const info = LEGACY_PACKAGE_INFO[pkg];
+  const customCents = inputToCents(customStr);
+  const effectiveCents = customCents ?? info.priceCents;
 
   return (
     <form action={formAction} className="space-y-4">
@@ -110,6 +124,14 @@ export function LegacySettingsForm({
             <li key={f}>{f}</li>
           ))}
         </ul>
+        <p className="mt-2 border-t pt-2 text-sm font-semibold text-foreground">
+          Effektiver Preis: {formatEuroCents(effectiveCents)} netto/Monat
+          {customCents != null && (
+            <span className="ml-1 font-normal text-muted-foreground">
+              (individuell)
+            </span>
+          )}
+        </p>
       </div>
 
       <div className="space-y-1">
@@ -121,11 +143,13 @@ export function LegacySettingsForm({
           name="customPrice"
           inputMode="decimal"
           placeholder={centsToInput(info.priceCents)}
-          defaultValue={centsToInput(settings?.customPriceCents ?? null)}
+          value={customStr}
+          onChange={(e) => setCustomStr(e.target.value)}
         />
         <p className="text-xs text-muted-foreground">
           Nur ausfüllen, wenn ein Rabatt vereinbart wurde. Leer = Paketpreis (
-          {formatEuroCents(info.priceCents)}).
+          {formatEuroCents(info.priceCents)}). Hinweis: dient aktuell als
+          Referenzwert und wird nicht automatisch in Rechnungen übernommen.
         </p>
       </div>
 

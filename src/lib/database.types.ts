@@ -61,7 +61,8 @@ export type NotificationType =
   | 'optimization'
   | 'birthday'
   | 'reaction'
-  | 'appointment';
+  | 'appointment'
+  | 'print_billing';
 export type ActivityAction =
   | 'create'
   | 'update'

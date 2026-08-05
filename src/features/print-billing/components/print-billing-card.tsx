@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { DropZone } from '@/components/ui/drop-zone';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { dismissPrintBillingAction } from '@/features/print-billing/actions';
 
 /**
  * „Abrechnung"-Hinweis auf der Aufgabe: erscheint, wenn der Kunde Drucksachen
@@ -27,6 +28,7 @@ export function PrintBillingCard({
   const [supplier, setSupplier] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dismissing, startDismiss] = useTransition();
 
   if (status === 'settled') {
     return (
@@ -110,9 +112,25 @@ export function PrintBillingCard({
 
       {error && <Alert variant="destructive">{error}</Alert>}
 
-      <Button size="sm" type="button" onClick={upload} disabled={pending}>
-        {pending ? 'Wird hochgeladen …' : 'Rechnung hochladen'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" type="button" onClick={upload} disabled={pending}>
+          {pending ? 'Wird hochgeladen …' : 'Rechnung hochladen'}
+        </Button>
+        <button
+          type="button"
+          disabled={dismissing}
+          onClick={() =>
+            startDismiss(async () => {
+              await dismissPrintBillingAction(taskId);
+              router.refresh();
+            })
+          }
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+          title="Kein Druckprodukt – Hinweis entfernen"
+        >
+          Kein Druckprodukt
+        </button>
+      </div>
     </div>
   );
 }
