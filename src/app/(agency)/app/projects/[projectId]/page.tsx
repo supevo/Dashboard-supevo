@@ -14,7 +14,6 @@ import { ApplyTemplate } from '@/features/templates/components/apply-template';
 import { listProjectTemplates } from '@/features/templates/queries';
 import { getProjectHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
-import { RecapSection } from '@/features/recap/components/recap-section';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -88,9 +87,18 @@ export default async function ProjectDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>{de.recap.title}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Der Wochenrückblick wird jetzt zentral auf der Kundenseite erstellt
+              und versendet.
+            </p>
           </CardHeader>
           <CardContent>
-            <RecapSection clientCompanyId={project.clientCompanyId} />
+            <Link
+              href={`/app/clients/${project.clientCompanyId}`}
+              className="text-sm text-primary hover:underline"
+            >
+              → Zum Kunden: Wochenrückblick erstellen
+            </Link>
           </CardContent>
         </Card>
       )}
