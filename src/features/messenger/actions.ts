@@ -190,7 +190,7 @@ export async function sendChannelMessageAction(
   // Resolve the channel's org (RLS-scoped read) so the message carries it.
   const { data: channel } = await supabase
     .from('chat_channels')
-    .select('organization_id')
+    .select('organization_id, kind, client_company_id')
     .eq('id', parsed.data.channelId)
     .maybeSingle();
   if (!channel) return errorResult(de.errors.FORBIDDEN);
@@ -207,13 +207,25 @@ export async function sendChannelMessageAction(
   });
   if (error) return errorResult(de.errors.FORBIDDEN);
 
-  await notifyMentions(
-    channel.organization_id,
-    parsed.data.channelId,
-    parsed.data.body,
-    user.id,
-    user.fullName ?? user.email,
-  );
+  if (channel.kind === 'client' && channel.client_company_id) {
+    // Staff replied in a client channel → notify the client's contacts, so the
+    // customer sees the answer (mirrors the client→staff notification).
+    await notifyClientContacts(
+      channel.organization_id,
+      channel.client_company_id,
+      parsed.data.channelId,
+      parsed.data.body,
+      user.id,
+    );
+  } else {
+    await notifyMentions(
+      channel.organization_id,
+      parsed.data.channelId,
+      parsed.data.body,
+      user.id,
+      user.fullName ?? user.email,
+    );
+  }
 
   return successResult('');
 }
@@ -485,6 +497,42 @@ async function notifyMentions(
       entityId: channelId,
     })),
     authorId,
+  );
+}
+
+/**
+ * Notifies a client company's contacts about a new agency message in their chat
+ * channel (best-effort). Excludes the sender. Uses the same 'client_comment'
+ * notification the client→staff direction uses, so viewing the channel clears it.
+ */
+async function notifyClientContacts(
+  orgId: string,
+  clientCompanyId: string,
+  channelId: string,
+  body: string,
+  senderId: string,
+): Promise<void> {
+  const service = createSupabaseServiceClient();
+  const { data: contacts } = await service
+    .from('client_contacts')
+    .select('user_id')
+    .eq('client_company_id', clientCompanyId);
+  const recipients = [
+    ...new Set((contacts ?? []).map((c) => c.user_id)),
+  ].filter((id) => id !== senderId);
+  if (recipients.length === 0) return;
+
+  await createNotifications(
+    recipients.map((recipientId) => ({
+      organizationId: orgId,
+      recipientId,
+      type: 'client_comment' as const,
+      title: '💬 Neue Chat-Nachricht',
+      body: body.slice(0, 140),
+      entityType: 'chat',
+      entityId: channelId,
+    })),
+    senderId,
   );
 }
 

@@ -5,6 +5,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { sendClientChatMessageAction } from '@/features/messenger/client-chat-actions';
+import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import type { ChannelMessage } from '@/features/messenger/queries';
 import { cn } from '@/lib/utils';
 
@@ -232,6 +233,7 @@ export function ClientChatDock({
               }
             }}
           />
+          <EmojiPicker onPick={(emoji) => setBody((b) => b + emoji)} />
           <Button size="sm" type="button" onClick={send} disabled={sending}>
             Senden
           </Button>

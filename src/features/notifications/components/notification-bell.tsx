@@ -148,6 +148,11 @@ export function NotificationBell({ area }: { area: 'app' | 'portal' }) {
 
   function hrefFor(n: FeedItem): string {
     if (n.entityType === 'task' && n.entityId) return `/${area}/tasks/${n.entityId}`;
+    // Chat notifications: agency staff jump straight to the conversation; the
+    // client opens the portal (where their floating chat dock lives).
+    if (n.entityType === 'chat' && n.entityId) {
+      return area === 'app' ? `/app/chat/${n.entityId}` : '/portal';
+    }
     return notificationsHref;
   }
 

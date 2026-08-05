@@ -8,6 +8,7 @@ import { primaryAgencyOrgId } from '@/features/auth/access';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { runWorkloadOptimization } from '@/features/optimization/engine';
 import { getOptimizationSettings } from '@/features/optimization/queries';
+import { logger } from '@/lib/logger';
 import {
   type ActionResult,
   errorResult,
@@ -49,7 +50,13 @@ export async function updateOptimizationSettingsAction(input: {
     },
     { onConflict: 'organization_id' },
   );
-  if (error) return errorResult('Speichern fehlgeschlagen.');
+  if (error) {
+    logger.error('optimization.settings.save_failed', {
+      error: error.message,
+      code: error.code,
+    });
+    return errorResult('Speichern fehlgeschlagen.');
+  }
 
   revalidatePath('/app/workload');
   return successResult('Einstellungen gespeichert.');
