@@ -846,6 +846,7 @@ export interface Database {
           express_tickets_per_month: number;
           billing_entity_id: string | null;
           account_manager_id: string | null;
+          secondary_account_manager_id: string | null;
           is_active: boolean;
           is_legacy: boolean;
           created_by: string | null;
@@ -865,6 +866,7 @@ export interface Database {
           express_tickets_per_month?: number;
           billing_entity_id?: string | null;
           account_manager_id?: string | null;
+          secondary_account_manager_id?: string | null;
           is_active?: boolean;
           is_legacy?: boolean;
           created_by?: string | null;

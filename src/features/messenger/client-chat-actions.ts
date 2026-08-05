@@ -59,13 +59,16 @@ export async function sendClientChatMessageAction(
 
   let recipients: string[] = [];
   if (senderIsClient) {
-    // Client → account manager (fallback: none).
+    // Client → main + deputy account manager (fallback: none).
     const { data: company } = await service
       .from('client_companies')
-      .select('account_manager_id')
+      .select('account_manager_id, secondary_account_manager_id')
       .eq('id', channel.client_company_id)
       .maybeSingle();
-    if (company?.account_manager_id) recipients = [company.account_manager_id];
+    recipients = [
+      company?.account_manager_id,
+      company?.secondary_account_manager_id,
+    ].filter((id): id is string => Boolean(id));
   } else {
     // Agency → the client's contacts.
     recipients = [...contactIds];

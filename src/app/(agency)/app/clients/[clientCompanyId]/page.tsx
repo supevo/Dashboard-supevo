@@ -121,15 +121,17 @@ export default async function ClientDetailPage({
       {isAdmin && (
         <Card>
           <CardHeader>
-            <CardTitle>👤 Verantwortlicher Ansprechpartner</CardTitle>
+            <CardTitle>👤 Verantwortliche Ansprechpartner</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Wird dem Kunden im Portal angezeigt (Foto, Name, Direktkontakt).
+              Haupt- und stellvertretender Ansprechpartner. Werden dem Kunden im
+              Portal angezeigt (Foto, Name, Direktkontakt).
             </p>
           </CardHeader>
           <CardContent>
             <AccountManagerForm
               clientCompanyId={clientCompanyId}
               currentManagerId={company.accountManagerId}
+              currentSecondaryManagerId={company.secondaryAccountManagerId}
               staff={(teamMembers ?? []).map((m) => ({ userId: m.userId, name: m.name }))}
             />
           </CardContent>

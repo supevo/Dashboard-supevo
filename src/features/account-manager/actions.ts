@@ -16,12 +16,14 @@ import {
 const schema = z.object({
   clientCompanyId: z.string().uuid(),
   managerId: z.string().uuid().optional().or(z.literal('')),
+  secondaryManagerId: z.string().uuid().optional().or(z.literal('')),
 });
 
 /**
- * Sets (or clears) the responsible account manager for a client company.
- * Admin-only: authorized in-code, then written with the service client (the
- * agency-scoped RLS on client_companies excludes super_admin from some paths).
+ * Sets (or clears) the responsible main + deputy account manager for a client
+ * company. Admin-only: authorized in-code, then written with the service client
+ * (the agency-scoped RLS on client_companies excludes super_admin from some
+ * paths).
  */
 export async function setAccountManagerAction(
   _prev: ActionResult,
@@ -30,9 +32,17 @@ export async function setAccountManagerAction(
   const parsed = schema.safeParse({
     clientCompanyId: formData.get('clientCompanyId'),
     managerId: formData.get('managerId') ?? '',
+    secondaryManagerId: formData.get('secondaryManagerId') ?? '',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { clientCompanyId, managerId } = parsed.data;
+  const { clientCompanyId, managerId, secondaryManagerId } = parsed.data;
+
+  // The deputy must differ from the main contact.
+  if (managerId && secondaryManagerId && managerId === secondaryManagerId) {
+    return errorResult(
+      'Haupt- und stellvertretender Ansprechpartner müssen unterschiedlich sein.',
+    );
+  }
 
   const user = await getCurrentUser();
   if (!user) return errorResult(de.errors.UNAUTHENTICATED);
@@ -51,10 +61,14 @@ export async function setAccountManagerAction(
 
   const { error } = await createSupabaseServiceClient()
     .from('client_companies')
-    .update({ account_manager_id: managerId ? managerId : null })
+    .update({
+      account_manager_id: managerId ? managerId : null,
+      secondary_account_manager_id: secondaryManagerId ? secondaryManagerId : null,
+    })
     .eq('id', clientCompanyId);
   if (error) return errorResult(de.errors.INTERNAL);
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath('/portal');
   return successResult('Ansprechpartner gespeichert.');
 }

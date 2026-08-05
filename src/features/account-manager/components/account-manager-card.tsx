@@ -21,11 +21,15 @@ export function AccountManagerCard({ manager }: { manager: AccountManager }) {
         />
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Ihr Ansprechpartner
+            {manager.role === 'secondary'
+              ? 'Ihre Vertretung'
+              : 'Ihr Ansprechpartner'}
           </div>
           <div className="truncate text-lg font-semibold">{manager.name}</div>
           <div className="text-xs text-muted-foreground">
-            Für alle Fragen rund um eure Betreuung.
+            {manager.role === 'secondary'
+              ? 'Vertretung – falls euer Hauptkontakt nicht erreichbar ist.'
+              : 'Für alle Fragen rund um eure Betreuung.'}
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
