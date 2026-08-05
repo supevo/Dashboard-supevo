@@ -9,6 +9,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { StatTile } from '@/features/gamification/components/stat-tile';
+import { SkillRadar } from '@/features/gamification/components/skill-radar';
 import { LeagueBadge } from '@/features/gamification/components/league-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -204,39 +205,48 @@ export default async function ColleagueProfilePage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Fähigkeiten */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.skillsTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {p.skills.length > 0 ? (
-              <ul className="space-y-2">
-                {p.skills.map((s) => (
-                  <li key={s.name}>
-                    <div className="mb-0.5 flex items-center justify-between text-xs">
-                      <span className="font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">{s.level}/10</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-violet-500" style={{ width: `${(s.level / 10) * 100}%` }} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
-            )}
-          </CardContent>
-        </Card>
+      {/* Fähigkeiten + Lieblingsarbeit – identisch zum Level Hub: Radar, dann
+          violette Skill-Balken, darunter die Lieblingsarbeit als rote Balken. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.skillsTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {p.skills.length + p.preferences.length >= 3 && (
+            <SkillRadar
+              skills={p.skills.map((s) => ({ label: s.name, level: s.level }))}
+              preferences={p.preferences.map((pref) => ({
+                label: pref.name,
+                level: pref.level,
+              }))}
+            />
+          )}
+          {p.skills.length > 0 ? (
+            <ul className="space-y-2">
+              {p.skills.map((s) => (
+                <li key={s.name}>
+                  <div className="mb-0.5 flex items-center justify-between text-xs">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-muted-foreground">{s.level}/10</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-violet-500"
+                      style={{ width: `${(s.level / 10) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
+          )}
 
-        {/* Lieblingsarbeit */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.prefsTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
+          {/* Lieblingsarbeit – rote Balken (wie die Fähigkeiten, nur rot). */}
+          <div className="border-t pt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
+              {t.prefsTitle}
+            </div>
             {p.preferences.length > 0 ? (
               <ul className="space-y-2">
                 {p.preferences.map((pref) => (
@@ -257,9 +267,9 @@ export default async function ColleagueProfilePage({
             ) : (
               <p className="text-sm text-muted-foreground">{t.prefsEmpty}</p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
