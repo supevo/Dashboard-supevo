@@ -547,6 +547,17 @@ export async function markChannelRead(channelId: string): Promise<void> {
     },
     { onConflict: 'channel_id,user_id' },
   );
+
+  // Also clear the bell notifications tied to this chat channel, so viewing the
+  // conversation removes the red badge (chat notifications carry
+  // entity_type='chat', entity_id=channelId).
+  await supabase
+    .from('notifications')
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('recipient_id', user.id)
+    .eq('entity_type', 'chat')
+    .eq('entity_id', channelId)
+    .eq('is_read', false);
 }
 
 /** Deletes a channel (creator or admin). */
