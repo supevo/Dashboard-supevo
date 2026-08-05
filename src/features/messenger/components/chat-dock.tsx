@@ -314,8 +314,15 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       setDms(data.dms);
       setMembers(data.members);
       // Ping when the total unread count rises (a new message arrived). Skip the
-      // very first load so we don't ping for pre-existing unreads.
-      const total = Object.values(data.unread ?? {}).reduce((a, b) => a + b, 0);
+      // very first load so we don't ping for pre-existing unreads. Only count
+      // channels/DMs the dock lists (client chats live in the full messenger).
+      const listedIds = new Set(
+        [...data.channels, ...data.dms].map((c) => c.id),
+      );
+      const total = Object.entries(data.unread ?? {}).reduce(
+        (a, [id, n]) => (listedIds.has(id) ? a + n : a),
+        0,
+      );
       if (prevUnreadRef.current !== null && total > prevUnreadRef.current) {
         playChatPing();
       }
@@ -413,7 +420,14 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const activeTitle = activeChannel
     ? `${activeChannel.isPrivate ? '🔒' : '#'} ${activeChannel.name}`
     : (activeDm?.otherName ?? '');
-  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
+  // Only count unread for channels/DMs the dock actually shows. Client chats
+  // live in the full messenger's "Kunden" section (not the dock), so their
+  // unread must not create a phantom badge here that can't be cleared.
+  const dockIds = new Set([...channels, ...dms].map((c) => c.id));
+  const totalUnread = Object.entries(unread).reduce(
+    (a, [id, n]) => (dockIds.has(id) ? a + n : a),
+    0,
+  );
   const dmMemberIds = new Set(dms.map((d) => d.otherUserId));
 
   if (!open) {
