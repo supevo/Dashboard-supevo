@@ -14,6 +14,8 @@ import { ApplyTemplate } from '@/features/templates/components/apply-template';
 import { listProjectTemplates } from '@/features/templates/queries';
 import { getProjectHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
+import { listMarketingReports } from '@/features/marketing-reports/queries';
+import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -38,6 +40,10 @@ export default async function ProjectDetailPage({
     listRecurringTasks(projectId),
     project.canManage ? listProjectTemplates() : Promise.resolve([]),
   ]);
+  // Wochenberichte (SEO/SEA/Anfragen) leben jetzt komplett hier im Projekt.
+  const marketingReports = project.clientCompanyId
+    ? await listMarketingReports(project.clientCompanyId)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -86,19 +92,13 @@ export default async function ProjectDetailPage({
       {project.clientCompanyId && (
         <Card>
           <CardHeader>
-            <CardTitle>{de.recap.title}</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Der Wochenrückblick wird jetzt zentral auf der Kundenseite erstellt
-              und versendet.
-            </p>
+            <CardTitle>{de.marketingReport.agencyTitle}</CardTitle>
           </CardHeader>
           <CardContent>
-            <Link
-              href={`/app/clients/${project.clientCompanyId}`}
-              className="text-sm text-primary hover:underline"
-            >
-              → Zum Kunden: Wochenrückblick erstellen
-            </Link>
+            <ReportsManager
+              clientCompanyId={project.clientCompanyId}
+              reports={marketingReports}
+            />
           </CardContent>
         </Card>
       )}
