@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import {
   useActionState,
   useCallback,
@@ -176,6 +178,7 @@ function ConversationView({
         </Alert>
       )}
 
+      <DropZone overlayLabel="Datei hier ablegen">
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
         <Textarea
@@ -208,6 +211,7 @@ function ConversationView({
         />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
+      </DropZone>
     </div>
   );
 }

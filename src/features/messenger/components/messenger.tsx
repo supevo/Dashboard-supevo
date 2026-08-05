@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -343,6 +345,7 @@ function MessagePane({
         </Alert>
       )}
 
+      <DropZone overlayLabel="Datei hier ablegen">
       <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-3">
         <input type="hidden" name="channelId" value={channel.id} />
         <ChatAttachButton
@@ -378,6 +381,7 @@ function MessagePane({
         />
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
+      </DropZone>
     </section>
   );
 }

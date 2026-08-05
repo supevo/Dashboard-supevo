@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientTaskAction } from '@/features/tasks/actions';
@@ -111,14 +113,16 @@ export function AddClientTask({ projectId }: { projectId: string }) {
 
           <div className="space-y-1">
             <Label htmlFor="files">{de.task.files}</Label>
-            <input
-              id="files"
-              type="file"
-              multiple
-              accept={DEFAULT_ALLOWED_MIME.join(',')}
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
-              className="block text-sm"
-            />
+            <DropZone overlayLabel="Dateien hier ablegen">
+              <input
+                id="files"
+                type="file"
+                multiple
+                accept={DEFAULT_ALLOWED_MIME.join(',')}
+                onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
+                className="block text-sm"
+              />
+            </DropZone>
             {files.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 {files.length} Datei(en) ausgewählt

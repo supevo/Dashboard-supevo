@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -256,33 +258,37 @@ export function LootAdmin({
               )}
               <div className="w-full space-y-1 text-left">
                 <label className="text-[11px] text-muted-foreground">Box-Bild</label>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void uploadBoxAsset('box-art', t, f);
-                    e.target.value = '';
-                  }}
-                  className="block w-full text-xs"
-                />
+                <DropZone overlayLabel="Bild ablegen">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    disabled={busy}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadBoxAsset('box-art', t, f);
+                      e.target.value = '';
+                    }}
+                    className="block w-full text-xs"
+                  />
+                </DropZone>
               </div>
               <div className="w-full space-y-1 text-left">
                 <label className="text-[11px] text-muted-foreground">
                   Öffnungs-Video {config.hasVideo?.[t] ? '🎬 ✓' : '(optional)'}
                 </label>
-                <input
-                  type="file"
-                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
-                  disabled={busy}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void uploadBoxAsset('box-video', t, f);
-                    e.target.value = '';
-                  }}
-                  className="block w-full text-xs"
-                />
+                <DropZone overlayLabel="Video ablegen">
+                  <input
+                    type="file"
+                    accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                    disabled={busy}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadBoxAsset('box-video', t, f);
+                      e.target.value = '';
+                    }}
+                    className="block w-full text-xs"
+                  />
+                </DropZone>
               </div>
             </div>
           ))}
@@ -415,12 +421,14 @@ export function LootAdmin({
         {type === 'physical' && (
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Foto des Loots (optional)</label>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
-              className="block text-sm"
-            />
+            <DropZone overlayLabel="Foto ablegen">
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+                className="block text-sm"
+              />
+            </DropZone>
             {photo && <p className="text-xs text-muted-foreground">Ausgewählt: {photo.name}</p>}
           </div>
         )}

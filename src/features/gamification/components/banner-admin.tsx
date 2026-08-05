@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteHubBannerAction } from '@/features/gamification/actions';
@@ -203,12 +205,14 @@ export function BannerAdmin({ banners }: { banners: HubBannerAdminItem[] }) {
           />
           <span>🎁 Exklusiv – nur über Lootbox erhältlich (nicht per Level freischaltbar)</span>
         </label>
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block text-sm"
-        />
+        <DropZone overlayLabel="Bild hier ablegen">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block text-sm"
+          />
+        </DropZone>
         {error && <Alert variant="destructive">{error}</Alert>}
         <Button type="button" size="sm" onClick={upload} disabled={uploading}>
           {uploading ? de.common.loading : de.hubBanners.upload}

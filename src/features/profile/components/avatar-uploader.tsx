@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Avatar } from '@/components/ui/avatar';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DropZone } from '@/components/ui/drop-zone';
 import { de } from '@/lib/i18n/de';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB – mirrors the API limit.
@@ -110,7 +111,7 @@ export function AvatarUploader({
         />
       )}
 
-      <div className="space-y-2">
+      <DropZone className="space-y-2" overlayLabel="Bild hier ablegen">
         {error && <Alert variant="destructive">{error}</Alert>}
         {done && !file && (
           <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -159,7 +160,7 @@ export function AvatarUploader({
             ? `Ausgewählt: ${file.name} – zum Übernehmen auf „Speichern" tippen.`
             : 'PNG, JPG, WebP oder GIF · max. 5 MB'}
         </p>
-      </div>
+      </DropZone>
     </div>
   );
 }
