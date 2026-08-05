@@ -10,10 +10,10 @@ import { ProjectSettingsButton } from '@/features/projects/components/project-se
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RecurringTasksSection } from '@/features/recurring/components/recurring-tasks-section';
 import { listRecurringTasks } from '@/features/recurring/queries';
-import { ApplyTemplate } from '@/features/templates/components/apply-template';
-import { listProjectTemplates } from '@/features/templates/queries';
 import { getProjectHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
+import { listMarketingReports } from '@/features/marketing-reports/queries';
+import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectDetailPage({
@@ -33,11 +33,12 @@ export default async function ProjectDetailPage({
     getProjectHealthMap(orgId),
   ]);
   // Recurring tasks: every staff member may SEE them (read-only); only managers
-  // get the templates picker and the pause/delete controls.
-  const [recurring, templates] = await Promise.all([
-    listRecurringTasks(projectId),
-    project.canManage ? listProjectTemplates() : Promise.resolve([]),
-  ]);
+  // get the pause/delete controls.
+  const recurring = await listRecurringTasks(projectId);
+  // Wochenberichte (SEO/SEA/Anfragen) leben jetzt komplett hier im Projekt.
+  const marketingReports = project.clientCompanyId
+    ? await listMarketingReports(project.clientCompanyId)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -83,37 +84,6 @@ export default async function ProjectDetailPage({
         <p className="text-sm text-muted-foreground">Kein Board vorhanden.</p>
       )}
 
-      {project.clientCompanyId && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.recap.title}</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Der Wochenrückblick wird jetzt zentral auf der Kundenseite erstellt
-              und versendet.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <Link
-              href={`/app/clients/${project.clientCompanyId}`}
-              className="text-sm text-primary hover:underline"
-            >
-              → Zum Kunden: Wochenrückblick erstellen
-            </Link>
-          </CardContent>
-        </Card>
-      )}
-
-      {project.canManage && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.templates.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ApplyTemplate projectId={projectId} templates={templates} />
-          </CardContent>
-        </Card>
-      )}
-
       {(project.canManage || recurring.length > 0) && (
         <Card>
           <CardHeader>
@@ -124,6 +94,20 @@ export default async function ProjectDetailPage({
               projectId={projectId}
               items={recurring}
               canManage={project.canManage}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {project.clientCompanyId && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{de.marketingReport.agencyTitle}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ReportsManager
+              clientCompanyId={project.clientCompanyId}
+              reports={marketingReports}
             />
           </CardContent>
         </Card>

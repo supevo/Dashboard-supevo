@@ -23,14 +23,11 @@ import { ClientBillingEntityForm } from '@/features/billing/components/client-bi
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
 import { RequestsSection } from '@/features/requests/components/requests-section';
 import { listClientRequests } from '@/features/requests/queries';
-import { RecapSection } from '@/features/recap/components/recap-section';
 import { MonthlyReport } from '@/features/reports/components/monthly-report';
 import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { getSatisfactionSummary } from '@/features/satisfaction/queries';
 import { SatisfactionSummaryCard } from '@/features/satisfaction/components/satisfaction-summary';
-import { listMarketingReports } from '@/features/marketing-reports/queries';
-import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
@@ -64,7 +61,6 @@ export default async function ClientDetailPage({
     requests,
     healthMap,
     satisfaction,
-    marketingReports,
     inquiryEndpoint,
     inquiries,
     hub,
@@ -72,7 +68,6 @@ export default async function ClientDetailPage({
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
     getSatisfactionSummary(clientCompanyId),
-    listMarketingReports(clientCompanyId),
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
@@ -239,18 +234,6 @@ export default async function ClientDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>{de.marketingReport.agencyTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ReportsManager
-            clientCompanyId={clientCompanyId}
-            reports={marketingReports}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>{de.inquiries.agencyTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -269,15 +252,6 @@ export default async function ClientDetailPage({
         </CardHeader>
         <CardContent>
           <SatisfactionSummaryCard summary={satisfaction} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.recap.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RecapSection clientCompanyId={clientCompanyId} />
         </CardContent>
       </Card>
 
