@@ -11,6 +11,8 @@ import { de } from '@/lib/i18n/de';
 export interface NavItem {
   href: string;
   label: string;
+  /** Renders as a non-clickable section header instead of a link. */
+  heading?: boolean;
 }
 
 interface AppShellProps {
@@ -68,15 +70,24 @@ export function AppShell({
           <p className="text-xs text-muted-foreground">{areaLabel}</p>
         </div>
         <nav className="space-y-1 overflow-y-auto">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) =>
+            item.heading ? (
+              <div
+                key={`h-${item.label}`}
+                className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground first:pt-0"
+              >
+                {item.label}
+              </div>
+            ) : (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
         </nav>
         {/* pb-16 keeps the footer clear of the floating feedback button that
             sits fixed at the bottom-left corner. */}

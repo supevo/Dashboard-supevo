@@ -17,21 +17,6 @@ import { getMyAccountManagers } from '@/features/account-manager/queries';
 import { ClientChatDock } from '@/features/messenger/components/client-chat-dock';
 import { de } from '@/lib/i18n/de';
 
-// Marketingplan wird separat eingefügt, nur wenn ein Plan hinterlegt ist.
-const NAV_ITEMS: NavItem[] = [
-  { href: '/portal', label: de.nav.dashboard },
-  { href: '/portal/projects', label: de.nav.projects },
-  { href: '/portal/ideas', label: '💡 Ideen' },
-  { href: '/portal/appointments', label: '📅 Termine' },
-  { href: '/portal/hub', label: 'Marken-Hub' },
-  { href: '/portal/access', label: 'Zugänge' },
-  { href: '/portal/approvals', label: de.nav.approvals },
-  { href: '/portal/reports', label: de.nav.reports },
-  { href: '/portal/membership', label: de.nav.membership },
-  { href: '/portal/invoices', label: 'Rechnungen' },
-  { href: '/portal/documents', label: '📁 Dokumente' },
-];
-
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/portal/profile', label: de.nav.profile },
   { href: '/portal/notifications', label: de.nav.notifications },
@@ -64,13 +49,31 @@ export default async function ClientLayout({
     hasMyMarketingPlan(),
   ]);
 
-  // Build the nav: Marketingplan directly after the dashboard, but only when a
-  // plan is deposited; Anfragen only when the inbox is enabled.
+  // Gruppierte Portal-Navigation. Bedingte Punkte (Marketingplan, Anfragen)
+  // werden in die passende Gruppe eingehängt.
   const navItems: NavItem[] = [
-    NAV_ITEMS[0]!,
-    ...(hasPlan ? [{ href: '/portal/plan', label: '🗺️ Marketingplan' }] : []),
-    ...NAV_ITEMS.slice(1),
-    ...(inquiriesEnabled ? [{ href: '/portal/inquiries', label: de.nav.inquiries }] : []),
+    { href: '#arbeitsbereich', label: 'Arbeitsbereich', heading: true },
+    { href: '/portal', label: 'Übersicht' },
+    { href: '/portal/projects', label: 'Projekte' },
+    { href: '/portal/reports', label: 'Berichte' },
+    ...(inquiriesEnabled
+      ? [{ href: '/portal/inquiries', label: de.nav.inquiries }]
+      : []),
+
+    { href: '#planung', label: 'Planung & Kreativität', heading: true },
+    { href: '/portal/ideas', label: 'Ideen' },
+    { href: '/portal/appointments', label: 'Termine' },
+    ...(hasPlan ? [{ href: '/portal/plan', label: 'Marketingplan' }] : []),
+
+    { href: '#brand', label: 'Brand & Ressourcen', heading: true },
+    { href: '/portal/hub', label: 'Marken-Hub' },
+    { href: '/portal/documents', label: 'Dokumente' },
+
+    { href: '#verwaltung', label: 'Verwaltung & Zugänge', heading: true },
+    { href: '/portal/access', label: 'Zugänge' },
+    { href: '/portal/approvals', label: 'Freigaben' },
+    { href: '/portal/membership', label: 'Mitgliedschaft' },
+    { href: '/portal/invoices', label: 'Rechnungen' },
   ];
 
   const expressStatus = company
