@@ -57,6 +57,36 @@ export async function setPrintBillingAction(
   return successResult('Drucksachen-Einstellung gespeichert.');
 }
 
+/**
+ * Dismisses a print-billing prompt on a task (false positive). Sets the terminal
+ * status 'dismissed' so the detection won't re-flag it. Agency staff only.
+ */
+export async function dismissPrintBillingAction(
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  // RLS returns the task only to agency staff of its org (access gate).
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false };
+
+  const { error } = await createSupabaseServiceClient()
+    .from('tasks')
+    .update({ print_billing_status: 'dismissed' })
+    .eq('id', taskId)
+    .eq('print_billing_status', 'required');
+  if (error) return { ok: false };
+
+  revalidatePath('/app/projects');
+  return { ok: true };
+}
+
 /** Deletes a recorded print expense (admin-only; RLS also enforces this). */
 export async function deletePrintExpenseAction(
   expenseId: string,

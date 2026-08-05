@@ -36,8 +36,8 @@ export function TaskNotifyToggle({ enabled }: { enabled: boolean }) {
             Benachrichtigungen je Aufgabe
           </span>
           <span className="block text-xs text-muted-foreground">
-            Erhaltet eine Info, sobald wir eine Aufgabe für euch erledigt haben.
-            Aus = keine aufgabenbezogenen Benachrichtigungen mehr.
+            Info, sobald wir eine Aufgabe für euch erledigt haben. Freigaben und
+            Chat-Nachrichten bleiben davon unberührt.
           </span>
         </span>
       </label>

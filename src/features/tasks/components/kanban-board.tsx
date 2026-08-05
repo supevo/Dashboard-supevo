@@ -479,6 +479,16 @@ export function KanbanBoard({
                       <span className="min-w-0">{task.title}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                      {/* Drucksachen-Abrechnung offen (nur Mitarbeiterseite):
+                          Rechnung des Dienstleisters muss noch hochgeladen werden. */}
+                      {!isPortal && task.printBillingStatus === 'required' && (
+                        <span
+                          className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
+                          title="Drucksachen-Abrechnung offen – Rechnung hochladen"
+                        >
+                          💶 Abrechnung
+                        </span>
+                      )}
                       {/* In der Fertig-Spalte die Label-Chips ausblenden (die
                           Karte bleibt sauber, nur der Mitarbeiter bleibt sichtbar).
                           Die Labels bleiben an der Aufgabe gespeichert. */}

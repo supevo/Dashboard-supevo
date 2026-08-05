@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { NavItem } from '@/components/layout/app-shell';
+import { isNavActive } from '@/components/layout/sidebar-nav';
+import { cn } from '@/lib/utils';
 import { de } from '@/lib/i18n/de';
 
 /** Hamburger button + slide-in drawer navigation for small screens (< md). */
@@ -80,16 +82,33 @@ export function MobileNav({
               </button>
             </div>
             <div className="space-y-1 overflow-y-auto">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className="block rounded-md px-3 py-2 text-sm hover:bg-muted"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) =>
+                item.heading ? (
+                  <div
+                    key={`h-${item.label}`}
+                    className="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground first:pt-0"
+                  >
+                    {item.label}
+                  </div>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={
+                      isNavActive(pathname, item.href) ? 'page' : undefined
+                    }
+                    className={cn(
+                      'block rounded-md px-3 py-2 text-sm',
+                      isNavActive(pathname, item.href)
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'hover:bg-muted',
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                ),
+              )}
             </div>
           </nav>
         </div>

@@ -73,11 +73,12 @@ export async function detectPrintProduct(
 
   if (isAiEnabled()) {
     try {
-      const res = await completeText({
-        system: AI_SYSTEM,
-        prompt: text.slice(0, 4000),
-        maxTokens: 20,
-      });
+      // Bound the AI call so a slow/hanging provider can't delay the task move
+      // that triggers this detection. On timeout we fall back to the heuristic.
+      const res = await Promise.race([
+        completeText({ system: AI_SYSTEM, prompt: text.slice(0, 4000), maxTokens: 20 }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500)),
+      ]);
       if (res) {
         const m = res.text.match(/"print"\s*:\s*(true|false)/i);
         if (m) return m[1]!.toLowerCase() === 'true';

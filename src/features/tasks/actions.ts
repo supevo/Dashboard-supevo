@@ -576,7 +576,7 @@ async function afterTaskMoved(
     }
     // If the client bills print products and this task is a print job, flag it
     // so the completer is asked to upload the supplier invoice (→ Ausgaben).
-    await maybeFlagPrintBilling(supabase, taskId);
+    await maybeFlagPrintBilling(supabase, userId, targetColumn.organization_id, taskId);
   }
 
   // Log the move for the task's internal activity feed.
@@ -597,6 +597,8 @@ async function afterTaskMoved(
  */
 async function maybeFlagPrintBilling(
   supabase: MoveSupabase,
+  userId: string,
+  orgId: string | null,
   taskId: string,
 ): Promise<void> {
   const { data: task } = await supabase
@@ -604,7 +606,7 @@ async function maybeFlagPrintBilling(
     .select('id, title, description, project_id, print_billing_status')
     .eq('id', taskId)
     .maybeSingle();
-  if (!task || task.print_billing_status) return; // already required/settled
+  if (!task || task.print_billing_status) return; // already required/settled/dismissed
 
   const { data: project } = await supabase
     .from('projects')
@@ -627,6 +629,22 @@ async function maybeFlagPrintBilling(
     .from('tasks')
     .update({ print_billing_status: 'required' })
     .eq('id', taskId);
+
+  // Nudge the person who finished it to upload the supplier invoice. No
+  // excludeUserId here: the completer IS the intended recipient.
+  if (orgId) {
+    await createNotifications([
+      {
+        organizationId: orgId,
+        recipientId: userId,
+        type: 'print_billing' as const,
+        title: '💶 Abrechnung: Druckprodukt',
+        body: `Bitte lade die Dienstleister-Rechnung für „${task.title}" hoch.`,
+        entityType: 'task',
+        entityId: taskId,
+      },
+    ]);
+  }
 }
 
 const setTaskStatusSchema = z.object({

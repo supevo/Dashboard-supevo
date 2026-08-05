@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { listPendingApprovals } from '@/features/approvals/queries';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
+import { EmptyState } from '@/components/ui/empty-state';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalApprovalsPage() {
@@ -18,7 +19,11 @@ export default async function PortalApprovalsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {approvals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{de.approvals.none}</p>
+            <EmptyState
+              icon="✅"
+              title="Keine offenen Freigaben"
+              description="Aktuell wartet nichts auf eure Freigabe. Wir melden uns, sobald etwas ansteht."
+            />
           ) : (
             approvals.map((a) => (
               <div key={a.id} className="rounded-md border p-3">

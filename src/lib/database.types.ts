@@ -61,7 +61,8 @@ export type NotificationType =
   | 'optimization'
   | 'birthday'
   | 'reaction'
-  | 'appointment';
+  | 'appointment'
+  | 'print_billing';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -878,6 +879,25 @@ export interface Database {
         > & {
           deleted_at?: string | null;
         };
+        Relationships: [];
+      };
+      league_symbols: {
+        Row: {
+          organization_id: string;
+          league_key: string;
+          symbol: string | null;
+          image_path: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          league_key: string;
+          symbol?: string | null;
+          image_path?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['league_symbols']['Insert']
+        >;
         Relationships: [];
       };
       legacy_client_settings: {

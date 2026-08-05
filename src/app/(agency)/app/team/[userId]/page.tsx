@@ -9,6 +9,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { StatTile } from '@/features/gamification/components/stat-tile';
+import { SkillRadar } from '@/features/gamification/components/skill-radar';
+import { LeagueBadge } from '@/features/gamification/components/league-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { de } from '@/lib/i18n/de';
@@ -57,11 +59,11 @@ export default async function ColleagueProfilePage({
       {/* Top badges: league · tenure · level */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-          <span className="text-2xl" aria-hidden>{league.current.emoji}</span>
+          <LeagueBadge league={league.current} size={28} className="text-2xl" />
           <div>
             <div className="text-xs text-muted-foreground">{t.league}</div>
             <div className="font-semibold" style={{ color: league.current.color }}>
-              {league.current.name}
+              {league.label}
             </div>
           </div>
         </div>
@@ -112,7 +114,9 @@ export default async function ColleagueProfilePage({
               </div>
               <div className="mt-3 max-w-sm">
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{league.current.emoji} {league.current.name}</span>
+                  <span className="inline-flex items-center gap-1">
+                    <LeagueBadge league={league.current} size={14} /> {league.label}
+                  </span>
                   {league.next ? (
                     <span>
                       {t.toNextLeague
@@ -201,57 +205,71 @@ export default async function ColleagueProfilePage({
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Fähigkeiten */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.skillsTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {p.skills.length > 0 ? (
+      {/* Fähigkeiten + Lieblingsarbeit – identisch zum Level Hub: Radar, dann
+          violette Skill-Balken, darunter die Lieblingsarbeit als rote Balken. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t.skillsTitle}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {p.skills.length + p.preferences.length >= 3 && (
+            <SkillRadar
+              skills={p.skills.map((s) => ({ label: s.name, level: s.level }))}
+              preferences={p.preferences.map((pref) => ({
+                label: pref.name,
+                level: pref.level,
+              }))}
+            />
+          )}
+          {p.skills.length > 0 ? (
+            <ul className="space-y-2">
+              {p.skills.map((s) => (
+                <li key={s.name}>
+                  <div className="mb-0.5 flex items-center justify-between text-xs">
+                    <span className="font-medium">{s.name}</span>
+                    <span className="text-muted-foreground">{s.level}/10</span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-violet-500"
+                      style={{ width: `${(s.level / 10) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
+          )}
+
+          {/* Lieblingsarbeit – rote Balken (wie die Fähigkeiten, nur rot). */}
+          <div className="border-t pt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-rose-500">
+              {t.prefsTitle}
+            </div>
+            {p.preferences.length > 0 ? (
               <ul className="space-y-2">
-                {p.skills.map((s) => (
-                  <li key={s.name}>
+                {p.preferences.map((pref) => (
+                  <li key={pref.name}>
                     <div className="mb-0.5 flex items-center justify-between text-xs">
-                      <span className="font-medium">{s.name}</span>
-                      <span className="text-muted-foreground">{s.level}/10</span>
+                      <span className="font-medium">{pref.name}</span>
+                      <span className="text-muted-foreground">{pref.level}/10</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-violet-500" style={{ width: `${(s.level / 10) * 100}%` }} />
+                      <div
+                        className="h-full rounded-full bg-rose-500"
+                        style={{ width: `${(pref.level / 10) * 100}%` }}
+                      />
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Lieblingsarbeit */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t.prefsTitle}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {p.preferences.length > 0 ? (
-              <ul className="space-y-1.5">
-                {p.preferences.map((pref) => (
-                  <li key={pref.name} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="min-w-0 truncate">{pref.name}</span>
-                    <span className="shrink-0 text-rose-500">
-                      {'♥'.repeat(Math.min(5, Math.round(pref.level / 2))) || '♥'}
-                      <span className="ml-1 text-xs text-muted-foreground">{pref.level}/10</span>
-                    </span>
                   </li>
                 ))}
               </ul>
             ) : (
               <p className="text-sm text-muted-foreground">{t.prefsEmpty}</p>
             )}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -51,22 +51,36 @@ export default async function TaskDetailPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const [comments, files, checklists, orgLabels, taskLabels, approvals] =
-    await Promise.all([
-      listTaskComments(taskId, user.id),
-      listTaskFiles(taskId, user.id),
-      listTaskChecklists(taskId),
-      listLabels(task.organizationId),
-      listTaskLabels(taskId),
-      listProjectApprovals(projectId),
-    ]);
-  const members = await listProjectMembers(projectId);
-  const runningTimer = await getRunningTimer(user.id);
-  const rating = await getTaskRating(taskId, user.id);
-  const taskKudos = await getTaskKudos(taskId, user.id);
-  const clientRating = await getTaskClientRating(taskId);
-  const actualMinutes = await getTaskActualMinutes(taskId);
-  const [taskActivity, taskViewStats] = await Promise.all([
+  // All of these are independent → fetch in parallel (was ~10 sequential
+  // round-trips, one of the slowest pages in the app).
+  const [
+    comments,
+    files,
+    checklists,
+    orgLabels,
+    taskLabels,
+    approvals,
+    members,
+    runningTimer,
+    rating,
+    taskKudos,
+    clientRating,
+    actualMinutes,
+    taskActivity,
+    taskViewStats,
+  ] = await Promise.all([
+    listTaskComments(taskId, user.id),
+    listTaskFiles(taskId, user.id),
+    listTaskChecklists(taskId),
+    listLabels(task.organizationId),
+    listTaskLabels(taskId),
+    listProjectApprovals(projectId),
+    listProjectMembers(projectId),
+    getRunningTimer(user.id),
+    getTaskRating(taskId, user.id),
+    getTaskKudos(taskId, user.id),
+    getTaskClientRating(taskId),
+    getTaskActualMinutes(taskId),
     listTaskActivity(taskId),
     getTaskViewStats(taskId),
   ]);

@@ -3,7 +3,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { levelForPoints } from '@/features/kudos/badges';
-import { leagueForPoints, type LeagueStanding } from '@/features/gamification/leagues';
+import { leagueForPoints, withSymbols, type LeagueStanding } from '@/features/gamification/leagues';
+import { getLeagueSymbols } from '@/features/gamification/league-symbols';
 import { livePresence } from '@/features/presence/status';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
 import {
@@ -63,6 +64,7 @@ export interface ColleagueListItem {
   roleLabel: string;
   level: number;
   leagueEmoji: string;
+  leagueIconUrl: string | null;
   leagueName: string;
   isSelf: boolean;
 }
@@ -89,10 +91,11 @@ export async function listColleagues(
   const ids = [...new Set(staff.map((m) => m.user_id))];
   if (ids.length === 0) return [];
 
-  const [profilesRes, kudosRes, xpRes] = await Promise.all([
+  const [profilesRes, kudosRes, xpRes, symbols] = await Promise.all([
     service.from('profiles').select('id, full_name, avatar_url, status, last_seen_at').in('id', ids),
     service.from('kudos').select('to_user_id, points').in('to_user_id', ids),
     service.from('xp_events').select('user_id, points').in('user_id', ids),
+    getLeagueSymbols(orgId),
   ]);
 
   const pointsById = new Map<string, number>();
@@ -108,7 +111,7 @@ export async function listColleagues(
     .map((id) => {
       const p = profileById.get(id);
       const pts = pointsById.get(id) ?? 0;
-      const league = leagueForPoints(pts);
+      const league = withSymbols(leagueForPoints(pts), symbols);
       return {
         userId: id,
         name: p?.full_name ?? '—',
@@ -117,7 +120,8 @@ export async function listColleagues(
         roleLabel: ROLE_LABELS[roleById.get(id) ?? 'employee'] ?? 'Mitarbeiter:in',
         level: levelForPoints(pts).level,
         leagueEmoji: league.current.emoji,
-        leagueName: league.current.name,
+        leagueIconUrl: league.current.iconUrl ?? null,
+        leagueName: league.label,
         isSelf: id === viewer.id,
       };
     })
@@ -208,7 +212,7 @@ export async function getColleagueProfile(
     levelProgressPct: levelInfo.progressPct,
     xpIntoLevel: levelInfo.intoLevel,
     xpForLevel: levelInfo.span,
-    league: leagueForPoints(points),
+    league: withSymbols(leagueForPoints(points), await getLeagueSymbols(orgId)),
     bannerBackground: banner.background,
     stats: {
       missions: missionsRes.count ?? 0,

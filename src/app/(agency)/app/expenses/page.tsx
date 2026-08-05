@@ -5,6 +5,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { listPrintExpenses, sumExpenseCents } from '@/features/print-billing/queries';
 import { DeleteExpenseButton } from '@/features/print-billing/components/delete-expense-button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 function euro(cents: number): string {
   return new Intl.NumberFormat('de-DE', {
@@ -13,22 +14,71 @@ function euro(cents: number): string {
   }).format(cents / 100);
 }
 
+function monthKey(iso: string): string {
+  return iso.slice(0, 7); // YYYY-MM
+}
+function monthLabel(key: string): string {
+  const [y, m] = key.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('de-DE', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 /** Internal expenses area (super-admin only): supplier invoices for print jobs. */
-export default async function ExpensesPage() {
+export default async function ExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const { user, orgId } = await requireAgencyPage();
   if (!isSuperAdmin(user)) redirect('/app');
 
-  const expenses = await listPrintExpenses(orgId);
+  const { month } = await searchParams;
+  const all = await listPrintExpenses(orgId);
+  const months = [...new Set(all.map((e) => monthKey(e.createdAt)))].sort().reverse();
+  const activeMonth = month && months.includes(month) ? month : null;
+  const expenses = activeMonth
+    ? all.filter((e) => monthKey(e.createdAt) === activeMonth)
+    : all;
   const total = sumExpenseCents(expenses);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">💶 Ausgaben</h1>
-        <p className="text-sm text-muted-foreground">
-          Hochgeladene Dienstleister-Rechnungen für abgerechnete Druckprodukte.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">💶 Ausgaben</h1>
+          <p className="text-sm text-muted-foreground">
+            Hochgeladene Dienstleister-Rechnungen für abgerechnete Druckprodukte.
+          </p>
+        </div>
+        <a
+          href="/api/print-expenses/export"
+          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+        >
+          ⬇️ CSV-Export
+        </a>
       </div>
+
+      {months.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Link
+            href="/app/expenses"
+            className={`rounded-full border px-3 py-1 ${!activeMonth ? 'bg-primary/10 font-medium text-primary' : 'hover:bg-muted'}`}
+          >
+            Alle
+          </Link>
+          {months.map((mk) => (
+            <Link
+              key={mk}
+              href={`/app/expenses?month=${mk}`}
+              className={`rounded-full border px-3 py-1 ${activeMonth === mk ? 'bg-primary/10 font-medium text-primary' : 'hover:bg-muted'}`}
+            >
+              {monthLabel(mk)}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -36,16 +86,19 @@ export default async function ExpensesPage() {
             Drucksachen-Rechnungen ({expenses.length}){' '}
             {total > 0 && (
               <span className="text-sm font-normal text-muted-foreground">
-                · erfasst {euro(total)}
+                · {activeMonth ? monthLabel(activeMonth) + ': ' : 'erfasst '}
+                {euro(total)}
               </span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {expenses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Noch keine Ausgaben erfasst.
-            </p>
+            <EmptyState
+              icon="💶"
+              title="Noch keine Ausgaben erfasst"
+              description="Sobald ein Mitarbeiter eine Dienstleister-Rechnung für ein Druckprodukt hochlädt, erscheint sie hier."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

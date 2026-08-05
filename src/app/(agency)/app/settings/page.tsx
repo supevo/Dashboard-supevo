@@ -13,12 +13,19 @@ import { listHubFrames } from '@/features/gamification/frame-queries';
 import { StickerManager } from '@/features/messenger/components/sticker-manager';
 import { listStickers } from '@/features/messenger/queries';
 import { buttonVariants } from '@/components/ui/button';
+import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
+import { getLeagueSymbols } from '@/features/gamification/league-symbols';
+import { LeagueSymbolsForm } from '@/features/gamification/components/league-symbols-form';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage() {
   const { orgId } = await requireOrgAdminPage();
   const org = await getOrganization(orgId);
   if (!org) return null;
+
+  const aiOn = isAiEnabled();
+  const aiLabel = aiModelLabel();
+  const leagueSymbols = await getLeagueSymbols(orgId);
 
   const [hubBanners, hubFrames, stickers] = await Promise.all([
     listHubBanners(orgId),
@@ -30,6 +37,60 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{de.settings.title}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🤖 KI-Status</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Betrifft alle KI-Funktionen (Zeiten-/Passwort-Import, Drucksachen-
+            Erkennung, Briefing, Rückblick …).
+          </p>
+        </CardHeader>
+        <CardContent>
+          {aiOn ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                KI aktiv
+              </span>
+              {aiLabel && (
+                <span className="text-muted-foreground">· {aiLabel}</span>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="inline-flex h-2.5 w-2.5 rounded-full bg-muted-foreground/50" />
+                <span className="font-medium text-muted-foreground">
+                  KI inaktiv
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Kein API-Schlüssel gesetzt. KI-Funktionen nutzen dann nur die
+                einfache Erkennung. Aktivieren per <code>OPENAI_API_KEY</code>,{' '}
+                <code>GEMINI_API_KEY</code> oder <code>ANTHROPIC_API_KEY</code>{' '}
+                (in Vercel). Details unter{' '}
+                <Link href="/app/diagnostics" className="text-primary hover:underline">
+                  Diagnose
+                </Link>
+                .
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🏆 Liga-Symbole</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Eigene Symbole für die Ligen (Level Hub, Kollegen, Profile).
+          </p>
+        </CardHeader>
+        <CardContent>
+          <LeagueSymbolsForm symbols={leagueSymbols} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

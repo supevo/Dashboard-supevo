@@ -23,17 +23,20 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export default async function ClientDashboardPage() {
   const { user } = await requireClientPage();
-  const d = await getClientDashboard();
-  const company = await getMyClientCompany();
-  const mySatisfaction = company
-    ? await getMySatisfaction(company.clientCompanyId)
-    : null;
-  const news = company
-    ? await getClientNews(company.clientCompanyId, company.organizationId)
-    : null;
-  const onboarding = await getMyOnboarding();
-  const weekWork = await getClientWeekWork();
-  const accountManagers = await getMyAccountManagers();
+  const [d, company] = await Promise.all([
+    getClientDashboard(),
+    getMyClientCompany(),
+  ]);
+  const [mySatisfaction, news, onboarding, weekWork, accountManagers] =
+    await Promise.all([
+      company ? getMySatisfaction(company.clientCompanyId) : Promise.resolve(null),
+      company
+        ? getClientNews(company.clientCompanyId, company.organizationId)
+        : Promise.resolve(null),
+      getMyOnboarding(),
+      getClientWeekWork(),
+      getMyAccountManagers(),
+    ]);
 
   return (
     <div className="space-y-6">

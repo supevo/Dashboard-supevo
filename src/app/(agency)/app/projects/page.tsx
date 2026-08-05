@@ -9,6 +9,7 @@ import { CreateProjectDialog } from '@/features/projects/components/create-proje
 import { ProjectCover } from '@/features/projects/components/project-cover';
 import { getProjectHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
+import { EmptyState } from '@/components/ui/empty-state';
 import { de } from '@/lib/i18n/de';
 
 export default async function ProjectsPage() {
@@ -41,7 +42,14 @@ export default async function ProjectsPage() {
       </div>
 
       {projects.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{de.projects.noProjects}</p>
+        <EmptyState
+          icon="🗂️"
+          title="Noch keine Projekte"
+          description="Lege ein Projekt an, um Aufgaben und Kanban-Boards für einen Kunden zu starten."
+          {...(canCreate
+            ? { action: { href: '/app/clients', label: 'Zu den Kunden' } }
+            : {})}
+        />
       ) : (
         <>
           {normalProjects.length > 0 && (

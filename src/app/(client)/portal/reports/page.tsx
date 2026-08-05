@@ -4,6 +4,7 @@ import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { listMarketingReports } from '@/features/marketing-reports/queries';
 import { ReportCard } from '@/features/marketing-reports/components/report-card';
 import { listMyTaskReports } from '@/features/task-reports/queries';
+import { EmptyState } from '@/components/ui/empty-state';
 import { formatBerlinDateTime } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -23,7 +24,11 @@ export default async function ClientReportsPage() {
       </div>
 
       {reports.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{de.marketingReport.empty}</p>
+        <EmptyState
+          icon="📊"
+          title="Noch keine Berichte"
+          description={de.marketingReport.empty}
+        />
       ) : (
         <div className="space-y-4">
           {reports.map((r) => (
@@ -42,9 +47,11 @@ export default async function ClientReportsPage() {
       </div>
 
       {taskReports.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Noch keine Einzelaufgabenberichte vorhanden.
-        </p>
+        <EmptyState
+          icon="📝"
+          title="Noch keine Einzelberichte"
+          description="Updates zu einzelnen erledigten Aufgaben erscheinen hier."
+        />
       ) : (
         <div className="space-y-3">
           {taskReports.map((t) => (

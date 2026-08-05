@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { listProjects } from '@/features/projects/queries';
 import { ProjectCover } from '@/features/projects/components/project-cover';
+import { EmptyState } from '@/components/ui/empty-state';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectsPage() {
@@ -13,7 +14,11 @@ export default async function PortalProjectsPage() {
       <h1 className="text-2xl font-bold">{de.portal.projects}</h1>
 
       {projects.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{de.portal.noProjects}</p>
+        <EmptyState
+          icon="📁"
+          title="Noch keine Projekte"
+          description="Sobald wir mit einem Projekt für euch starten, erscheint es hier."
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
