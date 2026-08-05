@@ -14,6 +14,8 @@ import { StickerManager } from '@/features/messenger/components/sticker-manager'
 import { listStickers } from '@/features/messenger/queries';
 import { buttonVariants } from '@/components/ui/button';
 import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
+import { getLeagueSymbols } from '@/features/gamification/league-symbols';
+import { LeagueSymbolsForm } from '@/features/gamification/components/league-symbols-form';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage() {
@@ -23,6 +25,7 @@ export default async function SettingsPage() {
 
   const aiOn = isAiEnabled();
   const aiLabel = aiModelLabel();
+  const leagueSymbols = await getLeagueSymbols(orgId);
 
   const [hubBanners, hubFrames, stickers] = await Promise.all([
     listHubBanners(orgId),
@@ -74,6 +77,18 @@ export default async function SettingsPage() {
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🏆 Liga-Symbole</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Eigene Symbole für die Ligen (Level Hub, Kollegen, Profile).
+          </p>
+        </CardHeader>
+        <CardContent>
+          <LeagueSymbolsForm symbols={leagueSymbols} />
         </CardContent>
       </Card>
 

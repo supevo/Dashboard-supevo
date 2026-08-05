@@ -2,7 +2,8 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { levelForPoints } from '@/features/kudos/badges';
-import { leagueForPoints, type LeagueStanding } from '@/features/gamification/leagues';
+import { leagueForPoints, withSymbols, type LeagueStanding } from '@/features/gamification/leagues';
+import { getLeagueSymbols } from '@/features/gamification/league-symbols';
 import { listObjectivesForUser, type Objective } from '@/features/goals/queries';
 import { listHallOfFame } from '@/features/awards/queries';
 import { BADGE_BY_KEY } from '@/features/kudos/badges';
@@ -273,7 +274,7 @@ export async function getLevelHub(
     nextLevelPoints: next,
     xpIntoLevel: levelInfo.intoLevel,
     xpForLevel: levelInfo.span,
-    league: leagueForPoints(points),
+    league: withSymbols(leagueForPoints(points), await getLeagueSymbols(orgId)),
     daysInCompany,
     stats: {
       missions: missionsRes.count ?? 0,

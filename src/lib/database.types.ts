@@ -881,6 +881,23 @@ export interface Database {
         };
         Relationships: [];
       };
+      league_symbols: {
+        Row: {
+          organization_id: string;
+          league_key: string;
+          symbol: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          league_key: string;
+          symbol: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['league_symbols']['Insert']
+        >;
+        Relationships: [];
+      };
       legacy_client_settings: {
         Row: {
           client_company_id: string;

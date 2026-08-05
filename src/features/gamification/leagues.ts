@@ -45,6 +45,27 @@ export interface LeagueStanding {
   label: string;
 }
 
+/**
+ * Returns a copy of the standing with the current/next league emoji replaced by
+ * the org's custom symbol where one is set. Defaults stay when unset.
+ */
+export function withSymbols(
+  standing: LeagueStanding,
+  symbols: Record<string, string>,
+): LeagueStanding {
+  const cur = symbols[standing.current.key];
+  const nxtSym = standing.next ? symbols[standing.next.key] : undefined;
+  return {
+    ...standing,
+    current: cur ? { ...standing.current, emoji: cur } : standing.current,
+    next: standing.next
+      ? nxtSym
+        ? { ...standing.next, emoji: nxtSym }
+        : standing.next
+      : null,
+  };
+}
+
 /** Resolves the league standing (incl. division) for a lifetime point total. */
 export function leagueForPoints(points: number): LeagueStanding {
   let idx = 0;
