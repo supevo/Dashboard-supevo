@@ -44,7 +44,7 @@ alter table public.print_expenses enable row level security;
 create policy print_expenses_read on public.print_expenses
   for select
   using (
-    public.is_org_admin()
+    public.is_org_admin(organization_id)
     and organization_id in (select public.current_user_org_ids())
   );
 
@@ -60,6 +60,6 @@ create policy print_expenses_insert on public.print_expenses
 create policy print_expenses_delete on public.print_expenses
   for delete
   using (
-    public.is_org_admin()
+    public.is_org_admin(organization_id)
     and organization_id in (select public.current_user_org_ids())
   );

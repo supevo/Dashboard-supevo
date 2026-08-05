@@ -50,11 +50,11 @@ create policy legacy_client_settings_read on public.legacy_client_settings
 create policy legacy_client_settings_write on public.legacy_client_settings
   for all
   using (
-    public.is_org_admin()
+    public.is_org_admin(organization_id)
     and organization_id in (select public.current_user_org_ids())
   )
   with check (
-    public.is_org_admin()
+    public.is_org_admin(organization_id)
     and organization_id in (select public.current_user_org_ids())
   );
 
