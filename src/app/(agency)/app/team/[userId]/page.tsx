@@ -61,7 +61,7 @@ export default async function ColleagueProfilePage({
           <div>
             <div className="text-xs text-muted-foreground">{t.league}</div>
             <div className="font-semibold" style={{ color: league.current.color }}>
-              {league.current.name}
+              {league.label}
             </div>
           </div>
         </div>
@@ -112,7 +112,7 @@ export default async function ColleagueProfilePage({
               </div>
               <div className="mt-3 max-w-sm">
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{league.current.emoji} {league.current.name}</span>
+                  <span>{league.current.emoji} {league.label}</span>
                   {league.next ? (
                     <span>
                       {t.toNextLeague

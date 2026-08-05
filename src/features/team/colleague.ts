@@ -117,7 +117,7 @@ export async function listColleagues(
         roleLabel: ROLE_LABELS[roleById.get(id) ?? 'employee'] ?? 'Mitarbeiter:in',
         level: levelForPoints(pts).level,
         leagueEmoji: league.current.emoji,
-        leagueName: league.current.name,
+        leagueName: league.label,
         isSelf: id === viewer.id,
       };
     })
