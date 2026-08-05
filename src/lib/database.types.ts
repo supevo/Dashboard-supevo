@@ -847,6 +847,7 @@ export interface Database {
           billing_entity_id: string | null;
           account_manager_id: string | null;
           is_active: boolean;
+          is_legacy: boolean;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -865,6 +866,7 @@ export interface Database {
           billing_entity_id?: string | null;
           account_manager_id?: string | null;
           is_active?: boolean;
+          is_legacy?: boolean;
           created_by?: string | null;
         };
         Update: Partial<
@@ -872,6 +874,32 @@ export interface Database {
         > & {
           deleted_at?: string | null;
         };
+        Relationships: [];
+      };
+      legacy_client_settings: {
+        Row: {
+          client_company_id: string;
+          organization_id: string;
+          package: string;
+          custom_price_cents: number | null;
+          google_ads_budget_cents: number | null;
+          meta_budget_cents: number | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          client_company_id: string;
+          organization_id: string;
+          package?: string;
+          custom_price_cents?: number | null;
+          google_ads_budget_cents?: number | null;
+          meta_budget_cents?: number | null;
+          notes?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['legacy_client_settings']['Insert']
+        >;
         Relationships: [];
       };
       client_brands: {

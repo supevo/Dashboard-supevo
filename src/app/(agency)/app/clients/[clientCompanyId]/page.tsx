@@ -40,6 +40,8 @@ import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
+import { getLegacySettings } from '@/features/legacy/queries';
+import { LegacySettingsForm } from '@/features/legacy/components/legacy-settings-form';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -78,6 +80,7 @@ export default async function ClientDetailPage({
   const planYear = new Date().getFullYear();
   const marketingPlan = await getPlan(clientCompanyId, planYear);
   const onboarding = await getOnboarding(clientCompanyId, orgId);
+  const legacySettings = isAdmin ? await getLegacySettings(clientCompanyId) : null;
 
   // Contacts are visible/manageable by all agency staff (they add clients).
   const contacts = await listClientContacts(orgId, clientCompanyId);
@@ -289,6 +292,24 @@ export default async function ClientDetailPage({
 
       {isAdmin && (
         <>
+          <Card>
+            <CardHeader>
+              <CardTitle>🏛️ Legacy-Kunde &amp; Paket</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Bestandskunde mit Website-/Betreuungspaket. Preis frei
+                überschreibbar (Rabatte); Werbebudget nur bei Performance.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <LegacySettingsForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                isLegacy={company.isLegacy}
+                settings={legacySettings}
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Rechnungssteller</CardTitle>
