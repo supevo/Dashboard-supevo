@@ -457,7 +457,7 @@ export function KanbanBoard({
                         !task.isExpress &&
                         'cursor-copy ring-2 ring-violet-400/60 hover:ring-violet-500',
                       expressPickMode && task.isExpress && 'opacity-50',
-                      task.isExpress && 'express-pulse',
+                      task.isExpress && !col.isDoneColumn && 'express-pulse',
                       dragOver?.taskId === task.id &&
                         !dragOver.after &&
                         'shadow-[inset_0_2px_0_0_hsl(var(--primary))]',
@@ -467,7 +467,7 @@ export function KanbanBoard({
                     )}
                   >
                     <div className="flex items-start gap-1.5 text-sm font-medium">
-                      {task.isExpress && (
+                      {task.isExpress && !col.isDoneColumn && (
                         <span
                           className="shrink-0 animate-bounce"
                           title="Express-Ticket – springt in der Warteschlange nach vorn"

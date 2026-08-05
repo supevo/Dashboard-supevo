@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteHubFrameAction } from '@/features/gamification/actions';
@@ -197,12 +199,14 @@ export function FrameAdmin({ frames }: { frames: HubFrameAdminItem[] }) {
           />
           <span>🎁 Exklusiv – nur über Lootbox erhältlich (Sonderrahmen)</span>
         </label>
-        <input
-          type="file"
-          accept="image/png,image/webp,image/svg+xml,image/gif"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block text-sm"
-        />
+        <DropZone overlayLabel="Bild hier ablegen">
+          <input
+            type="file"
+            accept="image/png,image/webp,image/svg+xml,image/gif"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block text-sm"
+          />
+        </DropZone>
         {error && <Alert variant="destructive">{error}</Alert>}
         <Button type="button" size="sm" onClick={upload} disabled={uploading}>
           {uploading ? 'Lädt…' : 'Hochladen'}

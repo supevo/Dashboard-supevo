@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -182,7 +184,7 @@ export function OnboardingSetup({
           hint="Kunde liest das Vertrags-PDF und unterschreibt digital."
         />
         {contract && (
-          <div className="ml-7 space-y-1.5">
+          <DropZone className="ml-7 space-y-1.5" overlayLabel="Vertrags-PDF ablegen">
             <input
               ref={fileRef}
               type="file"
@@ -228,7 +230,7 @@ export function OnboardingSetup({
                 Auftragsbestätigung.
               </p>
             )}
-          </div>
+          </DropZone>
         )}
         <Part
           checked={sepa}

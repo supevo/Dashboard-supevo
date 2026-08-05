@@ -238,6 +238,36 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['employee_hr_profiles']['Insert']>;
         Relationships: [];
       };
+      password_entries: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          username: string | null;
+          secret_encrypted: string | null;
+          url: string | null;
+          notes: string | null;
+          category: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title: string;
+          username?: string | null;
+          secret_encrypted?: string | null;
+          url?: string | null;
+          notes?: string | null;
+          category?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['password_entries']['Insert']>;
+        Relationships: [];
+      };
       appointment_requests: {
         Row: {
           id: string;

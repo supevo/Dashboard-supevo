@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateFeedbackAction,
@@ -28,17 +28,19 @@ const KIND_LABEL: Record<string, string> = {
   wish: '⭐ Wunsch',
 };
 
-function FeedbackCard({ item }: { item: FeedbackItem }) {
+function FeedbackCard({
+  item,
+  onMove,
+  onRemove,
+}: {
+  item: FeedbackItem;
+  onMove: (id: string, status: FeedbackStatus) => void;
+  onRemove: (id: string) => void;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [notes, setNotes] = useState(item.adminNotes ?? '');
   const [savedNote, setSavedNote] = useState(item.adminNotes ?? '');
-
-  const changeStatus = (status: FeedbackStatus) =>
-    start(async () => {
-      await updateFeedbackAction({ id: item.id, status });
-      router.refresh();
-    });
 
   const saveNotes = () =>
     start(async () => {
@@ -47,16 +49,26 @@ function FeedbackCard({ item }: { item: FeedbackItem }) {
       router.refresh();
     });
 
-  const remove = () =>
+  const remove = () => {
+    onRemove(item.id); // optimistic: disappears immediately
     start(async () => {
       await deleteFeedbackAction(item.id);
       router.refresh();
     });
+  };
 
   return (
-    <div className="space-y-2 rounded-lg border bg-card p-3 shadow-sm">
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', item.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      className="group cursor-grab space-y-2 rounded-lg border bg-card p-3 shadow-sm active:cursor-grabbing"
+    >
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">
+          <span className="mr-1 opacity-40 group-hover:opacity-70" aria-hidden>⠿</span>
           {KIND_LABEL[item.kind] ?? item.kind}
         </span>
         <span className="text-[11px] text-muted-foreground">
@@ -98,8 +110,9 @@ function FeedbackCard({ item }: { item: FeedbackItem }) {
         <select
           value={item.status}
           disabled={pending}
-          onChange={(e) => changeStatus(e.target.value as FeedbackStatus)}
+          onChange={(e) => onMove(item.id, e.target.value as FeedbackStatus)}
           className="flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+          aria-label="Status ändern"
         >
           {STATUSES.map((s) => (
             <option key={s.key} value={s.key}>
@@ -121,9 +134,38 @@ function FeedbackCard({ item }: { item: FeedbackItem }) {
   );
 }
 
-/** Admin board: feedback grouped into status columns (kanban-artig). */
+/**
+ * Admin board: feedback grouped into status columns with drag & drop. A card can
+ * be dragged onto another column to change its status (optimistic, then saved);
+ * the per-card dropdown stays as a keyboard/touch fallback. Feedback has no
+ * intra-column order, so native HTML5 DnD is enough — no positions to persist.
+ */
 export function FeedbackBoard({ items }: { items: FeedbackItem[] }) {
-  if (items.length === 0) {
+  const router = useRouter();
+  const [list, setList] = useState<FeedbackItem[]>(items);
+  const [dragOver, setDragOver] = useState<FeedbackStatus | null>(null);
+  const [, start] = useTransition();
+
+  // Keep local state in sync when the server sends fresh data.
+  useEffect(() => setList(items), [items]);
+
+  function move(id: string, status: FeedbackStatus) {
+    setList((prev) => {
+      const cur = prev.find((i) => i.id === id);
+      if (!cur || cur.status === status) return prev;
+      return prev.map((i) => (i.id === id ? { ...i, status } : i));
+    });
+    start(async () => {
+      await updateFeedbackAction({ id, status });
+      router.refresh();
+    });
+  }
+
+  function removeLocal(id: string) {
+    setList((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  if (list.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
         Noch kein Feedback eingegangen.
@@ -134,9 +176,32 @@ export function FeedbackBoard({ items }: { items: FeedbackItem[] }) {
   return (
     <div className="flex gap-4 overflow-x-auto pb-2">
       {STATUSES.map((col) => {
-        const colItems = items.filter((i) => i.status === col.key);
+        const colItems = list.filter((i) => i.status === col.key);
         return (
-          <div key={col.key} className="w-72 shrink-0">
+          <div
+            key={col.key}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOver !== col.key) setDragOver(col.key);
+            }}
+            onDragLeave={(e) => {
+              // Only clear when actually leaving the column, not its children.
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDragOver((d) => (d === col.key ? null : d));
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData('text/plain');
+              setDragOver(null);
+              if (id) move(id, col.key);
+            }}
+            className={cn(
+              'w-72 shrink-0 rounded-lg p-1 transition-colors',
+              dragOver === col.key && 'bg-primary/5 ring-2 ring-primary/40',
+            )}
+          >
             <div className="mb-2 flex items-center justify-between px-1">
               <span className="text-sm font-semibold">{col.label}</span>
               <span
@@ -148,9 +213,14 @@ export function FeedbackBoard({ items }: { items: FeedbackItem[] }) {
                 {colItems.length}
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="min-h-[40px] space-y-2">
               {colItems.map((item) => (
-                <FeedbackCard key={item.id} item={item} />
+                <FeedbackCard
+                  key={item.id}
+                  item={item}
+                  onMove={move}
+                  onRemove={removeLocal}
+                />
               ))}
             </div>
           </div>

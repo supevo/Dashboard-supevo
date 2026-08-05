@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -99,12 +101,14 @@ export function XpBoostAdmin({ boosts }: { boosts: AdminXpBoost[] }) {
         </div>
         <div className="space-y-1">
           <label className="text-xs text-muted-foreground">Banner (optional, empfohlen 1600×500)</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block text-sm"
-          />
+          <DropZone overlayLabel="Bild hier ablegen">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="block text-sm"
+            />
+          </DropZone>
         </div>
         {error && <Alert variant="destructive">{error}</Alert>}
         <Button size="sm" onClick={create} disabled={uploading || pending}>

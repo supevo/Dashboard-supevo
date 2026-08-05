@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import './globals.css';
 import { de } from '@/lib/i18n/de';
-import { ACTIVE_BRAND } from '@/lib/brand';
+import { BRAND_COOKIE, resolveBrand } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: de.app.name,
   description: 'Mandantenfähiges Projektmanagement für Agentur und Kunden.',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const brand = resolveBrand((await cookies()).get(BRAND_COOKIE)?.value);
   return (
-    <html lang="de" data-brand={ACTIVE_BRAND} suppressHydrationWarning>
+    <html lang="de" data-brand={brand} suppressHydrationWarning>
       <head>
         {/* Apply the stored (or system) theme before paint to avoid a flash. */}
         <script

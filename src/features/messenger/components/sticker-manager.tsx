@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteStickerAction } from '@/features/messenger/actions';
@@ -93,12 +95,14 @@ export function StickerManager({ stickers }: { stickers: StickerItem[] }) {
           maxLength={40}
           className="max-w-xs"
         />
-        <input
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block text-sm"
-        />
+        <DropZone overlayLabel="Bild hier ablegen">
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="block text-sm"
+          />
+        </DropZone>
         {error && <Alert variant="destructive">{error}</Alert>}
         <Button type="button" size="sm" onClick={upload} disabled={uploading}>
           {uploading ? 'Wird hochgeladen …' : 'Hochladen'}

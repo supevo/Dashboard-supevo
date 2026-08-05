@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { hasAgencyAccess } from '@/features/auth/session';
 import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import {
@@ -52,9 +54,11 @@ export async function createRecurringTaskAction(
     frequency === 'monthly' ? (parsed.data.dayOfMonth ?? 1) : null;
 
   const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
   const supabase = await createSupabaseServerClient();
 
-  // Resolve org + target column (the project's queue) — RLS-scoped reads.
+  // Resolve org + target column (the project's queue) — RLS-scoped reads gate
+  // access (the caller must be able to see the project).
   const { data: project } = await supabase
     .from('projects')
     .select('organization_id')
@@ -82,7 +86,9 @@ export async function createRecurringTaskAction(
 
   const nextRun = nextRunAfter(frequency, weekday, dayOfMonth, berlinToday());
 
-  const { error } = await supabase.from('recurring_tasks').insert({
+  // Write via the service client: the recurring_tasks write policy is
+  // manager-only, but agency staff who can see the project may create templates.
+  const { error } = await createSupabaseServiceClient().from('recurring_tasks').insert({
     organization_id: project.organization_id,
     project_id: projectId,
     column_id: target.id,
@@ -125,14 +131,21 @@ export async function toggleRecurringTaskAction(
     });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
-  await requireUser();
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
   const supabase = await createSupabaseServerClient();
-  const { error, count } = await supabase
+  // Access gate: the caller must be able to see the template (RLS).
+  const { data: row } = await supabase
     .from('recurring_tasks')
-    .update({ active: parsed.data.active === 'true' }, { count: 'exact' })
+    .select('id')
+    .eq('id', parsed.data.id)
+    .maybeSingle();
+  if (!row) return errorResult(de.errors.FORBIDDEN);
+  const { error } = await createSupabaseServiceClient()
+    .from('recurring_tasks')
+    .update({ active: parsed.data.active === 'true' })
     .eq('id', parsed.data.id);
   if (error) return errorResult(de.errors.INTERNAL);
-  if (!count) return errorResult(de.errors.FORBIDDEN);
 
   revalidatePath(`/app/projects/${parsed.data.projectId}`);
   return successResult('Aktualisiert.');
@@ -149,9 +162,16 @@ export async function deleteRecurringTaskAction(
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
-  await requireUser();
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const { data: row } = await supabase
+    .from('recurring_tasks')
+    .select('id')
+    .eq('id', parsed.data.id)
+    .maybeSingle();
+  if (!row) return errorResult(de.errors.FORBIDDEN);
+  const { error } = await createSupabaseServiceClient()
     .from('recurring_tasks')
     .delete()
     .eq('id', parsed.data.id);

@@ -1,5 +1,7 @@
 'use client';
 
+import { DropZone } from '@/components/ui/drop-zone';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -60,7 +62,7 @@ export function ProjectCoverUploader({ projectId }: { projectId: string }) {
           />
         )}
       </div>
-      <div className="space-y-1">
+      <DropZone className="space-y-1" overlayLabel="Titelbild ablegen">
         <label className="block cursor-pointer text-sm text-primary hover:underline">
           {pending ? de.common.loading : de.projects.setCover}
           <input
@@ -75,7 +77,7 @@ export function ProjectCoverUploader({ projectId }: { projectId: string }) {
           />
         </label>
         {error && <Alert variant="destructive">{error}</Alert>}
-      </div>
+      </DropZone>
     </div>
   );
 }
