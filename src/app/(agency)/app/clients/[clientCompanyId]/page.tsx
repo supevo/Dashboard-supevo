@@ -56,7 +56,8 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  // Data every agency staffer may see.
+  // Data every agency staffer may see — all independent, so fetch in parallel.
+  const planYear = new Date().getFullYear();
   const [
     requests,
     healthMap,
@@ -64,6 +65,10 @@ export default async function ClientDetailPage({
     inquiryEndpoint,
     inquiries,
     hub,
+    marketingPlan,
+    onboarding,
+    legacySettings,
+    contacts,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -71,15 +76,11 @@ export default async function ClientDetailPage({
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
+    getPlan(clientCompanyId, planYear),
+    getOnboarding(clientCompanyId, orgId),
+    isAdmin ? getLegacySettings(clientCompanyId) : Promise.resolve(null),
+    listClientContacts(orgId, clientCompanyId),
   ]);
-
-  const planYear = new Date().getFullYear();
-  const marketingPlan = await getPlan(clientCompanyId, planYear);
-  const onboarding = await getOnboarding(clientCompanyId, orgId);
-  const legacySettings = isAdmin ? await getLegacySettings(clientCompanyId) : null;
-
-  // Contacts are visible/manageable by all agency staff (they add clients).
-  const contacts = await listClientContacts(orgId, clientCompanyId);
 
   // Billing is admin-only.
   const [membership, billingEntity, billingEntities, invoices, teamMembers] = isAdmin
