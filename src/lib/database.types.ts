@@ -977,6 +977,7 @@ export interface Database {
           client_company_id: string;
           user_id: string;
           is_primary: boolean;
+          notify_task_updates: boolean;
           created_at: string;
         };
         Insert: {
@@ -985,6 +986,7 @@ export interface Database {
           client_company_id: string;
           user_id: string;
           is_primary?: boolean;
+          notify_task_updates?: boolean;
         };
         Update: Partial<
           Database['public']['Tables']['client_contacts']['Insert']
