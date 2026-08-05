@@ -1,6 +1,9 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
+import { BRAND_COOKIE, resolveBrand } from '@/lib/brand';
+import { BrandToggle } from '@/features/brand/components/brand-toggle';
 import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
 import { BannerAdmin } from '@/features/gamification/components/banner-admin';
@@ -22,10 +25,23 @@ export default async function SettingsPage() {
     listHubFrames(orgId),
     listStickers(orgId),
   ]);
+  const brand = resolveBrand((await cookies()).get(BRAND_COOKIE)?.value);
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{de.settings.title}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🎨 Design</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Wechsle zwischen dem klassischen und dem Supevo-Look – sofort sichtbar.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <BrandToggle current={brand} />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>{org.name}</CardTitle>
