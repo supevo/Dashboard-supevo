@@ -1,5 +1,5 @@
 import { SkillBar } from '@/features/skills/components/skill-bar';
-import { SKILL_GROUPS, SKILL_CATALOG } from '@/features/skills/catalog';
+import { SKILL_GROUPS, SKILL_CATALOG, SKILL_EXAMPLES } from '@/features/skills/catalog';
 import type { Skill } from '@/features/skills/queries';
 import type { WorkPreference } from '@/features/preferences/queries';
 
@@ -28,13 +28,28 @@ export function SkillsPrefsSection({
     ),
   ];
 
-  const Row = ({ name }: { name: string }) => (
-    <div className="py-2">
-      <div className="mb-0.5 text-sm font-medium">{name}</div>
-      <SkillBar name={name} variant="skill" label="Fähigkeit" initialLevel={skillByName.get(name) ?? 0} />
-      <SkillBar name={name} variant="preference" label="Lieblingsarbeit" initialLevel={prefByName.get(name) ?? 0} />
-    </div>
-  );
+  const Row = ({ name }: { name: string }) => {
+    const example = SKILL_EXAMPLES[name];
+    return (
+      <div className="py-2">
+        <div className="mb-0.5 text-sm font-medium">{name}</div>
+        {example && (
+          <div className="mb-1.5 space-y-0.5 rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+            <p>
+              <span className="font-semibold text-foreground">1</span> ={' '}
+              {example.low}
+            </p>
+            <p>
+              <span className="font-semibold text-foreground">10</span> ={' '}
+              {example.high}
+            </p>
+          </div>
+        )}
+        <SkillBar name={name} variant="skill" label="Fähigkeit" initialLevel={skillByName.get(name) ?? 0} />
+        <SkillBar name={name} variant="preference" label="Lieblingsarbeit" initialLevel={prefByName.get(name) ?? 0} />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5">
