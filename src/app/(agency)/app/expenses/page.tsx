@@ -5,6 +5,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { listPrintExpenses, sumExpenseCents } from '@/features/print-billing/queries';
 import { DeleteExpenseButton } from '@/features/print-billing/components/delete-expense-button';
+import { EmptyState } from '@/components/ui/empty-state';
 
 function euro(cents: number): string {
   return new Intl.NumberFormat('de-DE', {
@@ -93,9 +94,11 @@ export default async function ExpensesPage({
         </CardHeader>
         <CardContent>
           {expenses.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Noch keine Ausgaben erfasst.
-            </p>
+            <EmptyState
+              icon="💶"
+              title="Noch keine Ausgaben erfasst"
+              description="Sobald ein Mitarbeiter eine Dienstleister-Rechnung für ein Druckprodukt hochlädt, erscheint sie hier."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

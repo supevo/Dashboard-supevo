@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { listPortalInvoices } from '@/features/billing/invoice-queries';
+import { EmptyState } from '@/components/ui/empty-state';
 import { formatEuroCents } from '@/lib/money';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -31,9 +32,11 @@ export default async function PortalInvoicesPage() {
         </CardHeader>
         <CardContent>
           {invoices.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Es liegen noch keine Rechnungen vor.
-            </p>
+            <EmptyState
+              icon="🧾"
+              title="Noch keine Rechnungen"
+              description="Sobald eine Rechnung erstellt wurde, findet ihr sie hier zum Download."
+            />
           ) : (
             <ul className="divide-y">
               {invoices.map((inv) => (
