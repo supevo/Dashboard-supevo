@@ -42,6 +42,7 @@ import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
 import { getLegacySettings } from '@/features/legacy/queries';
 import { LegacySettingsForm } from '@/features/legacy/components/legacy-settings-form';
+import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -308,6 +309,21 @@ export default async function ClientDetailPage({
                 clientCompanyId={clientCompanyId}
                 isLegacy={company.isLegacy}
                 settings={legacySettings}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>🖨️ Drucksachen</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Legt fest, ob Druckprodukte dieses Kunden abgerechnet werden.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <PrintBillingToggle
+                clientCompanyId={clientCompanyId}
+                billPrint={company.billPrintProducts}
               />
             </CardContent>
           </Card>

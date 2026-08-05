@@ -849,6 +849,7 @@ export interface Database {
           secondary_account_manager_id: string | null;
           is_active: boolean;
           is_legacy: boolean;
+          bill_print_products: boolean;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -869,6 +870,7 @@ export interface Database {
           secondary_account_manager_id?: string | null;
           is_active?: boolean;
           is_legacy?: boolean;
+          bill_print_products?: boolean;
           created_by?: string | null;
         };
         Update: Partial<
@@ -1967,6 +1969,7 @@ export interface Database {
           completed_by: string | null;
           client_notified_at: string | null;
           completed_at: string | null;
+          print_billing_status: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -1991,6 +1994,7 @@ export interface Database {
           is_express?: boolean;
           is_archived?: boolean;
           client_notified_at?: string | null;
+          print_billing_status?: string | null;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;
@@ -1998,6 +2002,41 @@ export interface Database {
           completed_by?: string | null;
           completed_at?: string | null;
         };
+        Relationships: [];
+      };
+      print_expenses: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string | null;
+          task_id: string | null;
+          uploaded_by: string | null;
+          storage_path: string;
+          file_name: string;
+          file_mime: string | null;
+          file_size: number | null;
+          amount_cents: number | null;
+          supplier: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id?: string | null;
+          task_id?: string | null;
+          uploaded_by?: string | null;
+          storage_path: string;
+          file_name: string;
+          file_mime?: string | null;
+          file_size?: number | null;
+          amount_cents?: number | null;
+          supplier?: string | null;
+          notes?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['print_expenses']['Insert']
+        >;
         Relationships: [];
       };
       express_ticket_redemptions: {

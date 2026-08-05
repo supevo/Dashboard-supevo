@@ -34,6 +34,7 @@ import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-butt
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
 import { VisibilityEditor } from '@/features/tasks/components/visibility-editor';
 import { EditableTaskTitle } from '@/features/tasks/components/editable-task-title';
+import { PrintBillingCard } from '@/features/print-billing/components/print-billing-card';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -122,6 +123,14 @@ export default async function TaskDetailPage({
           )}
         </div>
       </div>
+
+      {(task.printBillingStatus === 'required' ||
+        task.printBillingStatus === 'settled') && (
+        <PrintBillingCard
+          taskId={taskId}
+          status={task.printBillingStatus === 'settled' ? 'settled' : 'required'}
+        />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Main column: content work */}

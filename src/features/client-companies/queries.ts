@@ -15,6 +15,7 @@ export interface ClientCompany {
   secondaryAccountManagerId: string | null;
   isActive: boolean;
   isLegacy: boolean;
+  billPrintProducts: boolean;
   createdAt: string;
 }
 
@@ -45,6 +46,7 @@ export async function listClientCompanies(
     secondaryAccountManagerId: null,
     isActive: c.is_active,
     isLegacy: false,
+    billPrintProducts: false,
     createdAt: c.created_at,
   }));
 }
@@ -56,7 +58,7 @@ export async function getClientCompany(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('client_companies')
-    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, account_manager_id, secondary_account_manager_id, is_active, is_legacy, created_at')
+    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, account_manager_id, secondary_account_manager_id, is_active, is_legacy, bill_print_products, created_at')
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId)
     .is('deleted_at', null)
@@ -77,6 +79,7 @@ export async function getClientCompany(
     secondaryAccountManagerId: data.secondary_account_manager_id,
     isActive: data.is_active,
     isLegacy: data.is_legacy,
+    billPrintProducts: data.bill_print_products,
     createdAt: data.created_at,
   };
 }
