@@ -13,6 +13,8 @@ export interface League {
   emoji: string;
   /** Number of divisions inside this league (0 = apex, no divisions). */
   divisions: number;
+  /** Custom uploaded icon URL for this org (overrides the emoji), or null. */
+  iconUrl?: string | null;
 }
 
 export const LEAGUES: League[] = [
@@ -45,23 +47,34 @@ export interface LeagueStanding {
   label: string;
 }
 
+export interface LeagueOverride {
+  symbol: string | null;
+  hasImage: boolean;
+}
+
+/** Applies an org's custom emoji/image override to a single league. */
+function applyOverride(league: League, ov: LeagueOverride | undefined): League {
+  if (!ov) return league;
+  return {
+    ...league,
+    emoji: ov.symbol ?? league.emoji,
+    iconUrl: ov.hasImage ? `/api/league-icons/${league.key}` : null,
+  };
+}
+
 /**
- * Returns a copy of the standing with the current/next league emoji replaced by
- * the org's custom symbol where one is set. Defaults stay when unset.
+ * Returns a copy of the standing with the current/next league symbol replaced by
+ * the org's custom emoji or uploaded image where set. Defaults stay when unset.
  */
 export function withSymbols(
   standing: LeagueStanding,
-  symbols: Record<string, string>,
+  overrides: Record<string, LeagueOverride>,
 ): LeagueStanding {
-  const cur = symbols[standing.current.key];
-  const nxtSym = standing.next ? symbols[standing.next.key] : undefined;
   return {
     ...standing,
-    current: cur ? { ...standing.current, emoji: cur } : standing.current,
+    current: applyOverride(standing.current, overrides[standing.current.key]),
     next: standing.next
-      ? nxtSym
-        ? { ...standing.next, emoji: nxtSym }
-        : standing.next
+      ? applyOverride(standing.next, overrides[standing.next.key])
       : null,
   };
 }

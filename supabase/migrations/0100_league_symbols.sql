@@ -1,15 +1,17 @@
 -- =============================================================================
 -- Migration 0100 – Eigene Liga-Symbole je Organisation
 --
--- Erlaubt es Admins, das angezeigte Symbol (Emoji) jeder Liga selbst zu setzen.
--- Nur gesetzte Ligen werden gespeichert; alles andere fällt auf das Standard-
--- Emoji aus dem Code zurück.
+-- Erlaubt es Admins, je Liga ein eigenes Symbol festzulegen: entweder ein Emoji
+-- (symbol) oder ein hochgeladenes Bild (image_path im files-Bucket). Ist ein
+-- Bild gesetzt, hat es Vorrang; sonst das Emoji; sonst das Standard-Emoji aus
+-- dem Code.
 -- =============================================================================
 
 create table if not exists public.league_symbols (
   organization_id uuid not null references public.organizations(id) on delete cascade,
   league_key text not null,
-  symbol text not null,
+  symbol text,
+  image_path text,
   updated_at timestamptz not null default now(),
   primary key (organization_id, league_key)
 );

@@ -885,13 +885,15 @@ export interface Database {
         Row: {
           organization_id: string;
           league_key: string;
-          symbol: string;
+          symbol: string | null;
+          image_path: string | null;
           updated_at: string;
         };
         Insert: {
           organization_id: string;
           league_key: string;
-          symbol: string;
+          symbol?: string | null;
+          image_path?: string | null;
         };
         Update: Partial<
           Database['public']['Tables']['league_symbols']['Insert']

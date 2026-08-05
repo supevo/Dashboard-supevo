@@ -3,6 +3,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { listColleagues } from '@/features/team/colleague';
 import { getActiveXpBoost } from '@/features/gamification/xp-boost';
 import { XpBoostBanner } from '@/features/gamification/components/xp-boost-banner';
+import { LeagueBadge } from '@/features/gamification/components/league-badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { de } from '@/lib/i18n/de';
@@ -56,8 +57,12 @@ export default async function ColleaguesPage() {
                       <span className="font-medium text-primary">
                         {de.level.title} {c.level}
                       </span>
-                      <span className="text-muted-foreground" title={c.leagueName}>
-                        {c.leagueEmoji} {c.leagueName}
+                      <span className="inline-flex items-center gap-1 text-muted-foreground" title={c.leagueName}>
+                        <LeagueBadge
+                          league={{ emoji: c.leagueEmoji, iconUrl: c.leagueIconUrl, name: c.leagueName }}
+                          size={14}
+                        />{' '}
+                        {c.leagueName}
                       </span>
                     </div>
                   </div>

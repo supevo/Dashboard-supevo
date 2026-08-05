@@ -64,6 +64,7 @@ export interface ColleagueListItem {
   roleLabel: string;
   level: number;
   leagueEmoji: string;
+  leagueIconUrl: string | null;
   leagueName: string;
   isSelf: boolean;
 }
@@ -119,6 +120,7 @@ export async function listColleagues(
         roleLabel: ROLE_LABELS[roleById.get(id) ?? 'employee'] ?? 'Mitarbeiter:in',
         level: levelForPoints(pts).level,
         leagueEmoji: league.current.emoji,
+        leagueIconUrl: league.current.iconUrl ?? null,
         leagueName: league.label,
         isSelf: id === viewer.id,
       };

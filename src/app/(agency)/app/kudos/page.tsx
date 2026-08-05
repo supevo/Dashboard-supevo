@@ -19,6 +19,7 @@ import { RewardPanel } from '@/features/loot/components/reward-panel';
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { HubCustomizeMenu } from '@/features/gamification/components/hub-customize-menu';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
+import { LeagueBadge } from '@/features/gamification/components/league-badge';
 import { StatTile } from '@/features/gamification/components/stat-tile';
 import { cn } from '@/lib/utils';
 import { de } from '@/lib/i18n/de';
@@ -72,7 +73,7 @@ export default async function KudosPage() {
       {/* Top badges: league · tenure · level */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="flex items-center gap-3 rounded-lg border bg-card p-4">
-          <span className="text-2xl" aria-hidden>{league.current.emoji}</span>
+          <LeagueBadge league={league.current} size={32} className="text-2xl" />
           <div>
             <div className="text-xs text-muted-foreground">{t.league}</div>
             <div className="font-semibold" style={{ color: league.current.color }}>
@@ -150,8 +151,8 @@ export default async function KudosPage() {
               </div>
               <div className="mt-3 max-w-sm">
                 <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    {league.current.emoji} {league.label}
+                  <span className="inline-flex items-center gap-1">
+                    <LeagueBadge league={league.current} size={16} /> {league.label}
                   </span>
                   {league.next ? (
                     <span>
