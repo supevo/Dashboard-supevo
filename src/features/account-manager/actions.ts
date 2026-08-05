@@ -7,6 +7,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { de } from '@/lib/i18n/de';
+import { ensureClientChannel } from '@/features/messenger/client-chat';
 import {
   type ActionResult,
   errorResult,
@@ -68,7 +69,14 @@ export async function setAccountManagerAction(
     .eq('id', clientCompanyId);
   if (error) return errorResult(de.errors.INTERNAL);
 
+  // Make sure the shared client chat channel exists so it shows up for the team
+  // right away (it otherwise appears only after the client writes first).
+  if (managerId || secondaryManagerId) {
+    await ensureClientChannel(company.organization_id, clientCompanyId);
+  }
+
   revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath('/app/chat');
   revalidatePath('/portal');
   return successResult('Ansprechpartner gespeichert.');
 }

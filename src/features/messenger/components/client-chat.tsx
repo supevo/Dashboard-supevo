@@ -14,14 +14,24 @@ import { cn } from '@/lib/utils';
  * messages only — no stickers, no polls. Refreshes periodically so replies from
  * the agency show up. Used both in the portal and shareable elsewhere.
  */
+export interface ChatPartner {
+  userId: string;
+  name: string;
+  hasAvatar: boolean;
+  status: string | null;
+}
+
 export function ClientChat({
   channelId,
   initialMessages,
   meId,
+  partner = null,
 }: {
   channelId: string;
   initialMessages: ChannelMessage[];
   meId: string;
+  /** The account manager on the other side, for the chat header. */
+  partner?: ChatPartner | null;
 }) {
   const router = useRouter();
   const [body, setBody] = useState('');
@@ -56,6 +66,24 @@ export function ClientChat({
 
   return (
     <div className="flex h-[65vh] flex-col rounded-lg border bg-card">
+      <div className="flex items-center gap-3 border-b px-4 py-3">
+        <Avatar
+          userId={partner?.userId ?? ''}
+          name={partner?.name ?? 'Support-Team'}
+          hasAvatar={partner?.hasAvatar ?? false}
+          status={partner?.status ?? null}
+          size="sm"
+        />
+        <div className="min-w-0">
+          <div className="truncate font-semibold">
+            {partner?.name ?? 'Ihr Support-Team'}
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {partner ? 'Ihr fester Ansprechpartner' : 'Wir sind für euch da'}
+          </div>
+        </div>
+      </div>
+
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {initialMessages.length === 0 ? (
           <p className="text-sm text-muted-foreground">

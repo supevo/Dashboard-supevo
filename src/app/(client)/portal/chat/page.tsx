@@ -27,6 +27,16 @@ export default async function PortalChatPage() {
           channelId={thread.channelId}
           initialMessages={thread.messages}
           meId={user.id}
+          partner={
+            manager
+              ? {
+                  userId: manager.userId,
+                  name: manager.name,
+                  hasAvatar: manager.hasAvatar,
+                  status: manager.status,
+                }
+              : null
+          }
         />
       ) : (
         <p className="text-sm text-muted-foreground">

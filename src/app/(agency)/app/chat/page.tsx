@@ -1,14 +1,19 @@
 import { redirect } from 'next/navigation';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { listChannels, listClientChannels } from '@/features/messenger/queries';
+import {
+  listChannels,
+  listClientChannels,
+  getUnreadCounts,
+} from '@/features/messenger/queries';
 import { Messenger } from '@/features/messenger/components/messenger';
 import { de } from '@/lib/i18n/de';
 
 export default async function ChatPage() {
   const { user, orgId } = await requireAgencyPage();
-  const [channels, clientChannels] = await Promise.all([
+  const [channels, clientChannels, unreadCounts] = await Promise.all([
     listChannels(orgId),
     listClientChannels(orgId),
+    getUnreadCounts(),
   ]);
 
   // Jump straight into the first channel when one exists.
@@ -22,6 +27,7 @@ export default async function ChatPage() {
       <Messenger
         channels={channels}
         clientChannels={clientChannels}
+        unreadCounts={unreadCounts}
         activeChannel={null}
         initialMessages={[]}
         meId={user.id}
