@@ -23,7 +23,13 @@ export interface MemberOption {
 }
 
 export type AnalyzeResult =
-  | { ok: true; rows: ImportPreviewRow[]; members: MemberOption[] }
+  | {
+      ok: true;
+      rows: ImportPreviewRow[];
+      members: MemberOption[];
+      source: 'ai' | 'heuristic';
+      aiEnabled: boolean;
+    }
   | { ok: false; error: string };
 
 interface ParsedRow {
@@ -36,10 +42,13 @@ const AI_SYSTEM = `Du extrahierst Arbeitszeit-Einträge aus einer (aus Excel kop
 Antworte AUSSCHLIESSLICH mit JSON (keine Code-Fences):
 { "rows": [ { "employee": "Name", "date": "YYYY-MM-DD", "hours": 8.5 } ] }
 Regeln:
-- date immer als YYYY-MM-DD (deutsche Formate wie 01.08.2026 umrechnen).
-- hours als Dezimalzahl in Stunden (z. B. "8:30" -> 8.5, "8,5 Std" -> 8.5).
-- Kopf-/Summenzeilen ignorieren. Nur Zeilen mit Person + Datum + Zeit.
-- Nichts erfinden.`;
+- date immer als YYYY-MM-DD (deutsche Formate wie 01.08.2026 und 12-01-2026 (TT-MM-JJJJ) umrechnen).
+- hours als Dezimalzahl in Stunden (z. B. "8:30" -> 8.5, "07:30:52" -> 7.51, "8,5 Std" -> 8.5).
+- Steht der Name nur in einer Kopfzeile und die Folgezeilen (mit Datum + Zeit) haben kein Namensfeld,
+  dann gilt der zuletzt genannte Name für alle folgenden Zeilen bis zum nächsten Namen.
+- Kopf-/Summenzeilen ignorieren (z. B. eine Gesamtsumme wie "830:49:30" über 24 Stunden ist keine Tageszeit).
+- Zusätzliche Zahlenspalten (z. B. "751" oder "83.083") ignorieren, wenn bereits eine HH:MM:SS-Zeit vorhanden ist.
+- Nur Zeilen mit Person + Datum + Tageszeit. Nichts erfinden.`;
 
 function extractJson(raw: string): string {
   const t = raw.trim();
@@ -77,30 +86,73 @@ async function parseWithAi(text: string): Promise<ParsedRow[] | null> {
   }
 }
 
-/** Fallback: split rows by tab/;/, and pick out a date + a number of hours. */
+/** Parses a cell as a calendar date (DD.MM.YYYY, DD-MM-YYYY, DD/MM/YYYY, or
+ *  ISO YYYY-MM-DD) to a normalized YYYY-MM-DD string, or null. */
+function parseDateCell(c: string): string | null {
+  const iso = c.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = c.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})$/);
+  if (dmy) {
+    const y = dmy[3]!.length === 2 ? `20${dmy[3]}` : dmy[3]!;
+    return `${y}-${dmy[2]!.padStart(2, '0')}-${dmy[1]!.padStart(2, '0')}`;
+  }
+  return null;
+}
+
+/** Parses a cell as a clock duration (HH:MM or HH:MM:SS) to minutes, or null. */
+function parseDurationCell(c: string): number | null {
+  const m = c.match(/^(\d{1,3}):([0-5]?\d)(?::([0-5]?\d))?$/);
+  if (!m) return null;
+  const hours = Number(m[1]);
+  const mins = Number(m[2]);
+  const secs = m[3] ? Number(m[3]) : 0;
+  return hours * 60 + mins + Math.round(secs / 60);
+}
+
+/**
+ * Fallback parser. Splits rows by tab/;/, and picks out a date + duration.
+ * Handles blocks where the employee name only appears in a header row and the
+ * following dated rows carry no name (the last seen name is carried forward),
+ * plus HH:MM:SS durations and DD-MM-YYYY dates. Summary rows (a total > 24h
+ * with no date) set the current name but are not imported.
+ */
 function parseHeuristic(text: string): ParsedRow[] {
   const out: ParsedRow[] = [];
+  let currentEmployee = '';
   for (const line of text.split(/\r?\n/)) {
-    const cells = line.split(/\t|;|,/).map((c) => c.trim()).filter(Boolean);
-    if (cells.length < 2) continue;
+    if (!line.trim()) continue;
+    const cells = line.split(/\t|;|,/).map((c) => c.trim());
     let date: string | null = null;
     let minutes: number | null = null;
+    let hoursFallback: number | null = null;
     const nameParts: string[] = [];
     for (const c of cells) {
-      const dm = c.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/);
-      const iso = c.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      const hm = c.match(/^(\d{1,2})[:.](\d{2})$/); // 8:30
+      if (!c) continue;
+      const d = parseDateCell(c);
+      if (d) {
+        date = d;
+        continue;
+      }
+      const dur = parseDurationCell(c);
+      if (dur != null) {
+        if (minutes == null) minutes = dur; // first duration wins
+        continue;
+      }
       const num = c.match(/^(\d{1,2}(?:[.,]\d{1,2})?)$/);
-      if (iso) date = `${iso[1]}-${iso[2]}-${iso[3]}`;
-      else if (dm) {
-        const y = dm[3]!.length === 2 ? `20${dm[3]}` : dm[3]!;
-        date = `${y}-${dm[2]!.padStart(2, '0')}-${dm[1]!.padStart(2, '0')}`;
-      } else if (hm) minutes = Number(hm[1]) * 60 + Number(hm[2]);
-      else if (num) minutes = Math.round(Number(num[1]!.replace(',', '.')) * 60);
-      else nameParts.push(c);
+      if (num) {
+        const v = Number(num[1]!.replace(',', '.'));
+        if (Number.isFinite(v) && v > 0 && v <= 24) hoursFallback = Math.round(v * 60);
+        continue; // a bare number is hours-or-noise, never a name
+      }
+      // Any other numeric/separator-only token (e.g. "751", "83.083") is noise.
+      if (/^[\d.,:]+$/.test(c)) continue;
+      nameParts.push(c);
     }
-    if (date && minutes && minutes > 0 && minutes <= 1440 && nameParts.length) {
-      out.push({ employee: nameParts.join(' '), date, minutes });
+    const name = nameParts.join(' ').trim();
+    if (name) currentEmployee = name; // header row or same-line name
+    const mins = minutes ?? hoursFallback;
+    if (date && mins && mins > 0 && mins <= 1440 && currentEmployee) {
+      out.push({ employee: currentEmployee, date, minutes: mins });
     }
   }
   return out;
@@ -148,15 +200,24 @@ export async function analyzeTimeImportAction(text: string): Promise<AnalyzeResu
   if ('error' in auth) return { ok: false, error: auth.error };
   if (!text || text.trim().length < 3) return { ok: false, error: 'Bitte Daten einfügen.' };
 
+  const aiEnabled = isAiEnabled();
   let parsed: ParsedRow[] | null = null;
-  if (isAiEnabled()) {
+  let source: 'ai' | 'heuristic' = 'heuristic';
+  if (aiEnabled) {
     parsed = await parseWithAi(text);
+    if (parsed && parsed.length > 0) source = 'ai';
   }
   if (!parsed || parsed.length === 0) {
     parsed = parseHeuristic(text);
+    source = 'heuristic';
   }
   if (parsed.length === 0) {
-    return { ok: false, error: 'Keine Zeilen erkannt. Format prüfen (Name · Datum · Stunden).' };
+    // Be honest about *why* nothing was found: a "KI-Import" that silently ran
+    // only the simple parser (because no API key is configured) is misleading.
+    const hint = aiEnabled
+      ? 'Keine Zeilen erkannt. Bitte Format prüfen (Name · Datum · Stunden).'
+      : 'Keine Zeilen erkannt – die KI ist derzeit nicht aktiv (kein API-Schlüssel hinterlegt), daher lief nur die einfache Erkennung. Format prüfen oder KI aktivieren (OPENAI_API_KEY / GEMINI_API_KEY / ANTHROPIC_API_KEY).';
+    return { ok: false, error: hint };
   }
 
   const team = await listTeamMembers(auth.orgId);
@@ -173,7 +234,7 @@ export async function analyzeTimeImportAction(text: string): Promise<AnalyzeResu
     };
   });
 
-  return { ok: true, rows, members };
+  return { ok: true, rows, members, source, aiEnabled };
 }
 
 const commitSchema = z.object({
