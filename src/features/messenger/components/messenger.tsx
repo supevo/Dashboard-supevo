@@ -386,9 +386,19 @@ function MessagePane({
   );
 }
 
+function UnreadBadge({ count }: { count: number }) {
+  if (!count) return null;
+  return (
+    <span className="ml-auto inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-semibold leading-none text-primary-foreground">
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 export function Messenger({
   channels,
   clientChannels = [],
+  unreadCounts = {},
   activeChannel,
   initialMessages,
   meId,
@@ -396,6 +406,7 @@ export function Messenger({
 }: {
   channels: ChatChannel[];
   clientChannels?: ChatChannel[];
+  unreadCounts?: Record<string, number>;
   activeChannel: ChatChannel | null;
   initialMessages: ChannelMessage[];
   meId: string;
@@ -423,20 +434,26 @@ export function Messenger({
           {channels.length === 0 ? (
             <p className="px-2 py-2 text-xs text-muted-foreground">{de.messenger.noChannels}</p>
           ) : (
-            channels.map((c) => (
-              <Link
-                key={c.id}
-                href={`/app/chat/${c.id}`}
-                className={cn(
-                  'block truncate rounded px-2 py-1.5 text-sm hover:bg-muted',
-                  activeChannel?.id === c.id
-                    ? 'bg-muted font-medium text-foreground'
-                    : 'text-muted-foreground',
-                )}
-              >
-                # {c.name}
-              </Link>
-            ))
+            channels.map((c) => {
+              const unread = unreadCounts[c.id] ?? 0;
+              return (
+                <Link
+                  key={c.id}
+                  href={`/app/chat/${c.id}`}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded px-2 py-1.5 text-sm hover:bg-muted',
+                    activeChannel?.id === c.id
+                      ? 'bg-muted font-medium text-foreground'
+                      : unread
+                        ? 'font-semibold text-foreground'
+                        : 'text-muted-foreground',
+                  )}
+                >
+                  <span className="truncate"># {c.name}</span>
+                  <UnreadBadge count={unread} />
+                </Link>
+              );
+            })
           )}
 
           {clientChannels.length > 0 && (
@@ -444,20 +461,26 @@ export function Messenger({
               <div className="px-2 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Kunden
               </div>
-              {clientChannels.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/app/chat/${c.id}`}
-                  className={cn(
-                    'block truncate rounded px-2 py-1.5 text-sm hover:bg-muted',
-                    activeChannel?.id === c.id
-                      ? 'bg-muted font-medium text-foreground'
-                      : 'text-muted-foreground',
-                  )}
-                >
-                  💬 {c.name}
-                </Link>
-              ))}
+              {clientChannels.map((c) => {
+                const unread = unreadCounts[c.id] ?? 0;
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/app/chat/${c.id}`}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded px-2 py-1.5 text-sm hover:bg-muted',
+                      activeChannel?.id === c.id
+                        ? 'bg-muted font-medium text-foreground'
+                        : unread
+                          ? 'font-semibold text-foreground'
+                          : 'text-muted-foreground',
+                    )}
+                  >
+                    <span className="truncate">💬 {c.name}</span>
+                    <UnreadBadge count={unread} />
+                  </Link>
+                );
+              })}
             </>
           )}
         </nav>

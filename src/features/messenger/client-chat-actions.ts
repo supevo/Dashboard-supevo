@@ -59,13 +59,27 @@ export async function sendClientChatMessageAction(
 
   let recipients: string[] = [];
   if (senderIsClient) {
-    // Client → account manager (fallback: none).
+    // Client → main + deputy account manager.
     const { data: company } = await service
       .from('client_companies')
-      .select('account_manager_id')
+      .select('account_manager_id, secondary_account_manager_id')
       .eq('id', channel.client_company_id)
       .maybeSingle();
-    if (company?.account_manager_id) recipients = [company.account_manager_id];
+    recipients = [
+      company?.account_manager_id,
+      company?.secondary_account_manager_id,
+    ].filter((id): id is string => Boolean(id));
+    // Fallback: if no account manager is assigned, notify the org's admins so a
+    // client message never goes unseen.
+    if (recipients.length === 0) {
+      const { data: admins } = await service
+        .from('memberships')
+        .select('user_id')
+        .eq('organization_id', channel.organization_id)
+        .eq('status', 'active')
+        .in('role', ['agency_admin', 'super_admin']);
+      recipients = (admins ?? []).map((a) => a.user_id);
+    }
   } else {
     // Agency → the client's contacts.
     recipients = [...contactIds];

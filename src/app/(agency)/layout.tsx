@@ -13,7 +13,7 @@ import {
   hasClientAccess,
 } from '@/features/auth/session';
 import { primaryAgencyOrgId } from '@/features/auth/access';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { de } from '@/lib/i18n/de';
 
@@ -79,7 +79,12 @@ export default async function AgencyLayout({
   const gamification = await getMyGamification(user.id, orgId ?? undefined);
 
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
-  const navItems = admin ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const navItems = [
+    ...NAV_ITEMS,
+    ...(admin ? ADMIN_NAV_ITEMS : []),
+    // Interner Ausgaben-Bereich – nur Super-Admin.
+    ...(isSuperAdmin(user) ? [{ href: '/app/expenses', label: '💶 Ausgaben' }] : []),
+  ];
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
   const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
 

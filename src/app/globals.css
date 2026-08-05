@@ -87,6 +87,31 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
+
+  /* Einheitliches Klick-/Hover-Feedback für ALLE Buttons – auch die vielen
+     rohen <button>-Elemente ohne eigene Effekte. Weiche Übergänge plus ein
+     taktiler Press-Effekt beim Klicken. Der geteilte <Button> setzt darüber
+     hinaus seine eigenen Farbzustände. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    transition:
+      transform 0.12s ease,
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      opacity 0.15s ease,
+      filter 0.15s ease;
+  }
+  button:not(:disabled):active,
+  [role='button']:not([aria-disabled='true']):active {
+    transform: scale(0.97);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button:not(:disabled):active,
+    [role='button']:not([aria-disabled='true']):active {
+      transform: none;
+    }
+  }
 }
 
 /* Marken-Utilities (nur mit Supevo-Tokens sichtbar; sonst neutraler Fallback). */

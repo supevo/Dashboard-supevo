@@ -58,7 +58,7 @@ async function resolveTaskCtx(taskId: string): Promise<TaskCtx | { error: string
       service.from('client_companies').select('name').eq('id', clientCompanyId).maybeSingle(),
       service
         .from('client_contacts')
-        .select('user_id, is_primary')
+        .select('user_id, is_primary, notify_task_updates')
         .eq('client_company_id', clientCompanyId),
       service.from('organizations').select('name').eq('id', task.organization_id).maybeSingle(),
       task.completed_by
@@ -66,7 +66,14 @@ async function resolveTaskCtx(taskId: string): Promise<TaskCtx | { error: string
         : Promise.resolve({ data: null }),
     ]);
 
-  const recipientIds = [...new Set((contacts ?? []).map((c) => c.user_id))];
+  // Only contacts who have opted in to per-task notifications (default: on).
+  const recipientIds = [
+    ...new Set(
+      (contacts ?? [])
+        .filter((c) => c.notify_task_updates !== false)
+        .map((c) => c.user_id),
+    ),
+  ];
 
   // Greeting: the primary contact's first name, else the company name.
   let greeting = company?.name ?? 'Team';

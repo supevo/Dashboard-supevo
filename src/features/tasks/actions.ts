@@ -10,6 +10,7 @@ import { logActivity } from '@/lib/audit';
 import { awardTaskXp } from '@/features/gamification/xp';
 import { checkAndAwardAchievements } from '@/features/gamification/achievements';
 import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
+import { detectPrintProduct } from '@/features/print-billing/detect';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -573,6 +574,9 @@ async function afterTaskMoved(
       });
       await checkAndAwardAchievements(userId, orgId);
     }
+    // If the client bills print products and this task is a print job, flag it
+    // so the completer is asked to upload the supplier invoice (→ Ausgaben).
+    await maybeFlagPrintBilling(supabase, taskId);
   }
 
   // Log the move for the task's internal activity feed.
@@ -584,6 +588,45 @@ async function afterTaskMoved(
     entityId: taskId,
     metadata: { column: targetColumn?.name ?? '' },
   });
+}
+
+/**
+ * When a task is completed, flag it for print billing if the task's client bills
+ * print products and the task looks like a physical print job. Idempotent: only
+ * sets the flag when it is not already set, and never overrides a settled task.
+ */
+async function maybeFlagPrintBilling(
+  supabase: MoveSupabase,
+  taskId: string,
+): Promise<void> {
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, title, description, project_id, print_billing_status')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task || task.print_billing_status) return; // already required/settled
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('client_company_id')
+    .eq('id', task.project_id)
+    .maybeSingle();
+  if (!project?.client_company_id) return;
+
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('bill_print_products')
+    .eq('id', project.client_company_id)
+    .maybeSingle();
+  if (!company?.bill_print_products) return;
+
+  const isPrint = await detectPrintProduct(task.title, task.description);
+  if (!isPrint) return;
+
+  await supabase
+    .from('tasks')
+    .update({ print_billing_status: 'required' })
+    .eq('id', taskId);
 }
 
 const setTaskStatusSchema = z.object({

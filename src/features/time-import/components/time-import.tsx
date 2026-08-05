@@ -24,6 +24,7 @@ export function TimeImport() {
   const [assign, setAssign] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [source, setSource] = useState<'ai' | 'heuristic' | null>(null);
   const [analyzing, startAnalyze] = useTransition();
   const [importing, startImport] = useTransition();
 
@@ -36,6 +37,7 @@ export function TimeImport() {
     setError(null);
     setDone(null);
     setRows(null);
+    setSource(null);
     startAnalyze(async () => {
       const res = await analyzeTimeImportAction(text);
       if (!res.ok) {
@@ -44,6 +46,7 @@ export function TimeImport() {
       }
       setRows(res.rows);
       setMembers(res.members);
+      setSource(res.source);
       // Preselect the matched member per row.
       const initial: Record<number, string> = {};
       res.rows.forEach((r, i) => {
@@ -111,6 +114,16 @@ export function TimeImport() {
               Nicht erkannte Mitarbeiter bitte zuordnen. Zeilen ohne Zuordnung
               werden übersprungen.
             </p>
+            {source && (
+              <p className="text-xs text-muted-foreground">
+                Erkennung:{' '}
+                {source === 'ai' ? (
+                  <span className="font-medium text-primary">🤖 KI</span>
+                ) : (
+                  <span className="font-medium">📐 einfache Erkennung (ohne KI)</span>
+                )}
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
