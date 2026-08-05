@@ -13,13 +13,14 @@ import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
 import { getExpressStatus } from '@/features/express/queries';
 import { ExpressHeaderBadge } from '@/features/express/components/express-header-badge';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
+import { getMyAccountManagers } from '@/features/account-manager/queries';
+import { ClientChatDock } from '@/features/messenger/components/client-chat-dock';
 import { de } from '@/lib/i18n/de';
 
 // Marketingplan wird separat eingefügt, nur wenn ein Plan hinterlegt ist.
 const NAV_ITEMS: NavItem[] = [
   { href: '/portal', label: de.nav.dashboard },
   { href: '/portal/projects', label: de.nav.projects },
-  { href: '/portal/chat', label: '💬 Chat' },
   { href: '/portal/ideas', label: '💡 Ideen' },
   { href: '/portal/appointments', label: '📅 Termine' },
   { href: '/portal/hub', label: 'Marken-Hub' },
@@ -76,6 +77,17 @@ export default async function ClientLayout({
     ? await getExpressStatus(company.clientCompanyId)
     : null;
 
+  // Responsible contacts for the floating chat dock header.
+  const managers = await getMyAccountManagers();
+  const chatPartners = [managers.primary, managers.secondary]
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+    .map((m) => ({
+      userId: m.userId,
+      name: m.name,
+      hasAvatar: m.hasAvatar,
+      status: m.status,
+    }));
+
   return (
     <AppShell
       navItems={navItems}
@@ -91,6 +103,7 @@ export default async function ClientLayout({
     >
       {children}
       <FeedbackWidget />
+      <ClientChatDock meId={user.id} partners={chatPartners} />
     </AppShell>
   );
 }

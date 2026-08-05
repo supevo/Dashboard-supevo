@@ -9,7 +9,7 @@ import { OnboardingStepper } from '@/features/onboarding/components/onboarding-s
 import { getClientWeekWork } from '@/features/recap/client-week';
 import { WeekWorkCard } from '@/features/recap/components/week-work-card';
 import { getMyAccountManagers } from '@/features/account-manager/queries';
-import { AccountManagerCard } from '@/features/account-manager/components/account-manager-card';
+import { AccountManagersCard } from '@/features/account-manager/components/account-managers-card';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -45,10 +45,10 @@ export default async function ClientDashboardPage() {
       </div>
 
       {accountManagers.primary && (
-        <AccountManagerCard manager={accountManagers.primary} />
-      )}
-      {accountManagers.secondary && (
-        <AccountManagerCard manager={accountManagers.secondary} />
+        <AccountManagersCard
+          primary={accountManagers.primary}
+          secondary={accountManagers.secondary}
+        />
       )}
 
       {onboarding && onboarding.started && !onboarding.complete && (
