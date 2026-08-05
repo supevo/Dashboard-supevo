@@ -4,8 +4,7 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
-import { primaryAgencyOrgId } from '@/features/auth/session';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/session';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { createNotifications } from '@/features/notifications/create';
 import { resolveClientQueue, embedItems } from '@/features/marketing-plan/embed';
@@ -17,10 +16,11 @@ import {
 
 type Service = ReturnType<typeof createSupabaseServiceClient>;
 
-async function requireAdminOrg(): Promise<string | null> {
+/** Marketingpläne dürfen alle Agentur-Mitarbeiter verwalten (nicht nur Admins). */
+async function requireAgencyOrg(): Promise<string | null> {
   const user = await requireUser();
   const orgId = primaryAgencyOrgId(user);
-  return orgId && isOrgAdmin(user, orgId) ? orgId : null;
+  return orgId && hasAgencyAccess(user) ? orgId : null;
 }
 
 /** Loads a plan and checks it belongs to the given org. */
@@ -61,7 +61,7 @@ const createSchema = z.object({
 export async function createPlanAction(input: unknown): Promise<ActionResult> {
   const parsed = createSchema.safeParse(input);
   if (!parsed.success) return errorResult('Ungültige Werte.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
   const user = await requireUser();
 
@@ -94,7 +94,7 @@ const addItemSchema = z.object({
 export async function addPlanItemAction(input: unknown): Promise<ActionResult> {
   const parsed = addItemSchema.safeParse(input);
   if (!parsed.success) return errorResult('Bitte Monat + Titel angeben.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
 
   const service = createSupabaseServiceClient();
@@ -123,7 +123,7 @@ const updateItemSchema = z.object({
 export async function updatePlanItemAction(input: unknown): Promise<ActionResult> {
   const parsed = updateItemSchema.safeParse(input);
   if (!parsed.success) return errorResult('Ungültige Werte.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
 
   const service = createSupabaseServiceClient();
@@ -153,7 +153,7 @@ export async function updatePlanItemAction(input: unknown): Promise<ActionResult
 
 export async function deletePlanItemAction(itemId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(itemId).success) return errorResult('Ungültig.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
   const service = createSupabaseServiceClient();
   const plan = await planForItem(service, itemId);
@@ -166,7 +166,7 @@ export async function deletePlanItemAction(itemId: string): Promise<ActionResult
 /** Agency: releases the plan to the client for review; notifies client contacts. */
 export async function releasePlanAction(planId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(planId).success) return errorResult('Ungültig.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
   const service = createSupabaseServiceClient();
   const plan = await planForOrg(service, planId, orgId);
@@ -206,7 +206,7 @@ export async function releasePlanAction(planId: string): Promise<ActionResult> {
  */
 export async function embedPlanAction(planId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(planId).success) return errorResult('Ungültig.');
-  const orgId = await requireAdminOrg();
+  const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
   const user = await requireUser();
   const service = createSupabaseServiceClient();
