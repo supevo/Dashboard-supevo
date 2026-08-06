@@ -136,7 +136,7 @@ export async function exchangeCodeAndStore(
   }
 
   const service = createSupabaseServiceClient();
-  await service.from('onedrive_connections').upsert(
+  const { error } = await service.from('onedrive_connections').upsert(
     {
       organization_id: orgId,
       connected_by: userId,
@@ -146,6 +146,12 @@ export async function exchangeCodeAndStore(
     },
     { onConflict: 'organization_id' },
   );
+  if (error) {
+    // Most likely the onedrive_connections table is missing (migration 0103 not
+    // run). Surface it as a failure instead of a false "connected".
+    logger.error('onedrive.store_failed', { error: error.message });
+    return { ok: false, error: 'store_failed' };
+  }
   return { ok: true, label };
 }
 

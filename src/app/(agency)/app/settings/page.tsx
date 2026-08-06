@@ -101,6 +101,7 @@ export default async function SettingsPage({
             status={oneDriveStatus}
             justConnected={oneDriveParam === 'connected'}
             hadError={oneDriveParam === 'error'}
+            storeError={oneDriveParam === 'store_error'}
           />
         </CardContent>
       </Card>
