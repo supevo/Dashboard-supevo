@@ -28,9 +28,15 @@ export function getOneDriveConfig(): OneDriveConfig | null {
   const clientSecret = process.env.MS_CLIENT_SECRET;
   if (!clientId || !clientSecret) return null;
   const redirectUri =
-    process.env.MS_REDIRECT_URI ??
+    (process.env.MS_REDIRECT_URI ?? '').trim() ||
     `${env.NEXT_PUBLIC_APP_URL}/api/integrations/onedrive/callback`;
-  const authority = process.env.MS_AUTHORITY ?? 'consumers';
+  // Only accept a sane authority; anything else (typo, stray value) falls back
+  // to 'consumers' so a misconfigured env var can't break the sign-in URL.
+  const rawAuthority = (process.env.MS_AUTHORITY ?? '').trim();
+  const ALLOWED = new Set(['consumers', 'common', 'organizations']);
+  const isGuidOrDomain = /^[0-9a-f-]{36}$/i.test(rawAuthority) || rawAuthority.includes('.');
+  const authority =
+    ALLOWED.has(rawAuthority) || isGuidOrDomain ? rawAuthority : 'consumers';
   return { clientId, clientSecret, redirectUri, authority };
 }
 
