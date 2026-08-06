@@ -96,10 +96,13 @@ export function FileItem({
           </Button>
         </a>
         {file.canDelete && (
-          <form action={formAction}>
+          <form action={formAction} className="flex items-center gap-1">
             <input type="hidden" name="fileId" value={file.id} />
             <input type="hidden" name="projectId" value={projectId} />
             <input type="hidden" name="taskId" value={taskId} />
+            {state.status === 'error' && (
+              <span className="text-xs text-destructive">{state.message}</span>
+            )}
             <SubmitButton variant="ghost" size="sm">
               {de.task.delete}
             </SubmitButton>
