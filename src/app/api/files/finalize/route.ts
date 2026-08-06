@@ -6,6 +6,7 @@ import { FILES_BUCKET } from '@/lib/files/storage';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { env } from '@/lib/env';
 import { logActivity } from '@/lib/audit';
+import { mirrorTaskFileToOneDrive } from '@/features/onedrive/mirror';
 import { de } from '@/lib/i18n/de';
 
 function isSameOrigin(request: NextRequest): boolean {
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const { data: project } = await supabase
     .from('projects')
-    .select('organization_id')
+    .select('organization_id, client_company_id')
     .eq('id', projectId)
     .maybeSingle();
   if (!project) {
@@ -120,6 +121,18 @@ export async function POST(request: NextRequest) {
     entityId: taskId ?? projectId,
     metadata: { fileId: fileRow.id, mime: mimeType, size: sizeBytes },
   });
+
+  // Mirror task files into the client's OneDrive folder (best-effort, no-op when
+  // OneDrive is not configured or no folder is mapped).
+  if (taskId) {
+    await mirrorTaskFileToOneDrive({
+      orgId: project.organization_id,
+      clientCompanyId: project.client_company_id,
+      storagePath,
+      fileName: sanitizeFileName(fileName),
+      mime: mimeType,
+    });
+  }
 
   return NextResponse.json({ ok: true, fileId: fileRow.id });
 }

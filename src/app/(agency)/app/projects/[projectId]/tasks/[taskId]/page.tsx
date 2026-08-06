@@ -14,6 +14,8 @@ import { CommentForm } from '@/features/comments/components/comment-form';
 import { CommentItem } from '@/features/comments/components/comment-item';
 import { FileUploader } from '@/features/files/components/file-uploader';
 import { FileItem } from '@/features/files/components/file-item';
+import { getOneDriveStatus } from '@/features/onedrive/queries';
+import { TaskOneDriveAttach } from '@/features/onedrive/components/task-onedrive-attach';
 import { ChecklistSection } from '@/features/checklists/components/checklist-section';
 import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
@@ -46,10 +48,12 @@ export default async function TaskDetailPage({
   params: Promise<{ projectId: string; taskId: string }>;
 }) {
   const { projectId, taskId } = await params;
-  const { user } = await requireAgencyPage();
+  const { user, orgId } = await requireAgencyPage();
 
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
+
+  const oneDrive = await getOneDriveStatus(orgId);
 
   // All of these are independent → fetch in parallel (was ~10 sequential
   // round-trips, one of the slowest pages in the app).
@@ -168,6 +172,7 @@ export default async function TaskDetailPage({
             </CardHeader>
             <CardContent className="space-y-3">
               <FileUploader projectId={projectId} taskId={taskId} />
+              {oneDrive.connected && <TaskOneDriveAttach taskId={taskId} />}
               {files.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   {de.task.noFiles}
