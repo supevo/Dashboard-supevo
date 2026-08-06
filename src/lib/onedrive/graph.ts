@@ -160,6 +160,57 @@ function mapItem(raw: Record<string, unknown>): DriveItem {
   };
 }
 
+export interface ResolvedFolder {
+  id: string;
+  /** Graph self-path, e.g. "/drive/root:/ONE STEP/Kunden". */
+  path: string;
+}
+
+/** Resolves a folder by its path under the drive root (e.g. "ONE STEP/Kunden"). */
+export async function resolveFolderByPath(
+  orgId: string,
+  path: string,
+): Promise<ResolvedFolder | null> {
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const clean = path.replace(/^\/+|\/+$/g, '');
+  if (!clean) return null;
+  const res = await fetch(
+    `${GRAPH}/me/drive/root:/${encodeURI(clean)}?$select=id,name,parentReference`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return null;
+  const j = (await res.json()) as {
+    id?: string;
+    name?: string;
+    parentReference?: { path?: string };
+  };
+  if (!j.id) return null;
+  const parent = j.parentReference?.path ?? '/drive/root:';
+  return { id: j.id, path: `${parent}/${j.name ?? ''}` };
+}
+
+/** Fetches an item's id/name and its parent path (for subtree containment). */
+export async function getItemMeta(
+  orgId: string,
+  itemId: string,
+): Promise<{ id: string; name: string; parentPath: string } | null> {
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const res = await fetch(
+    `${GRAPH}/me/drive/items/${encodeURIComponent(itemId)}?$select=id,name,parentReference`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return null;
+  const j = (await res.json()) as {
+    id?: string;
+    name?: string;
+    parentReference?: { path?: string };
+  };
+  if (!j.id) return null;
+  return { id: j.id, name: j.name ?? '', parentPath: j.parentReference?.path ?? '' };
+}
+
 /** Lists children of a folder (root when folderId is null). */
 export async function listFolder(
   orgId: string,

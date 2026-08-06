@@ -35,6 +35,29 @@ export async function disconnectOneDriveAction(): Promise<ActionResult> {
   return successResult('OneDrive getrennt.');
 }
 
+/** Sets the base folder the app is confined to (e.g. "ONE STEP/Kunden"). Admins. */
+export async function setOneDriveRootAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const raw = String(formData.get('rootPath') ?? '').trim().slice(0, 400);
+  const user = await getCurrentUser();
+  if (!user) return errorResult(de.errors.UNAUTHENTICATED);
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId || !isOrgAdmin(user, orgId)) return errorResult(de.errors.FORBIDDEN);
+
+  const { error } = await createSupabaseServiceClient()
+    .from('onedrive_connections')
+    .update({ root_path: raw || null, updated_at: new Date().toISOString() })
+    .eq('organization_id', orgId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/settings');
+  return successResult(
+    raw ? `Zugriff auf „${raw}" begrenzt.` : 'Begrenzung aufgehoben.',
+  );
+}
+
 const folderSchema = z.object({
   clientCompanyId: z.string().uuid(),
   folderId: z.string().min(1).max(400),
