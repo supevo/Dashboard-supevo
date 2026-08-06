@@ -67,11 +67,14 @@ function ConversationView({
   title,
   meId,
   meName,
+  isClient = false,
 }: {
   channelId: string;
   title: string;
   meId: string;
   meName: string;
+  /** Client chat: hide team-only tools (stickers, polls). */
+  isClient?: boolean;
 }) {
   const { typing, notifyTyping } = useChatTyping(channelId, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
@@ -203,12 +206,16 @@ function ConversationView({
           className="h-9 w-9 text-lg"
         />
         <EmojiPicker onPick={insertEmoji} />
-        <StickerPicker channelId={channelId} onSent={() => void load()} />
-        <PollComposer
-          channelId={channelId}
-          onCreated={() => void load()}
-          className="h-9 w-9 text-lg"
-        />
+        {!isClient && (
+          <>
+            <StickerPicker channelId={channelId} onSent={() => void load()} />
+            <PollComposer
+              channelId={channelId}
+              onCreated={() => void load()}
+              className="h-9 w-9 text-lg"
+            />
+          </>
+        )}
         <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
       </form>
       </DropZone>
@@ -281,6 +288,7 @@ function CreateChannel({
 export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [open, setOpen] = useState(false);
   const [channels, setChannels] = useState<ChatChannel[]>([]);
+  const [clientChannels, setClientChannels] = useState<ChatChannel[]>([]);
   const [dms, setDms] = useState<DmConversation[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
@@ -306,18 +314,22 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       if (!res.ok) return;
       const data = (await res.json()) as {
         channels: ChatChannel[];
+        clientChannels?: ChatChannel[];
         dms: DmConversation[];
         members: TeamMember[];
         unread?: Record<string, number>;
       };
       setChannels(data.channels);
+      setClientChannels(data.clientChannels ?? []);
       setDms(data.dms);
       setMembers(data.members);
       // Ping when the total unread count rises (a new message arrived). Skip the
-      // very first load so we don't ping for pre-existing unreads. Only count
-      // channels/DMs the dock lists (client chats live in the full messenger).
+      // very first load so we don't ping for pre-existing unreads. Count every
+      // conversation the dock lists (team channels, DMs and client chats).
       const listedIds = new Set(
-        [...data.channels, ...data.dms].map((c) => c.id),
+        [...data.channels, ...(data.clientChannels ?? []), ...data.dms].map(
+          (c) => c.id,
+        ),
       );
       const total = Object.entries(data.unread ?? {}).reduce(
         (a, [id, n]) => (listedIds.has(id) ? a + n : a),
@@ -329,8 +341,9 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       prevUnreadRef.current = total;
       setUnread(data.unread ?? {});
       setActiveId((cur) => {
-        const known = [...data.channels, ...data.dms].some((c) => c.id === cur);
-        return cur && known ? cur : (data.channels[0]?.id ?? data.dms[0]?.id ?? null);
+        const all = [...data.channels, ...(data.clientChannels ?? []), ...data.dms];
+        const known = all.some((c) => c.id === cur);
+        return cur && known ? cur : (data.channels[0]?.id ?? all[0]?.id ?? null);
       });
     } catch {
       /* ignore */
@@ -416,14 +429,18 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   };
 
   const activeChannel = channels.find((c) => c.id === activeId);
+  const activeClient = clientChannels.find((c) => c.id === activeId);
   const activeDm = dms.find((d) => d.id === activeId);
   const activeTitle = activeChannel
     ? `${activeChannel.isPrivate ? '🔒' : '#'} ${activeChannel.name}`
-    : (activeDm?.otherName ?? '');
-  // Only count unread for channels/DMs the dock actually shows. Client chats
-  // live in the full messenger's "Kunden" section (not the dock), so their
-  // unread must not create a phantom badge here that can't be cleared.
-  const dockIds = new Set([...channels, ...dms].map((c) => c.id));
+    : activeClient
+      ? `👤 ${activeClient.name}`
+      : (activeDm?.otherName ?? '');
+  // Count unread for every conversation the dock shows (team channels, DMs and
+  // client chats).
+  const dockIds = new Set(
+    [...channels, ...clientChannels, ...dms].map((c) => c.id),
+  );
   const totalUnread = Object.entries(unread).reduce(
     (a, [id, n]) => (dockIds.has(id) ? a + n : a),
     0,
@@ -584,6 +601,35 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               ))
             )}
           </nav>
+
+          {/* Client chats (Kunde ↔ Ansprechpartner) */}
+          {clientChannels.length > 0 && (
+            <>
+              <div className="mt-1 px-2 pt-1">
+                <span className="text-xs font-semibold uppercase text-muted-foreground">
+                  {de.messenger.clients}
+                </span>
+              </div>
+              <nav className="space-y-0.5 px-1.5 pb-2">
+                {clientChannels.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setActiveId(c.id)}
+                    className={cn(
+                      'flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                      activeId === c.id
+                        ? 'bg-muted font-medium text-foreground'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    <span className="truncate">👤 {c.name}</span>
+                    {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
+                  </button>
+                ))}
+              </nav>
+            </>
+          )}
         </aside>
 
         {activeId && activeTitle ? (
@@ -593,6 +639,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
             title={activeTitle}
             meId={meId}
             meName={meName}
+            isClient={Boolean(activeClient)}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">

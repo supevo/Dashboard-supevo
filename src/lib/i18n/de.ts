@@ -800,6 +800,7 @@ export const de = {
   messenger: {
     title: 'Team-Chat',
     channels: 'Kanäle',
+    clients: 'Kunden',
     directMessages: 'Direktnachrichten',
     newChannel: 'Neuer Kanal',
     newDm: 'Neue Direktnachricht',

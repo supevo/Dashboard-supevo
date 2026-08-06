@@ -20,6 +20,9 @@ function deepLink(area: 'app' | 'portal', n: NotificationView): string | null {
   if (n.entityType === 'task' && n.entityId) {
     return `/${area}/tasks/${n.entityId}`;
   }
+  if (n.entityType === 'chat' && n.entityId) {
+    return area === 'app' ? `/app/chat/${n.entityId}` : '/portal';
+  }
   return null;
 }
 

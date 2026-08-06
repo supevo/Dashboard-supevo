@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/features/auth/session';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import {
   listChannels,
+  listClientChannels,
   listDmConversations,
   listTeamMembers,
   getUnreadCounts,
@@ -19,11 +20,12 @@ export async function GET() {
     return NextResponse.json({ channels: [], dms: [], members: [], unread: {} });
   }
 
-  const [channels, dms, members, unread] = await Promise.all([
+  const [channels, clientChannels, dms, members, unread] = await Promise.all([
     listChannels(orgId),
+    listClientChannels(orgId),
     listDmConversations(orgId, user.id),
     listTeamMembers(orgId, user.id),
     getUnreadCounts(),
   ]);
-  return NextResponse.json({ channels, dms, members, unread });
+  return NextResponse.json({ channels, clientChannels, dms, members, unread });
 }
