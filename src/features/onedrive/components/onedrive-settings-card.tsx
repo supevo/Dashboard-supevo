@@ -22,10 +22,12 @@ export function OneDriveSettingsCard({
   status,
   justConnected,
   hadError,
+  storeError = false,
 }: {
   status: OneDriveStatus;
   justConnected: boolean;
   hadError: boolean;
+  storeError?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -52,8 +54,38 @@ export function OneDriveSettingsCard({
 
   return (
     <div className="space-y-3">
-      {justConnected && <Alert>OneDrive wurde verbunden.</Alert>}
-      {hadError && (
+      {/* Klarer Verbindungs-Status – immer sichtbar. */}
+      <div className="flex items-center gap-2 rounded-md border p-2.5 text-sm">
+        <span
+          className={
+            status.connected
+              ? 'inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500'
+              : 'inline-flex h-2.5 w-2.5 rounded-full bg-muted-foreground/40'
+          }
+        />
+        {status.connected ? (
+          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+            Verbunden{status.accountLabel ? ` · ${status.accountLabel}` : ''}
+          </span>
+        ) : (
+          <span className="font-medium text-muted-foreground">
+            Nicht verbunden
+          </span>
+        )}
+      </div>
+
+      {justConnected && status.connected && (
+        <Alert>OneDrive wurde verbunden.</Alert>
+      )}
+      {storeError && (
+        <Alert variant="destructive">
+          Anmeldung hat geklappt, aber das Speichern der Verbindung ist
+          fehlgeschlagen – vermutlich fehlen die OneDrive-Tabellen in der
+          Datenbank. Bitte die Migrationen 0103–0105 in Supabase ausführen und
+          erneut verbinden.
+        </Alert>
+      )}
+      {hadError && !storeError && (
         <Alert variant="destructive">
           Verbindung fehlgeschlagen. Bitte erneut versuchen.
         </Alert>

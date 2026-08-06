@@ -35,5 +35,6 @@ export async function GET(request: NextRequest) {
   }
 
   const result = await exchangeCodeAndStore(orgId, user.id, code);
-  return settingsRedirect(result.ok ? 'connected' : 'error');
+  if (result.ok) return settingsRedirect('connected');
+  return settingsRedirect(result.error === 'store_failed' ? 'store_error' : 'error');
 }
