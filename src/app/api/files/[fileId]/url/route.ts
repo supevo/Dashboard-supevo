@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/features/auth/session';
 import { createSignedFileUrl } from '@/lib/files/storage';
+import { getDownloadUrl } from '@/lib/onedrive/graph';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 
@@ -35,7 +36,7 @@ export async function GET(
   const supabase = await createSupabaseServerClient();
   const { data: file } = await supabase
     .from('files')
-    .select('storage_path, mime_type, file_name, organization_id')
+    .select('storage_path, onedrive_item_id, mime_type, file_name, organization_id')
     .eq('id', fileId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -43,7 +44,15 @@ export async function GET(
     return NextResponse.json({ error: de.errors.NOT_FOUND }, { status: 404 });
   }
 
-  const url = await createSignedFileUrl(supabase, file.storage_path, disposition);
+  let url: string | null;
+  if (file.onedrive_item_id) {
+    const dl = await getDownloadUrl(file.organization_id, file.onedrive_item_id);
+    url = dl?.url ?? null;
+  } else if (file.storage_path) {
+    url = await createSignedFileUrl(supabase, file.storage_path, disposition);
+  } else {
+    url = null;
+  }
   if (!url) {
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }

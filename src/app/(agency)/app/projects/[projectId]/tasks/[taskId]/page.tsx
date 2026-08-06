@@ -171,7 +171,7 @@ export default async function TaskDetailPage({
               <CardTitle>{de.task.files}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <FileUploader projectId={projectId} taskId={taskId} />
+              <FileUploader projectId={projectId} taskId={taskId} showStorageWarnings />
               {oneDrive.connected && <TaskOneDriveAttach taskId={taskId} />}
               {files.length === 0 ? (
                 <p className="text-sm text-muted-foreground">

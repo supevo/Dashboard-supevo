@@ -58,6 +58,35 @@ export async function setOneDriveRootAction(
   );
 }
 
+/**
+ * Toggles "OneDrive as primary storage for task attachments" and sets the
+ * collection folder for attachments without a client mapping. Admins.
+ */
+export async function setOneDrivePrimaryAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const primary = formData.get('primary') === 'on';
+  const collection = String(formData.get('collectionPath') ?? '').trim().slice(0, 400);
+  const user = await getCurrentUser();
+  if (!user) return errorResult(de.errors.UNAUTHENTICATED);
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId || !isOrgAdmin(user, orgId)) return errorResult(de.errors.FORBIDDEN);
+
+  const { error } = await createSupabaseServiceClient()
+    .from('onedrive_connections')
+    .update({
+      primary_attachments: primary,
+      collection_folder_path: collection || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('organization_id', orgId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/settings');
+  return successResult('Speicher-Einstellung gespeichert.');
+}
+
 const folderSchema = z.object({
   clientCompanyId: z.string().uuid(),
   folderId: z.string().min(1).max(400),

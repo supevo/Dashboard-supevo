@@ -31,17 +31,30 @@ async function sha256Hex(file: File): Promise<string | null> {
   }
 }
 
+const STORAGE_WARNINGS: Record<string, string> = {
+  mapping_missing:
+    'Hinweis: Bei diesem Kunden fehlt die OneDrive-Zuordnung – die Datei wurde vorerst regulär gespeichert. Bitte in den Kundeneinstellungen einen OneDrive-Ordner verknüpfen.',
+  unavailable:
+    'Hinweis: Der OneDrive-Sammelordner ist nicht erreichbar – die Datei wurde regulär gespeichert.',
+  onedrive_unavailable:
+    'Hinweis: OneDrive war nicht erreichbar – die Datei wurde regulär gespeichert.',
+};
+
 export function FileUploader({
   projectId,
   taskId,
   allowInternal = true,
+  showStorageWarnings = false,
 }: {
   projectId: string;
   taskId: string;
   allowInternal?: boolean;
+  /** Agency-only: surface OneDrive fallback hints (never shown to clients). */
+  showStorageWarnings?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [isInternal, setIsInternal] = useState(allowInternal);
@@ -80,14 +93,66 @@ export function FileUploader({
         }),
       });
       const createJson = (await createRes.json()) as {
+        mode?: 'supabase' | 'onedrive';
+        uploadUrl?: string;
         path?: string;
         token?: string;
         storagePath?: string;
+        warning?: string | null;
         error?: string;
       };
-      if (!createRes.ok || !createJson.path || !createJson.token) {
+      if (!createRes.ok) {
         setError(createJson.error ?? de.task.uploadError);
         return false;
+      }
+
+      // OneDrive path: PUT the bytes DIRECTLY into OneDrive, then record the row.
+      if (createJson.mode === 'onedrive' && createJson.uploadUrl) {
+        const putRes = await fetch(createJson.uploadUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Range': `bytes 0-${file.size - 1}/${file.size}`,
+          },
+          body: file,
+        });
+        if (!putRes.ok) {
+          setError(de.task.uploadError);
+          return false;
+        }
+        const item = (await putRes.json().catch(() => null)) as { id?: string } | null;
+        if (!item?.id) {
+          setError(de.task.uploadError);
+          return false;
+        }
+        const finalizeRes = await fetch('/api/files/onedrive/finalize', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            projectId,
+            taskId,
+            itemId: item.id,
+            fileName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            isInternal,
+          }),
+        });
+        const finalizeJson = (await finalizeRes.json()) as { ok?: boolean; error?: string };
+        if (!finalizeRes.ok || !finalizeJson.ok) {
+          setError(finalizeJson.error ?? de.task.uploadError);
+          return false;
+        }
+        router.refresh();
+        return true;
+      }
+
+      // Supabase path.
+      if (!createJson.path || !createJson.token) {
+        setError(createJson.error ?? de.task.uploadError);
+        return false;
+      }
+      if (showStorageWarnings && createJson.warning) {
+        setNotice(STORAGE_WARNINGS[createJson.warning] ?? null);
       }
 
       // Step 2: upload the bytes DIRECTLY to Supabase Storage (no Vercel limit).
@@ -140,6 +205,7 @@ export function FileUploader({
   return (
     <div className="space-y-2">
       {error && <Alert variant="destructive">{error}</Alert>}
+      {notice && <Alert>{notice}</Alert>}
       {allowInternal && (
         <label className="flex items-center gap-2 text-sm">
           <input

@@ -33,6 +33,15 @@ export async function deleteFileAction(
 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
+
+  // Read the OneDrive reference (if any) before soft-deleting, so we can also
+  // remove the file from OneDrive (best-effort).
+  const { data: fileRow } = await supabase
+    .from('files')
+    .select('onedrive_item_id, organization_id')
+    .eq('id', parsed.data.fileId)
+    .maybeSingle();
+
   const { error, count } = await supabase
     .from('files')
     .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
@@ -40,6 +49,15 @@ export async function deleteFileAction(
 
   if (error) return errorResult(de.errors.INTERNAL);
   if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  if (fileRow?.onedrive_item_id) {
+    try {
+      const { deleteItem } = await import('@/lib/onedrive/graph');
+      await deleteItem(fileRow.organization_id, fileRow.onedrive_item_id);
+    } catch {
+      // best-effort; the metadata row is already gone from the UI
+    }
+  }
 
   await logActivity({
     actorId: user.id,

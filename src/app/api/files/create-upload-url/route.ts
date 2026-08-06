@@ -5,6 +5,12 @@ import { getCurrentUser } from '@/features/auth/session';
 import { createSignedUploadTarget } from '@/lib/files/storage';
 import { validateUpload, buildStoragePath } from '@/lib/files/validation';
 import { rateLimit } from '@/lib/rate-limit';
+import { createUploadSession } from '@/lib/onedrive/graph';
+import {
+  getOneDrivePrimaryConfig,
+  resolveAttachmentTarget,
+  recordUploadError,
+} from '@/features/onedrive/attachments';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
@@ -83,15 +89,61 @@ export async function POST(request: NextRequest) {
   // Verify project access (RLS) and derive the tenant.
   const { data: project } = await supabase
     .from('projects')
-    .select('organization_id')
+    .select('organization_id, client_company_id')
     .eq('id', projectId)
     .maybeSingle();
   if (!project) {
     return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
   }
+  const orgId = project.organization_id;
+
+  // OneDrive as primary store for task attachments (when enabled + connected).
+  // Any problem falls back to Supabase so an upload never fails; the fallback
+  // reason is surfaced (warning) and recorded for the super-admin.
+  let warning: string | null = null;
+  if (taskId) {
+    const cfg = await getOneDrivePrimaryConfig(orgId);
+    if (cfg.active && cfg.primary) {
+      const targetFolder = await resolveAttachmentTarget(
+        orgId,
+        project.client_company_id,
+        cfg.collectionPath,
+      );
+      if (!targetFolder.ok) {
+        warning = targetFolder.code; // 'mapping_missing' | 'unavailable'
+        await recordUploadError(
+          orgId,
+          project.client_company_id,
+          fileName,
+          targetFolder.code === 'mapping_missing'
+            ? 'Kunde hat keinen verknüpften OneDrive-Ordner – Datei in Supabase gespeichert.'
+            : 'Sammelordner nicht erreichbar – Datei in Supabase gespeichert.',
+        );
+      } else {
+        const session = await createUploadSession(
+          orgId,
+          targetFolder.folderId,
+          fileName,
+        );
+        if (session) {
+          return NextResponse.json({
+            mode: 'onedrive',
+            uploadUrl: session.uploadUrl,
+          });
+        }
+        warning = 'onedrive_unavailable';
+        await recordUploadError(
+          orgId,
+          project.client_company_id,
+          fileName,
+          'OneDrive-Upload-Session fehlgeschlagen – Datei in Supabase gespeichert.',
+        );
+      }
+    }
+  }
 
   const storagePath = buildStoragePath({
-    organizationId: project.organization_id,
+    organizationId: orgId,
     projectId,
     taskId,
     uuid: randomUUID(),
@@ -104,8 +156,10 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({
+    mode: 'supabase',
     path: target.path,
     token: target.token,
     storagePath,
+    warning,
   });
 }

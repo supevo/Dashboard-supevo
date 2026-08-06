@@ -13,6 +13,10 @@ export interface OneDriveStatus {
   accountLabel: string | null;
   /** Base folder the app is confined to (e.g. "ONE STEP/Kunden"), or null. */
   rootPath: string | null;
+  /** Task attachments are stored only in OneDrive when true. */
+  primaryAttachments: boolean;
+  /** Folder for attachments without a client mapping. */
+  collectionFolderPath: string | null;
 }
 
 /** Connection status for the org (settings card). */
@@ -22,18 +26,59 @@ export async function getOneDriveStatus(orgId: string): Promise<OneDriveStatus> 
   let connected = false;
   let accountLabel: string | null = null;
   let rootPath: string | null = null;
+  let primaryAttachments = false;
+  let collectionFolderPath: string | null = null;
   if (configured) {
     const service = createSupabaseServiceClient();
     const { data } = await service
       .from('onedrive_connections')
-      .select('account_label, root_path')
+      .select('account_label, root_path, primary_attachments, collection_folder_path')
       .eq('organization_id', orgId)
       .maybeSingle();
     connected = Boolean(data);
     accountLabel = data?.account_label ?? null;
     rootPath = data?.root_path ?? null;
+    primaryAttachments = Boolean(data?.primary_attachments);
+    collectionFolderPath = data?.collection_folder_path ?? null;
   }
-  return { configured, vaultReady, connected, accountLabel, rootPath };
+  return {
+    configured,
+    vaultReady,
+    connected,
+    accountLabel,
+    rootPath,
+    primaryAttachments,
+    collectionFolderPath,
+  };
+}
+
+export interface OneDriveUploadError {
+  id: string;
+  clientCompanyId: string | null;
+  fileName: string | null;
+  reason: string;
+  createdAt: string;
+}
+
+/** Recent OneDrive upload problems for the org (super-admin diagnostics). */
+export async function listOneDriveUploadErrors(
+  orgId: string,
+  limit = 20,
+): Promise<OneDriveUploadError[]> {
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('onedrive_upload_errors')
+    .select('id, client_company_id, file_name, reason, created_at')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    clientCompanyId: r.client_company_id,
+    fileName: r.file_name,
+    reason: r.reason,
+    createdAt: r.created_at,
+  }));
 }
 
 export interface ClientFolder {
