@@ -22,13 +22,6 @@ interface Member {
   name: string;
 }
 
-const PRIORITY_CLASS: Record<TaskPriority, string> = {
-  low: 'border-l-slate-300',
-  medium: 'border-l-sky-400',
-  high: 'border-l-amber-500',
-  urgent: 'border-l-red-500',
-};
-
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
   return new Date(dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
@@ -370,14 +363,18 @@ export function KanbanBoard({
               key={col.id}
               onDragOver={(e) => canDrag && e.preventDefault()}
               onDrop={() => canDrag && handleDropOnColumn(col.id)}
-              className="flex w-72 shrink-0 flex-col rounded-lg bg-muted/50 p-2"
+              className="flex w-72 shrink-0 flex-col rounded-xl border border-border bg-muted p-2.5"
             >
-              <div className="mb-2 flex items-center justify-between px-1">
-                <span className="text-sm font-semibold">{col.name}</span>
+              <div className="mb-2.5 flex items-center justify-between px-0.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {col.name}
+                </span>
                 <span
                   className={cn(
-                    'text-xs',
-                    atLimit ? 'text-destructive' : 'text-muted-foreground',
+                    'rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums',
+                    atLimit
+                      ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                      : 'border-border bg-background text-muted-foreground',
                   )}
                 >
                   {col.tasks.length}
@@ -450,8 +447,7 @@ export function KanbanBoard({
                       }
                     }}
                     className={cn(
-                      'cursor-pointer rounded-md border-l-4 bg-background p-2 shadow-sm transition hover:shadow-md',
-                      PRIORITY_CLASS[task.priority],
+                      'cursor-pointer rounded-lg border border-border bg-card p-2.5 shadow-sm transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md',
                       canDrag && 'active:cursor-grabbing',
                       expressPickMode &&
                         !task.isExpress &&
@@ -644,7 +640,7 @@ export function KanbanBoard({
                     onClick={() =>
                       router.push(`${basePath}/${projectId}/tasks/${task.id}`)
                     }
-                    className="w-full rounded-md border-l-4 border-l-slate-300 bg-background/60 p-2 text-left shadow-sm hover:bg-background"
+                    className="w-full rounded-lg border border-border bg-card/60 p-2.5 text-left shadow-sm hover:bg-card"
                   >
                     <div className="text-sm font-medium text-muted-foreground line-through">
                       {task.title}

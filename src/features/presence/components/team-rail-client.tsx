@@ -38,10 +38,27 @@ function MemberRow({ m }: { m: RailMember }) {
   // escapes the rail's `overflow-y-auto` container (which otherwise clips it).
   const liRef = useRef<HTMLLIElement>(null);
   const [card, setCard] = useState<{ top: number; left: number } | null>(null);
+  // Delay closing so the mouse can travel across the gap onto the card without
+  // it vanishing first; hovering the card cancels the pending close.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const line = activityLine(m);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setCard(null), 260);
+  }, [cancelClose]);
+
+  useEffect(() => () => cancelClose(), [cancelClose]);
 
   const CARD_WIDTH = 256;
   function openCard() {
+    cancelClose();
     const r = liRef.current?.getBoundingClientRect();
     if (!r) return;
     const left = Math.max(8, r.left - CARD_WIDTH - 8);
@@ -54,7 +71,7 @@ function MemberRow({ m }: { m: RailMember }) {
       ref={liRef}
       className="relative"
       onMouseEnter={openCard}
-      onMouseLeave={() => setCard(null)}
+      onMouseLeave={scheduleClose}
     >
       <button
         type="button"
@@ -74,6 +91,8 @@ function MemberRow({ m }: { m: RailMember }) {
         <div
           style={{ position: 'fixed', top: card.top, left: card.left, width: CARD_WIDTH }}
           className="z-50 rounded-xl border bg-card p-3 shadow-xl"
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
         >
           <div className="flex items-center gap-3">
             <Avatar userId={m.userId} name={m.name} hasAvatar={m.hasAvatar} status={m.status} size="lg" />

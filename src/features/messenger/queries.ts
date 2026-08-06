@@ -214,7 +214,9 @@ export async function listChannels(orgId: string): Promise<ChatChannel[]> {
 
 /**
  * Lists the org's client chat channels (kind = 'client'), shown separately in
- * the agency messenger. The company name is used as the channel label.
+ * the agency messenger. The company name is used as the channel label. Channels
+ * without any message are hidden so a client that has never written does not
+ * clutter the list (the channel is created lazily on first open).
  */
 export async function listClientChannels(orgId: string): Promise<ChatChannel[]> {
   const service = createSupabaseServiceClient();
@@ -224,7 +226,21 @@ export async function listClientChannels(orgId: string): Promise<ChatChannel[]> 
     .eq('organization_id', orgId)
     .eq('kind', 'client')
     .eq('is_archived', false);
-  const rows = data ?? [];
+  let rows = data ?? [];
+
+  // Keep only channels that already have at least one message.
+  if (rows.length > 0) {
+    const { data: withMessages } = await service
+      .from('chat_channel_messages')
+      .select('channel_id')
+      .in(
+        'channel_id',
+        rows.map((c) => c.id),
+      );
+    const active = new Set((withMessages ?? []).map((m) => m.channel_id));
+    rows = rows.filter((c) => active.has(c.id));
+  }
+
   const companyIds = [
     ...new Set(rows.map((c) => c.client_company_id).filter((v): v is string => !!v)),
   ];
