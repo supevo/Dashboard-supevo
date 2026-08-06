@@ -30,16 +30,30 @@ export async function getOneDriveStatus(orgId: string): Promise<OneDriveStatus> 
   let collectionFolderPath: string | null = null;
   if (configured) {
     const service = createSupabaseServiceClient();
-    const { data } = await service
+    // Connected check uses only columns from the base migration (0103), so the
+    // status is correct even if 0104/0105 have not been applied yet.
+    const { data: base } = await service
       .from('onedrive_connections')
-      .select('account_label, root_path, primary_attachments, collection_folder_path')
+      .select('organization_id, account_label')
       .eq('organization_id', orgId)
       .maybeSingle();
-    connected = Boolean(data);
-    accountLabel = data?.account_label ?? null;
-    rootPath = data?.root_path ?? null;
-    primaryAttachments = Boolean(data?.primary_attachments);
-    collectionFolderPath = data?.collection_folder_path ?? null;
+    connected = Boolean(base);
+    accountLabel = base?.account_label ?? null;
+
+    if (connected) {
+      // Optional columns from later migrations – tolerate if not yet applied
+      // (the query returns null instead of throwing).
+      const { data: ext } = await service
+        .from('onedrive_connections')
+        .select('root_path, primary_attachments, collection_folder_path')
+        .eq('organization_id', orgId)
+        .maybeSingle();
+      if (ext) {
+        rootPath = ext.root_path ?? null;
+        primaryAttachments = Boolean(ext.primary_attachments);
+        collectionFolderPath = ext.collection_folder_path ?? null;
+      }
+    }
   }
   return {
     configured,
