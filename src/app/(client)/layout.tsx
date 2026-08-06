@@ -65,9 +65,8 @@ export default async function ClientLayout({
     { href: '/portal/appointments', label: 'Termine' },
     ...(hasPlan ? [{ href: '/portal/plan', label: 'Marketingplan' }] : []),
 
-    { href: '#brand', label: 'Brand & Ressourcen', heading: true },
-    { href: '/portal/hub', label: 'Marken-Hub' },
-    { href: '/portal/documents', label: 'Dokumente' },
+    { href: '#brand', label: 'Brand', heading: true },
+    { href: '/portal/hub', label: 'Brand-Hub' },
 
     { href: '#verwaltung', label: 'Verwaltung & Zugänge', heading: true },
     { href: '/portal/access', label: 'Zugänge' },

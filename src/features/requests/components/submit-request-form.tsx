@@ -139,20 +139,12 @@ export function SubmitRequestForm({ projectId }: { projectId: string }) {
                     onChange={(e) =>
                       setAnswers((prev) => prev.map((a, idx) => (idx === i ? e.target.value : a)))
                     }
-                    placeholder="Ihre Antwort (optional)"
+                    placeholder="Ihre Antwort"
                   />
                 </li>
               ))}
             </ul>
             <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => finish([])}
-                className="rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
-              >
-                Überspringen
-              </button>
               <Button
                 size="sm"
                 disabled={pending}

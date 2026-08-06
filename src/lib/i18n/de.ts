@@ -972,6 +972,8 @@ export const de = {
     title: 'Aktuelles aus Ihrer Branche',
     topic: 'Thema',
     footer: 'Aktuelle Schlagzeilen aus Ihrer Branche. Links führen zu den Originalquellen.',
+    showMore: 'Mehr anzeigen',
+    showLess: 'Weniger anzeigen',
   },
   marketingReport: {
     title: 'Berichte',

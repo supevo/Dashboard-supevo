@@ -58,13 +58,13 @@ export default async function ClientDashboardPage() {
         ]}
       />
 
+      <WeekWorkCard data={weekWork} />
+
       {news && news.items.length > 0 ? (
         <NewsTicker items={news.items} topic={news.topic} />
       ) : null}
 
       {company ? <SatisfactionWidget initial={mySatisfaction} /> : null}
-
-      <WeekWorkCard data={weekWork} />
     </div>
   );
 }
