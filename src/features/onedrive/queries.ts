@@ -11,6 +11,8 @@ export interface OneDriveStatus {
   /** A OneDrive account is connected for this org. */
   connected: boolean;
   accountLabel: string | null;
+  /** Base folder the app is confined to (e.g. "ONE STEP/Kunden"), or null. */
+  rootPath: string | null;
 }
 
 /** Connection status for the org (settings card). */
@@ -19,17 +21,19 @@ export async function getOneDriveStatus(orgId: string): Promise<OneDriveStatus> 
   const vaultReady = isSecretVaultEnabled();
   let connected = false;
   let accountLabel: string | null = null;
+  let rootPath: string | null = null;
   if (configured) {
     const service = createSupabaseServiceClient();
     const { data } = await service
       .from('onedrive_connections')
-      .select('account_label')
+      .select('account_label, root_path')
       .eq('organization_id', orgId)
       .maybeSingle();
     connected = Boolean(data);
     accountLabel = data?.account_label ?? null;
+    rootPath = data?.root_path ?? null;
   }
-  return { configured, vaultReady, connected, accountLabel };
+  return { configured, vaultReady, connected, accountLabel, rootPath };
 }
 
 export interface ClientFolder {

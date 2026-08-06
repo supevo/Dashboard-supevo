@@ -887,6 +887,7 @@ export interface Database {
           connected_by: string | null;
           account_label: string | null;
           refresh_token_enc: string;
+          root_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -895,6 +896,7 @@ export interface Database {
           connected_by?: string | null;
           account_label?: string | null;
           refresh_token_enc: string;
+          root_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -1,10 +1,16 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useActionState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { disconnectOneDriveAction } from '@/features/onedrive/actions';
+import {
+  disconnectOneDriveAction,
+  setOneDriveRootAction,
+} from '@/features/onedrive/actions';
+import { idleResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Alert } from '@/components/ui/alert';
+import { SubmitButton } from '@/components/ui/submit-button';
 import type { OneDriveStatus } from '@/features/onedrive/queries';
 
 /**
@@ -22,6 +28,10 @@ export function OneDriveSettingsCard({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [rootState, rootAction] = useActionState(setOneDriveRootAction, idleResult);
+  useEffect(() => {
+    if (rootState.status === 'success') router.refresh();
+  }, [rootState, router]);
 
   if (!status.configured) {
     return (
@@ -55,6 +65,35 @@ export function OneDriveSettingsCard({
             Kundenordner können in Aufgaben durchsucht werden, und hochgeladene
             Aufgaben-Dateien werden in den verknüpften Kundenordner gespiegelt.
           </p>
+          <form action={rootAction} className="space-y-1 border-t pt-3">
+            <label htmlFor="od-root" className="text-sm font-medium">
+              Zugriff auf Basisordner begrenzen
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Pfad ab OneDrive-Wurzel, z. B. <code>ONE STEP/Kunden</code>. Das Team
+              kann dann nur innerhalb dieses Ordners navigieren. Leer = ganzes
+              OneDrive.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Input
+                id="od-root"
+                name="rootPath"
+                defaultValue={status.rootPath ?? ''}
+                placeholder="ONE STEP/Kunden"
+                className="h-9 w-full max-w-xs"
+              />
+              <SubmitButton size="sm">Speichern</SubmitButton>
+            </div>
+            {rootState.status === 'error' && (
+              <Alert variant="destructive" className="mt-1">
+                {rootState.message}
+              </Alert>
+            )}
+            {rootState.status === 'success' && (
+              <Alert className="mt-1">{rootState.message}</Alert>
+            )}
+          </form>
+
           <Button
             type="button"
             variant="outline"
