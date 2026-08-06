@@ -2510,6 +2510,8 @@ export interface Database {
           stage1_net_cents: number;
           stage2_name: string;
           stage2_net_cents: number;
+          stage1_benefits: string | null;
+          stage2_benefits: string | null;
           created_at: string;
           updated_at: string;
         };

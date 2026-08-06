@@ -10,8 +10,18 @@ export interface PortalMembershipView {
   stage1Cents: number;
   stage2Name: string;
   stage2Cents: number;
+  stage1Benefits: string[];
+  stage2Benefits: string[];
   effectiveCents: number;
   isCustom: boolean;
+}
+
+/** Splits an admin-entered benefits text (one per line) into a clean list. */
+function parseBenefits(raw: string | null | undefined): string[] {
+  return (raw ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -32,10 +42,14 @@ export async function getPortalMembership(): Promise<PortalMembershipView | null
   let stage2Name = 'Mitgliedschaft Pro';
   let stage1Cents = 0;
   let stage2Cents = 0;
+  let stage1Benefits: string[] = [];
+  let stage2Benefits: string[] = [];
   try {
     const { data: s } = await createSupabaseServiceClient()
       .from('billing_settings')
-      .select('stage1_name, stage1_net_cents, stage2_name, stage2_net_cents')
+      .select(
+        'stage1_name, stage1_net_cents, stage2_name, stage2_net_cents, stage1_benefits, stage2_benefits',
+      )
       .eq('organization_id', membership.organization_id)
       .maybeSingle();
     if (s) {
@@ -43,6 +57,8 @@ export async function getPortalMembership(): Promise<PortalMembershipView | null
       stage1Cents = s.stage1_net_cents;
       stage2Name = s.stage2_name;
       stage2Cents = s.stage2_net_cents;
+      stage1Benefits = parseBenefits(s.stage1_benefits);
+      stage2Benefits = parseBenefits(s.stage2_benefits);
     }
   } catch (e) {
     logger.warn('portal.membership.prices_unavailable', {
@@ -63,6 +79,8 @@ export async function getPortalMembership(): Promise<PortalMembershipView | null
     stage1Cents,
     stage2Name,
     stage2Cents,
+    stage1Benefits,
+    stage2Benefits,
     effectiveCents,
     isCustom,
   };

@@ -43,6 +43,8 @@ const schema = z.object({
   stage1_price: z.string(),
   stage2_name: z.string().trim().min(1).max(120),
   stage2_price: z.string(),
+  stage1_benefits: z.string().trim().max(2000).optional().or(z.literal('')),
+  stage2_benefits: z.string().trim().max(2000).optional().or(z.literal('')),
 });
 
 /** Creates or updates the organization's billing settings (org admins only). */
@@ -100,6 +102,8 @@ export async function updateBillingSettingsAction(
       stage1_net_cents: stage1,
       stage2_name: d.stage2_name,
       stage2_net_cents: stage2,
+      stage1_benefits: d.stage1_benefits || null,
+      stage2_benefits: d.stage2_benefits || null,
     },
     { onConflict: 'organization_id' },
   );
