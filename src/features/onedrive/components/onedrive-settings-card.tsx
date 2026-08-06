@@ -18,16 +18,32 @@ import type { OneDriveStatus } from '@/features/onedrive/queries';
  * Settings card to connect/disconnect the org's (personal) OneDrive. The connect
  * button starts the OAuth flow; disconnect removes the stored refresh token.
  */
+const REASON_MESSAGES: Record<string, string> = {
+  store_failed:
+    'Anmeldung hat geklappt, aber das Speichern der Verbindung in der Datenbank ist fehlgeschlagen.',
+  vault_unavailable:
+    'SECRET_ENCRYPTION_KEY fehlt/ungültig – das Token kann nicht verschlüsselt gespeichert werden.',
+  no_refresh_token:
+    'Microsoft hat kein Refresh-Token geliefert. Prüfe: Berechtigung „offline_access" gesetzt und App-Plattform „Web" (nicht „SPA").',
+  exchange_failed:
+    'Token-Austausch mit Microsoft fehlgeschlagen – Redirect-URI oder Client-Secret prüfen.',
+  state_mismatch:
+    'Sicherheits-Token (State) stimmte nicht – bitte erneut versuchen (Cookies erlauben).',
+  not_admin: 'Keine Berechtigung (kein Org-Admin).',
+  not_configured: 'MS_CLIENT_ID/MS_CLIENT_SECRET fehlen in den Server-Variablen.',
+  unknown: 'Verbindung fehlgeschlagen.',
+};
+
 export function OneDriveSettingsCard({
   status,
   justConnected,
-  hadError,
-  storeError = false,
+  errorReason = null,
+  errorDetail = null,
 }: {
   status: OneDriveStatus;
   justConnected: boolean;
-  hadError: boolean;
-  storeError?: boolean;
+  errorReason?: string | null;
+  errorDetail?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -77,17 +93,14 @@ export function OneDriveSettingsCard({
       {justConnected && status.connected && (
         <Alert>OneDrive wurde verbunden.</Alert>
       )}
-      {storeError && (
+      {errorReason && (
         <Alert variant="destructive">
-          Anmeldung hat geklappt, aber das Speichern der Verbindung ist
-          fehlgeschlagen – vermutlich fehlen die OneDrive-Tabellen in der
-          Datenbank. Bitte die Migrationen 0103–0105 in Supabase ausführen und
-          erneut verbinden.
-        </Alert>
-      )}
-      {hadError && !storeError && (
-        <Alert variant="destructive">
-          Verbindung fehlgeschlagen. Bitte erneut versuchen.
+          <div>{REASON_MESSAGES[errorReason] ?? REASON_MESSAGES.unknown}</div>
+          {errorDetail && (
+            <div className="mt-1 break-all font-mono text-xs opacity-80">
+              {errorDetail}
+            </div>
+          )}
         </Alert>
       )}
       {!status.vaultReady && (
