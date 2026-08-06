@@ -33,6 +33,8 @@ import { InquirySettings } from '@/features/inquiries/components/inquiry-setting
 import { InquiryList } from '@/features/inquiries/components/inquiry-list';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
+import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
+import { ClientFolderLink } from '@/features/onedrive/components/client-folder-link';
 import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { getOnboarding } from '@/features/onboarding/queries';
@@ -92,6 +94,12 @@ export default async function ClientDetailPage({
         listTeamMembers(orgId),
       ])
     : [null, null, [], [], []];
+
+  // OneDrive folder mapping (admin only; card hidden when not configured).
+  const oneDrive = isAdmin ? await getOneDriveStatus(orgId) : null;
+  const oneDriveFolder = oneDrive?.configured
+    ? await getClientFolder(orgId, clientCompanyId)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -203,6 +211,25 @@ export default async function ClientDetailPage({
           />
         </CardContent>
       </Card>
+
+      {isAdmin && oneDrive?.configured && (
+        <Card>
+          <CardHeader>
+            <CardTitle>☁️ OneDrive-Kundenordner</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Verknüpfe den OneDrive-Ordner dieses Kunden. Hochgeladene Aufgaben-
+              Dateien werden automatisch dorthin gespiegelt.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ClientFolderLink
+              clientCompanyId={clientCompanyId}
+              currentPath={oneDriveFolder?.folderPath ?? null}
+              connected={oneDrive.connected}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

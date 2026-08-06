@@ -178,6 +178,32 @@ export function BillingSettingsForm({
           placeholder="7750"
         />
       </div>
+      <p className="text-xs text-muted-foreground">
+        Leistungen je Paket – eine pro Zeile. Beim Herabstufen sieht der Kunde,
+        welche Vorteile er verliert.
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="stage1_benefits">Stage 1 – Leistungen</Label>
+          <Textarea
+            id="stage1_benefits"
+            name="stage1_benefits"
+            rows={5}
+            defaultValue={settings?.stage1_benefits ?? ''}
+            placeholder={'1 aktive Aufgabe\nE-Mail-Support\nMonatsreport'}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="stage2_benefits">Stage 2 – Leistungen</Label>
+          <Textarea
+            id="stage2_benefits"
+            name="stage2_benefits"
+            rows={5}
+            defaultValue={settings?.stage2_benefits ?? ''}
+            placeholder={'2 parallele Aufgaben\nPrioritäts-Support\nWöchentliche Reports\nExpress-Tickets'}
+          />
+        </div>
+      </div>
 
       <SubmitButton>Speichern</SubmitButton>
     </form>

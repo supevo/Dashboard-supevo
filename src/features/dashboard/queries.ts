@@ -114,10 +114,20 @@ export async function getAgencyDashboard(
   };
 }
 
+/** A task reference the client can open (carries its project for the link). */
+export interface ClientTaskRef {
+  id: string;
+  title: string;
+  projectId: string;
+}
+
 export interface ClientDashboard {
   openCount: number;
   inProgressCount: number;
   toApproveCount: number;
+  openTasks: ClientTaskRef[];
+  inProgressTasks: ClientTaskRef[];
+  toApproveTasks: ClientTaskRef[];
   completedRecent: DashboardTaskRef[];
 }
 
@@ -133,31 +143,43 @@ export async function getClientDashboard(): Promise<ClientDashboard> {
 
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('id, title, column_id')
+    .select('id, title, column_id, project_id')
     .eq('is_archived', false)
     .is('deleted_at', null)
     .limit(1000);
 
-  let openCount = 0;
-  let inProgressCount = 0;
+  const openTasks: ClientTaskRef[] = [];
+  const inProgressTasks: ClientTaskRef[] = [];
   const completedRecent: DashboardTaskRef[] = [];
   for (const t of tasks ?? []) {
     const key = keyByColumn.get(t.column_id);
-    if (key === 'queue') openCount++;
-    else if (key === 'active' || key === 'review') inProgressCount++;
-    else if (key === 'done' && completedRecent.length < 8)
+    if (key === 'queue') {
+      openTasks.push({ id: t.id, title: t.title, projectId: t.project_id });
+    } else if (key === 'active' || key === 'review') {
+      inProgressTasks.push({ id: t.id, title: t.title, projectId: t.project_id });
+    } else if (key === 'done' && completedRecent.length < 8) {
       completedRecent.push({ id: t.id, title: t.title });
+    }
   }
 
-  const { count: toApproveCount } = await supabase
+  const { data: approvals } = await supabase
     .from('approvals')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'pending');
+    .select('task_id, title, project_id')
+    .eq('status', 'pending')
+    .limit(100);
+  const toApproveTasks: ClientTaskRef[] = (approvals ?? []).map((a) => ({
+    id: a.task_id,
+    title: a.title,
+    projectId: a.project_id,
+  }));
 
   return {
-    openCount,
-    inProgressCount,
-    toApproveCount: toApproveCount ?? 0,
+    openCount: openTasks.length,
+    inProgressCount: inProgressTasks.length,
+    toApproveCount: toApproveTasks.length,
+    openTasks,
+    inProgressTasks,
+    toApproveTasks,
     completedRecent,
   };
 }

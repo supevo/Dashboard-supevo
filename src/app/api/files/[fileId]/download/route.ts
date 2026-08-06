@@ -27,7 +27,7 @@ export async function GET(
   const supabase = await createSupabaseServerClient();
   const { data: file } = await supabase
     .from('files')
-    .select('storage_path, organization_id, file_name, mime_type')
+    .select('storage_path, organization_id, file_name, mime_type, task_id')
     .eq('id', fileId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -57,12 +57,15 @@ export async function GET(
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }
 
+  // Record the download in the task's internal log (who downloaded which file,
+  // when) when the file belongs to a task; otherwise keep a file-level entry.
   await logActivity({
     actorId: user.id,
     organizationId: file.organization_id,
     action: 'file_download',
-    entityType: 'file',
-    entityId: fileId,
+    entityType: file.task_id ? 'task' : 'file',
+    entityId: file.task_id ?? fileId,
+    metadata: { fileName: file.file_name, fileId },
   });
 
   const bytes = Buffer.from(await blob.arrayBuffer());

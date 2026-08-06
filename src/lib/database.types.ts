@@ -881,6 +881,48 @@ export interface Database {
         };
         Relationships: [];
       };
+      onedrive_connections: {
+        Row: {
+          organization_id: string;
+          connected_by: string | null;
+          account_label: string | null;
+          refresh_token_enc: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          connected_by?: string | null;
+          account_label?: string | null;
+          refresh_token_enc: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['onedrive_connections']['Insert']
+        >;
+        Relationships: [];
+      };
+      onedrive_folder_map: {
+        Row: {
+          organization_id: string;
+          client_company_id: string;
+          folder_id: string;
+          folder_path: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          client_company_id: string;
+          folder_id: string;
+          folder_path?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['onedrive_folder_map']['Insert']
+        >;
+        Relationships: [];
+      };
       league_symbols: {
         Row: {
           organization_id: string;
@@ -2510,6 +2552,8 @@ export interface Database {
           stage1_net_cents: number;
           stage2_name: string;
           stage2_net_cents: number;
+          stage1_benefits: string | null;
+          stage2_benefits: string | null;
           created_at: string;
           updated_at: string;
         };

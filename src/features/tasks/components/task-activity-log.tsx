@@ -11,6 +11,7 @@ const ACTION_LABEL: Partial<Record<ActivityAction, string>> = {
   assignee_change: 'Zuständigkeit geändert',
   due_date_change: 'Fälligkeit geändert',
   file_upload: 'Datei hochgeladen',
+  file_download: 'Datei heruntergeladen',
   comment: 'kommentiert',
   approval_request: 'Freigabe angefragt',
   approval_decision: 'Freigabe entschieden',
@@ -79,6 +80,7 @@ export function TaskActivityLog({
                 <span className="font-medium">{a.actorName}</span>{' '}
                 {ACTION_LABEL[a.action] ?? a.action}
                 {a.column ? ` → ${a.column}` : ''}
+                {a.fileName ? ` · ${a.fileName}` : ''}
                 <span className="ml-1 text-xs text-muted-foreground">{dt(a.createdAt)}</span>
               </li>
             ))}

@@ -16,9 +16,15 @@ import { buttonVariants } from '@/components/ui/button';
 import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
 import { getLeagueSymbols } from '@/features/gamification/league-symbols';
 import { LeagueSymbolsForm } from '@/features/gamification/components/league-symbols-form';
+import { getOneDriveStatus } from '@/features/onedrive/queries';
+import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
 import { de } from '@/lib/i18n/de';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ onedrive?: string }>;
+}) {
   const { orgId } = await requireOrgAdminPage();
   const org = await getOrganization(orgId);
   if (!org) return null;
@@ -26,6 +32,8 @@ export default async function SettingsPage() {
   const aiOn = isAiEnabled();
   const aiLabel = aiModelLabel();
   const leagueSymbols = await getLeagueSymbols(orgId);
+  const oneDriveStatus = await getOneDriveStatus(orgId);
+  const oneDriveParam = (await searchParams).onedrive;
 
   const [hubBanners, hubFrames, stickers] = await Promise.all([
     listHubBanners(orgId),
@@ -77,6 +85,23 @@ export default async function SettingsPage() {
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card id="onedrive">
+        <CardHeader>
+          <CardTitle>☁️ OneDrive</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Persönliches OneDrive verbinden – Kundenordner in Aufgaben nutzen und
+            hochgeladene Dateien automatisch in den Kundenordner spiegeln.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <OneDriveSettingsCard
+            status={oneDriveStatus}
+            justConnected={oneDriveParam === 'connected'}
+            hadError={oneDriveParam === 'error'}
+          />
         </CardContent>
       </Card>
 

@@ -11,7 +11,7 @@ export default async function ClientHubPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">🗂️ Marken-Hub</h1>
+        <h1 className="text-2xl font-bold">🗂️ Brand</h1>
         <p className="text-sm text-muted-foreground">
           Ihre Marken, finalen Logos und Marken-Guidelines – zentral abgelegt und
           jederzeit abrufbar. Legen Sie auch Submarken an und laden Sie eigene
