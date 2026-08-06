@@ -7,6 +7,8 @@ export interface TaskActivityEntry {
   action: ActivityAction;
   actorName: string;
   column: string | null;
+  /** File name for file_upload/file_download entries, when recorded. */
+  fileName: string | null;
   createdAt: string;
 }
 
@@ -46,12 +48,14 @@ export async function listTaskActivity(
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? '—']));
 
   return data.map((r) => {
-    const meta = (r.metadata ?? {}) as { column?: string };
+    const meta = (r.metadata ?? {}) as { column?: string; fileName?: string };
     return {
       id: r.id,
       action: r.action,
       actorName: r.actor_id ? nameById.get(r.actor_id) ?? '—' : '—',
       column: typeof meta.column === 'string' && meta.column ? meta.column : null,
+      fileName:
+        typeof meta.fileName === 'string' && meta.fileName ? meta.fileName : null,
       createdAt: r.created_at,
     };
   });
