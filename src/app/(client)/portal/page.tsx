@@ -10,16 +10,8 @@ import { getClientWeekWork } from '@/features/recap/client-week';
 import { WeekWorkCard } from '@/features/recap/components/week-work-card';
 import { getMyAccountManagers } from '@/features/account-manager/queries';
 import { AccountManagersCard } from '@/features/account-manager/components/account-managers-card';
+import { ClientStatTiles } from '@/features/dashboard/components/client-stat-tiles';
 import { de } from '@/lib/i18n/de';
-
-function StatTile({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-    </div>
-  );
-}
 
 export default async function ClientDashboardPage() {
   const { user } = await requireClientPage();
@@ -58,11 +50,13 @@ export default async function ClientDashboardPage() {
         <OnboardingStepper status={onboarding} />
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatTile label={de.dashboard.open} value={d.openCount} />
-        <StatTile label={de.dashboard.inProgress} value={d.inProgressCount} />
-        <StatTile label={de.dashboard.toApprove} value={d.toApproveCount} />
-      </div>
+      <ClientStatTiles
+        tiles={[
+          { key: 'open', label: de.dashboard.open, tasks: d.openTasks },
+          { key: 'inProgress', label: de.dashboard.inProgress, tasks: d.inProgressTasks },
+          { key: 'toApprove', label: de.dashboard.toApprove, tasks: d.toApproveTasks },
+        ]}
+      />
 
       {news && news.items.length > 0 ? (
         <NewsTicker items={news.items} topic={news.topic} />

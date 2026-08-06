@@ -71,7 +71,6 @@ export default async function ClientLayout({
 
     { href: '#verwaltung', label: 'Verwaltung & Zugänge', heading: true },
     { href: '/portal/access', label: 'Zugänge' },
-    { href: '/portal/approvals', label: 'Freigaben' },
     { href: '/portal/membership', label: 'Mitgliedschaft' },
     { href: '/portal/invoices', label: 'Rechnungen' },
   ];
