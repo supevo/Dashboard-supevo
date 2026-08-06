@@ -22,13 +22,6 @@ interface Member {
   name: string;
 }
 
-const PRIORITY_CLASS: Record<TaskPriority, string> = {
-  low: 'border-l-slate-300',
-  medium: 'border-l-sky-400',
-  high: 'border-l-amber-500',
-  urgent: 'border-l-red-500',
-};
-
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
   return new Date(dueDate).getTime() < new Date().setHours(0, 0, 0, 0);
@@ -454,8 +447,7 @@ export function KanbanBoard({
                       }
                     }}
                     className={cn(
-                      'cursor-pointer rounded-lg border border-border border-l-4 bg-card p-2.5 shadow-sm transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md',
-                      PRIORITY_CLASS[task.priority],
+                      'cursor-pointer rounded-lg border border-border bg-card p-2.5 shadow-sm transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md',
                       canDrag && 'active:cursor-grabbing',
                       expressPickMode &&
                         !task.isExpress &&
@@ -648,7 +640,7 @@ export function KanbanBoard({
                     onClick={() =>
                       router.push(`${basePath}/${projectId}/tasks/${task.id}`)
                     }
-                    className="w-full rounded-lg border border-border border-l-4 border-l-slate-300 bg-card/60 p-2.5 text-left shadow-sm hover:bg-card"
+                    className="w-full rounded-lg border border-border bg-card/60 p-2.5 text-left shadow-sm hover:bg-card"
                   >
                     <div className="text-sm font-medium text-muted-foreground line-through">
                       {task.title}
