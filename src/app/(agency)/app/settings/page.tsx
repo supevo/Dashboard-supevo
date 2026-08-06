@@ -23,7 +23,7 @@ import { de } from '@/lib/i18n/de';
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onedrive?: string }>;
+  searchParams: Promise<{ onedrive?: string; od_reason?: string; od_detail?: string }>;
 }) {
   const { orgId } = await requireOrgAdminPage();
   const org = await getOrganization(orgId);
@@ -33,7 +33,8 @@ export default async function SettingsPage({
   const aiLabel = aiModelLabel();
   const leagueSymbols = await getLeagueSymbols(orgId);
   const oneDriveStatus = await getOneDriveStatus(orgId);
-  const oneDriveParam = (await searchParams).onedrive;
+  const sp = await searchParams;
+  const oneDriveParam = sp.onedrive;
 
   const [hubBanners, hubFrames, stickers] = await Promise.all([
     listHubBanners(orgId),
@@ -100,8 +101,8 @@ export default async function SettingsPage({
           <OneDriveSettingsCard
             status={oneDriveStatus}
             justConnected={oneDriveParam === 'connected'}
-            hadError={oneDriveParam === 'error'}
-            storeError={oneDriveParam === 'store_error'}
+            errorReason={oneDriveParam === 'error' ? (sp.od_reason ?? 'unknown') : null}
+            errorDetail={sp.od_detail ?? null}
           />
         </CardContent>
       </Card>

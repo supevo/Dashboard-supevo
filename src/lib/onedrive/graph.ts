@@ -85,7 +85,10 @@ export async function exchangeCodeAndStore(
   orgId: string,
   userId: string,
   code: string,
-): Promise<{ ok: true; label: string | null } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; label: string | null }
+  | { ok: false; error: string; detail?: string }
+> {
   const config = getOneDriveConfig();
   if (!config) return { ok: false, error: 'not_configured' };
 
@@ -103,8 +106,13 @@ export async function exchangeCodeAndStore(
     body,
   });
   if (!res.ok) {
+    const text = await res.text().catch(() => '');
     logger.error('onedrive.code_exchange_failed', { status: res.status });
-    return { ok: false, error: 'exchange_failed' };
+    return {
+      ok: false,
+      error: 'exchange_failed',
+      detail: `HTTP ${res.status} ${text.slice(0, 200)}`,
+    };
   }
   const json = (await res.json()) as {
     refresh_token?: string;
@@ -147,10 +155,8 @@ export async function exchangeCodeAndStore(
     { onConflict: 'organization_id' },
   );
   if (error) {
-    // Most likely the onedrive_connections table is missing (migration 0103 not
-    // run). Surface it as a failure instead of a false "connected".
     logger.error('onedrive.store_failed', { error: error.message });
-    return { ok: false, error: 'store_failed' };
+    return { ok: false, error: 'store_failed', detail: error.message };
   }
   return { ok: true, label };
 }
