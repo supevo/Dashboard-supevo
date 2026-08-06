@@ -35,6 +35,7 @@ import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
 import { ClientFolderLink } from '@/features/onedrive/components/client-folder-link';
+import { Tabs, type TabDef } from '@/components/ui/tabs';
 import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { getOnboarding } from '@/features/onboarding/queries';
@@ -101,202 +102,300 @@ export default async function ClientDetailPage({
     ? await getClientFolder(orgId, clientCompanyId)
     : null;
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <Link
-          href="/app/clients"
-          className="text-sm text-primary hover:underline"
-        >
-          ← {de.clients.back}
-        </Link>
-        <div className="mt-2 flex items-center gap-2">
-          <h1 className="text-2xl font-bold">{company.name}</h1>
-          <ClientHealthDot
-            health={healthMap.get(clientCompanyId)}
-            showLabel
-          />
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {company.contactEmail ?? '—'} ·{' '}
-          {company.isActive ? de.clients.active : de.clients.inactive}
-        </p>
-      </div>
-
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>👤 Verantwortliche Ansprechpartner</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Haupt- und stellvertretender Ansprechpartner. Werden dem Kunden im
-              Portal angezeigt (Foto, Name, Direktkontakt).
-            </p>
-          </CardHeader>
-          <CardContent>
-            <AccountManagerForm
-              clientCompanyId={clientCompanyId}
-              currentManagerId={company.accountManagerId}
-              currentSecondaryManagerId={company.secondaryAccountManagerId}
-              staff={(teamMembers ?? []).map((m) => ({ userId: m.userId, name: m.name }))}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.clientProfile.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ClientProfileForm
-              orgId={orgId}
-              clientCompanyId={clientCompanyId}
-              contactEmail={company.contactEmail}
-              industry={company.industry}
-              brands={company.brands}
-              interests={company.interests}
-              expressTicketsPerMonth={company.expressTicketsPerMonth}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🚀 Onboarding</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Entscheide, ob und mit welchen Bestandteilen dieser Kunde ein
-            Onboarding durchläuft.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <OnboardingSetup clientCompanyId={clientCompanyId} status={onboarding} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
-            geben; akzeptierte Maßnahmen ins Kanban übernehmen.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <PlanManager
-            clientCompanyId={clientCompanyId}
-            plan={marketingPlan}
-            year={planYear}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🗂️ Marken-Hub</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Marken-Guidelines &amp; finale Logos – dauerhaft hinterlegt und auch
-            für den Kunden im Portal sichtbar.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <AssetHubManager
-            clientCompanyId={clientCompanyId}
-            brands={hub.brands}
-            assets={hub.assets}
-            canReveal
-            secretVaultEnabled={isSecretVaultEnabled()}
-            variant="assets"
-          />
-        </CardContent>
-      </Card>
-
-      {isAdmin && oneDrive?.configured && (
-        <Card>
-          <CardHeader>
-            <CardTitle>☁️ OneDrive-Kundenordner</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Verknüpfe den OneDrive-Ordner dieses Kunden. Hochgeladene Aufgaben-
-              Dateien werden automatisch dorthin gespiegelt.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ClientFolderLink
-              clientCompanyId={clientCompanyId}
-              currentPath={oneDriveFolder?.folderPath ?? null}
-              connected={oneDrive.connected}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🔑 Zugänge</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
-            Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <AssetHubManager
-            clientCompanyId={clientCompanyId}
-            brands={hub.brands}
-            assets={hub.assets}
-            canReveal
-            secretVaultEnabled={isSecretVaultEnabled()}
-            variant="access"
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.report.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MonthlyReport clientCompanyId={clientCompanyId} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.inquiries.agencyTitle}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <InquirySettings
-            clientCompanyId={clientCompanyId}
-            endpoint={inquiryEndpoint}
-            baseUrl={env.NEXT_PUBLIC_APP_URL}
-          />
-          <InquiryList inquiries={inquiries} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.satisfaction.agencyTitle}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SatisfactionSummaryCard summary={satisfaction} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.requests.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RequestsSection
-            clientCompanyId={clientCompanyId}
-            requests={requests}
-          />
-        </CardContent>
-      </Card>
-
-      {isAdmin && (
+  const tabs: TabDef[] = [
+    {
+      key: 'overview',
+      label: 'Übersicht',
+      content: (
         <>
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>👤 Verantwortliche Ansprechpartner</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Haupt- und stellvertretender Ansprechpartner. Werden dem Kunden
+                  im Portal angezeigt (Foto, Name, Direktkontakt).
+                </p>
+              </CardHeader>
+              <CardContent>
+                <AccountManagerForm
+                  clientCompanyId={clientCompanyId}
+                  currentManagerId={company.accountManagerId}
+                  currentSecondaryManagerId={company.secondaryAccountManagerId}
+                  staff={(teamMembers ?? []).map((m) => ({ userId: m.userId, name: m.name }))}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.satisfaction.agencyTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SatisfactionSummaryCard summary={satisfaction} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.report.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MonthlyReport clientCompanyId={clientCompanyId} />
+            </CardContent>
+          </Card>
+        </>
+      ),
+    },
+    {
+      key: 'profile',
+      label: 'Profil & Kontakte',
+      content: (
+        <>
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>{de.clientProfile.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ClientProfileForm
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  contactEmail={company.contactEmail}
+                  industry={company.industry}
+                  brands={company.brands}
+                  interests={company.interests}
+                  expressTicketsPerMonth={company.expressTicketsPerMonth}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.clients.inviteContact}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.clients.contacts}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {contacts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {de.clients.noContacts}
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {contacts.map((c) => (
+                    <ContactRow
+                      key={c.id}
+                      orgId={orgId}
+                      clientCompanyId={clientCompanyId}
+                      contact={c}
+                      canManage={isAdmin}
+                    />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      ),
+    },
+    {
+      key: 'onboarding',
+      label: 'Onboarding',
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle>🚀 Onboarding</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Entscheide, ob und mit welchen Bestandteilen dieser Kunde ein
+              Onboarding durchläuft.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <OnboardingSetup clientCompanyId={clientCompanyId} status={onboarding} />
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      key: 'requests',
+      label: 'Anfragen & Plan',
+      content: (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.requests.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RequestsSection
+                clientCompanyId={clientCompanyId}
+                requests={requests}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.inquiries.agencyTitle}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <InquirySettings
+                clientCompanyId={clientCompanyId}
+                endpoint={inquiryEndpoint}
+                baseUrl={env.NEXT_PUBLIC_APP_URL}
+              />
+              <InquiryList inquiries={inquiries} />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
+                geben; akzeptierte Maßnahmen ins Kanban übernehmen.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <PlanManager
+                clientCompanyId={clientCompanyId}
+                plan={marketingPlan}
+                year={planYear}
+              />
+            </CardContent>
+          </Card>
+        </>
+      ),
+    },
+    {
+      key: 'files',
+      label: 'Dateien & Marke',
+      content: (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>🗂️ Marken-Hub</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Marken-Guidelines &amp; finale Logos – dauerhaft hinterlegt und auch
+                für den Kunden im Portal sichtbar.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <AssetHubManager
+                clientCompanyId={clientCompanyId}
+                brands={hub.brands}
+                assets={hub.assets}
+                canReveal
+                secretVaultEnabled={isSecretVaultEnabled()}
+                variant="assets"
+              />
+            </CardContent>
+          </Card>
+
+          {isAdmin && oneDrive?.configured && (
+            <Card>
+              <CardHeader>
+                <CardTitle>☁️ OneDrive-Kundenordner</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Verknüpfe den OneDrive-Ordner dieses Kunden. Hochgeladene Aufgaben-
+                  Dateien werden automatisch dorthin gespiegelt.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ClientFolderLink
+                  clientCompanyId={clientCompanyId}
+                  currentPath={oneDriveFolder?.folderPath ?? null}
+                  connected={oneDrive.connected}
+                />
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'access',
+      label: 'Zugänge',
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle>🔑 Zugänge</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
+              Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <AssetHubManager
+              clientCompanyId={clientCompanyId}
+              brands={hub.brands}
+              assets={hub.assets}
+              canReveal
+              secretVaultEnabled={isSecretVaultEnabled()}
+              variant="access"
+            />
+          </CardContent>
+        </Card>
+      ),
+    },
+  ];
+
+  if (isAdmin) {
+    // Abrechnung als eigener Reiter (nur Admin) – nach Onboarding einsortiert.
+    const billingTab: TabDef = {
+      key: 'billing',
+      label: 'Abrechnung',
+      content: (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Mitgliedschaft</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MembershipForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                membership={membership}
+                settings={billingEntity}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rechnungssteller</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientBillingEntityForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                entities={billingEntities}
+                currentEntityId={company.billingEntityId}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Rechnungen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <InvoicesSection
+                clientCompanyId={clientCompanyId}
+                invoices={invoices}
+              />
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>🏛️ Legacy-Kunde &amp; Paket</CardTitle>
@@ -329,83 +428,33 @@ export default async function ClientDetailPage({
               />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rechnungssteller</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ClientBillingEntityForm
-                orgId={orgId}
-                clientCompanyId={clientCompanyId}
-                entities={billingEntities}
-                currentEntityId={company.billingEntityId}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Mitgliedschaft</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MembershipForm
-                orgId={orgId}
-                clientCompanyId={clientCompanyId}
-                membership={membership}
-                settings={billingEntity}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rechnungen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvoicesSection
-                clientCompanyId={clientCompanyId}
-                invoices={invoices}
-              />
-            </CardContent>
-          </Card>
         </>
-      )}
+      ),
+    };
+    // Reihenfolge: Übersicht · Profil · Onboarding · Abrechnung · Anfragen · Dateien · Zugänge
+    tabs.splice(3, 0, billingTab);
+  }
 
-      {/* Kontakte: für alle Agentur-Mitarbeiter (Einladen + Liste). */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.inviteContact}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <InviteContactForm orgId={orgId} clientCompanyId={clientCompanyId} />
-        </CardContent>
-      </Card>
+  return (
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/app/clients"
+          className="text-sm text-primary hover:underline"
+        >
+          ← {de.clients.back}
+        </Link>
+        <div className="mt-2 flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{company.name}</h1>
+          <ClientHealthDot health={healthMap.get(clientCompanyId)} showLabel />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {company.contactEmail ?? '—'} ·{' '}
+          {company.isActive ? de.clients.active : de.clients.inactive}
+        </p>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.contacts}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {contacts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {de.clients.noContacts}
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {contacts.map((c) => (
-                <ContactRow
-                  key={c.id}
-                  orgId={orgId}
-                  clientCompanyId={clientCompanyId}
-                  contact={c}
-                  canManage={isAdmin}
-                />
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs tabs={tabs} />
     </div>
   );
 }
