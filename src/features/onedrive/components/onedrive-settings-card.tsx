@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   disconnectOneDriveAction,
   setOneDriveRootAction,
+  setOneDrivePrimaryAction,
 } from '@/features/onedrive/actions';
 import { idleResult } from '@/lib/action-result';
 import { Button } from '@/components/ui/button';
@@ -29,9 +30,15 @@ export function OneDriveSettingsCard({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [rootState, rootAction] = useActionState(setOneDriveRootAction, idleResult);
+  const [primaryState, primaryAction] = useActionState(
+    setOneDrivePrimaryAction,
+    idleResult,
+  );
   useEffect(() => {
-    if (rootState.status === 'success') router.refresh();
-  }, [rootState, router]);
+    if (rootState.status === 'success' || primaryState.status === 'success') {
+      router.refresh();
+    }
+  }, [rootState, primaryState, router]);
 
   if (!status.configured) {
     return (
@@ -91,6 +98,48 @@ export function OneDriveSettingsCard({
             )}
             {rootState.status === 'success' && (
               <Alert className="mt-1">{rootState.message}</Alert>
+            )}
+          </form>
+
+          <form action={primaryAction} className="space-y-2 border-t pt-3">
+            <label className="flex items-start gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                name="primary"
+                defaultChecked={status.primaryAttachments}
+                className="mt-0.5 h-4 w-4"
+              />
+              <span>
+                Aufgaben-Anhänge nur im OneDrive speichern
+                <span className="block text-xs font-normal text-muted-foreground">
+                  Spart Supabase-Speicher: Datei-Anhänge in Aufgaben landen dann
+                  ausschließlich im OneDrive (Kundenordner bzw. Sammelordner).
+                  Profilbilder, Titelbilder u. Ä. bleiben unberührt. Ist ein
+                  Upload nicht möglich, wird ersatzweise regulär gespeichert.
+                </span>
+              </span>
+            </label>
+            <div className="space-y-1">
+              <label htmlFor="od-collection" className="text-xs text-muted-foreground">
+                Sammelordner für Anhänge ohne Kundenzuordnung (leer = automatisch
+                unter dem Basisordner „…/_Anhänge“)
+              </label>
+              <Input
+                id="od-collection"
+                name="collectionPath"
+                defaultValue={status.collectionFolderPath ?? ''}
+                placeholder="ONE STEP/Kunden/_Anhänge"
+                className="h-9 w-full max-w-md"
+              />
+            </div>
+            <SubmitButton size="sm">Speichern</SubmitButton>
+            {primaryState.status === 'error' && (
+              <Alert variant="destructive" className="mt-1">
+                {primaryState.message}
+              </Alert>
+            )}
+            {primaryState.status === 'success' && (
+              <Alert className="mt-1">{primaryState.message}</Alert>
             )}
           </form>
 

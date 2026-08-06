@@ -298,6 +298,130 @@ export async function uploadToFolder(
   return json.id ?? null;
 }
 
+/**
+ * Creates a resumable upload session for a folder and returns the pre-authorized
+ * uploadUrl the browser can PUT the bytes to directly (bypasses our server).
+ */
+export async function createUploadSession(
+  orgId: string,
+  folderId: string,
+  fileName: string,
+): Promise<{ uploadUrl: string } | null> {
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const safeName = encodeURIComponent(fileName);
+  const res = await fetch(
+    `${GRAPH}/me/drive/items/${encodeURIComponent(folderId)}:/${safeName}:/createUploadSession`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item: { '@microsoft.graph.conflictBehavior': 'rename' },
+      }),
+    },
+  );
+  if (!res.ok) {
+    logger.warn('onedrive.upload_session_failed', { status: res.status });
+    return null;
+  }
+  const json = (await res.json()) as { uploadUrl?: string };
+  return json.uploadUrl ? { uploadUrl: json.uploadUrl } : null;
+}
+
+/**
+ * Returns a short-lived, pre-authenticated direct download URL for an item so we
+ * can redirect the browser to it (no bytes through our server, no API cost for
+ * the transfer). Also returns basic metadata.
+ */
+export async function getDownloadUrl(
+  orgId: string,
+  itemId: string,
+): Promise<{ url: string; name: string; mime: string } | null> {
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const res = await fetch(
+    `${GRAPH}/me/drive/items/${encodeURIComponent(itemId)}?$select=id,name,file,@microsoft.graph.downloadUrl`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!res.ok) return null;
+  const j = (await res.json()) as {
+    name?: string;
+    file?: { mimeType?: string };
+    '@microsoft.graph.downloadUrl'?: string;
+  };
+  const url = j['@microsoft.graph.downloadUrl'];
+  if (!url) return null;
+  return {
+    url,
+    name: j.name ?? 'datei',
+    mime: j.file?.mimeType ?? 'application/octet-stream',
+  };
+}
+
+/** Deletes a drive item (best-effort). */
+export async function deleteItem(orgId: string, itemId: string): Promise<boolean> {
+  const token = await getAccessToken(orgId);
+  if (!token) return false;
+  const res = await fetch(
+    `${GRAPH}/me/drive/items/${encodeURIComponent(itemId)}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+  );
+  return res.ok || res.status === 404;
+}
+
+/**
+ * Ensures a folder exists at the given path under the drive root (creating each
+ * missing segment) and returns its id. Used for the collection folder.
+ */
+export async function ensureFolderByPath(
+  orgId: string,
+  path: string,
+): Promise<string | null> {
+  const existing = await resolveFolderByPath(orgId, path);
+  if (existing) return existing.id;
+
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const segments = path.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  let parentId: string | null = null;
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]!;
+    const createRes = await fetch(
+      parentId
+        ? `${GRAPH}/me/drive/items/${encodeURIComponent(parentId)}/children`
+        : `${GRAPH}/me/drive/root/children`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: segment,
+          folder: {},
+          '@microsoft.graph.conflictBehavior': 'fail',
+        }),
+      },
+    );
+    if (createRes.ok) {
+      const created = (await createRes.json()) as { id?: string };
+      parentId = created.id ?? null;
+    } else {
+      // Already exists (409) or other → resolve the path built so far.
+      const resolved = await resolveFolderByPath(
+        orgId,
+        segments.slice(0, i + 1).join('/'),
+      );
+      parentId = resolved?.id ?? null;
+    }
+    if (!parentId) return null;
+  }
+  return parentId;
+}
+
 export function graphConfigured(): OneDriveConfig | null {
   return getOneDriveConfig();
 }

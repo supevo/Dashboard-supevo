@@ -1,8 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { aiSelfTest } from '@/lib/ai/complete';
+import { listOneDriveUploadErrors } from '@/features/onedrive/queries';
+import { formatBerlinDateTime } from '@/lib/time';
 
 /**
  * Verifies that SUPABASE_SERVICE_ROLE_KEY is really the service/secret key.
@@ -85,7 +88,7 @@ async function checkSchema(): Promise<SchemaCheck[]> {
  * can be confirmed at a glance.
  */
 export default async function DiagnosticsPage() {
-  const { user } = await requireAgencyPage();
+  const { user, orgId } = await requireAgencyPage();
 
   const supabase = await createSupabaseServerClient();
   const { data: dbView, error } = await supabase.rpc('whoami');
@@ -93,10 +96,43 @@ export default async function DiagnosticsPage() {
   const ai = await aiSelfTest();
   const schema = await checkSchema();
   const schemaOk = schema.every((c) => c.ok);
+  const oneDriveErrors = isSuperAdmin(user)
+    ? await listOneDriveUploadErrors(orgId)
+    : [];
 
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Diagnose</h1>
+
+      {isSuperAdmin(user) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>☁️ OneDrive-Upload-Probleme</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {oneDriveErrors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Keine Upload-Probleme. Alle Aufgaben-Anhänge wurden wie
+                konfiguriert gespeichert.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {oneDriveErrors.map((e) => (
+                  <li key={e.id} className="rounded-md border p-2.5 text-sm">
+                    <div className="font-medium text-amber-600 dark:text-amber-400">
+                      {e.reason}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {e.fileName ? `${e.fileName} · ` : ''}
+                      {formatBerlinDateTime(e.createdAt)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

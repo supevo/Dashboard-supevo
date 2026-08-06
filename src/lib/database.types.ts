@@ -888,6 +888,8 @@ export interface Database {
           account_label: string | null;
           refresh_token_enc: string;
           root_path: string | null;
+          primary_attachments: boolean;
+          collection_folder_path: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -897,11 +899,34 @@ export interface Database {
           account_label?: string | null;
           refresh_token_enc: string;
           root_path?: string | null;
+          primary_attachments?: boolean;
+          collection_folder_path?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<
           Database['public']['Tables']['onedrive_connections']['Insert']
+        >;
+        Relationships: [];
+      };
+      onedrive_upload_errors: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string | null;
+          file_name: string | null;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id?: string | null;
+          file_name?: string | null;
+          reason: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['onedrive_upload_errors']['Insert']
         >;
         Relationships: [];
       };
@@ -2216,7 +2241,8 @@ export interface Database {
           project_id: string;
           task_id: string | null;
           uploaded_by: string;
-          storage_path: string;
+          storage_path: string | null;
+          onedrive_item_id: string | null;
           file_name: string;
           mime_type: string;
           size_bytes: number;
@@ -2231,7 +2257,8 @@ export interface Database {
           project_id: string;
           task_id?: string | null;
           uploaded_by: string;
-          storage_path: string;
+          storage_path?: string | null;
+          onedrive_item_id?: string | null;
           file_name: string;
           mime_type: string;
           size_bytes: number;
