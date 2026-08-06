@@ -17,17 +17,21 @@ export interface League {
   iconUrl?: string | null;
 }
 
+// Schwellen bewusst weit gestreckt und nach oben steiler, damit der Aufstieg
+// langsam ist: die Spitze (Meister/Großmeister/Herausforderer) ist ein
+// Langzeit-Ziel und kein „nach 3 Jahren durch". Punkte = Kudos + XP über die
+// gesamte Zeit. Nur diese Werte ändern die Geschwindigkeit.
 export const LEAGUES: League[] = [
   { key: 'eisen', name: 'Eisen', min: 0, color: '#6b7280', emoji: '⚙️', divisions: 4 },
-  { key: 'bronze', name: 'Bronze', min: 200, color: '#b45309', emoji: '🥉', divisions: 4 },
-  { key: 'silber', name: 'Silber', min: 500, color: '#94a3b8', emoji: '🥈', divisions: 4 },
-  { key: 'gold', name: 'Gold', min: 900, color: '#eab308', emoji: '🥇', divisions: 4 },
-  { key: 'platin', name: 'Platin', min: 1400, color: '#22d3ee', emoji: '💠', divisions: 4 },
-  { key: 'smaragd', name: 'Smaragd', min: 2000, color: '#10b981', emoji: '🟢', divisions: 4 },
-  { key: 'diamant', name: 'Diamant', min: 2800, color: '#3b82f6', emoji: '🔷', divisions: 4 },
-  { key: 'meister', name: 'Meister', min: 3800, color: '#a855f7', emoji: '👑', divisions: 0 },
-  { key: 'grossmeister', name: 'Großmeister', min: 5000, color: '#ef4444', emoji: '🔥', divisions: 0 },
-  { key: 'herausforderer', name: 'Herausforderer', min: 6500, color: '#f59e0b', emoji: '🏆', divisions: 0 },
+  { key: 'bronze', name: 'Bronze', min: 500, color: '#b45309', emoji: '🥉', divisions: 4 },
+  { key: 'silber', name: 'Silber', min: 1300, color: '#94a3b8', emoji: '🥈', divisions: 4 },
+  { key: 'gold', name: 'Gold', min: 2600, color: '#eab308', emoji: '🥇', divisions: 4 },
+  { key: 'platin', name: 'Platin', min: 4400, color: '#22d3ee', emoji: '💠', divisions: 4 },
+  { key: 'smaragd', name: 'Smaragd', min: 7000, color: '#10b981', emoji: '🟢', divisions: 4 },
+  { key: 'diamant', name: 'Diamant', min: 10500, color: '#3b82f6', emoji: '🔷', divisions: 4 },
+  { key: 'meister', name: 'Meister', min: 15000, color: '#a855f7', emoji: '👑', divisions: 0 },
+  { key: 'grossmeister', name: 'Großmeister', min: 22000, color: '#ef4444', emoji: '🔥', divisions: 0 },
+  { key: 'herausforderer', name: 'Herausforderer', min: 32000, color: '#f59e0b', emoji: '🏆', divisions: 0 },
 ];
 
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
