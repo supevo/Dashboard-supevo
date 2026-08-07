@@ -6,16 +6,8 @@ import { BRAND_COOKIE, resolveBrand } from '@/lib/brand';
 import { BrandToggle } from '@/features/brand/components/brand-toggle';
 import { getOrganization } from '@/features/organizations/queries';
 import { OrganizationForm } from '@/features/organizations/components/organization-form';
-import { BannerAdmin } from '@/features/gamification/components/banner-admin';
-import { listHubBanners } from '@/features/gamification/banner-queries';
-import { FrameAdmin } from '@/features/gamification/components/frame-admin';
-import { listHubFrames } from '@/features/gamification/frame-queries';
-import { StickerManager } from '@/features/messenger/components/sticker-manager';
-import { listStickers } from '@/features/messenger/queries';
 import { buttonVariants } from '@/components/ui/button';
 import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
-import { getLeagueSymbols } from '@/features/gamification/league-symbols';
-import { LeagueSymbolsForm } from '@/features/gamification/components/league-symbols-form';
 import { getOneDriveStatus } from '@/features/onedrive/queries';
 import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
 import { de } from '@/lib/i18n/de';
@@ -31,16 +23,10 @@ export default async function SettingsPage({
 
   const aiOn = isAiEnabled();
   const aiLabel = aiModelLabel();
-  const leagueSymbols = await getLeagueSymbols(orgId);
   const oneDriveStatus = await getOneDriveStatus(orgId);
   const sp = await searchParams;
   const oneDriveParam = sp.onedrive;
 
-  const [hubBanners, hubFrames, stickers] = await Promise.all([
-    listHubBanners(orgId),
-    listHubFrames(orgId),
-    listStickers(orgId),
-  ]);
   const brand = resolveBrand((await cookies()).get(BRAND_COOKIE)?.value);
 
   return (
@@ -109,13 +95,19 @@ export default async function SettingsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>🏆 Liga-Symbole</CardTitle>
+          <CardTitle>🩺 System &amp; Diagnose</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Eigene Symbole für die Ligen (Level Hub, Kollegen, Profile).
+            Live-Prüfungen: Service-Schlüssel, KI-Status, Datenbank-Schema und
+            OneDrive-Upload-Probleme.
           </p>
         </CardHeader>
         <CardContent>
-          <LeagueSymbolsForm symbols={leagueSymbols} />
+          <Link
+            href="/app/diagnostics"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            Diagnose öffnen
+          </Link>
         </CardContent>
       </Card>
 
@@ -155,38 +147,11 @@ export default async function SettingsPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>{de.hubBanners.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BannerAdmin banners={hubBanners} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🖼️ Profilrahmen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FrameAdmin frames={hubFrames} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>🖼️ Chat-Sticker</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <StickerManager stickers={stickers} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
           <CardTitle>Firma &amp; Rechnung</CardTitle>
         </CardHeader>
         <CardContent>
           <Link
-            href="/app/settings/billing"
+            href="/app/finance?tab=rechnungen"
             className={buttonVariants({ variant: 'outline' })}
           >
             Rechnungseinstellungen

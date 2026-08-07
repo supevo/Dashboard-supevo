@@ -7,6 +7,26 @@ export const FILES_BUCKET = 'files';
 export const SIGNED_URL_TTL_SECONDS = 120;
 
 /**
+ * Reads a file's OneDrive item id, tolerating the column not existing yet
+ * (migration 0105 not applied) – returns null instead of failing the request.
+ * This keeps preview/download working even before the OneDrive migrations run.
+ */
+export async function readOneDriveItemId(
+  client: SupabaseClient,
+  fileId: string,
+): Promise<string | null> {
+  const { data } = await client
+    .from('files')
+    .select('onedrive_item_id')
+    .eq('id', fileId)
+    .maybeSingle();
+  return (
+    (data as { onedrive_item_id?: string | null } | null)?.onedrive_item_id ??
+    null
+  );
+}
+
+/**
  * Mints a short-lived signed URL for a stored object.
  *
  * The caller MUST have already authorized access to the file (via the

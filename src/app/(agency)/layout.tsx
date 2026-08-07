@@ -17,43 +17,61 @@ import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { de } from '@/lib/i18n/de';
 
-// Primary workspace navigation (left sidebar) — visible to all agency staff.
-const NAV_ITEMS: NavItem[] = [
-  { href: '/app', label: de.nav.dashboard },
-  { href: '/app/calendar', label: de.nav.calendar },
-  { href: '/app/projects', label: de.nav.projects },
-  { href: '/app/clients', label: de.nav.clients },
-  { href: '/app/leads', label: de.nav.leads },
-  { href: '/app/reports', label: de.nav.reports },
-  { href: '/app/colleagues', label: de.nav.colleagues },
-  { href: '/app/passwords', label: '🔐 Passwörter' },
-];
+// Section header for the sidebar (rendered as a non-clickable heading).
+const heading = (label: string): NavItem => ({ href: '', label, heading: true });
 
-// Leadership-only entries appended for org admins (and super admins).
-// Mitarbeiter erreichen die Belohnungen über den Level Hub – im Menü nur für Admins.
-const ADMIN_NAV_ITEMS: NavItem[] = [
-  { href: '/app/team', label: de.nav.team },
-  { href: '/app/challenges', label: de.nav.challenges },
-  { href: '/app/rewards', label: de.nav.rewards },
-  { href: '/app/feedback', label: '💬 Feedback' },
-  { href: '/app/workload', label: de.nav.workload },
-  { href: '/app/cockpit', label: de.nav.cockpit },
-];
+/**
+ * Builds the grouped left-sidebar navigation. Sections carry headings; the
+ * "Team & Motivation" and "Ressourcen" groups grow with role so every heading
+ * always has at least one entry (no empty sections for plain staff).
+ */
+function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
+  return [
+    heading('Arbeit'),
+    { href: '/app', label: de.nav.dashboard },
+    { href: '/app/projects', label: de.nav.projects },
+    { href: '/app/calendar', label: de.nav.calendar },
+    { href: '/app/clients', label: de.nav.clients },
+    { href: '/app/leads', label: de.nav.leads },
+
+    heading('Auswertung'),
+    { href: '/app/reports', label: de.nav.reports },
+
+    heading('Team & Motivation'),
+    { href: '/app/colleagues', label: de.nav.colleagues },
+    ...(admin
+      ? [
+          { href: '/app/team-radar', label: 'Team-Radar' },
+          { href: '/app/team', label: de.nav.team },
+          { href: '/app/motivation', label: '🎯 Motivation' },
+          { href: '/app/feedback', label: '💬 Feedback' },
+        ]
+      : []),
+
+    heading('Ressourcen'),
+    { href: '/app/passwords', label: '🔐 Passwörter' },
+    // Finanzen (Ausgaben + Rechnungen) – nur Super-Admin.
+    ...(superAdmin ? [{ href: '/app/finance', label: '💶 Finanzen' }] : []),
+  ];
+}
 
 // Personal items visible to every agency staffer.
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
   { href: '/app/kudos', label: de.nav.levelHub },
+  { href: '/app/my-tasks', label: 'Meine Aufgaben' },
+  { href: '/app/goals', label: de.goals.title },
   { href: '/app/absences', label: de.nav.absence },
   { href: '/app/notifications', label: de.nav.notifications },
   { href: '/app/time', label: de.nav.time },
 ];
 
 // Management-only menu entries (configuration + diagnostics).
+// Diagnose ist über die Einstellungen erreichbar (kein eigener Menüpunkt),
+// damit die teuren Live-Checks nur bei Bedarf laufen.
 const ADMIN_MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/templates', label: de.nav.templates },
   { href: '/app/settings', label: de.nav.settings },
-  { href: '/app/diagnostics', label: de.nav.diagnostics },
 ];
 
 export default async function AgencyLayout({
@@ -79,12 +97,7 @@ export default async function AgencyLayout({
   const gamification = await getMyGamification(user.id, orgId ?? undefined);
 
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
-  const navItems = [
-    ...NAV_ITEMS,
-    ...(admin ? ADMIN_NAV_ITEMS : []),
-    // Interner Ausgaben-Bereich – nur Super-Admin.
-    ...(isSuperAdmin(user) ? [{ href: '/app/expenses', label: '💶 Ausgaben' }] : []),
-  ];
+  const navItems = buildNavItems(admin, isSuperAdmin(user));
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
   const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
 

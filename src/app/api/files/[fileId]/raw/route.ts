@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
-import { FILES_BUCKET } from '@/lib/files/storage';
+import { FILES_BUCKET, readOneDriveItemId } from '@/lib/files/storage';
 import { getDownloadUrl } from '@/lib/onedrive/graph';
 import { logger } from '@/lib/logger';
 
@@ -24,15 +24,17 @@ export async function GET(
   const supabase = await createSupabaseServerClient();
   const { data: file } = await supabase
     .from('files')
-    .select('storage_path, onedrive_item_id, organization_id, mime_type, file_name')
+    .select('storage_path, organization_id, mime_type, file_name')
     .eq('id', fileId)
     .is('deleted_at', null)
     .maybeSingle();
   if (!file) return new NextResponse(null, { status: 404 });
 
+  const onedriveItemId = await readOneDriveItemId(supabase, fileId);
+
   // OneDrive-backed file: redirect to the pre-authenticated URL for inline view.
-  if (file.onedrive_item_id) {
-    const dl = await getDownloadUrl(file.organization_id, file.onedrive_item_id);
+  if (onedriveItemId) {
+    const dl = await getDownloadUrl(file.organization_id, onedriveItemId);
     if (!dl) return new NextResponse(null, { status: 502 });
     return NextResponse.redirect(dl.url);
   }

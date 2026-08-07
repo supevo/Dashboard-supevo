@@ -100,6 +100,6 @@ export async function deletePrintExpenseAction(
     .delete()
     .eq('id', expenseId);
   if (error) return { ok: false };
-  revalidatePath('/app/expenses');
+  revalidatePath('/app/finance');
   return { ok: true };
 }

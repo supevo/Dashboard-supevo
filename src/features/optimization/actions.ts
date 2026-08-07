@@ -58,7 +58,7 @@ export async function updateOptimizationSettingsAction(input: {
     return errorResult('Speichern fehlgeschlagen.');
   }
 
-  revalidatePath('/app/workload');
+  revalidatePath('/app/team-radar');
   return successResult('Einstellungen gespeichert.');
 }
 
@@ -81,7 +81,7 @@ export async function applyWorkloadOptimizationAction(): Promise<
     { onConflict: 'organization_id' },
   );
 
-  revalidatePath('/app/workload');
+  revalidatePath('/app/team-radar');
   const total = result.assigned + result.reassigned;
   const message =
     total === 0

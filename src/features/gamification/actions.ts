@@ -210,7 +210,7 @@ export async function deleteHubBannerAction(bannerId: string): Promise<void> {
   await service.from('hub_banner_images').delete().eq('id', parsed.data);
   await service.storage.from(FILES_BUCKET).remove([banner.storage_path]);
 
-  revalidatePath('/app/settings');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
 }
 
@@ -366,7 +366,7 @@ export async function deleteHubFrameAction(frameId: string): Promise<void> {
   await service.from('hub_frame_images').delete().eq('id', parsed.data);
   await service.storage.from(FILES_BUCKET).remove([frame.storage_path]);
 
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
 }
 

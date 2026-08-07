@@ -24,7 +24,7 @@ export async function setXpBoostActiveAction(id: string, active: boolean): Promi
     .update({ active })
     .eq('id', id)
     .eq('organization_id', orgId);
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
 }
 
@@ -44,6 +44,6 @@ export async function deleteXpBoostAction(id: string): Promise<void> {
   if (boost?.banner_path) {
     await service.storage.from(FILES_BUCKET).remove([boost.banner_path]);
   }
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
 }

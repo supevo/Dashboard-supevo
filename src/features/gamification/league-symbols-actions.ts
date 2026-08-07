@@ -75,7 +75,7 @@ export async function setLeagueSymbolsAction(
       .in('league_key', toDelete);
   }
 
-  revalidatePath('/app/settings');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
   return successResult('Liga-Symbole gespeichert.');
 }
