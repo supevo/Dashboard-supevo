@@ -48,6 +48,6 @@ export async function setPulseAction(
   if (error) return errorResult(de.errors.FORBIDDEN);
 
   revalidatePath('/app');
-  revalidatePath('/app/workload');
+  revalidatePath('/app/team-radar');
   return successResult('Danke für dein Feedback!');
 }

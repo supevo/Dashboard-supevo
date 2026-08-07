@@ -36,8 +36,7 @@ const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/app/challenges', label: de.nav.challenges },
   { href: '/app/rewards', label: de.nav.rewards },
   { href: '/app/feedback', label: '💬 Feedback' },
-  { href: '/app/workload', label: de.nav.workload },
-  { href: '/app/cockpit', label: de.nav.cockpit },
+  { href: '/app/team-radar', label: 'Team-Radar' },
 ];
 
 // Personal items visible to every agency staffer.

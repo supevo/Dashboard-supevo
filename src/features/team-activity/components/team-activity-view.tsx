@@ -53,9 +53,13 @@ function NameCell({ member }: { member: MemberActivity }) {
 export function TeamActivityView({
   data,
   maxDay,
+  dayHrefPrefix,
 }: {
   data: TeamActivity;
   maxDay: string;
+  /** Passed through to the DayPicker so the timeline can live under a route
+   *  other than /app/workload (e.g. Team-Radar) and keep the active tab. */
+  dayHrefPrefix?: string;
 }) {
   const { members } = data;
   const dayLabel = new Date(`${data.day}T12:00:00`).toLocaleDateString('de-DE', {
@@ -142,7 +146,7 @@ export function TeamActivityView({
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>📅 Tagesverlauf</CardTitle>
-            <DayPicker day={data.day} max={maxDay} />
+            <DayPicker day={data.day} max={maxDay} hrefPrefix={dayHrefPrefix} />
           </div>
           <p className="text-sm text-muted-foreground">{dayLabel}</p>
         </CardHeader>
