@@ -400,7 +400,7 @@ export async function deleteStickerAction(stickerId: string): Promise<{ ok: bool
   } catch {
     /* best-effort */
   }
-  revalidatePath('/app/settings');
+  revalidatePath('/app/motivation');
   return { ok: true };
 }
 

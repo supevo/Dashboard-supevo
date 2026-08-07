@@ -145,7 +145,7 @@ export async function openBoxAction(
           ? `/api/loot/inventory/${inserted.id}/image`
           : null;
 
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
   return successResult('Box geöffnet!', {
     name: drawn.name,
@@ -190,7 +190,7 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
       .from('loot_inventory')
       .update({ status: 'fulfilled', redeemed_at: new Date().toISOString() })
       .eq('id', item.id);
-    revalidatePath('/app/rewards');
+    revalidatePath('/app/motivation');
     revalidatePath('/app/kudos');
     return successResult('Titelbild freigeschaltet – im Level Hub unter „🎨 Titelbild" wählbar.');
   }
@@ -214,7 +214,7 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
       .from('loot_inventory')
       .update({ status: 'fulfilled', redeemed_at: new Date().toISOString() })
       .eq('id', item.id);
-    revalidatePath('/app/rewards');
+    revalidatePath('/app/motivation');
     revalidatePath('/app/kudos');
     return successResult('Rahmen freigeschaltet – im Level Hub unter „🖼️ Rahmen" wählbar.');
   }
@@ -230,7 +230,7 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
       .from('loot_inventory')
       .update({ status: 'fulfilled', redeemed_at: new Date().toISOString() })
       .eq('id', item.id);
-    revalidatePath('/app/rewards');
+    revalidatePath('/app/motivation');
     return successResult('Badge deinem Profil gutgeschrieben.');
   }
 
@@ -264,7 +264,7 @@ export async function redeemItemAction(inventoryId: string): Promise<ActionResul
     );
   }
 
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   return successResult('Anfrage gesendet – wir melden uns zum Einlösen.');
 }
 
@@ -297,7 +297,7 @@ export async function saveLootConfigAction(input: unknown): Promise<ActionResult
     updated_at: new Date().toISOString(),
   });
   if (error) return errorResult(error.message);
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   return successResult('Einstellungen gespeichert.');
 }
 
@@ -311,7 +311,7 @@ export async function deleteLootItemAction(id: string): Promise<ActionResult> {
     .eq('id', id)
     .eq('organization_id', orgId);
   if (error) return errorResult(error.message);
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   return successResult('Gelöscht.');
 }
 
@@ -342,7 +342,7 @@ export async function markRedemptionFulfilledAction(inventoryId: string): Promis
     .eq('organization_id', orgId);
   if (error) return errorResult(error.message);
 
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   return successResult('Als erledigt markiert.');
 }
 
@@ -410,7 +410,7 @@ export async function giftBoxAction(input: unknown): Promise<ActionResult> {
     admin.id,
   );
 
-  revalidatePath('/app/rewards');
+  revalidatePath('/app/motivation');
   revalidatePath('/app/kudos');
   return successResult(
     v.quantity > 1 ? `${v.quantity} Boxen verschenkt.` : 'Box verschenkt.',

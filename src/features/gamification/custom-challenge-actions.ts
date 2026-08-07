@@ -60,7 +60,7 @@ export async function createChallengeAction(input: unknown): Promise<ActionResul
   });
   if (error) return errorResult(`Speichern fehlgeschlagen: ${error.message}`);
 
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   return successResult('Challenge angelegt.');
 }
 
@@ -80,7 +80,7 @@ export async function setChallengeActiveAction(
     .eq('id', id)
     .eq('organization_id', ctx.orgId);
   if (error) return errorResult(error.message);
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   return successResult('Aktualisiert.');
 }
 
@@ -95,7 +95,7 @@ export async function deleteChallengeAction(id: string): Promise<ActionResult> {
     .eq('id', id)
     .eq('organization_id', ctx.orgId);
   if (error) return errorResult(error.message);
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   return successResult('Gelöscht.');
 }
 
@@ -137,6 +137,6 @@ export async function reactivateChallengeAction(input: unknown): Promise<ActionR
   });
   if (error) return errorResult(error.message);
 
-  revalidatePath('/app/challenges');
+  revalidatePath('/app/motivation');
   return successResult('Challenge reaktiviert.');
 }

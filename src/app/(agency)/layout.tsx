@@ -33,8 +33,7 @@ const NAV_ITEMS: NavItem[] = [
 // Mitarbeiter erreichen die Belohnungen über den Level Hub – im Menü nur für Admins.
 const ADMIN_NAV_ITEMS: NavItem[] = [
   { href: '/app/team', label: de.nav.team },
-  { href: '/app/challenges', label: de.nav.challenges },
-  { href: '/app/rewards', label: de.nav.rewards },
+  { href: '/app/motivation', label: '🎯 Motivation' },
   { href: '/app/feedback', label: '💬 Feedback' },
   { href: '/app/team-radar', label: 'Team-Radar' },
 ];

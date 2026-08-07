@@ -1,46 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { requireOrgAdminPage } from '@/lib/authz/page-guards';
-import { listOrgChallenges } from '@/features/gamification/custom-challenges';
-import { METRIC_OPTIONS } from '@/features/gamification/challenge-metrics';
-import { listXpBoosts } from '@/features/gamification/xp-boost';
-import { ChallengeAdmin } from '@/features/gamification/components/challenge-admin';
-import { XpBoostAdmin } from '@/features/gamification/components/xp-boost-admin';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default async function ChallengesAdminPage() {
-  const { orgId } = await requireOrgAdminPage();
-  const [challenges, boosts] = await Promise.all([
-    listOrgChallenges(orgId),
-    listXpBoosts(orgId),
-  ]);
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Wochen- & Team-Challenges</h1>
-        <p className="text-sm text-muted-foreground">
-          Lege eigene Challenges an, plane sie je Woche vor und vergib eigene Badges.
-          Bei Zielerreichung bekommt der/die Mitarbeiter:in automatisch XP + Badge.
-        </p>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Challenges verwalten</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChallengeAdmin challenges={challenges} metricOptions={METRIC_OPTIONS} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>⚡ Double-XP-Woche</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <XpBoostAdmin boosts={boosts} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+/** Merged into the Motivation-Hub (tab „Challenges & XP"). Kept as a redirect
+ *  so old bookmarks and deep links keep working. */
+export default function ChallengesRedirect() {
+  redirect('/app/motivation?tab=challenges');
 }
