@@ -133,7 +133,7 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent>
           <Link
-            href="/app/settings/billing"
+            href="/app/finance?tab=rechnungen"
             className={buttonVariants({ variant: 'outline' })}
           >
             Rechnungseinstellungen

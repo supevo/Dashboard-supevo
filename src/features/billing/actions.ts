@@ -110,7 +110,7 @@ export async function updateBillingSettingsAction(
 
   if (error) return errorResult(de.errors.INTERNAL);
 
-  revalidatePath('/app/settings/billing');
+  revalidatePath('/app/finance');
   return successResult('Rechnungseinstellungen gespeichert.');
 }
 
@@ -209,7 +209,7 @@ export async function upsertBillingEntityAction(
       .neq('id', entityId);
   }
 
-  revalidatePath('/app/settings/billing');
+  revalidatePath('/app/finance');
   return successResult('Rechnungssteller gespeichert.');
 }
 
@@ -250,6 +250,6 @@ export async function deleteBillingEntityAction(
     .eq('organization_id', parsed.data.orgId);
   if (error) return errorResult(de.errors.INTERNAL);
 
-  revalidatePath('/app/settings/billing');
+  revalidatePath('/app/finance');
   return successResult('Rechnungssteller gelöscht.');
 }

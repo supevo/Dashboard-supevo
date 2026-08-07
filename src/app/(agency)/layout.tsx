@@ -80,8 +80,8 @@ export default async function AgencyLayout({
   const navItems = [
     ...NAV_ITEMS,
     ...(admin ? ADMIN_NAV_ITEMS : []),
-    // Interner Ausgaben-Bereich – nur Super-Admin.
-    ...(isSuperAdmin(user) ? [{ href: '/app/expenses', label: '💶 Ausgaben' }] : []),
+    // Finanzen (Ausgaben + Rechnungen) – nur Super-Admin.
+    ...(isSuperAdmin(user) ? [{ href: '/app/finance', label: '💶 Finanzen' }] : []),
   ];
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
   const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
