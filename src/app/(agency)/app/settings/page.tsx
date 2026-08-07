@@ -95,6 +95,24 @@ export default async function SettingsPage({
 
       <Card>
         <CardHeader>
+          <CardTitle>🩺 System &amp; Diagnose</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Live-Prüfungen: Service-Schlüssel, KI-Status, Datenbank-Schema und
+            OneDrive-Upload-Probleme.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/app/diagnostics"
+            className={buttonVariants({ variant: 'outline' })}
+          >
+            Diagnose öffnen
+          </Link>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>🎨 Design</CardTitle>
           <p className="text-sm text-muted-foreground">
             Wechsle zwischen dem klassischen und dem Supevo-Look – sofort sichtbar.

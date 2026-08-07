@@ -67,10 +67,11 @@ const MENU_ITEMS: UserMenuItem[] = [
 ];
 
 // Management-only menu entries (configuration + diagnostics).
+// Diagnose ist über die Einstellungen erreichbar (kein eigener Menüpunkt),
+// damit die teuren Live-Checks nur bei Bedarf laufen.
 const ADMIN_MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/templates', label: de.nav.templates },
   { href: '/app/settings', label: de.nav.settings },
-  { href: '/app/diagnostics', label: de.nav.diagnostics },
 ];
 
 export default async function AgencyLayout({
