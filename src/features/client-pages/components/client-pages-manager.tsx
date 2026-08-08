@@ -9,7 +9,9 @@ import {
   deleteClientPageAction,
   linkClientPageTaskAction,
   unlinkClientPageTaskAction,
+  deleteClientPageAttachmentAction,
 } from '@/features/client-pages/actions';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { idleResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -152,6 +154,169 @@ function LinkedTasksSection({
   );
 }
 
+function PageAttachments({
+  page,
+  clientCompanyId,
+}: {
+  page: ClientPage;
+  clientCompanyId: string;
+}) {
+  const router = useRouter();
+  const [, del] = useActionState(deleteClientPageAttachmentAction, idleResult);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function upload(file: File) {
+    setError(null);
+    setUploading(true);
+    try {
+      const createRes = await fetch(
+        '/api/client-pages/attachments/create-upload-url',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pageId: page.id,
+            fileName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+          }),
+        },
+      );
+      const createJson = (await createRes.json()) as {
+        path?: string;
+        token?: string;
+        storagePath?: string;
+        error?: string;
+      };
+      if (!createRes.ok || !createJson.path || !createJson.token) {
+        setError(createJson.error ?? 'Upload fehlgeschlagen.');
+        return;
+      }
+
+      const supabase = createSupabaseBrowserClient();
+      const { error: upErr } = await supabase.storage
+        .from('files')
+        .uploadToSignedUrl(createJson.path, createJson.token, file, {
+          contentType: file.type,
+        });
+      if (upErr) {
+        setError(upErr.message);
+        return;
+      }
+
+      const finalizeRes = await fetch(
+        '/api/client-pages/attachments/finalize',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            pageId: page.id,
+            clientCompanyId,
+            storagePath: createJson.storagePath,
+            fileName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+          }),
+        },
+      );
+      const finalizeJson = (await finalizeRes.json()) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!finalizeRes.ok || !finalizeJson.ok) {
+        setError(finalizeJson.error ?? 'Speichern fehlgeschlagen.');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError('Upload fehlgeschlagen.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        📎 Anhänge &amp; Fotos
+      </p>
+      {page.attachments.length > 0 && (
+        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {page.attachments.map((a) => {
+            const isImage = a.mimeType.startsWith('image/');
+            return (
+              <div
+                key={a.id}
+                className="group relative overflow-hidden rounded-md border bg-card"
+              >
+                {isImage ? (
+                  <a
+                    href={`/api/client-pages/attachments/${a.id}/url`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/client-pages/attachments/${a.id}/url`}
+                      alt={a.fileName}
+                      className="h-24 w-full object-cover"
+                    />
+                  </a>
+                ) : (
+                  <a
+                    href={`/api/client-pages/attachments/${a.id}/url?disposition=attachment`}
+                    className="flex h-24 flex-col items-center justify-center gap-1 p-2 text-center"
+                  >
+                    <span className="text-2xl">📄</span>
+                    <span className="line-clamp-2 text-[11px] text-muted-foreground">
+                      {a.fileName}
+                    </span>
+                  </a>
+                )}
+                <form
+                  action={del}
+                  onSubmit={() => setTimeout(() => router.refresh(), 300)}
+                  className="absolute right-1 top-1"
+                >
+                  <input type="hidden" name="id" value={a.id} />
+                  <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+                  <button
+                    type="submit"
+                    aria-label="Anhang löschen"
+                    className="rounded bg-black/50 px-1.5 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                </form>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {error && (
+        <div className="mb-2">
+          <Alert variant="destructive">{error}</Alert>
+        </div>
+      )}
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-background">
+        {uploading ? 'Wird hochgeladen …' : '+ Datei / Foto'}
+        <input
+          type="file"
+          accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+          className="hidden"
+          disabled={uploading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void upload(f);
+            e.target.value = '';
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
 function PageEditor({
   page,
   clientCompanyId,
@@ -248,6 +413,10 @@ function PageEditor({
           </span>
         </div>
       </form>
+
+      {!page.isFolder && (
+        <PageAttachments page={page} clientCompanyId={clientCompanyId} />
+      )}
 
       {!page.isFolder && (
         <LinkedTasksSection

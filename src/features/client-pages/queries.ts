@@ -8,6 +8,13 @@ export interface LinkedTask {
   projectId: string;
 }
 
+export interface PageAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
 export interface ClientPage {
   id: string;
   parentId: string | null;
@@ -18,6 +25,7 @@ export interface ClientPage {
   position: number;
   updatedAt: string;
   linkedTasks: LinkedTask[];
+  attachments: PageAttachment[];
 }
 
 /**
@@ -49,10 +57,11 @@ export async function listClientPages(
     updated_at: string;
   }[];
 
-  const linksByPage = await loadPageTaskLinks(
-    supabase,
-    rows.map((r) => r.id),
-  );
+  const pageIds = rows.map((r) => r.id);
+  const [linksByPage, attachmentsByPage] = await Promise.all([
+    loadPageTaskLinks(supabase, pageIds),
+    loadPageAttachments(supabase, pageIds),
+  ]);
 
   return rows.map((p) => ({
     id: p.id,
@@ -64,7 +73,45 @@ export async function listClientPages(
     position: p.position,
     updatedAt: p.updated_at,
     linkedTasks: linksByPage.get(p.id) ?? [],
+    attachments: attachmentsByPage.get(p.id) ?? [],
   }));
+}
+
+/** Loads attachments for the given pages (metadata only). */
+async function loadPageAttachments(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  pageIds: string[],
+): Promise<Map<string, PageAttachment[]>> {
+  const map = new Map<string, PageAttachment[]>();
+  if (pageIds.length === 0) return map;
+
+  const { data, error } = await supabase
+    .from('client_page_attachments')
+    .select('id, page_id, file_name, mime_type, size_bytes')
+    .in('page_id', pageIds)
+    .order('created_at', { ascending: true });
+  if (error || !data) return map;
+
+  // client_page_attachments is not in the generated Database types (0109).
+  const rows = data as unknown as {
+    id: string;
+    page_id: string;
+    file_name: string;
+    mime_type: string;
+    size_bytes: number;
+  }[];
+
+  for (const r of rows) {
+    const list = map.get(r.page_id) ?? [];
+    list.push({
+      id: r.id,
+      fileName: r.file_name,
+      mimeType: r.mime_type,
+      sizeBytes: r.size_bytes,
+    });
+    map.set(r.page_id, list);
+  }
+  return map;
 }
 
 /** Loads page→task links for the given pages, resolved to task title/project. */

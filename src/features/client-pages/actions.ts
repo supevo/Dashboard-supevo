@@ -3,8 +3,10 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { FILES_BUCKET } from '@/lib/files/storage';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 import {
@@ -184,6 +186,47 @@ export async function unlinkClientPageTaskAction(
 
   revalidateClient(formData);
   return successResult('Entfernt.');
+}
+
+export async function deleteClientPageAttachmentAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const id = formData.get('id');
+  if (typeof id !== 'string' || !id) return errorResult(de.errors.VALIDATION);
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Read the storage path (RLS-gated) before deleting the row.
+  const { data } = await supabase
+    .from('client_page_attachments')
+    .select('storage_path')
+    .eq('id', id)
+    .maybeSingle();
+  if (!data) return errorResult(de.errors.FORBIDDEN);
+  const storagePath = (data as { storage_path: string }).storage_path;
+
+  const { error, count } = await supabase
+    .from('client_page_attachments')
+    .delete({ count: 'exact' })
+    .eq('id', id);
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  // Best-effort object removal (the row is already gone either way).
+  try {
+    await createSupabaseServiceClient()
+      .storage.from(FILES_BUCKET)
+      .remove([storagePath]);
+  } catch (e) {
+    logger.warn('client_page_attachment.storage_remove_failed', {
+      error: (e as Error).message,
+    });
+  }
+
+  revalidateClient(formData);
+  return successResult('Gelöscht.');
 }
 
 export async function deleteClientPageAction(
