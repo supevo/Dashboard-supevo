@@ -2,10 +2,13 @@
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   createClientPageAction,
   updateClientPageAction,
   deleteClientPageAction,
+  linkClientPageTaskAction,
+  unlinkClientPageTaskAction,
 } from '@/features/client-pages/actions';
 import { idleResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
@@ -15,7 +18,7 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 import { PAGE_STATUSES, type ClientPageStatus } from '@/features/client-pages/schema';
-import type { ClientPage } from '@/features/client-pages/queries';
+import type { ClientPage, LinkedTask } from '@/features/client-pages/queries';
 
 const STATUS_LABEL: Record<ClientPageStatus, string> = {
   draft: 'Entwurf',
@@ -66,13 +69,98 @@ function CreateButton({
   );
 }
 
+function LinkedTasksSection({
+  page,
+  clientCompanyId,
+  taskOptions,
+}: {
+  page: ClientPage;
+  clientCompanyId: string;
+  taskOptions: LinkedTask[];
+}) {
+  const [, link] = useActionState(linkClientPageTaskAction, idleResult);
+  const [, unlink] = useActionState(unlinkClientPageTaskAction, idleResult);
+  const router = useRouter();
+  const linkedIds = new Set(page.linkedTasks.map((t) => t.id));
+  const available = taskOptions.filter((t) => !linkedIds.has(t.id));
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        🔗 Verknüpfte Aufgaben
+      </p>
+      {page.linkedTasks.length > 0 ? (
+        <ul className="mb-3 space-y-1">
+          {page.linkedTasks.map((t) => (
+            <li
+              key={t.id}
+              className="flex items-center justify-between gap-2 rounded-md border bg-card px-2 py-1.5"
+            >
+              <Link
+                href={`/app/projects/${t.projectId}/tasks/${t.id}`}
+                className="min-w-0 truncate text-sm text-primary hover:underline"
+              >
+                {t.title}
+              </Link>
+              <form
+                action={unlink}
+                onSubmit={() => setTimeout(() => router.refresh(), 300)}
+              >
+                <input type="hidden" name="pageId" value={page.id} />
+                <input type="hidden" name="taskId" value={t.id} />
+                <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+                <button
+                  type="submit"
+                  aria-label="Verknüpfung entfernen"
+                  className="rounded px-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Noch keine Aufgabe verknüpft.
+        </p>
+      )}
+      {available.length > 0 && (
+        <form
+          action={link}
+          onSubmit={() => setTimeout(() => router.refresh(), 300)}
+          className="flex items-center gap-2"
+        >
+          <input type="hidden" name="pageId" value={page.id} />
+          <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+          <Select name="taskId" defaultValue="" className="h-9 flex-1" required>
+            <option value="" disabled>
+              Aufgabe wählen …
+            </option>
+            {available.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.title}
+              </option>
+            ))}
+          </Select>
+          <SubmitButton size="sm" variant="outline">
+            Verknüpfen
+          </SubmitButton>
+        </form>
+      )}
+    </div>
+  );
+}
+
 function PageEditor({
   page,
   clientCompanyId,
+  taskOptions,
   onDeleted,
 }: {
   page: ClientPage;
   clientCompanyId: string;
+  taskOptions: LinkedTask[];
   onDeleted: () => void;
 }) {
   const [saveState, save] = useActionState(updateClientPageAction, idleResult);
@@ -161,6 +249,14 @@ function PageEditor({
         </div>
       </form>
 
+      {!page.isFolder && (
+        <LinkedTasksSection
+          page={page}
+          clientCompanyId={clientCompanyId}
+          taskOptions={taskOptions}
+        />
+      )}
+
       <form action={remove} onSubmit={() => undefined}>
         <input type="hidden" name="id" value={page.id} />
         <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
@@ -183,9 +279,11 @@ function PageEditor({
 export function ClientPagesManager({
   clientCompanyId,
   pages,
+  taskOptions,
 }: {
   clientCompanyId: string;
   pages: ClientPage[];
+  taskOptions: LinkedTask[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -330,6 +428,7 @@ export function ClientPagesManager({
             key={selected.id}
             page={selected}
             clientCompanyId={clientCompanyId}
+            taskOptions={taskOptions}
             onDeleted={() => setSelectedId(null)}
           />
         ) : (

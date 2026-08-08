@@ -1,5 +1,6 @@
 'use server';
 
+import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
@@ -119,6 +120,70 @@ export async function updateClientPageAction(
 
   revalidateClient(formData);
   return successResult('Gespeichert.');
+}
+
+const linkTaskSchema = z.object({
+  pageId: z.string().uuid(),
+  taskId: z.string().uuid(),
+});
+
+export async function linkClientPageTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = linkTaskSchema.safeParse({
+    pageId: formData.get('pageId'),
+    taskId: formData.get('taskId'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { pageId, taskId } = parsed.data;
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Resolve the page's org via RLS (nothing back if the caller can't see it).
+  const { data: page } = await supabase
+    .from('client_pages')
+    .select('organization_id')
+    .eq('id', pageId)
+    .maybeSingle();
+  if (!page) return errorResult(de.errors.FORBIDDEN);
+
+  const { error } = await supabase.from('client_page_tasks').upsert(
+    {
+      page_id: pageId,
+      task_id: taskId,
+      organization_id: (page as { organization_id: string }).organization_id,
+    } as never,
+    { onConflict: 'page_id,task_id', ignoreDuplicates: true },
+  );
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidateClient(formData);
+  return successResult('Verknüpft.');
+}
+
+export async function unlinkClientPageTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = linkTaskSchema.safeParse({
+    pageId: formData.get('pageId'),
+    taskId: formData.get('taskId'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('client_page_tasks')
+    .delete()
+    .eq('page_id', parsed.data.pageId)
+    .eq('task_id', parsed.data.taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidateClient(formData);
+  return successResult('Entfernt.');
 }
 
 export async function deleteClientPageAction(
