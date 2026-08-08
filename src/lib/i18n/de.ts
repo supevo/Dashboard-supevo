@@ -213,6 +213,7 @@ export const de = {
     archive: 'Archiv',
     archiveHint: 'Nur zur Ansicht',
     archiveEmpty: 'Keine archivierten Aufgaben.',
+    unarchive: 'Aus Archiv holen',
     expand: 'Aufklappen',
     collapse: 'Zuklappen',
     wipLimitTotal:

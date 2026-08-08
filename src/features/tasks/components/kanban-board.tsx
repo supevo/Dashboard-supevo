@@ -309,6 +309,18 @@ export function KanbanBoard({
     }
   }
 
+  /** Restores a task from the archive back into its column. */
+  async function unarchiveTask(taskId: string) {
+    setError(null);
+    const fd = new FormData();
+    fd.set('taskId', taskId);
+    fd.set('projectId', projectId);
+    fd.set('archived', 'false');
+    const result = await archiveTaskAction(idleResult, fd);
+    if (result.status === 'error') setError(result.message);
+    else router.refresh();
+  }
+
   /** Drop onto the Archiv column → archive the dragged task. */
   function handleDropOnArchive() {
     const taskId = dragTaskId;
@@ -722,18 +734,31 @@ export function KanbanBoard({
                 </p>
               ) : (
                 board.archived.map((task) => (
-                  <button
+                  <div
                     key={task.id}
-                    type="button"
-                    onClick={() =>
-                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
-                    }
-                    className="w-full rounded-lg border border-border bg-card/60 p-2.5 text-left shadow-sm hover:bg-card"
+                    className="flex items-center gap-1 rounded-lg border border-border bg-card/60 p-2 shadow-sm"
                   >
-                    <div className="text-sm font-medium text-muted-foreground line-through">
-                      {task.title}
-                    </div>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                      }
+                      className="min-w-0 flex-1 text-left text-sm font-medium text-muted-foreground line-through hover:text-foreground"
+                    >
+                      <span className="block truncate">{task.title}</span>
+                    </button>
+                    {canArchive && (
+                      <button
+                        type="button"
+                        onClick={() => void unarchiveTask(task.id)}
+                        title={de.kanban.unarchive}
+                        aria-label={de.kanban.unarchive}
+                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
+                      >
+                        ↩
+                      </button>
+                    )}
+                  </div>
                 ))
               )}
             </div>
