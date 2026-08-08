@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { requireUser, authorize } from '@/lib/authz/authorize';
+import { requireUser } from '@/lib/authz/authorize';
+import { can } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
@@ -39,7 +40,13 @@ export async function createProjectAction(
   const { orgId, clientCompanyId, name, description } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'project.create', orgId });
+  // Only PMs/Admins may create projects. Return a friendly error instead of
+  // throwing (a thrown ForbiddenError would surface as the generic error view).
+  if (!can(user, { type: 'project.create', orgId })) {
+    return errorResult(
+      'Nur die Projektleitung oder Admins dürfen Boards anlegen.',
+    );
+  }
 
   const supabase = await createSupabaseServerClient();
 

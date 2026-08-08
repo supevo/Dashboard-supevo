@@ -27,12 +27,15 @@ export function ClientBoards({
   clientCompanyId,
   companyName,
   bundles,
+  canCreate,
   initialProjectId,
 }: {
   orgId: string;
   clientCompanyId: string;
   companyName: string;
   bundles: ClientBoardBundle[];
+  /** Whether the viewer may create boards (project.create – PMs/Admins only). */
+  canCreate: boolean;
   initialProjectId?: string;
 }) {
   const initialIndex = Math.max(
@@ -40,7 +43,6 @@ export function ClientBoards({
     bundles.findIndex((b) => b.project.id === initialProjectId),
   );
   const [active, setActive] = useState(initialIndex);
-  const canCreate = bundles.some((b) => b.project.canManage);
 
   if (bundles.length === 0) {
     return (
@@ -48,14 +50,18 @@ export function ClientBoards({
         <p className="text-3xl">🗂️</p>
         <p className="mt-2 font-medium">Noch kein Board für diesen Kunden</p>
         <p className="mb-4 mt-1 text-sm text-muted-foreground">
-          Lege ein Board an, um Aufgaben und Kanban für {companyName} zu starten.
+          {canCreate
+            ? `Lege ein Board an, um Aufgaben und Kanban für ${companyName} zu starten.`
+            : 'Für diesen Kunden gibt es noch kein Board. Die Projektleitung kann eines anlegen.'}
         </p>
-        <div className="flex justify-center">
-          <CreateProjectDialog
-            orgId={orgId}
-            clientCompanies={[{ id: clientCompanyId, name: companyName }]}
-          />
-        </div>
+        {canCreate && (
+          <div className="flex justify-center">
+            <CreateProjectDialog
+              orgId={orgId}
+              clientCompanies={[{ id: clientCompanyId, name: companyName }]}
+            />
+          </div>
+        )}
       </div>
     );
   }

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { isOrgAdmin, can } from '@/lib/authz/policies';
 import {
   getClientCompany,
   listClientContacts,
@@ -81,6 +81,7 @@ export default async function ClientDetailPage({
   const { tab, board: boardParam } = await searchParams;
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
+  const canCreateProject = can(user, { type: 'project.create', orgId });
 
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
@@ -491,6 +492,7 @@ export default async function ClientDetailPage({
           clientCompanyId={clientCompanyId}
           companyName={company.name}
           bundles={boardBundles}
+          canCreate={canCreateProject}
           initialProjectId={boardParam}
         />
       ),
