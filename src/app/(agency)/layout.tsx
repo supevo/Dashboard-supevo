@@ -38,15 +38,16 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
     { href: '/app/reports', label: de.nav.reports },
 
     heading('Team & Motivation'),
-    { href: '/app/colleagues', label: de.nav.colleagues },
+    // Mitarbeiter sehen das Kollegen-Verzeichnis; Admins nutzen das Team-Radar
+    // (Namen dort sind mit den Profilen verlinkt).
     ...(admin
       ? [
           { href: '/app/team-radar', label: 'Team-Radar' },
-          { href: '/app/team', label: de.nav.team },
+          { href: '/app/team', label: 'Management' },
           { href: '/app/motivation', label: '🎯 Motivation' },
           { href: '/app/feedback', label: '💬 Feedback' },
         ]
-      : []),
+      : [{ href: '/app/colleagues', label: de.nav.colleagues }]),
 
     heading('Ressourcen'),
     { href: '/app/passwords', label: '🔐 Passwörter' },
