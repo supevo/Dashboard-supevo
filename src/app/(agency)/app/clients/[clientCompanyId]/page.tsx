@@ -49,6 +49,8 @@ import {
   getProject,
   listProjectMembers,
 } from '@/features/projects/queries';
+import { ProjectSettingsForm } from '@/features/projects/components/project-settings-form';
+import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
 import { getBoardView } from '@/features/tasks/queries';
 import { listRecurringTasks } from '@/features/recurring/queries';
 import { listMarketingReports } from '@/features/marketing-reports/queries';
@@ -160,9 +162,37 @@ export default async function ClientDetailPage({
     )
   ).filter((b): b is ClientBoardBundle => b !== null);
 
+  // Board settings + cover live in the drawer too, so there is a single ⚙️
+  // (no separate per-board gear). One card per board the user may manage.
+  const manageableBoards = boardBundles.filter((b) => b.project.canManage);
+  const boardSection: DrawerSection = {
+    key: 'board',
+    label: 'Board',
+    icon: '🗂️',
+    content: (
+      <>
+        {manageableBoards.map((b) => (
+          <Card key={b.project.id}>
+            <CardHeader>
+              <CardTitle>{b.project.name}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Titelbild, Name, Status, Sichtbarkeit &amp; Archiv dieses Boards.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ProjectCoverUploader projectId={b.project.id} />
+              <ProjectSettingsForm orgId={orgId} project={b.project} />
+            </CardContent>
+          </Card>
+        ))}
+      </>
+    ),
+  };
+
   // Configuration lives behind the ⚙️ drawer so the tabs stay focused on the
   // day-to-day work (Board · Marketingplan · Seiten · Dateien).
   const drawerSections: DrawerSection[] = [
+    ...(manageableBoards.length > 0 ? [boardSection] : []),
     {
       key: 'overview',
       label: 'Übersicht',

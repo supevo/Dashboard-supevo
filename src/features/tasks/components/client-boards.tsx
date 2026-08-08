@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
-import { ProjectSettingsButton } from '@/features/projects/components/project-settings-button';
-import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
 import { CreateProjectDialog } from '@/features/projects/components/create-project-dialog';
 import { RecurringColumnBlock } from '@/features/recurring/components/recurring-column-block';
 import { cn } from '@/lib/utils';
@@ -110,22 +108,8 @@ export function ClientBoards({
               🔒 Intern
             </span>
           )}
-          {current.project.canManage && (
-            <ProjectSettingsButton project={current.project} />
-          )}
         </div>
       </div>
-
-      {current.project.canManage && (
-        <details className="rounded-lg border bg-card">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-muted-foreground">
-            🖼️ Titelbild: {current.project.name}
-          </summary>
-          <div className="border-t p-3">
-            <ProjectCoverUploader projectId={current.project.id} />
-          </div>
-        </details>
-      )}
 
       {current.board ? (
         <KanbanBoard
