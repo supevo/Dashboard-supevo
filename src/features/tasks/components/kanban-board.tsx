@@ -9,7 +9,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { moveTaskAction } from '@/features/tasks/actions';
+import { moveTaskAction, archiveTaskAction } from '@/features/tasks/actions';
 import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
 import { idleResult } from '@/lib/action-result';
@@ -80,6 +80,9 @@ export function KanbanBoard({
 }) {
   const router = useRouter();
   const canDrag = canManage || canMove || reorderOnly;
+  // Agency staff may archive by dragging onto the Archiv column; clients
+  // (reorder-only in the portal) may not.
+  const canArchive = canManage || canMove;
   // In the client portal the internal assignee (name + avatar) must stay hidden;
   // RLS blanks the name anyway, which otherwise renders as an empty chip.
   const isPortal = basePath.startsWith('/portal');
@@ -88,6 +91,7 @@ export function KanbanBoard({
   const [notice, setNotice] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [archiveCollapsed, setArchiveCollapsed] = useState(true);
+  const [archiveHover, setArchiveHover] = useState(false);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [dragOver, setDragOver] = useState<{
     columnId: string;
@@ -274,6 +278,45 @@ export function KanbanBoard({
     const rect = e.currentTarget.getBoundingClientRect();
     const after = e.clientY - rect.top > rect.height / 2;
     void moveTo(taskId, targetColumnId, after ? baseIndex + 1 : baseIndex);
+  }
+
+  /** Archives a task (drag onto the Archiv column). Optimistically removes it
+   *  from its active column; a refresh pulls it into the archived list. */
+  async function archiveTask(taskId: string) {
+    const task = findTask(taskId);
+    if (!task) return;
+    const previous = columns;
+    setColumns((cols) =>
+      cols.map((col) =>
+        col.id === task.columnId
+          ? { ...col, tasks: col.tasks.filter((t) => t.id !== taskId) }
+          : col,
+      ),
+    );
+    setError(null);
+    setNotice(null);
+
+    const fd = new FormData();
+    fd.set('taskId', taskId);
+    fd.set('projectId', projectId);
+    fd.set('archived', 'true');
+    const result = await archiveTaskAction(idleResult, fd);
+    if (result.status === 'error') {
+      setColumns(previous); // roll back
+      setError(result.message);
+    } else {
+      router.refresh();
+    }
+  }
+
+  /** Drop onto the Archiv column → archive the dragged task. */
+  function handleDropOnArchive() {
+    const taskId = dragTaskId;
+    setDragTaskId(null);
+    setDragOver(null);
+    setArchiveHover(false);
+    if (!taskId || !canArchive) return;
+    void archiveTask(taskId);
   }
 
   /** Drop over the column background: append to the end of the column. */
@@ -609,8 +652,19 @@ export function KanbanBoard({
           <button
             type="button"
             onClick={() => setArchiveCollapsed(false)}
+            onDragOver={(e) => {
+              if (canArchive && dragTaskId) {
+                e.preventDefault();
+                setArchiveHover(true);
+              }
+            }}
+            onDragLeave={() => setArchiveHover(false)}
+            onDrop={() => canArchive && handleDropOnArchive()}
             title={`${de.kanban.archive} (${board.archived.length})`}
-            className="flex w-10 shrink-0 flex-col items-center gap-2 rounded-lg border border-dashed bg-muted/20 py-3 opacity-80 hover:opacity-100"
+            className={cn(
+              'flex w-10 shrink-0 flex-col items-center gap-2 rounded-lg border border-dashed bg-muted/20 py-3 opacity-80 hover:opacity-100',
+              archiveHover && 'border-primary bg-primary/10 opacity-100 ring-2 ring-primary',
+            )}
           >
             <span className="text-xs text-muted-foreground">▸</span>
             <span className="text-xs text-muted-foreground">
@@ -624,7 +678,25 @@ export function KanbanBoard({
             </span>
           </button>
         ) : (
-          <div className="flex w-72 shrink-0 flex-col rounded-lg border border-dashed bg-muted/20 p-2 opacity-80">
+          <div
+            onDragOver={(e) => {
+              if (canArchive && dragTaskId) {
+                e.preventDefault();
+                setArchiveHover(true);
+              }
+            }}
+            onDragLeave={() => setArchiveHover(false)}
+            onDrop={() => canArchive && handleDropOnArchive()}
+            className={cn(
+              'flex w-72 shrink-0 flex-col rounded-lg border border-dashed bg-muted/20 p-2 opacity-80',
+              archiveHover && 'border-primary bg-primary/10 opacity-100 ring-2 ring-primary',
+            )}
+          >
+            {canArchive && dragTaskId && (
+              <p className="mb-2 rounded bg-primary/10 px-2 py-1 text-center text-xs font-medium text-primary">
+                Hier ablegen zum Archivieren
+              </p>
+            )}
             <div className="mb-2 flex items-center justify-between px-1">
               <span className="text-sm font-semibold text-muted-foreground">
                 {de.kanban.archive}
