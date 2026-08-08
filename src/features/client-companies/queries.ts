@@ -16,6 +16,8 @@ export interface ClientCompany {
   isActive: boolean;
   isLegacy: boolean;
   billPrintProducts: boolean;
+  /** Fair-share weight for the health traffic light (default 1). */
+  attentionFactor: number;
   createdAt: string;
 }
 
@@ -47,6 +49,7 @@ export async function listClientCompanies(
     isActive: c.is_active,
     isLegacy: false,
     billPrintProducts: false,
+    attentionFactor: 1,
     createdAt: c.created_at,
   }));
 }
@@ -58,7 +61,9 @@ export async function getClientCompany(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('client_companies')
-    .select('id, name, contact_email, notes, industry, brands, interests, express_tickets_per_month, billing_entity_id, account_manager_id, secondary_account_manager_id, is_active, is_legacy, bill_print_products, created_at')
+    // '*' so the not-yet-typed attention_factor column (migration 0110) comes
+    // through at runtime; read it via a cast below.
+    .select('*')
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId)
     .is('deleted_at', null)
@@ -80,6 +85,9 @@ export async function getClientCompany(
     isActive: data.is_active,
     isLegacy: data.is_legacy,
     billPrintProducts: data.bill_print_products,
+    attentionFactor: Number(
+      (data as { attention_factor?: number }).attention_factor ?? 1,
+    ),
     createdAt: data.created_at,
   };
 }

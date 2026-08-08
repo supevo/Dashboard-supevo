@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { isOrgAdmin, can } from '@/lib/authz/policies';
 import {
   getClientCompany,
   listClientContacts,
@@ -11,6 +11,7 @@ import { InviteContactForm } from '@/features/client-companies/components/invite
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
 import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
+import { AttentionFactorForm } from '@/features/client-companies/components/attention-factor-form';
 import { listTeamMembers } from '@/features/messenger/queries';
 import {
   listBillingEntities,
@@ -49,6 +50,8 @@ import {
   getProject,
   listProjectMembers,
 } from '@/features/projects/queries';
+import { ProjectSettingsForm } from '@/features/projects/components/project-settings-form';
+import { ProjectCoverUploader } from '@/features/projects/components/project-cover-uploader';
 import { getBoardView } from '@/features/tasks/queries';
 import { listRecurringTasks } from '@/features/recurring/queries';
 import { listMarketingReports } from '@/features/marketing-reports/queries';
@@ -79,6 +82,7 @@ export default async function ClientDetailPage({
   const { tab, board: boardParam } = await searchParams;
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
+  const canCreateProject = can(user, { type: 'project.create', orgId });
 
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
@@ -160,15 +164,63 @@ export default async function ClientDetailPage({
     )
   ).filter((b): b is ClientBoardBundle => b !== null);
 
+  // Board settings + cover live in the drawer too, so there is a single ⚙️
+  // (no separate per-board gear). One card per board the user may manage.
+  const manageableBoards = boardBundles.filter((b) => b.project.canManage);
+  const boardSection: DrawerSection = {
+    key: 'board',
+    label: 'Board',
+    icon: '🗂️',
+    content: (
+      <>
+        {manageableBoards.map((b) => (
+          <Card key={b.project.id}>
+            <CardHeader>
+              <CardTitle>{b.project.name}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Titelbild, Name, Status, Sichtbarkeit &amp; Archiv dieses Boards.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ProjectCoverUploader projectId={b.project.id} />
+              <ProjectSettingsForm orgId={orgId} project={b.project} />
+            </CardContent>
+          </Card>
+        ))}
+      </>
+    ),
+  };
+
   // Configuration lives behind the ⚙️ drawer so the tabs stay focused on the
   // day-to-day work (Board · Marketingplan · Seiten · Dateien).
   const drawerSections: DrawerSection[] = [
+    ...(manageableBoards.length > 0 ? [boardSection] : []),
     {
       key: 'overview',
       label: 'Übersicht',
       icon: '📊',
       content: (
         <>
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🎯 Betreuungs-Faktor</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Gewicht für die Ampel: wie groß der faire Anteil dieses Kunden
+                  an der Team-Aufmerksamkeit ist. Steuert, ab wann die Ampel auf
+                  unterversorgt (rot) bzw. überzogen (orange) springt.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <AttentionFactorForm
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  value={company.attentionFactor}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {isAdmin && (
             <Card>
               <CardHeader>
@@ -461,6 +513,7 @@ export default async function ClientDetailPage({
           clientCompanyId={clientCompanyId}
           companyName={company.name}
           bundles={boardBundles}
+          canCreate={canCreateProject}
           initialProjectId={boardParam}
         />
       ),

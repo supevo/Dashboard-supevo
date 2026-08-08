@@ -15,6 +15,19 @@ import {
 import { primaryAgencyOrgId } from '@/features/auth/access';
 import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Building2,
+  Target,
+  BarChart3,
+  Radar,
+  Users,
+  Trophy,
+  MessageSquare,
+  KeyRound,
+  Wallet,
+} from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
 // Section header for the sidebar (rendered as a non-clickable heading).
@@ -28,32 +41,34 @@ const heading = (label: string): NavItem => ({ href: '', label, heading: true })
 function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
   return [
     heading('Arbeit'),
-    { href: '/app', label: de.nav.dashboard },
-    { href: '/app/calendar', label: de.nav.calendar },
+    { href: '/app', label: de.nav.dashboard, icon: <LayoutDashboard /> },
+    { href: '/app/calendar', label: de.nav.calendar, icon: <CalendarDays /> },
     // Kunden & Projekte sind verschmolzen: ein Kunde öffnet direkt sein Board
     // (Kanban), Projekte sind weitere Boards innerhalb des Kunden.
-    { href: '/app/clients', label: de.nav.clients },
-    { href: '/app/leads', label: de.nav.leads },
+    { href: '/app/clients', label: de.nav.clients, icon: <Building2 /> },
+    { href: '/app/leads', label: de.nav.leads, icon: <Target /> },
 
-    heading('Auswertung'),
-    { href: '/app/reports', label: de.nav.reports },
-
-    heading('Team & Motivation'),
-    // Mitarbeiter sehen das Kollegen-Verzeichnis; Admins nutzen das Team-Radar
-    // (Namen dort sind mit den Profilen verlinkt).
+    // Auswertung & Team/Motivation nur für Admins – Mitarbeiter sehen die
+    // gleichen Team-/Kollegen-Infos in der rechten Leiste.
     ...(admin
       ? [
-          { href: '/app/team-radar', label: 'Team-Radar' },
-          { href: '/app/team', label: 'Management' },
-          { href: '/app/motivation', label: '🎯 Motivation' },
-          { href: '/app/feedback', label: '💬 Feedback' },
+          heading('Auswertung'),
+          { href: '/app/reports', label: de.nav.reports, icon: <BarChart3 /> },
+
+          heading('Team & Motivation'),
+          { href: '/app/team-radar', label: 'Team-Radar', icon: <Radar /> },
+          { href: '/app/team', label: 'Management', icon: <Users /> },
+          { href: '/app/motivation', label: 'Motivation', icon: <Trophy /> },
+          { href: '/app/feedback', label: 'Feedback', icon: <MessageSquare /> },
         ]
-      : [{ href: '/app/colleagues', label: de.nav.colleagues }]),
+      : []),
 
     heading('Ressourcen'),
-    { href: '/app/passwords', label: '🔐 Passwörter' },
+    { href: '/app/passwords', label: 'Passwörter', icon: <KeyRound /> },
     // Finanzen (Ausgaben + Rechnungen) – nur Super-Admin.
-    ...(superAdmin ? [{ href: '/app/finance', label: '💶 Finanzen' }] : []),
+    ...(superAdmin
+      ? [{ href: '/app/finance', label: 'Finanzen', icon: <Wallet /> }]
+      : []),
   ];
 }
 

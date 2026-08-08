@@ -6,12 +6,14 @@ const DOT: Record<HealthLevel, string> = {
   green: 'bg-emerald-500',
   yellow: 'bg-amber-500',
   red: 'bg-red-500',
+  over: 'bg-orange-500',
   idle: 'bg-muted-foreground/40',
 };
 
 /**
- * Internal traffic-light for how much got done for a client this month.
- * Never shown to clients. `showLabel` adds the text next to the dot.
+ * Internal fair-share traffic light: green = balanced attention, red = under-
+ * served (nurture), orange = over-served (rein in), grey = no activity. Never
+ * shown to clients. `showLabel` adds the text next to the dot.
  */
 export function ClientHealthDot({
   health,
@@ -21,9 +23,12 @@ export function ClientHealthDot({
   showLabel?: boolean;
 }) {
   const level: HealthLevel = health?.level ?? 'idle';
-  const title = health
-    ? `${de.clientHealth.completed}: ${health.completed} · ${de.clientHealth.overdue}: ${health.overdue} · ${de.clientHealth.open}: ${health.open}`
-    : de.clientHealth.level.idle;
+  const title =
+    health && health.level !== 'idle'
+      ? `${de.clientHealth.level[level]} · ${de.clientHealth.share} ${Math.round(
+          health.share * 100,
+        )}% (${de.clientHealth.expected} ${Math.round(health.expected * 100)}%)`
+      : de.clientHealth.level.idle;
 
   return (
     <span className="inline-flex items-center gap-1.5" title={title}>
