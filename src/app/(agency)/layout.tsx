@@ -29,8 +29,9 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
   return [
     heading('Arbeit'),
     { href: '/app', label: de.nav.dashboard },
-    { href: '/app/projects', label: de.nav.projects },
     { href: '/app/calendar', label: de.nav.calendar },
+    // Kunden & Projekte sind verschmolzen: ein Kunde öffnet direkt sein Board
+    // (Kanban), Projekte sind weitere Boards innerhalb des Kunden.
     { href: '/app/clients', label: de.nav.clients },
     { href: '/app/leads', label: de.nav.leads },
 

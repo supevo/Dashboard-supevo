@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { listClientCompanies } from '@/features/client-companies/queries';
@@ -49,45 +49,45 @@ export default async function ClientsPage() {
         </div>
       </details>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{de.clients.title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {companies.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {de.clients.noClients}
-            </p>
-          ) : (
-            <ul className="divide-y">
-              {companies.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex items-center justify-between py-3"
+      {companies.length === 0 ? (
+        <Card>
+          <CardContent className="py-8">
+            <p className="text-sm text-muted-foreground">{de.clients.noClients}</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {companies.map((c) => (
+            <Link
+              key={c.id}
+              href={`/app/clients/${c.id}`}
+              className="group flex flex-col justify-between rounded-lg border bg-card p-4 transition hover:border-primary/40 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold group-hover:text-primary">{c.name}</p>
+                <ClientHealthDot health={healthMap.get(c.id)} />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {c.contactEmail ?? '—'}
+                </span>
+                <span
+                  className={
+                    c.isActive
+                      ? 'shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400'
+                      : 'shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground'
+                  }
                 >
-                  <div className="flex items-center gap-2">
-                    <ClientHealthDot health={healthMap.get(c.id)} />
-                    <div>
-                      <Link
-                        href={`/app/clients/${c.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {c.name}
-                      </Link>
-                      <div className="text-xs text-muted-foreground">
-                        {c.contactEmail ?? '—'}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {c.isActive ? de.clients.active : de.clients.inactive}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+                  {c.isActive ? de.clients.active : de.clients.inactive}
+                </span>
+              </div>
+              <span className="mt-3 text-xs font-medium text-primary opacity-0 transition group-hover:opacity-100">
+                Board öffnen →
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

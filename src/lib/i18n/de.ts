@@ -339,6 +339,7 @@ export const de = {
     resume: 'Aktivieren',
     paused: 'Pausiert',
     delete: 'Löschen',
+    manage: 'Verwalten',
     weekdays: [
       'Sonntag',
       'Montag',
