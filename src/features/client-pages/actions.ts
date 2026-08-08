@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
+import { sanitizeRichText } from '@/lib/sanitize';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 import {
@@ -102,10 +103,13 @@ export async function updateClientPageAction(
 
   await requireUser();
   const supabase = await createSupabaseServerClient();
+  // Sanitize the rich-text HTML before storage (strict allowlist – no script,
+  // styles, event handlers or javascript: URLs survive).
+  const cleanContent = content ? sanitizeRichText(content) : '';
   // RLS is the hard guard; an unauthorized update affects zero rows.
   const { error, count } = await supabase
     .from('client_pages')
-    .update({ title, content: content || '', status } as never, {
+    .update({ title, content: cleanContent, status } as never, {
       count: 'exact',
     })
     .eq('id', id);

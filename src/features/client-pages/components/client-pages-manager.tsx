@@ -10,7 +10,7 @@ import {
 import { idleResult } from '@/lib/action-result';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
@@ -80,15 +80,14 @@ function PageEditor({
   const router = useRouter();
 
   const [title, setTitle] = useState(page.title);
-  const [content, setContent] = useState(page.content);
   const [status, setStatus] = useState<ClientPageStatus>(page.status);
 
-  // Reseed local fields when a different page is selected.
+  // Reseed local fields when a different page is selected. The rich-text editor
+  // seeds itself from page.content on mount (PageEditor is keyed by page id).
   useEffect(() => {
     setTitle(page.title);
-    setContent(page.content);
     setStatus(page.status);
-  }, [page.id, page.title, page.content, page.status]);
+  }, [page.id, page.title, page.status]);
 
   useEffect(() => {
     if (saveState.status === 'success') router.refresh();
@@ -139,12 +138,10 @@ function PageEditor({
         </div>
 
         {!page.isFolder && (
-          <Textarea
+          <RichTextEditor
             name="content"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="Notizen, Entwurf, Ideen … (Markdown möglich)"
-            className="min-h-[320px] font-mono text-sm"
+            initialHtml={page.content}
+            placeholder="Notizen, Entwurf, Ideen …"
           />
         )}
         {page.isFolder && <input type="hidden" name="content" value="" />}
