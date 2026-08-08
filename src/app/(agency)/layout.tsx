@@ -29,8 +29,9 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
   return [
     heading('Arbeit'),
     { href: '/app', label: de.nav.dashboard },
-    { href: '/app/projects', label: de.nav.projects },
     { href: '/app/calendar', label: de.nav.calendar },
+    // Kunden & Projekte sind verschmolzen: ein Kunde öffnet direkt sein Board
+    // (Kanban), Projekte sind weitere Boards innerhalb des Kunden.
     { href: '/app/clients', label: de.nav.clients },
     { href: '/app/leads', label: de.nav.leads },
 
@@ -38,15 +39,16 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
     { href: '/app/reports', label: de.nav.reports },
 
     heading('Team & Motivation'),
-    { href: '/app/colleagues', label: de.nav.colleagues },
+    // Mitarbeiter sehen das Kollegen-Verzeichnis; Admins nutzen das Team-Radar
+    // (Namen dort sind mit den Profilen verlinkt).
     ...(admin
       ? [
           { href: '/app/team-radar', label: 'Team-Radar' },
-          { href: '/app/team', label: de.nav.team },
+          { href: '/app/team', label: 'Management' },
           { href: '/app/motivation', label: '🎯 Motivation' },
           { href: '/app/feedback', label: '💬 Feedback' },
         ]
-      : []),
+      : [{ href: '/app/colleagues', label: de.nav.colleagues }]),
 
     heading('Ressourcen'),
     { href: '/app/passwords', label: '🔐 Passwörter' },
@@ -59,7 +61,6 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
   { href: '/app/kudos', label: de.nav.levelHub },
-  { href: '/app/my-tasks', label: 'Meine Aufgaben' },
   { href: '/app/goals', label: de.goals.title },
   { href: '/app/absences', label: de.nav.absence },
   { href: '/app/notifications', label: de.nav.notifications },

@@ -2474,6 +2474,7 @@ export interface Database {
           clock_in: string;
           clock_out: string | null;
           status: WorkSessionStatus;
+          auto_closed: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -2484,6 +2485,7 @@ export interface Database {
           clock_in: string;
           clock_out?: string | null;
           status?: WorkSessionStatus;
+          auto_closed?: boolean;
         };
         Update: Partial<
           Database['public']['Tables']['work_sessions']['Insert']

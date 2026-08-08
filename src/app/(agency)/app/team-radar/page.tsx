@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { Tabs, type TabDef } from '@/components/ui/tabs';
@@ -97,7 +98,12 @@ function WorkloadRow({
           <Avatar userId={m.userId} name={name} hasAvatar={m.hasAvatar} size="md" />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate font-medium">{name}</span>
+              <Link
+                href={`/app/team/${m.userId}`}
+                className="truncate font-medium hover:text-primary hover:underline"
+              >
+                {name}
+              </Link>
               {absence && (
                 <span
                   className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700"
@@ -316,11 +322,18 @@ export default async function TeamRadarPage({
             {cockpitRows.map((r) => (
               <Card key={r.userId}>
                 <CardHeader className="flex flex-row items-center gap-3 space-y-0">
-                  <Avatar userId={r.userId} name={r.name} hasAvatar={r.hasAvatar} size="md" />
+                  <Link href={`/app/team/${r.userId}`}>
+                    <Avatar userId={r.userId} name={r.name} hasAvatar={r.hasAvatar} size="md" />
+                  </Link>
                   <div className="min-w-0 flex-1">
                     <CardTitle className="flex items-center gap-2 text-base">
                       <span className={cn('h-2.5 w-2.5 rounded-full', POINT_DOT[r.level])} />
-                      <span className="truncate">{r.name}</span>
+                      <Link
+                        href={`/app/team/${r.userId}`}
+                        className="truncate hover:text-primary hover:underline"
+                      >
+                        {r.name}
+                      </Link>
                       {r.absent && <span title={de.cockpit.absent}>🌴</span>}
                     </CardTitle>
                     <div className="text-xs text-muted-foreground">

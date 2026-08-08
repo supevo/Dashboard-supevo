@@ -41,6 +41,10 @@
     {
       "path": "/api/cron/birthdays",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/auto-clockout",
+      "schedule": "0 * * * *"
     }
   ]
 }

@@ -10,10 +10,9 @@ import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
-import { PulseWidget } from '@/features/pulse/components/pulse-widget';
 import { getMyPulse } from '@/features/pulse/queries';
 import { CoachingCard } from '@/features/coaching/components/coaching-card';
-import { formatMinutes, formatBerlinDateTime } from '@/lib/time';
+import { formatMinutes, formatBerlinDateTime, berlinWeekday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
 function StatTile({ label, value }: { label: string; value: string | number }) {
@@ -36,6 +35,9 @@ export default async function AgencyDashboardPage() {
     getWeeklyChallenges(user.id, orgId),
     showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
   ]);
+  // Der wöchentliche Stimmungscheck erscheint nur freitags beim Ausstempeln –
+  // und nur, wenn er diese Woche noch nicht ausgefüllt wurde.
+  const weeklyPulseDue = berlinWeekday() === 5 && !myPulse;
 
   return (
     <div className="space-y-6">
@@ -47,22 +49,27 @@ export default async function AgencyDashboardPage() {
           </p>
         </div>
         <div className="w-full rounded-lg border bg-card p-3 sm:w-auto sm:min-w-[280px]">
-          <WorkClock orgId={orgId} status={workStatus} />
+          <WorkClock
+            orgId={orgId}
+            status={workStatus}
+            weeklyPulseDue={weeklyPulseDue}
+            pulseInitial={myPulse}
+          />
         </div>
       </div>
 
-      {hours && <WorkHoursCard summary={hours} />}
-
-      <MorningBriefing
-        firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
-      />
-
-      <WeeklyChallengesCard weekly={weekly} />
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <PulseWidget initial={myPulse} />
-        <CoachingCard mode="me" />
+      {/* KI-Zusammenfassung links; rechts Arbeitszeit + Wochenchallenges. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <MorningBriefing
+          firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
+        />
+        <div className="space-y-6">
+          {hours && <WorkHoursCard summary={hours} />}
+          <WeeklyChallengesCard weekly={weekly} />
+        </div>
       </div>
+
+      <CoachingCard mode="me" />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />
@@ -87,7 +94,7 @@ export default async function AgencyDashboardPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>{de.dashboard.myActiveTasks}</CardTitle>
+            <CardTitle>Meine Aufgaben</CardTitle>
           </CardHeader>
           <CardContent>
             {d.myActive.length === 0 ? (

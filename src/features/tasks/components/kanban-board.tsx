@@ -1,7 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
 import { moveTaskAction } from '@/features/tasks/actions';
 import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
@@ -44,6 +51,7 @@ export function KanbanBoard({
   basePath = '/app/projects',
   expressPickMode = false,
   onExpressPick,
+  activeColumnFooter,
 }: {
   projectId: string;
   board: BoardView;
@@ -66,6 +74,9 @@ export function KanbanBoard({
    *  opening the task. The parent shows the badge/hint and handles the redeem. */
   expressPickMode?: boolean;
   onExpressPick?: (taskId: string) => void;
+  /** Rendered pinned at the bottom of the "active" (In Arbeit) column – used to
+   *  surface recurring-task templates without letting them clutter the queue. */
+  activeColumnFooter?: ReactNode;
 }) {
   const router = useRouter();
   const canDrag = canManage || canMove || reorderOnly;
@@ -583,6 +594,11 @@ export function KanbanBoard({
               {(canManage || canAddTask) && (
                 <AddTaskInline projectId={projectId} columnId={col.id} />
               )}
+
+              {/* Recurring templates live at the foot of the "In Arbeit" column:
+                  they are permanently-in-progress work, kept visually apart from
+                  the live cards above. */}
+              {col.columnKey === 'active' && activeColumnFooter}
             </div>
           );
         })}

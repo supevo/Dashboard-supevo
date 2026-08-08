@@ -36,6 +36,23 @@ import { AssetHubManager } from '@/features/assets/components/asset-hub-manager'
 import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
 import { ClientFolderLink } from '@/features/onedrive/components/client-folder-link';
 import { Tabs, type TabDef } from '@/components/ui/tabs';
+import {
+  SettingsDrawer,
+  type DrawerSection,
+} from '@/components/ui/settings-drawer';
+import {
+  ClientBoards,
+  type ClientBoardBundle,
+} from '@/features/tasks/components/client-boards';
+import {
+  listClientProjects,
+  getProject,
+  listProjectMembers,
+} from '@/features/projects/queries';
+import { getBoardView } from '@/features/tasks/queries';
+import { listRecurringTasks } from '@/features/recurring/queries';
+import { listMarketingReports } from '@/features/marketing-reports/queries';
+import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { getOnboarding } from '@/features/onboarding/queries';
@@ -43,23 +60,33 @@ import { OnboardingSetup } from '@/features/onboarding/components/onboarding-set
 import { getLegacySettings } from '@/features/legacy/queries';
 import { LegacySettingsForm } from '@/features/legacy/components/legacy-settings-form';
 import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
+import { ClientPagesManager } from '@/features/client-pages/components/client-pages-manager';
+import { listClientPages } from '@/features/client-pages/queries';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
+const TAB_KEYS = ['board', 'plan', 'pages', 'files'] as const;
+
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ clientCompanyId: string }>;
+  searchParams: Promise<{ tab?: string; board?: string }>;
 }) {
   const { clientCompanyId } = await params;
+  const { tab, board: boardParam } = await searchParams;
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
 
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  // Data every agency staffer may see — all independent, so fetch in parallel.
+  // All independent (general data + admin-only billing/OneDrive) → one parallel
+  // batch. Admin-only queries resolve to null/[] for normal staff, so nothing
+  // extra is fetched for them. Only the OneDrive folder mapping stays sequential
+  // because it depends on whether OneDrive is configured.
   const planYear = new Date().getFullYear();
   const [
     requests,
@@ -69,9 +96,18 @@ export default async function ClientDetailPage({
     inquiries,
     hub,
     marketingPlan,
+    marketingReports,
     onboarding,
     legacySettings,
     contacts,
+    membership,
+    billingEntity,
+    billingEntities,
+    invoices,
+    teamMembers,
+    oneDrive,
+    pages,
+    projectMetas,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -80,32 +116,55 @@ export default async function ClientDetailPage({
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
     getPlan(clientCompanyId, planYear),
+    listMarketingReports(clientCompanyId),
     getOnboarding(clientCompanyId, orgId),
     isAdmin ? getLegacySettings(clientCompanyId) : Promise.resolve(null),
     listClientContacts(orgId, clientCompanyId),
+    isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
+    isAdmin
+      ? getBillingEntityForClient(orgId, clientCompanyId)
+      : Promise.resolve(null),
+    isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
+    isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
+    isAdmin ? listTeamMembers(orgId) : Promise.resolve([]),
+    isAdmin ? getOneDriveStatus(orgId) : Promise.resolve(null),
+    listClientPages(clientCompanyId),
+    listClientProjects(orgId, clientCompanyId),
   ]);
 
-  // Billing is admin-only.
-  const [membership, billingEntity, billingEntities, invoices, teamMembers] = isAdmin
-    ? await Promise.all([
-        getClientMembership(clientCompanyId),
-        getBillingEntityForClient(orgId, clientCompanyId),
-        listBillingEntities(orgId),
-        listClientInvoices(clientCompanyId),
-        listTeamMembers(orgId),
-      ])
-    : [null, null, [], [], []];
-
   // OneDrive folder mapping (admin only; card hidden when not configured).
-  const oneDrive = isAdmin ? await getOneDriveStatus(orgId) : null;
   const oneDriveFolder = oneDrive?.configured
     ? await getClientFolder(orgId, clientCompanyId)
     : null;
 
-  const tabs: TabDef[] = [
+  // Assemble the board bundles for the merged client view (one per project).
+  const boardBundles = (
+    await Promise.all(
+      projectMetas.map(async (meta) => {
+        const [project, boardView, members, recurring] = await Promise.all([
+          getProject(meta.id),
+          getBoardView(meta.id),
+          listProjectMembers(meta.id),
+          listRecurringTasks(meta.id),
+        ]);
+        if (!project) return null;
+        return {
+          project,
+          board: boardView,
+          members,
+          recurring,
+        } satisfies ClientBoardBundle;
+      }),
+    )
+  ).filter((b): b is ClientBoardBundle => b !== null);
+
+  // Configuration lives behind the ⚙️ drawer so the tabs stay focused on the
+  // day-to-day work (Board · Marketingplan · Seiten · Dateien).
+  const drawerSections: DrawerSection[] = [
     {
       key: 'overview',
       label: 'Übersicht',
+      icon: '📊',
       content: (
         <>
           {isAdmin && (
@@ -122,7 +181,10 @@ export default async function ClientDetailPage({
                   clientCompanyId={clientCompanyId}
                   currentManagerId={company.accountManagerId}
                   currentSecondaryManagerId={company.secondaryAccountManagerId}
-                  staff={(teamMembers ?? []).map((m) => ({ userId: m.userId, name: m.name }))}
+                  staff={(teamMembers ?? []).map((m) => ({
+                    userId: m.userId,
+                    name: m.name,
+                  }))}
                 />
               </CardContent>
             </Card>
@@ -145,12 +207,25 @@ export default async function ClientDetailPage({
               <MonthlyReport clientCompanyId={clientCompanyId} />
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.marketingReport.agencyTitle}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ReportsManager
+                clientCompanyId={clientCompanyId}
+                reports={marketingReports}
+              />
+            </CardContent>
+          </Card>
         </>
       ),
     },
     {
       key: 'profile',
       label: 'Profil & Kontakte',
+      icon: '👤',
       content: (
         <>
           {isAdmin && (
@@ -211,6 +286,7 @@ export default async function ClientDetailPage({
     {
       key: 'onboarding',
       label: 'Onboarding',
+      icon: '🚀',
       content: (
         <Card>
           <CardHeader>
@@ -228,7 +304,8 @@ export default async function ClientDetailPage({
     },
     {
       key: 'requests',
-      label: 'Anfragen & Plan',
+      label: 'Anfragen',
+      icon: '📥',
       content: (
         <>
           <Card>
@@ -256,29 +333,171 @@ export default async function ClientDetailPage({
               <InquiryList inquiries={inquiries} />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
-                geben; akzeptierte Maßnahmen ins Kanban übernehmen.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <PlanManager
-                clientCompanyId={clientCompanyId}
-                plan={marketingPlan}
-                year={planYear}
-              />
-            </CardContent>
-          </Card>
         </>
+      ),
+    },
+    ...(isAdmin
+      ? [
+          {
+            key: 'billing',
+            label: 'Abrechnung',
+            icon: '💶',
+            content: (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Mitgliedschaft</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <MembershipForm
+                      orgId={orgId}
+                      clientCompanyId={clientCompanyId}
+                      membership={membership}
+                      settings={billingEntity}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rechnungssteller</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ClientBillingEntityForm
+                      orgId={orgId}
+                      clientCompanyId={clientCompanyId}
+                      entities={billingEntities}
+                      currentEntityId={company.billingEntityId}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rechnungen</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <InvoicesSection
+                      clientCompanyId={clientCompanyId}
+                      invoices={invoices}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>🏛️ Legacy-Kunde &amp; Paket</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Bestandskunde mit Website-/Betreuungspaket. Preis frei
+                      überschreibbar (Rabatte); Werbebudget nur bei Performance.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <LegacySettingsForm
+                      orgId={orgId}
+                      clientCompanyId={clientCompanyId}
+                      isLegacy={company.isLegacy}
+                      settings={legacySettings}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>🖨️ Drucksachen</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Legt fest, ob Druckprodukte dieses Kunden abgerechnet werden.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <PrintBillingToggle
+                      clientCompanyId={clientCompanyId}
+                      billPrint={company.billPrintProducts}
+                    />
+                  </CardContent>
+                </Card>
+              </>
+            ),
+          } satisfies DrawerSection,
+        ]
+      : []),
+    {
+      key: 'access',
+      label: 'Zugänge',
+      icon: '🔑',
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle>🔑 Zugänge</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
+              Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <AssetHubManager
+              clientCompanyId={clientCompanyId}
+              brands={hub.brands}
+              assets={hub.assets}
+              canReveal
+              secretVaultEnabled={isSecretVaultEnabled()}
+              variant="access"
+            />
+          </CardContent>
+        </Card>
+      ),
+    },
+  ];
+
+  const tabs: TabDef[] = [
+    {
+      key: 'board',
+      label: 'Board',
+      content: (
+        <ClientBoards
+          orgId={orgId}
+          clientCompanyId={clientCompanyId}
+          companyName={company.name}
+          bundles={boardBundles}
+          initialProjectId={boardParam}
+        />
+      ),
+    },
+    {
+      key: 'plan',
+      label: 'Marketingplan',
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
+              geben; akzeptierte Maßnahmen ins Kanban übernehmen.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <PlanManager
+              clientCompanyId={clientCompanyId}
+              plan={marketingPlan}
+              year={planYear}
+            />
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      key: 'pages',
+      label: 'Seiten',
+      content: (
+        <ClientPagesManager
+          clientCompanyId={clientCompanyId}
+          pages={pages}
+        />
       ),
     },
     {
       key: 'files',
-      label: 'Dateien & Marke',
+      label: 'Dateien',
       content: (
         <>
           <Card>
@@ -306,8 +525,8 @@ export default async function ClientDetailPage({
               <CardHeader>
                 <CardTitle>☁️ OneDrive-Kundenordner</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Verknüpfe den OneDrive-Ordner dieses Kunden. Hochgeladene Aufgaben-
-                  Dateien werden automatisch dorthin gespiegelt.
+                  Verknüpfe den OneDrive-Ordner dieses Kunden. Hochgeladene
+                  Aufgaben-Dateien werden automatisch dorthin gespiegelt.
                 </p>
               </CardHeader>
               <CardContent>
@@ -322,139 +541,35 @@ export default async function ClientDetailPage({
         </>
       ),
     },
-    {
-      key: 'access',
-      label: 'Zugänge',
-      content: (
-        <Card>
-          <CardHeader>
-            <CardTitle>🔑 Zugänge</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
-              Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <AssetHubManager
-              clientCompanyId={clientCompanyId}
-              brands={hub.brands}
-              assets={hub.assets}
-              canReveal
-              secretVaultEnabled={isSecretVaultEnabled()}
-              variant="access"
-            />
-          </CardContent>
-        </Card>
-      ),
-    },
   ];
 
-  if (isAdmin) {
-    // Abrechnung als eigener Reiter (nur Admin) – nach Onboarding einsortiert.
-    const billingTab: TabDef = {
-      key: 'billing',
-      label: 'Abrechnung',
-      content: (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle>Mitgliedschaft</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MembershipForm
-                orgId={orgId}
-                clientCompanyId={clientCompanyId}
-                membership={membership}
-                settings={billingEntity}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rechnungssteller</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ClientBillingEntityForm
-                orgId={orgId}
-                clientCompanyId={clientCompanyId}
-                entities={billingEntities}
-                currentEntityId={company.billingEntityId}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rechnungen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvoicesSection
-                clientCompanyId={clientCompanyId}
-                invoices={invoices}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>🏛️ Legacy-Kunde &amp; Paket</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Bestandskunde mit Website-/Betreuungspaket. Preis frei
-                überschreibbar (Rabatte); Werbebudget nur bei Performance.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <LegacySettingsForm
-                orgId={orgId}
-                clientCompanyId={clientCompanyId}
-                isLegacy={company.isLegacy}
-                settings={legacySettings}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>🖨️ Drucksachen</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Legt fest, ob Druckprodukte dieses Kunden abgerechnet werden.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <PrintBillingToggle
-                clientCompanyId={clientCompanyId}
-                billPrint={company.billPrintProducts}
-              />
-            </CardContent>
-          </Card>
-        </>
-      ),
-    };
-    // Reihenfolge: Übersicht · Profil · Onboarding · Abrechnung · Anfragen · Dateien · Zugänge
-    tabs.splice(3, 0, billingTab);
-  }
+  const initialTab = TAB_KEYS.includes(tab as (typeof TAB_KEYS)[number])
+    ? tab
+    : 'board';
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/app/clients"
-          className="text-sm text-primary hover:underline"
-        >
-          ← {de.clients.back}
-        </Link>
-        <div className="mt-2 flex items-center gap-2">
-          <h1 className="text-2xl font-bold">{company.name}</h1>
-          <ClientHealthDot health={healthMap.get(clientCompanyId)} showLabel />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <Link
+            href="/app/clients"
+            className="text-sm text-primary hover:underline"
+          >
+            ← {de.clients.back}
+          </Link>
+          <div className="mt-2 flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{company.name}</h1>
+            <ClientHealthDot health={healthMap.get(clientCompanyId)} showLabel />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {company.contactEmail ?? '—'} ·{' '}
+            {company.isActive ? de.clients.active : de.clients.inactive}
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {company.contactEmail ?? '—'} ·{' '}
-          {company.isActive ? de.clients.active : de.clients.inactive}
-        </p>
+        <SettingsDrawer sections={drawerSections} />
       </div>
 
-      <Tabs tabs={tabs} />
+      <Tabs tabs={tabs} initialKey={initialTab} />
     </div>
   );
 }

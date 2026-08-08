@@ -18,7 +18,7 @@ export default async function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">{de.team.title}</h1>
+      <h1 className="text-2xl font-bold">Management</h1>
 
       <Card>
         <CardHeader>

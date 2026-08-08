@@ -19,16 +19,22 @@ const MOODS = [
 
 export function PulseWidget({
   initial,
+  onDone,
 }: {
   initial: { mood: number; comment: string | null } | null;
+  /** Called after a successful submit – e.g. to close the Friday clock-out popup. */
+  onDone?: () => void;
 }) {
   const [mood, setMood] = useState<number>(initial?.mood ?? 0);
   const [state, action] = useActionState(setPulseAction, idleResult);
   const router = useRouter();
 
   useEffect(() => {
-    if (state.status === 'success') router.refresh();
-  }, [state, router]);
+    if (state.status === 'success') {
+      router.refresh();
+      onDone?.();
+    }
+  }, [state, router, onDone]);
 
   return (
     <Card>

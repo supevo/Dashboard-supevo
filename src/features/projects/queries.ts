@@ -32,6 +32,34 @@ export async function listProjects(orgId: string): Promise<ProjectListItem[]> {
   }));
 }
 
+/**
+ * Lists a single client's projects (= boards), oldest first. The order matters:
+ * the first board is the client's "primary" board – the only one exposed in the
+ * portal unless another is explicitly released. RLS-scoped.
+ */
+export async function listClientProjects(
+  orgId: string,
+  clientCompanyId: string,
+): Promise<ProjectListItem[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('projects')
+    .select('id, name, status, client_company_id, is_client_visible, due_date')
+    .eq('organization_id', orgId)
+    .eq('client_company_id', clientCompanyId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true });
+
+  return (data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    status: p.status,
+    clientCompanyId: p.client_company_id,
+    isClientVisible: p.is_client_visible,
+    dueDate: p.due_date,
+  }));
+}
+
 export interface ProjectDetail extends ProjectListItem {
   description: string | null;
   organizationId: string;

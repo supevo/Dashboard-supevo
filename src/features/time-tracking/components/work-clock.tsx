@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   clockInAction,
@@ -13,14 +13,21 @@ import { de } from '@/lib/i18n/de';
 import { formatMinutes } from '@/lib/time';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
+import { PulseWidget } from '@/features/pulse/components/pulse-widget';
 import type { WorkStatus } from '@/features/time-tracking/queries';
 
 export function WorkClock({
   orgId,
   status,
+  weeklyPulseDue = false,
+  pulseInitial = null,
 }: {
   orgId: string;
   status: WorkStatus;
+  /** True on Fridays when the weekly pulse hasn't been submitted yet – the
+   *  "Wie war deine Woche?"-check then pops up once the person clocks out. */
+  weeklyPulseDue?: boolean;
+  pulseInitial?: { mood: number; comment: string | null } | null;
 }) {
   const [inState, inAction] = useActionState(clockInAction, idleResult);
   const [outState, outAction] = useActionState(
@@ -36,6 +43,7 @@ export function WorkClock({
     idleResult,
   );
   const router = useRouter();
+  const [showPulse, setShowPulse] = useState(false);
 
   const anyError =
     [inState, outState, startBreakState, endBreakState].find(
@@ -51,6 +59,11 @@ export function WorkClock({
       router.refresh();
     }
   }, [inState, outState, startBreakState, endBreakState, router]);
+
+  // On a Friday clock-out, surface the weekly "Wie war deine Woche?"-check once.
+  useEffect(() => {
+    if (outState.status === 'success' && weeklyPulseDue) setShowPulse(true);
+  }, [outState, weeklyPulseDue]);
 
   const statusLabel = !status.openSessionId
     ? de.time.statusClockedOut
@@ -100,6 +113,36 @@ export function WorkClock({
           </>
         )}
       </div>
+
+      {showPulse && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            aria-label={de.common.close}
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowPulse(false)}
+          />
+          <div className="relative w-full max-w-md">
+            <PulseWidget
+              initial={pulseInitial}
+              onDone={() => setShowPulse(false)}
+            />
+            <div className="mt-2 text-center">
+              <button
+                type="button"
+                onClick={() => setShowPulse(false)}
+                className="text-xs text-muted-foreground hover:underline"
+              >
+                Später
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
