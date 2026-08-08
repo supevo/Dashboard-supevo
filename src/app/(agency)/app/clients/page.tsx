@@ -3,7 +3,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { listClientCompanies } from '@/features/client-companies/queries';
-import { CreateClientForm } from '@/features/client-companies/components/create-client-form';
 import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { listProjects } from '@/features/projects/queries';
@@ -35,7 +34,7 @@ export default async function ClientsPage() {
             href="/app/clients/new"
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            + Neuer Kunde (geführt)
+            + Neuer Kunde
           </Link>
           {isAdmin && (
             <Link
@@ -47,17 +46,6 @@ export default async function ClientsPage() {
           )}
         </div>
       </div>
-
-      {/* Schnellanlage (nur Stammdaten) – der geführte Flow oben führt durch
-          Kunde → Mitgliedschaft → Vertrag. */}
-      <details className="rounded-lg border bg-card">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-          {de.clients.create} (schnell, nur Stammdaten)
-        </summary>
-        <div className="border-t p-4">
-          <CreateClientForm orgId={orgId} />
-        </div>
-      </details>
 
       {companies.length === 0 ? (
         <Card>
