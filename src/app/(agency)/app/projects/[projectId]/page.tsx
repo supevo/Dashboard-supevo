@@ -27,18 +27,20 @@ export default async function ProjectDetailPage({
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, members, healthMap] = await Promise.all([
-    getBoardView(projectId),
-    listProjectMembers(projectId),
-    getProjectHealthMap(orgId),
-  ]);
-  // Recurring tasks: every staff member may SEE them (read-only); only managers
-  // get the pause/delete controls.
-  const recurring = await listRecurringTasks(projectId);
+  // All independent of each other → one parallel batch (project is already
+  // loaded, so its clientCompanyId is known here). Recurring tasks: every staff
+  // member may SEE them (read-only); only managers get the pause/delete controls.
   // Wochenberichte (SEO/SEA/Anfragen) leben jetzt komplett hier im Projekt.
-  const marketingReports = project.clientCompanyId
-    ? await listMarketingReports(project.clientCompanyId)
-    : [];
+  const [board, members, healthMap, recurring, marketingReports] =
+    await Promise.all([
+      getBoardView(projectId),
+      listProjectMembers(projectId),
+      getProjectHealthMap(orgId),
+      listRecurringTasks(projectId),
+      project.clientCompanyId
+        ? listMarketingReports(project.clientCompanyId)
+        : Promise.resolve([]),
+    ]);
 
   return (
     <div className="space-y-6">

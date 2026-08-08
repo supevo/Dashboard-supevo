@@ -18,16 +18,20 @@ export default async function SettingsPage({
   searchParams: Promise<{ onedrive?: string; od_reason?: string; od_detail?: string }>;
 }) {
   const { orgId } = await requireOrgAdminPage();
-  const org = await getOrganization(orgId);
+  // Independent → parallel. Org and OneDrive-Status don't depend on each other.
+  const [org, oneDriveStatus, sp, cookieStore] = await Promise.all([
+    getOrganization(orgId),
+    getOneDriveStatus(orgId),
+    searchParams,
+    cookies(),
+  ]);
   if (!org) return null;
 
   const aiOn = isAiEnabled();
   const aiLabel = aiModelLabel();
-  const oneDriveStatus = await getOneDriveStatus(orgId);
-  const sp = await searchParams;
   const oneDriveParam = sp.onedrive;
 
-  const brand = resolveBrand((await cookies()).get(BRAND_COOKIE)?.value);
+  const brand = resolveBrand(cookieStore.get(BRAND_COOKIE)?.value);
 
   return (
     <div className="space-y-6">

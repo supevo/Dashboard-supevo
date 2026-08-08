@@ -59,7 +59,10 @@ export default async function ClientDetailPage({
   const company = await getClientCompany(orgId, clientCompanyId);
   if (!company) notFound();
 
-  // Data every agency staffer may see — all independent, so fetch in parallel.
+  // All independent (general data + admin-only billing/OneDrive) → one parallel
+  // batch. Admin-only queries resolve to null/[] for normal staff, so nothing
+  // extra is fetched for them. Only the OneDrive folder mapping stays sequential
+  // because it depends on whether OneDrive is configured.
   const planYear = new Date().getFullYear();
   const [
     requests,
@@ -72,6 +75,12 @@ export default async function ClientDetailPage({
     onboarding,
     legacySettings,
     contacts,
+    membership,
+    billingEntity,
+    billingEntities,
+    invoices,
+    teamMembers,
+    oneDrive,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -83,21 +92,15 @@ export default async function ClientDetailPage({
     getOnboarding(clientCompanyId, orgId),
     isAdmin ? getLegacySettings(clientCompanyId) : Promise.resolve(null),
     listClientContacts(orgId, clientCompanyId),
+    isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
+    isAdmin ? getBillingEntityForClient(orgId, clientCompanyId) : Promise.resolve(null),
+    isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
+    isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
+    isAdmin ? listTeamMembers(orgId) : Promise.resolve([]),
+    isAdmin ? getOneDriveStatus(orgId) : Promise.resolve(null),
   ]);
 
-  // Billing is admin-only.
-  const [membership, billingEntity, billingEntities, invoices, teamMembers] = isAdmin
-    ? await Promise.all([
-        getClientMembership(clientCompanyId),
-        getBillingEntityForClient(orgId, clientCompanyId),
-        listBillingEntities(orgId),
-        listClientInvoices(clientCompanyId),
-        listTeamMembers(orgId),
-      ])
-    : [null, null, [], [], []];
-
   // OneDrive folder mapping (admin only; card hidden when not configured).
-  const oneDrive = isAdmin ? await getOneDriveStatus(orgId) : null;
   const oneDriveFolder = oneDrive?.configured
     ? await getClientFolder(orgId, clientCompanyId)
     : null;

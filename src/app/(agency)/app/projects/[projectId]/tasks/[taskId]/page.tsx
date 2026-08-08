@@ -53,10 +53,9 @@ export default async function TaskDetailPage({
   const task = await getTaskDetail(taskId);
   if (!task || task.projectId !== projectId) notFound();
 
-  const oneDrive = await getOneDriveStatus(orgId);
-
   // All of these are independent → fetch in parallel (was ~10 sequential
-  // round-trips, one of the slowest pages in the app).
+  // round-trips, one of the slowest pages in the app). OneDrive-Status hängt
+  // nur an orgId und läuft im selben Batch mit.
   const [
     comments,
     files,
@@ -72,6 +71,7 @@ export default async function TaskDetailPage({
     actualMinutes,
     taskActivity,
     taskViewStats,
+    oneDrive,
   ] = await Promise.all([
     listTaskComments(taskId, user.id),
     listTaskFiles(taskId, user.id),
@@ -87,6 +87,7 @@ export default async function TaskDetailPage({
     getTaskActualMinutes(taskId),
     listTaskActivity(taskId),
     getTaskViewStats(taskId),
+    getOneDriveStatus(orgId),
   ]);
   const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
