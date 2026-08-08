@@ -214,6 +214,7 @@ export const de = {
     archiveHint: 'Nur zur Ansicht',
     archiveEmpty: 'Keine archivierten Aufgaben.',
     unarchive: 'Aus Archiv holen',
+    unarchiveHint: 'Zum Wiederherstellen auf eine Spalte ziehen',
     expand: 'Aufklappen',
     collapse: 'Zuklappen',
     wipLimitTotal:

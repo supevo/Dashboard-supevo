@@ -22,7 +22,6 @@ import { LabelChip } from '@/components/ui/label-chip';
 import { ClientNotifyButton } from '@/features/tasks/components/client-notify-button';
 import { Avatar } from '@/components/ui/avatar';
 import type { BoardColumn, BoardTask, BoardView } from '@/features/tasks/queries';
-import type { TaskPriority } from '@/lib/database.types';
 
 interface Member {
   userId: string;
@@ -92,6 +91,8 @@ export function KanbanBoard({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [archiveCollapsed, setArchiveCollapsed] = useState(true);
   const [archiveHover, setArchiveHover] = useState(false);
+  // Id of an archived card currently being dragged OUT of the archive.
+  const [dragArchivedId, setDragArchivedId] = useState<string | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [dragOver, setDragOver] = useState<{
     columnId: string;
@@ -105,13 +106,12 @@ export function KanbanBoard({
     setColumns(board.columns);
   }, [board]);
 
-  // Filters
+  // Filters. Priority is expressed by queue order (not a field), so there is no
+  // priority filter; a "blocked only" filter added little, so it's gone too.
   const [assignee, setAssignee] = useState('all');
-  const [priority, setPriority] = useState('all');
   const [labelFilter, setLabelFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [onlyOverdue, setOnlyOverdue] = useState(false);
-  const [onlyBlocked, setOnlyBlocked] = useState(false);
 
   // Distinct labels present on the board, for the filter dropdown.
   const availableLabels = useMemo(() => {
@@ -127,11 +127,9 @@ export function KanbanBoard({
   const matchesFilters = useMemo(
     () =>
       (task: BoardTask): boolean => {
-        if (priority !== 'all' && task.priority !== priority) return false;
         if (search && !task.title.toLowerCase().includes(search.toLowerCase()))
           return false;
         if (onlyOverdue && !isOverdue(task.dueDate)) return false;
-        if (onlyBlocked && !task.isBlocked) return false;
         if (
           labelFilter !== 'all' &&
           !task.labels.some((l) => l.id === labelFilter)
@@ -146,7 +144,7 @@ export function KanbanBoard({
           return false;
         return true;
       },
-    [assignee, priority, labelFilter, search, onlyOverdue, onlyBlocked],
+    [assignee, labelFilter, search, onlyOverdue],
   );
 
   function findTask(taskId: string): BoardTask | undefined {
@@ -262,6 +260,14 @@ export function KanbanBoard({
   ) {
     e.preventDefault();
     e.stopPropagation();
+    // Dropping an archived card onto a column's cards → restore it.
+    if (dragArchivedId) {
+      const id = dragArchivedId;
+      setDragArchivedId(null);
+      setDragOver(null);
+      void unarchiveTask(id);
+      return;
+    }
     const taskId = dragTaskId;
     setDragTaskId(null);
     setDragOver(null);
@@ -333,6 +339,14 @@ export function KanbanBoard({
 
   /** Drop over the column background: append to the end of the column. */
   function handleDropOnColumn(targetColumnId: string) {
+    // Dragging a card out of the archive onto a column → restore it.
+    if (dragArchivedId) {
+      const id = dragArchivedId;
+      setDragArchivedId(null);
+      setDragOver(null);
+      void unarchiveTask(id);
+      return;
+    }
     const taskId = dragTaskId;
     setDragTaskId(null);
     setDragOver(null);
@@ -369,18 +383,6 @@ export function KanbanBoard({
             </option>
           ))}
         </Select>
-        <Select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          className="h-9 w-auto"
-        >
-          <option value="all">{de.kanban.filterPriority}: {de.kanban.all}</option>
-          {(['urgent', 'high', 'medium', 'low'] as TaskPriority[]).map((p) => (
-            <option key={p} value={p}>
-              {de.priority[p]}
-            </option>
-          ))}
-        </Select>
         {availableLabels.length > 0 && (
           <Select
             value={labelFilter}
@@ -404,14 +406,6 @@ export function KanbanBoard({
             onChange={(e) => setOnlyOverdue(e.target.checked)}
           />
           {de.kanban.onlyOverdue}
-        </label>
-        <label className="flex items-center gap-1 text-sm">
-          <input
-            type="checkbox"
-            checked={onlyBlocked}
-            onChange={(e) => setOnlyBlocked(e.target.checked)}
-          />
-          {de.kanban.onlyBlocked}
         </label>
       </div>
 
@@ -736,28 +730,31 @@ export function KanbanBoard({
                 board.archived.map((task) => (
                   <div
                     key={task.id}
-                    className="flex items-center gap-1 rounded-lg border border-border bg-card/60 p-2 shadow-sm"
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                    role="button"
+                    tabIndex={0}
+                    draggable={canArchive}
+                    onDragStart={() => setDragArchivedId(task.id)}
+                    onDragEnd={() => setDragArchivedId(null)}
+                    onClick={() =>
+                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        router.push(
+                          `${basePath}/${projectId}/tasks/${task.id}`,
+                        );
                       }
-                      className="min-w-0 flex-1 text-left text-sm font-medium text-muted-foreground line-through hover:text-foreground"
-                    >
-                      <span className="block truncate">{task.title}</span>
-                    </button>
-                    {canArchive && (
-                      <button
-                        type="button"
-                        onClick={() => void unarchiveTask(task.id)}
-                        title={de.kanban.unarchive}
-                        aria-label={de.kanban.unarchive}
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground"
-                      >
-                        ↩
-                      </button>
+                    }}
+                    title={canArchive ? de.kanban.unarchiveHint : undefined}
+                    className={cn(
+                      'rounded-lg border border-border bg-card/60 p-2.5 text-left shadow-sm hover:bg-card',
+                      canArchive && 'cursor-grab active:cursor-grabbing',
                     )}
+                  >
+                    <div className="text-sm font-medium text-muted-foreground line-through">
+                      {task.title}
+                    </div>
                   </div>
                 ))
               )}
