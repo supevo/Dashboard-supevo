@@ -60,7 +60,6 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
 const MENU_ITEMS: UserMenuItem[] = [
   { href: '/app/profile', label: de.nav.profile },
   { href: '/app/kudos', label: de.nav.levelHub },
-  { href: '/app/my-tasks', label: 'Meine Aufgaben' },
   { href: '/app/goals', label: de.goals.title },
   { href: '/app/absences', label: de.nav.absence },
   { href: '/app/notifications', label: de.nav.notifications },
