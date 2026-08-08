@@ -150,13 +150,17 @@ export async function getClientDashboard(): Promise<ClientDashboard> {
 
   const openTasks: ClientTaskRef[] = [];
   const inProgressTasks: ClientTaskRef[] = [];
+  const reviewTasks: ClientTaskRef[] = [];
   const completedRecent: DashboardTaskRef[] = [];
   for (const t of tasks ?? []) {
     const key = keyByColumn.get(t.column_id);
     if (key === 'queue') {
       openTasks.push({ id: t.id, title: t.title, projectId: t.project_id });
-    } else if (key === 'active' || key === 'review') {
+    } else if (key === 'active') {
       inProgressTasks.push({ id: t.id, title: t.title, projectId: t.project_id });
+    } else if (key === 'review') {
+      // "In Kundenüberprüfung" = faktisch auf Freigabe wartend.
+      reviewTasks.push({ id: t.id, title: t.title, projectId: t.project_id });
     } else if (key === 'done' && completedRecent.length < 8) {
       completedRecent.push({ id: t.id, title: t.title });
     }
@@ -167,11 +171,22 @@ export async function getClientDashboard(): Promise<ClientDashboard> {
     .select('task_id, title, project_id')
     .eq('status', 'pending')
     .limit(100);
-  const toApproveTasks: ClientTaskRef[] = (approvals ?? []).map((a) => ({
+  const approvalTasks: ClientTaskRef[] = (approvals ?? []).map((a) => ({
     id: a.task_id,
     title: a.title,
     projectId: a.project_id,
   }));
+
+  // "Zur Freigabe" bündelt beides: formale Freigaben UND Aufgaben in der
+  // Kundenüberprüfung-Spalte. Nach Task-Id dedupliziert, damit eine Aufgabe mit
+  // beidem nicht doppelt zählt.
+  const seen = new Set<string>();
+  const toApproveTasks: ClientTaskRef[] = [];
+  for (const t of [...approvalTasks, ...reviewTasks]) {
+    if (!t.id || seen.has(t.id)) continue;
+    seen.add(t.id);
+    toApproveTasks.push(t);
+  }
 
   return {
     openCount: openTasks.length,

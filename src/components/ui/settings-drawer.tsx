@@ -28,6 +28,23 @@ export function SettingsDrawer({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(sections[0]?.key ?? '');
 
+  // Keep the off-canvas panel OUT of the DOM while closed – a fixed element
+  // parked at translate-x-full sits past the right edge and adds a stray
+  // scrollbar to the page. `visible` mounts it; `slid` drives the transition.
+  const [visible, setVisible] = useState(false);
+  const [slid, setSlid] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVisible(true);
+      const id = requestAnimationFrame(() => setSlid(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setSlid(false);
+    const t = setTimeout(() => setVisible(false), 300);
+    return () => clearTimeout(t);
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -48,26 +65,28 @@ export function SettingsDrawer({
         {label}
       </button>
 
-      {/* Scrim */}
-      <div
-        aria-hidden
-        onClick={() => setOpen(false)}
-        className={cn(
-          'fixed inset-0 z-40 bg-black/40 transition-opacity',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0',
-        )}
-      />
+      {visible && (
+        <>
+          {/* Scrim */}
+          <div
+            aria-hidden
+            onClick={() => setOpen(false)}
+            className={cn(
+              'fixed inset-0 z-40 bg-black/40 transition-opacity duration-300',
+              slid ? 'opacity-100' : 'opacity-0',
+            )}
+          />
 
-      {/* Panel */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        className={cn(
-          'fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l bg-card shadow-2xl transition-transform duration-300',
-          open ? 'translate-x-0' : 'translate-x-full',
-        )}
-      >
+          {/* Panel */}
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
+            className={cn(
+              'fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l bg-card shadow-2xl transition-transform duration-300',
+              slid ? 'translate-x-0' : 'translate-x-full',
+            )}
+          >
         <header className="flex items-center justify-between border-b px-5 py-4">
           <h2 className="flex items-center gap-2 text-base font-semibold">
             <Settings className="h-4 w-4" /> {label}
@@ -115,7 +134,9 @@ export function SettingsDrawer({
             ))}
           </div>
         </div>
-      </aside>
+          </aside>
+        </>
+      )}
     </>
   );
 }

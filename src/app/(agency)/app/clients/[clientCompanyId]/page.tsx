@@ -61,7 +61,7 @@ import { getLegacySettings } from '@/features/legacy/queries';
 import { LegacySettingsForm } from '@/features/legacy/components/legacy-settings-form';
 import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
 import { ClientPagesManager } from '@/features/client-pages/components/client-pages-manager';
-import { listClientPages } from '@/features/client-pages/queries';
+import { listClientPages, listClientTaskOptions } from '@/features/client-pages/queries';
 import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
@@ -108,6 +108,7 @@ export default async function ClientDetailPage({
     oneDrive,
     pages,
     projectMetas,
+    taskOptions,
   ] = await Promise.all([
     listClientRequests(clientCompanyId),
     getClientHealthMap(orgId),
@@ -130,6 +131,7 @@ export default async function ClientDetailPage({
     isAdmin ? getOneDriveStatus(orgId) : Promise.resolve(null),
     listClientPages(clientCompanyId),
     listClientProjects(orgId, clientCompanyId),
+    listClientTaskOptions(clientCompanyId),
   ]);
 
   // OneDrive folder mapping (admin only; card hidden when not configured).
@@ -492,6 +494,7 @@ export default async function ClientDetailPage({
         <ClientPagesManager
           clientCompanyId={clientCompanyId}
           pages={pages}
+          taskOptions={taskOptions}
         />
       ),
     },

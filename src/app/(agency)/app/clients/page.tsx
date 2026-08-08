@@ -3,20 +3,22 @@ import { Card, CardContent } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { listClientCompanies } from '@/features/client-companies/queries';
-import { CreateClientForm } from '@/features/client-companies/components/create-client-form';
 import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { listProjects } from '@/features/projects/queries';
 import { ProjectCover } from '@/features/projects/components/project-cover';
+import { getLegacyClientPackages } from '@/features/legacy/queries';
+import { LEGACY_PACKAGE_INFO } from '@/features/legacy/packages';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientsPage() {
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
-  const [companies, healthMap, projects] = await Promise.all([
+  const [companies, healthMap, projects, legacyPackages] = await Promise.all([
     listClientCompanies(orgId),
     getClientHealthMap(orgId),
     listProjects(orgId),
+    getLegacyClientPackages(orgId),
   ]);
 
   // Cover per client = its primary (oldest) board's cover. listProjects is
@@ -25,6 +27,11 @@ export default async function ClientsPage() {
   for (const p of projects) {
     primaryProject.set(p.clientCompanyId, { id: p.id, name: p.name });
   }
+
+  // Legacy clients (Bestandskunden mit Paket) get their own compact section
+  // below the regular clients – as in the former projects gallery.
+  const normalCompanies = companies.filter((c) => !legacyPackages.has(c.id));
+  const legacyCompanies = companies.filter((c) => legacyPackages.has(c.id));
 
   return (
     <div className="space-y-6">
@@ -35,7 +42,7 @@ export default async function ClientsPage() {
             href="/app/clients/new"
             className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            + Neuer Kunde (geführt)
+            + Neuer Kunde
           </Link>
           {isAdmin && (
             <Link
@@ -48,17 +55,6 @@ export default async function ClientsPage() {
         </div>
       </div>
 
-      {/* Schnellanlage (nur Stammdaten) – der geführte Flow oben führt durch
-          Kunde → Mitgliedschaft → Vertrag. */}
-      <details className="rounded-lg border bg-card">
-        <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
-          {de.clients.create} (schnell, nur Stammdaten)
-        </summary>
-        <div className="border-t p-4">
-          <CreateClientForm orgId={orgId} />
-        </div>
-      </details>
-
       {companies.length === 0 ? (
         <Card>
           <CardContent className="py-8">
@@ -66,54 +62,109 @@ export default async function ClientsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {companies.map((c) => {
-            const cover = primaryProject.get(c.id);
-            return (
-              <Link
-                key={c.id}
-                href={`/app/clients/${c.id}`}
-                className="group flex flex-col overflow-hidden rounded-lg border bg-card transition hover:border-primary/40 hover:shadow-md"
-              >
-                {cover ? (
-                  <ProjectCover
-                    projectId={cover.id}
-                    name={c.name}
-                    className="h-32 w-full rounded-none"
-                  />
-                ) : (
-                  <div className="flex h-32 w-full items-center justify-center bg-primary/15 text-primary">
-                    <span className="text-2xl font-semibold">
-                      {c.name.trim().charAt(0).toUpperCase() || '#'}
-                    </span>
-                  </div>
-                )}
-                <div className="flex flex-1 flex-col p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold group-hover:text-primary">
-                      {c.name}
-                    </p>
-                    <ClientHealthDot health={healthMap.get(c.id)} />
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                      {c.contactEmail ?? '—'}
-                    </span>
-                    <span
-                      className={
-                        c.isActive
-                          ? 'shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400'
-                          : 'shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground'
-                      }
+        <>
+          {normalCompanies.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {normalCompanies.map((c) => {
+                const cover = primaryProject.get(c.id);
+                return (
+                  <Link
+                    key={c.id}
+                    href={`/app/clients/${c.id}`}
+                    className="group flex flex-col overflow-hidden rounded-lg border bg-card transition hover:border-primary/40 hover:shadow-md"
+                  >
+                    {cover ? (
+                      <ProjectCover
+                        projectId={cover.id}
+                        name={c.name}
+                        className="h-32 w-full rounded-none"
+                      />
+                    ) : (
+                      <div className="flex h-32 w-full items-center justify-center bg-primary/15 text-primary">
+                        <span className="text-2xl font-semibold">
+                          {c.name.trim().charAt(0).toUpperCase() || '#'}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-1 flex-col p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold group-hover:text-primary">
+                          {c.name}
+                        </p>
+                        <ClientHealthDot health={healthMap.get(c.id)} />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <span className="min-w-0 truncate text-xs text-muted-foreground">
+                          {c.contactEmail ?? '—'}
+                        </span>
+                        <span
+                          className={
+                            c.isActive
+                              ? 'shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400'
+                              : 'shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground'
+                          }
+                        >
+                          {c.isActive ? de.clients.active : de.clients.inactive}
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {legacyCompanies.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  🏛️ Legacy-Kunden
+                </h2>
+                <span className="text-xs text-muted-foreground">
+                  ({legacyCompanies.length})
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                {legacyCompanies.map((c) => {
+                  const cover = primaryProject.get(c.id);
+                  const pkg = legacyPackages.get(c.id);
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/app/clients/${c.id}`}
+                      className="group flex items-center gap-3 rounded-md border bg-card px-3 py-2 transition hover:shadow-sm"
                     >
-                      {c.isActive ? de.clients.active : de.clients.inactive}
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                      {cover ? (
+                        <ProjectCover
+                          projectId={cover.id}
+                          name={c.name}
+                          className="h-10 w-14 shrink-0 rounded"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded bg-primary/15 text-primary">
+                          <span className="text-sm font-semibold">
+                            {c.name.trim().charAt(0).toUpperCase() || '#'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="truncate text-sm font-medium group-hover:text-primary">
+                            {c.name}
+                          </p>
+                          <ClientHealthDot health={healthMap.get(c.id)} />
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {pkg ? LEGACY_PACKAGE_INFO[pkg].label : 'Legacy'}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
