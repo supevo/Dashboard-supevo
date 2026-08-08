@@ -46,9 +46,19 @@ export function WorkHoursCard({ summary }: { summary: WeeklyWorkSummary }) {
     <div className="rounded-lg border bg-card p-4">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-sm font-semibold">🕒 Arbeitszeit diese Woche</span>
-        <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', s.badge)}>
-          {s.label}
-        </span>
+        <div className="flex items-center gap-2">
+          {summary.workStreak > 0 && (
+            <span
+              className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 dark:bg-orange-500/20 dark:text-orange-300"
+              title="Aufeinanderfolgende Arbeitstage mit korrektem Ausstempeln. Vergisst du auszustempeln, reißt die Serie."
+            >
+              🔥 {summary.workStreak}-Tage-Streak
+            </span>
+          )}
+          <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', s.badge)}>
+            {s.label}
+          </span>
+        </div>
       </div>
 
       <div className="mb-1 flex items-baseline gap-2">

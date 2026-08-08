@@ -5,7 +5,12 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
 import { bumpCounter } from '@/features/gamification/actions';
-import { startOfBerlinDayUtc } from '@/lib/time';
+import { autoCloseSession } from '@/features/time-tracking/auto-close';
+import {
+  awardWorkdayXp,
+  WORKDAY_MIN_NET_MINUTES,
+} from '@/features/gamification/work-xp';
+import { startOfBerlinDayUtc, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -18,13 +23,12 @@ const orgSchema = z.object({ orgId: z.string().uuid() });
 /**
  * A forgotten clock-out leaves a session open for days. The status widget only
  * looks at today's sessions, so it shows "clocked out" while the stale row is
- * still open – blocking a new clock-in (unique open-session index). To recover,
- * we auto-close any session left open from a previous day, crediting at most a
- * normal workday so days of runtime are not counted. Employees/admins can adjust
+ * still open – blocking a new clock-in (unique open-session index). On the next
+ * clock-in we recover by auto-closing any session left open from a previous day
+ * (crediting a normal 8 h workday, marking it auto-closed and notifying the
+ * employee – same path the hourly cron uses). Employees/admins can still adjust
  * via a manual entry if needed.
  */
-const AUTO_CLOSE_CAP_MINUTES = 8 * 60;
-
 async function autoCloseStaleSession(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   userId: string,
@@ -32,29 +36,14 @@ async function autoCloseStaleSession(
   const dayStart = startOfBerlinDayUtc();
   const { data: open } = await supabase
     .from('work_sessions')
-    .select('id, clock_in')
+    .select('id, organization_id, user_id, clock_in')
     .eq('user_id', userId)
     .is('clock_out', null)
     .lt('clock_in', dayStart) // only sessions NOT started today
     .maybeSingle();
   if (!open) return;
 
-  const cappedMs = Math.min(
-    Date.now(),
-    Date.parse(open.clock_in) + AUTO_CLOSE_CAP_MINUTES * 60_000,
-  );
-  const clockOut = new Date(cappedMs).toISOString();
-
-  // Close any dangling break first, then the session.
-  await supabase
-    .from('work_session_breaks')
-    .update({ break_end: clockOut })
-    .eq('work_session_id', open.id)
-    .is('break_end', null);
-  await supabase
-    .from('work_sessions')
-    .update({ clock_out: clockOut, status: 'closed' })
-    .eq('id', open.id);
+  await autoCloseSession(supabase, open);
 }
 
 export async function clockInAction(
@@ -89,7 +78,7 @@ export async function clockOutAction(): Promise<ActionResult> {
 
   const { data: open } = await supabase
     .from('work_sessions')
-    .select('id')
+    .select('id, organization_id')
     .eq('user_id', user.id)
     .is('clock_out', null)
     .maybeSingle();
@@ -109,8 +98,72 @@ export async function clockOutAction(): Promise<ActionResult> {
     .eq('id', open.id);
   if (error) return errorResult(de.errors.INTERNAL);
 
+  // Reward a proper (self) clock-out: once today's NET working time from
+  // non-auto-closed sessions qualifies, award the daily work XP + streak.
+  // Best-effort – never blocks the clock-out.
+  try {
+    await awardWorkdayIfQualified(supabase, user.id, open.organization_id);
+  } catch {
+    /* XP is a bonus, not part of the core action */
+  }
+
   revalidatePath('/app/time');
   return successResult('Ausgestempelt.');
+}
+
+/**
+ * Sums today's NET working minutes across the user's non-auto-closed sessions
+ * and, once the workday threshold is reached, grants the work-time XP + streak.
+ */
+async function awardWorkdayIfQualified(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  orgId: string,
+): Promise<void> {
+  const dayStart = startOfBerlinDayUtc();
+  const { data: todays } = await supabase
+    .from('work_sessions')
+    .select('id, clock_in, clock_out')
+    .eq('user_id', userId)
+    .eq('auto_closed', false)
+    .gte('clock_in', dayStart);
+  const ids = (todays ?? []).map((s) => s.id);
+  if (ids.length === 0) return;
+
+  const breakMin = new Map<string, number>();
+  const { data: breaks } = await supabase
+    .from('work_session_breaks')
+    .select('work_session_id, break_start, break_end')
+    .in('work_session_id', ids);
+  const nowIso = new Date().toISOString();
+  for (const b of breaks ?? []) {
+    const mins = Math.max(
+      0,
+      (Date.parse(b.break_end ?? nowIso) - Date.parse(b.break_start)) / 60_000,
+    );
+    breakMin.set(
+      b.work_session_id,
+      (breakMin.get(b.work_session_id) ?? 0) + mins,
+    );
+  }
+
+  let net = 0;
+  for (const s of todays ?? []) {
+    const end = s.clock_out ?? nowIso;
+    net += Math.max(
+      0,
+      (Date.parse(end) - Date.parse(s.clock_in)) / 60_000 -
+        (breakMin.get(s.id) ?? 0),
+    );
+  }
+
+  if (net >= WORKDAY_MIN_NET_MINUTES) {
+    await awardWorkdayXp(supabase, {
+      userId,
+      orgId,
+      dayIso: berlinToday(),
+    });
+  }
 }
 
 export async function startBreakAction(): Promise<ActionResult> {

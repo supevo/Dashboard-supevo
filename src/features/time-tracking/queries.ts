@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { getWorkStreak } from '@/features/gamification/work-xp';
 import {
   minutesBetween,
   startOfBerlinDayUtc,
@@ -39,6 +40,8 @@ export interface WeeklyWorkSummary {
   isWeekEnd: boolean;
   /** on = im Rahmen, low = zu wenig, over = über Plan, absent = heute abwesend. */
   status: 'on' | 'low' | 'over' | 'absent';
+  /** Consecutive working days with a proper (self) clock-out. */
+  workStreak: number;
 }
 
 /**
@@ -55,12 +58,15 @@ export async function getWeeklyWorkSummary(
   const weekStart = startOfBerlinWeekUtc();
   const dayStart = startOfBerlinDayUtc();
 
-  const { data: sessions } = await supabase
-    .from('work_sessions')
-    .select('id, clock_in, clock_out')
-    .eq('user_id', userId)
-    .gte('clock_in', weekStart)
-    .order('clock_in', { ascending: true });
+  const [{ data: sessions }, workStreak] = await Promise.all([
+    supabase
+      .from('work_sessions')
+      .select('id, clock_in, clock_out')
+      .eq('user_id', userId)
+      .gte('clock_in', weekStart)
+      .order('clock_in', { ascending: true }),
+    getWorkStreak(supabase, userId),
+  ]);
 
   const sessionIds = (sessions ?? []).map((s) => s.id);
   const breaksBySession = new Map<string, number>();
@@ -153,6 +159,7 @@ export async function getWeeklyWorkSummary(
     onAbsenceToday,
     isWeekEnd: weekday >= 5, // Fr, Sa, So
     status,
+    workStreak,
   };
 }
 
