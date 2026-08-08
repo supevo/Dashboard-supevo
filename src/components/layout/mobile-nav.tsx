@@ -99,13 +99,18 @@ export function MobileNav({
                       isNavActive(pathname, item.href) ? 'page' : undefined
                     }
                     className={cn(
-                      'block rounded-md px-3 py-2 text-sm',
+                      'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm',
                       isNavActive(pathname, item.href)
                         ? 'bg-primary/10 font-medium text-primary'
                         : 'hover:bg-muted',
                     )}
                   >
-                    {item.label}
+                    {item.icon && (
+                      <span className="shrink-0 [&>svg]:h-4 [&>svg]:w-4">
+                        {item.icon}
+                      </span>
+                    )}
+                    <span className="min-w-0 truncate">{item.label}</span>
                   </Link>
                 ),
               )}

@@ -32,13 +32,16 @@ export function SidebarNav({ items }: { items: NavItem[] }) {
             href={item.href}
             aria-current={isNavActive(pathname, item.href) ? 'page' : undefined}
             className={cn(
-              'block rounded-md px-3 py-2 text-sm transition-colors',
+              'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
               isNavActive(pathname, item.href)
                 ? 'bg-primary/10 font-medium text-primary'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
             )}
           >
-            {item.label}
+            {item.icon && (
+              <span className="shrink-0 [&>svg]:h-4 [&>svg]:w-4">{item.icon}</span>
+            )}
+            <span className="min-w-0 truncate">{item.label}</span>
           </Link>
         ),
       )}

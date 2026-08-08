@@ -12,6 +12,8 @@ import { de } from '@/lib/i18n/de';
 export interface NavItem {
   href: string;
   label: string;
+  /** Optional leading icon (a rendered lucide element, single-colour). */
+  icon?: React.ReactNode;
   /** Renders as a non-clickable section header instead of a link. */
   heading?: boolean;
 }
