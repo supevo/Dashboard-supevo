@@ -28,6 +28,86 @@ const KIND_LABEL: Record<string, string> = {
   wish: '⭐ Wunsch',
 };
 
+/**
+ * Click-to-edit text: shows the value, turns into an input/textarea on click and
+ * saves on blur (Enter saves, Escape cancels). No buttons. In edit mode the text
+ * is fully selectable/copyable.
+ */
+function InlineText({
+  value,
+  onSave,
+  multiline = false,
+  className,
+  placeholder,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  multiline?: boolean;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  useEffect(() => {
+    setVal(value);
+  }, [value]);
+
+  const commit = () => {
+    setEditing(false);
+    const next = multiline ? val : val.trim();
+    if (next !== value) onSave(next);
+  };
+
+  if (!editing) {
+    return (
+      <div
+        onClick={() => setEditing(true)}
+        title="Zum Bearbeiten klicken"
+        className={cn('cursor-text rounded hover:bg-muted/50', className)}
+      >
+        {value || (
+          <span className="italic text-muted-foreground/60">{placeholder}</span>
+        )}
+      </div>
+    );
+  }
+
+  const shared = 'w-full rounded border bg-background px-1.5 py-1';
+  return multiline ? (
+    <textarea
+      autoFocus
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          setVal(value);
+          setEditing(false);
+        }
+      }}
+      rows={3}
+      className={cn(shared, className)}
+    />
+  ) : (
+    <input
+      autoFocus
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+        } else if (e.key === 'Escape') {
+          setVal(value);
+          setEditing(false);
+        }
+      }}
+      className={cn(shared, className)}
+    />
+  );
+}
+
 function FeedbackCard({
   item,
   onMove,
@@ -41,6 +121,12 @@ function FeedbackCard({
   const [pending, start] = useTransition();
   const [notes, setNotes] = useState(item.adminNotes ?? '');
   const [savedNote, setSavedNote] = useState(item.adminNotes ?? '');
+
+  const save = (patch: { title?: string; message?: string }) =>
+    start(async () => {
+      await updateFeedbackAction({ id: item.id, ...patch });
+      router.refresh();
+    });
 
   const saveNotes = () =>
     start(async () => {
@@ -58,17 +144,21 @@ function FeedbackCard({
   };
 
   return (
-    <div
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', item.id);
-        e.dataTransfer.effectAllowed = 'move';
-      }}
-      className="group cursor-grab space-y-2 rounded-lg border bg-card p-3 shadow-sm active:cursor-grabbing"
-    >
+    <div className="group space-y-2 rounded-lg border bg-card p-3 shadow-sm">
       <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          <span className="mr-1 opacity-40 group-hover:opacity-70" aria-hidden>⠿</span>
+        <span className="flex items-center text-xs font-medium text-muted-foreground">
+          {/* Only this grip is draggable, so the card text stays selectable. */}
+          <span
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/plain', item.id);
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            title="Zum Verschieben ziehen"
+            className="mr-1 cursor-grab opacity-40 active:cursor-grabbing group-hover:opacity-70"
+          >
+            ⠿
+          </span>
           {KIND_LABEL[item.kind] ?? item.kind}
         </span>
         <span className="text-[11px] text-muted-foreground">
@@ -76,12 +166,19 @@ function FeedbackCard({
         </span>
       </div>
 
-      <div className="text-sm font-semibold">{item.title}</div>
-      {item.message && (
-        <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-          {item.message}
-        </p>
-      )}
+      <InlineText
+        value={item.title}
+        onSave={(v) => save({ title: v })}
+        className="text-sm font-semibold"
+        placeholder="Titel …"
+      />
+      <InlineText
+        value={item.message ?? ''}
+        onSave={(v) => save({ message: v })}
+        multiline
+        className="whitespace-pre-wrap text-xs text-muted-foreground"
+        placeholder="Nachricht …"
+      />
       <div className="text-[11px] text-muted-foreground">
         von {item.authorName ?? '—'}{' '}
         <span className="rounded bg-muted px-1">
