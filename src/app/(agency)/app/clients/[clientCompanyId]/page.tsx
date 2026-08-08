@@ -11,6 +11,7 @@ import { InviteContactForm } from '@/features/client-companies/components/invite
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
 import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
+import { AttentionFactorForm } from '@/features/client-companies/components/attention-factor-form';
 import { listTeamMembers } from '@/features/messenger/queries';
 import {
   listBillingEntities,
@@ -200,6 +201,26 @@ export default async function ClientDetailPage({
       icon: '📊',
       content: (
         <>
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🎯 Betreuungs-Faktor</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Gewicht für die Ampel: wie groß der faire Anteil dieses Kunden
+                  an der Team-Aufmerksamkeit ist. Steuert, ab wann die Ampel auf
+                  unterversorgt (rot) bzw. überzogen (orange) springt.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <AttentionFactorForm
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  value={company.attentionFactor}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {isAdmin && (
             <Card>
               <CardHeader>

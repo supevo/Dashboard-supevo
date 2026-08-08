@@ -1,34 +1,76 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { berlinToday } from '@/lib/time';
 
-export type HealthLevel = 'green' | 'yellow' | 'red' | 'idle';
+export type HealthLevel = 'green' | 'yellow' | 'red' | 'over' | 'idle';
 
 export interface ClientHealth {
   level: HealthLevel;
-  completed: number; // client tasks completed this month
-  overdue: number; // open tasks past due
-  open: number; // open tasks total
+  /** Estimated minutes of work completed for this client in the window. */
+  minutes: number;
+  /** Actual share of total completed work across all clients (0..1). */
+  share: number;
+  /** Expected share from the attention factor (0..1). */
+  expected: number;
+  /** actual ÷ expected — the fairness balance. */
+  balance: number;
 }
 
-function levelFor(completed: number, overdue: number, open: number): HealthLevel {
-  if (open === 0 && completed === 0) return 'idle';
-  if (overdue >= 3 || (completed === 0 && open > 0)) return 'red';
-  if (completed >= 3 && overdue === 0) return 'green';
-  return 'yellow';
+// Fair-share health: a client is "green" when it received roughly its fair
+// share of the team's attention (relative to all clients, weighted by each
+// client's attention factor), "red" when clearly under-served (→ nurture) and
+// "over" when it pulled far more than its share (→ rein in the demander).
+const WINDOW_DAYS = 30;
+const DEFAULT_ESTIMATE_MIN = 30; // fallback when no estimates exist at all
+const RED_BELOW = 0.6;
+const OVER_ABOVE = 1.5;
+
+function median(values: number[]): number {
+  if (values.length === 0) return DEFAULT_ESTIMATE_MIN;
+  const s = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+}
+
+function levelForBalance(balance: number): HealthLevel {
+  if (balance < RED_BELOW) return 'red';
+  if (balance > OVER_ABOVE) return 'over';
+  return 'green';
 }
 
 /**
- * Computes a simple monthly "health" traffic light per client company:
- * green = viel erledigt & nichts überfällig, red = nichts erledigt trotz
- * offener Aufgaben oder viel Überfälliges, yellow = dazwischen. Internal only.
+ * Fair-share traffic light per client company: estimated minutes of work
+ * completed in the last 30 days vs. the client's entitled share (attention
+ * factor ÷ sum of factors). Internal only — never exposed to clients.
  */
 export async function getClientHealthMap(
   orgId: string,
 ): Promise<Map<string, ClientHealth>> {
   const supabase = await createSupabaseServerClient();
-  const today = berlinToday();
-  const monthStart = `${today.slice(0, 7)}-01`;
+  const since = new Date(Date.now() - WINDOW_DAYS * 86_400_000).toISOString();
+
+  // Active clients + their attention factor form the fair-share pool.
+  // '*' so the not-yet-typed attention_factor column (migration 0110) is
+  // present at runtime; read it via a cast.
+  const { data: companies } = await supabase
+    .from('client_companies')
+    .select('*')
+    .eq('organization_id', orgId)
+    .is('deleted_at', null);
+  const factorByCompany = new Map(
+    (companies ?? [])
+      .filter((c) => c.is_active)
+      .map(
+        (c) =>
+          [
+            c.id,
+            Number((c as { attention_factor?: number }).attention_factor ?? 1) ||
+              0,
+          ] as const,
+      ),
+  );
+
+  const result = new Map<string, ClientHealth>();
+  if (factorByCompany.size === 0) return result;
 
   const { data: projects } = await supabase
     .from('projects')
@@ -36,13 +78,12 @@ export async function getClientHealthMap(
     .eq('organization_id', orgId)
     .is('deleted_at', null);
   const companyByProject = new Map(
-    (projects ?? []).map((p) => [p.id, p.client_company_id] as const),
+    (projects ?? [])
+      .filter((p) => factorByCompany.has(p.client_company_id))
+      .map((p) => [p.id, p.client_company_id] as const),
   );
   const projectIds = [...companyByProject.keys()];
 
-  const result = new Map<string, ClientHealth>();
-  if (projectIds.length === 0) return result;
-
   const { data: columns } = await supabase
     .from('board_columns')
     .select('id, column_key');
@@ -50,105 +91,54 @@ export async function getClientHealthMap(
     (columns ?? []).filter((c) => c.column_key === 'done').map((c) => c.id),
   );
 
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('project_id, column_id, due_date, updated_at, is_archived, deleted_at')
-    .in('project_id', projectIds)
-    .is('deleted_at', null)
-    .eq('is_archived', false)
-    .limit(5000);
+  const { data: tasks } = projectIds.length
+    ? await supabase
+        .from('tasks')
+        .select('project_id, column_id, estimated_minutes, updated_at')
+        .in('project_id', projectIds)
+        .is('deleted_at', null)
+        .eq('is_archived', false)
+        .gte('updated_at', since)
+        .limit(5000)
+    : { data: [] };
 
-  const agg = new Map<string, { completed: number; overdue: number; open: number }>();
-  const bump = (company: string) => {
-    let a = agg.get(company);
-    if (!a) {
-      a = { completed: 0, overdue: 0, open: 0 };
-      agg.set(company, a);
-    }
-    return a;
-  };
+  const completed = (tasks ?? []).filter((t) => doneCols.has(t.column_id));
+  const med = median(
+    completed
+      .map((t) => t.estimated_minutes)
+      .filter((m): m is number => typeof m === 'number' && m > 0),
+  );
 
-  for (const t of tasks ?? []) {
+  const minutesByCompany = new Map<string, number>();
+  for (const t of completed) {
     const company = companyByProject.get(t.project_id);
     if (!company) continue;
-    const a = bump(company);
-    const isDone = doneCols.has(t.column_id);
-    if (isDone) {
-      if (t.updated_at >= `${monthStart}T00:00:00`) a.completed++;
-    } else {
-      a.open++;
-      if (t.due_date && t.due_date < today) a.overdue++;
-    }
+    const est =
+      typeof t.estimated_minutes === 'number' && t.estimated_minutes > 0
+        ? t.estimated_minutes
+        : med;
+    minutesByCompany.set(company, (minutesByCompany.get(company) ?? 0) + est);
   }
 
-  for (const [company, a] of agg) {
-    result.set(company, {
-      ...a,
-      level: levelFor(a.completed, a.overdue, a.open),
+  const totalMinutes = [...minutesByCompany.values()].reduce((a, b) => a + b, 0);
+  const totalFactor = [...factorByCompany.values()].reduce((a, b) => a + b, 0);
+
+  for (const [companyId, factor] of factorByCompany) {
+    const minutes = minutesByCompany.get(companyId) ?? 0;
+    const share = totalMinutes > 0 ? minutes / totalMinutes : 0;
+    const expected = totalFactor > 0 ? factor / totalFactor : 0;
+    if (totalMinutes === 0) {
+      result.set(companyId, { level: 'idle', minutes, share, expected, balance: 0 });
+      continue;
+    }
+    const balance = expected > 0 ? share / expected : share > 0 ? 99 : 0;
+    result.set(companyId, {
+      level: levelForBalance(balance),
+      minutes,
+      share,
+      expected,
+      balance,
     });
-  }
-  return result;
-}
-
-/**
- * Same traffic-light logic as {@link getClientHealthMap} but keyed by project,
- * so the projects overview shows at a glance which projects had a lot done this
- * month and which stalled. Internal only — never exposed to clients.
- */
-export async function getProjectHealthMap(
-  orgId: string,
-): Promise<Map<string, ClientHealth>> {
-  const supabase = await createSupabaseServerClient();
-  const today = berlinToday();
-  const monthStart = `${today.slice(0, 7)}-01`;
-
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('organization_id', orgId)
-    .is('deleted_at', null);
-  const projectIds = (projects ?? []).map((p) => p.id);
-
-  const result = new Map<string, ClientHealth>();
-  if (projectIds.length === 0) return result;
-
-  const { data: columns } = await supabase
-    .from('board_columns')
-    .select('id, column_key');
-  const doneCols = new Set(
-    (columns ?? []).filter((c) => c.column_key === 'done').map((c) => c.id),
-  );
-
-  const { data: tasks } = await supabase
-    .from('tasks')
-    .select('project_id, column_id, due_date, updated_at, is_archived, deleted_at')
-    .in('project_id', projectIds)
-    .is('deleted_at', null)
-    .eq('is_archived', false)
-    .limit(5000);
-
-  const agg = new Map<string, { completed: number; overdue: number; open: number }>();
-  const bump = (project: string) => {
-    let a = agg.get(project);
-    if (!a) {
-      a = { completed: 0, overdue: 0, open: 0 };
-      agg.set(project, a);
-    }
-    return a;
-  };
-
-  for (const t of tasks ?? []) {
-    const a = bump(t.project_id);
-    if (doneCols.has(t.column_id)) {
-      if (t.updated_at >= `${monthStart}T00:00:00`) a.completed++;
-    } else {
-      a.open++;
-      if (t.due_date && t.due_date < today) a.overdue++;
-    }
-  }
-
-  for (const [project, a] of agg) {
-    result.set(project, { ...a, level: levelFor(a.completed, a.overdue, a.open) });
   }
   return result;
 }

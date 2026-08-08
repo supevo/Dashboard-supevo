@@ -185,6 +185,41 @@ export async function updateClientProfileAction(
   return successResult('Kundenprofil gespeichert.');
 }
 
+const attentionFactorSchema = z.object({
+  orgId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  attentionFactor: z.coerce.number().min(0.1).max(10),
+});
+
+/** Sets a client's fair-share weight for the health traffic light. */
+export async function setClientAttentionFactorAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = attentionFactorSchema.safeParse({
+    orgId: formData.get('orgId'),
+    clientCompanyId: formData.get('clientCompanyId'),
+    attentionFactor: formData.get('attentionFactor'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { orgId, clientCompanyId, attentionFactor } = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'clientCompany.manage', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('client_companies')
+    .update({ attention_factor: attentionFactor } as never)
+    .eq('organization_id', orgId)
+    .eq('id', clientCompanyId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath('/app/clients');
+  return successResult('Betreuungs-Faktor gespeichert.');
+}
+
 const assignEntitySchema = z.object({
   orgId: z.string().uuid(),
   clientCompanyId: z.string().uuid(),
