@@ -53,12 +53,20 @@ export async function getPlan(
   year: number,
 ): Promise<MarketingPlan | null> {
   const service = createSupabaseServiceClient();
-  const { data: plan } = await service
+  const { data: plan, error } = await service
     .from('marketing_plans')
     .select('id, client_company_id, organization_id, year, title, status')
     .eq('client_company_id', clientCompanyId)
     .eq('year', year)
     .maybeSingle();
+  if (error) {
+    // Don't swallow a missing table / broken query — it makes the "anlegen"
+    // button appear while every insert then fails silently.
+    console.error('[marketing-plan] getPlan failed', {
+      code: error.code,
+      message: error.message,
+    });
+  }
   if (!plan) return null;
 
   const { data: items } = await service

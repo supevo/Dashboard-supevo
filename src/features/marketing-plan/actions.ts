@@ -52,6 +52,20 @@ async function planForItem(service: Service, itemId: string) {
 
 // --- Agentur ---------------------------------------------------------------
 
+/** Maps a Postgres error code from the plan insert to a user-facing message. */
+function planInsertMessage(code: string | undefined): string {
+  switch (code) {
+    case '23505': // unique_violation
+      return 'Für dieses Jahr existiert bereits ein Plan.';
+    case '23503': // foreign_key_violation (org/client/created_by unbekannt)
+      return 'Kunde oder Organisation nicht gefunden.';
+    case '42P01': // undefined_table – Migration 0074 nicht eingespielt
+      return 'Marketingplan-Tabellen fehlen (Migration 0074 nicht ausgeführt).';
+    default:
+      return 'Anlegen fehlgeschlagen.';
+  }
+}
+
 const createSchema = z.object({
   clientCompanyId: z.string().uuid(),
   year: z.coerce.number().int().min(2020).max(2100),
@@ -74,11 +88,14 @@ export async function createPlanAction(input: unknown): Promise<ActionResult> {
     created_by: user.id,
   });
   if (error) {
-    return errorResult(
-      error.code === '23505'
-        ? 'Für dieses Jahr existiert bereits ein Plan.'
-        : 'Anlegen fehlgeschlagen.',
-    );
+    // Log the real Postgres error so it shows up in server logs; then map the
+    // most common causes to an actionable message instead of a blanket one.
+    console.error('[marketing-plan] createPlan insert failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return errorResult(planInsertMessage(error.code));
   }
   revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
   return successResult('Plan angelegt.');
