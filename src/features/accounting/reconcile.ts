@@ -207,6 +207,126 @@ function scoreReceiptTx(rec: ReceiptLite, tx: TxLite): Match | null {
   };
 }
 
+export interface ComboMatch {
+  txId: string;
+  invoiceIds: string[];
+  score: number;
+  reason: string;
+  paymentCents: number;
+  totalCents: number;
+  auto: boolean;
+}
+
+/** Acceptance + score for a combination of invoices vs. one payment. */
+function comboAmountScore(sumCents: number, paidCents: number): number {
+  if (sumCents === paidCents) return 0.9;
+  if (Math.abs(sumCents - paidCents) <= 2) return 0.88;
+  // Skonto: paid a bit less than the invoices' total.
+  if (paidCents < sumCents && sumCents - paidCents <= sumCents * 0.035) return 0.82;
+  return 0;
+}
+
+/**
+ * Finds, for one payment, the best combination (2..4) of the candidate invoices
+ * whose gross sums to the payment (exact / rounding / Skonto). DFS over a bounded
+ * candidate set; returns the subset closest to the target with the fewest items.
+ */
+function bestCombo(
+  paidCents: number,
+  candidates: InvoiceLite[],
+): { ids: string[]; sum: number } | null {
+  const sorted = [...candidates]
+    .filter((c) => c.grossCents > 0 && c.grossCents <= paidCents)
+    .sort((a, b) => b.grossCents - a.grossCents)
+    .slice(0, 12);
+  const upper = paidCents * 1.037 + 2;
+  const maxK = 4;
+
+  const found: { ids: string[]; sum: number; delta: number }[] = [];
+  const chosen: InvoiceLite[] = [];
+
+  function consider(): void {
+    if (chosen.length < 2) return;
+    const sum = chosen.reduce((s, c) => s + c.grossCents, 0);
+    if (comboAmountScore(sum, paidCents) <= 0) return;
+    found.push({
+      ids: chosen.map((c) => c.id),
+      sum,
+      delta: Math.abs(sum - paidCents),
+    });
+  }
+
+  function dfs(start: number, partial: number): void {
+    consider();
+    if (chosen.length >= maxK) return;
+    for (let i = start; i < sorted.length; i += 1) {
+      const next = partial + sorted[i]!.grossCents;
+      if (next > upper) continue; // prune – too large already
+      chosen.push(sorted[i]!);
+      dfs(i + 1, next);
+      chosen.pop();
+    }
+  }
+
+  dfs(0, 0);
+  if (found.length === 0) return null;
+  // Closest sum first, then fewest invoices.
+  found.sort((a, b) => a.delta - b.delta || a.ids.length - b.ids.length);
+  const best = found[0]!;
+  return { ids: best.ids, sum: best.sum };
+}
+
+/**
+ * Matches incoming payments to a COMBINATION of open invoices (Sammelzahlungen).
+ * Candidates per payment are invoices of the same client (name similar) or whose
+ * number appears in the purpose. Greedy: each payment and invoice used once.
+ */
+export function matchPaymentCombinations(
+  payments: TxLite[],
+  invoices: InvoiceLite[],
+): ComboMatch[] {
+  const results: ComboMatch[] = [];
+  const usedInvoices = new Set<string>();
+
+  // Strongest payments first (larger sums are likelier true collective payments).
+  const ordered = [...payments]
+    .filter((p) => p.betragCents > 0)
+    .sort((a, b) => b.betragCents - a.betragCents);
+
+  for (const pay of ordered) {
+    const candidates = invoices.filter((inv) => {
+      if (usedInvoices.has(inv.id)) return false;
+      const byNumber = numberInPurpose(inv.number, pay.zweck);
+      const byName = nameSimilarity(pay.gegen, inv.kunde) > 0.3;
+      if (!byNumber && !byName) return false;
+      if (inv.issueDate && daysBetween(pay.datum, inv.issueDate) > 120) return false;
+      return true;
+    });
+    if (candidates.length < 2) continue;
+
+    const combo = bestCombo(pay.betragCents, candidates);
+    if (!combo) continue;
+
+    const score = comboAmountScore(combo.sum, pay.betragCents);
+    if (score <= 0) continue;
+
+    combo.ids.forEach((id) => usedInvoices.add(id));
+    results.push({
+      txId: pay.id,
+      invoiceIds: combo.ids,
+      score,
+      reason:
+        combo.sum === pay.betragCents
+          ? `${combo.ids.length} Rechnungen, Summe exakt`
+          : `${combo.ids.length} Rechnungen, Summe passend`,
+      paymentCents: pay.betragCents,
+      totalCents: combo.sum,
+      auto: score >= AUTO_THRESHOLD,
+    });
+  }
+  return results;
+}
+
 /** Matches receipts to outgoing transactions (leftId=receipt, rightId=tx). */
 export function matchReceiptsToTransactions(
   receipts: ReceiptLite[],

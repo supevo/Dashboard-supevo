@@ -107,6 +107,7 @@ export function CompanyFolderLink({
         title={`${title} wählen`}
         onPickFolder={pick}
         busy={busy}
+        scope="full"
       />
     </div>
   );

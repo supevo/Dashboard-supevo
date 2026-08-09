@@ -12,7 +12,14 @@ import {
 } from '@/features/accounting/components/company-switcher';
 import { ReceiptImportButton } from '@/features/accounting/components/receipt-import-button';
 import { ReceiptExtractButton } from '@/features/accounting/components/receipt-extract-button';
+import { ReceiptDropzone } from '@/features/accounting/components/receipt-dropzone';
 import { kategorieLabel } from '@/features/accounting/categories';
+
+function quelleLabel(source: string, konfidenz: number | null): string {
+  if (konfidenz != null) return 'KI';
+  if (source === 'upload') return 'Upload';
+  return 'OneDrive';
+}
 
 function formatDate(d: string | null): string {
   if (!d) return '—';
@@ -111,6 +118,8 @@ export async function ReceiptsPanel({
         </div>
       </div>
 
+      <ReceiptDropzone billingEntityId={active.entity.id} />
+
       {(counts.einnahme > 0 || counts.ausgabe > 0) && (
         <ReceiptExtractButton mode="all" id={active.entity.id} />
       )}
@@ -131,7 +140,14 @@ export async function ReceiptsPanel({
           description="Verbinde die OneDrive-Ordner im Tab „Firmen“ und ziehe deine Belege oben herein."
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="rounded-lg border">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+            <h3 className="text-sm font-semibold">Belegarchiv</h3>
+            <span className="text-xs text-muted-foreground">
+              {receipts.length} Dateien · Aufbewahrung 10 Jahre (GoBD)
+            </span>
+          </div>
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
@@ -141,6 +157,7 @@ export async function ReceiptsPanel({
                 <th className="px-3 py-2 font-medium">Datum</th>
                 <th className="px-3 py-2 text-right font-medium">Brutto</th>
                 <th className="px-3 py-2 font-medium">Kategorie</th>
+                <th className="px-3 py-2 font-medium">Quelle</th>
                 <th className="px-3 py-2 font-medium">Status</th>
                 <th className="px-3 py-2 font-medium">KI</th>
               </tr>
@@ -163,6 +180,11 @@ export async function ReceiptsPanel({
                   </td>
                   <td className="px-3 py-2">{kategorieLabel(r.kategorie_id)}</td>
                   <td className="px-3 py-2">
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                      {quelleLabel(r.source, r.konfidenz)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2">
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
@@ -174,6 +196,7 @@ export async function ReceiptsPanel({
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

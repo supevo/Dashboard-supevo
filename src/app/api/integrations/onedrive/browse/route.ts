@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentUser } from '@/features/auth/session';
 import { primaryAgencyOrgId, hasAgencyAccess } from '@/features/auth/access';
+import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import {
   listFolder,
@@ -56,6 +57,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'not_connected', items: [] });
     }
     return NextResponse.json({ items, baseId: cf.folderId });
+  }
+
+  // Full-drive browsing (Finanzen/Buchhaltung): admins may pick a folder above
+  // the configured staff base – e.g. an Über-/Root-Ordner. Bypasses the
+  // root_path confinement entirely; gated to org admins / super-admins.
+  const fullDrive = request.nextUrl.searchParams.get('scope') === 'full';
+  if (fullDrive) {
+    if (!isOrgAdmin(user, orgId) && !isSuperAdmin(user)) {
+      return NextResponse.json({ error: 'forbidden', items: [] }, { status: 403 });
+    }
+    const items = await listFolder(orgId, requested);
+    if (items === null) {
+      return NextResponse.json({ error: 'not_connected', items: [] });
+    }
+    return NextResponse.json({ items });
   }
 
   // Resolve the configured base folder, if any.
