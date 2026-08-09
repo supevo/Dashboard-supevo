@@ -38,6 +38,37 @@ export function isReceiptVisionEnabled(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
+const EXT_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  pdf: 'application/pdf',
+};
+
+/**
+ * Resolves a usable MIME type for a receipt. Prefers a concrete image/* or PDF
+ * type; otherwise (empty, octet-stream, or a non-file type from OneDrive) derives
+ * it from the file extension so JPG/PNG/PDF are read even without a clean MIME.
+ */
+export function resolveReceiptMime(
+  fileName: string | null,
+  mime: string | null,
+): string {
+  const m = (mime ?? '').toLowerCase();
+  if (m === 'application/pdf' || (m.startsWith('image/') && m !== 'image/*')) {
+    return m;
+  }
+  const ext = (fileName ?? '').toLowerCase().split('.').pop() ?? '';
+  return EXT_MIME[ext] ?? (m || 'application/octet-stream');
+}
+
+/** True if the resolved MIME is something Vision can read (image or PDF). */
+export function isReadableReceiptMime(mime: string): boolean {
+  return mime === 'application/pdf' || mime.startsWith('image/');
+}
+
 function visionModel(): string {
   return process.env.AI_VISION_MODEL?.trim() || 'gpt-4o-mini';
 }

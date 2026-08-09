@@ -8,6 +8,8 @@ import { downloadItem } from '@/lib/onedrive/graph';
 import {
   extractReceipt,
   isReceiptVisionEnabled,
+  resolveReceiptMime,
+  isReadableReceiptMime,
   type ReceiptExtractionContext,
 } from '@/lib/ai/vision';
 import { KATEGORIEN } from '@/features/accounting/categories';
@@ -94,8 +96,13 @@ export async function extractReceiptAction(receiptId: string): Promise<ActionRes
   const file = await downloadItem(receipt.organization_id, receipt.onedrive_item_id);
   if (!file) return errorResult('Beleg konnte nicht aus OneDrive geladen werden.');
 
+  const mime = resolveReceiptMime(file.name, receipt.file_mime || file.mime);
+  if (!isReadableReceiptMime(mime)) {
+    return errorResult('Dateityp wird nicht unterstützt (nur JPG, PNG oder PDF).');
+  }
+
   const ctx = await buildContext(supabase, receipt.billing_entity_id);
-  const ext = await extractReceipt(file.bytes, receipt.file_mime || file.mime, ctx);
+  const ext = await extractReceipt(file.bytes, mime, ctx);
   const update = toReceiptUpdate(ext);
   if (!update) return errorResult('Beleg konnte nicht ausgelesen werden.');
 
@@ -152,7 +159,12 @@ export async function extractOpenReceiptsAction(
       failed += 1;
       continue;
     }
-    const ext = await extractReceipt(file.bytes, r.file_mime || file.mime, ctx);
+    const mime = resolveReceiptMime(file.name, r.file_mime || file.mime);
+    if (!isReadableReceiptMime(mime)) {
+      failed += 1;
+      continue;
+    }
+    const ext = await extractReceipt(file.bytes, mime, ctx);
     const update = toReceiptUpdate(ext);
     if (!update) {
       failed += 1;

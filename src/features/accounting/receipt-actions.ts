@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser, authorize } from '@/lib/authz/authorize';
 import { listFolder } from '@/lib/onedrive/graph';
+import { resolveReceiptMime } from '@/lib/ai/vision';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -95,6 +96,7 @@ export async function importOneDriveReceiptsAction(input: {
       source: 'onedrive',
       onedrive_item_id: f.id,
       file_name: f.name,
+      file_mime: resolveReceiptMime(f.name, null),
       file_size: f.size,
       created_by: user.id,
     }));
