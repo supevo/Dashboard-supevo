@@ -13,6 +13,7 @@ import {
 import { ReceiptImportButton } from '@/features/accounting/components/receipt-import-button';
 import { ReceiptExtractButton } from '@/features/accounting/components/receipt-extract-button';
 import { ReceiptDropzone } from '@/features/accounting/components/receipt-dropzone';
+import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 function quelleLabel(source: string, konfidenz: number | null): string {
@@ -43,10 +44,14 @@ const STATUS_LABEL: Record<string, string> = {
 export async function ReceiptsPanel({
   orgId,
   activeFirma,
+  year,
+  month,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
+  year: number;
+  month: number;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -72,10 +77,13 @@ export async function ReceiptsPanel({
   }));
 
   const [receipts, counts, logs] = await Promise.all([
-    listReceipts(active.entity.id),
+    listReceipts(active.entity.id, undefined, { year, month }),
     receiptCounts(active.entity.id),
     listImportLogs(active.entity.id),
   ]);
+  const nowYear = new Date().getFullYear();
+  const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
+  const firmaBase = `${basePath}&firma=${active.entity.id}`;
 
   const einLinked = Boolean(active.profile?.onedrive_einnahmen_folder_id);
   const ausLinked = Boolean(active.profile?.onedrive_ausgaben_folder_id);
@@ -84,11 +92,19 @@ export async function ReceiptsPanel({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CompanySwitcher
-          companies={options}
-          activeId={active.entity.id}
-          basePath={basePath}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <CompanySwitcher
+            companies={options}
+            activeId={active.entity.id}
+            basePath={basePath}
+          />
+          <MonthSwitcher
+            year={year}
+            month={month}
+            years={years}
+            basePath={firmaBase}
+          />
+        </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>
             <span className="font-medium text-foreground">{counts.einnahme}</span>{' '}

@@ -38,6 +38,8 @@ export default async function FinancePage({
   const activeTab = sp.tab ?? 'uebersicht';
   const jahr = Number(sp.jahr) || new Date().getFullYear();
   const monat = Number(sp.monat) || new Date().getMonth() + 1;
+  // Umsätze/Belege lists default to "Alle Monate" (0) so nothing is hidden.
+  const monatListe = Number(sp.monat) || 0;
 
   const tabs: TabDef[] = [
     {
@@ -83,6 +85,8 @@ export default async function FinancePage({
         <TransactionsPanel
           orgId={orgId}
           activeFirma={sp.firma}
+          year={jahr}
+          month={monatListe}
           basePath="/app/finance?tab=umsaetze"
         />
       ),
@@ -94,6 +98,8 @@ export default async function FinancePage({
         <ReceiptsPanel
           orgId={orgId}
           activeFirma={sp.firma}
+          year={jahr}
+          month={monatListe}
           basePath="/app/finance?tab=belege"
         />
       ),
