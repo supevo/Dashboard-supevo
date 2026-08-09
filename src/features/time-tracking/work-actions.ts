@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { logger } from '@/lib/logger';
 import { bumpCounter } from '@/features/gamification/actions';
 import { autoCloseSession } from '@/features/time-tracking/auto-close';
 import {
@@ -30,12 +32,13 @@ const orgSchema = z.object({ orgId: z.string().uuid() });
  * employee – same path the hourly cron uses). Employees/admins can still adjust
  * via a manual entry if needed.
  */
-async function autoCloseStaleSession(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  userId: string,
-): Promise<void> {
+async function autoCloseStaleSession(userId: string): Promise<void> {
+  // Use the service client (like the hourly cron) so the recovery close never
+  // depends on the caller's row-level permissions, and isolate each close so a
+  // single failure can't abort the clock-in that follows.
+  const service = createSupabaseServiceClient();
   const dayStart = startOfBerlinDayUtc();
-  const { data: openRows } = await supabase
+  const { data: openRows } = await service
     .from('work_sessions')
     .select('id, organization_id, user_id, clock_in')
     .eq('user_id', userId)
@@ -43,8 +46,33 @@ async function autoCloseStaleSession(
     .lt('clock_in', dayStart); // only sessions NOT started today
   // Close every leftover (usually one, but be robust against several).
   for (const open of openRows ?? []) {
-    await autoCloseSession(supabase, open);
+    try {
+      await autoCloseSession(service, open);
+    } catch (e) {
+      logger.warn('clock_in.stale_close_failed', {
+        sessionId: open.id,
+        error: (e as Error).message,
+      });
+    }
   }
+}
+
+/**
+ * Last-resort recovery: hard-close every open session from a previous day for
+ * this user (service client, minimal write, no notification). Runs only when a
+ * clock-in still hits the unique open-session index despite the normal
+ * auto-close above – guarantees a forgotten session can never permanently block
+ * a new clock-in. Sessions started today are left untouched (handled as a
+ * no-op earlier), so this never closes a genuinely active session.
+ */
+async function forceCloseStaleSessions(userId: string): Promise<void> {
+  const service = createSupabaseServiceClient();
+  await service
+    .from('work_sessions')
+    .update({ clock_out: new Date().toISOString(), status: 'closed' })
+    .eq('user_id', userId)
+    .is('clock_out', null)
+    .lt('clock_in', startOfBerlinDayUtc());
 }
 
 export async function clockInAction(
@@ -58,7 +86,7 @@ export async function clockInAction(
   const supabase = await createSupabaseServerClient();
 
   // Recover from a forgotten clock-out (session left open on a previous day).
-  await autoCloseStaleSession(supabase, user.id);
+  await autoCloseStaleSession(user.id);
 
   // Idempotency: if a session started today is still open (e.g. an auto-logout
   // closed the widget UI but left today's row open), treat clock-in as a no-op
@@ -76,13 +104,23 @@ export async function clockInAction(
     return successResult('Du bist bereits eingestempelt.');
   }
 
-  const { error } = await supabase.from('work_sessions').insert({
+  const newSession = {
     organization_id: parsed.data.orgId,
     user_id: user.id,
     clock_in: new Date().toISOString(),
-    status: 'active',
-  });
-  // Unique partial index rejects a second open session (genuine one from today).
+    status: 'active' as const,
+  };
+  let { error } = await supabase.from('work_sessions').insert(newSession);
+
+  // If the unique open-session index still rejects the insert, a stale session
+  // slipped through the normal recovery (e.g. a schema quirk). Force-close any
+  // leftover from a previous day and retry once so a forgotten clock-out can
+  // never permanently block the employee.
+  if (error) {
+    await forceCloseStaleSessions(user.id);
+    ({ error } = await supabase.from('work_sessions').insert(newSession));
+  }
+  // Only a genuine still-open session from TODAY can remain now.
   if (error) return errorResult('Es läuft bereits eine Arbeitszeitsitzung.');
 
   revalidatePath('/app/time');

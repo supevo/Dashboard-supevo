@@ -60,26 +60,49 @@ export async function autoCloseSession(
     .update({ break_end: clockOut })
     .eq('work_session_id', s.id)
     .is('break_end', null);
-  await client
+
+  // Close the session. If writing `auto_closed` fails (e.g. the column is not
+  // present in this environment), fall back to a plain close so a forgotten
+  // session is ALWAYS closed – otherwise the open row keeps blocking the next
+  // clock-in via the unique open-session index.
+  const { error: closeErr } = await client
     .from('work_sessions')
     .update({ clock_out: clockOut, status: 'closed', auto_closed: true })
     .eq('id', s.id);
+  if (closeErr) {
+    logger.warn('auto_close.flag_update_failed', {
+      sessionId: s.id,
+      error: closeErr.message,
+    });
+    await client
+      .from('work_sessions')
+      .update({ clock_out: clockOut, status: 'closed' })
+      .eq('id', s.id);
+  }
 
-  await createNotifications([
-    {
-      organizationId: s.organization_id,
-      recipientId: s.user_id,
-      type: 'absence',
-      title: '⏰ Automatisch ausgestempelt',
-      body:
-        'Du hast vergessen auszustempeln. Dir wurden 8 Std. angerechnet. Für ' +
-        'diese Arbeitszeit gibt es keine Arbeitszeit-XP und der Arbeitszeit-' +
-        'Streak wird dadurch unterbrochen. Bitte denk daran, dich selbst ' +
-        'auszustempeln.',
-      entityType: 'work_session',
-      entityId: s.id,
-    },
-  ]);
+  // Best-effort notification – must never prevent the close from taking effect.
+  try {
+    await createNotifications([
+      {
+        organizationId: s.organization_id,
+        recipientId: s.user_id,
+        type: 'absence',
+        title: '⏰ Automatisch ausgestempelt',
+        body:
+          'Du hast vergessen auszustempeln. Dir wurden 8 Std. angerechnet. Für ' +
+          'diese Arbeitszeit gibt es keine Arbeitszeit-XP und der Arbeitszeit-' +
+          'Streak wird dadurch unterbrochen. Bitte denk daran, dich selbst ' +
+          'auszustempeln.',
+        entityType: 'work_session',
+        entityId: s.id,
+      },
+    ]);
+  } catch (e) {
+    logger.warn('auto_close.notify_failed', {
+      sessionId: s.id,
+      error: (e as Error).message,
+    });
+  }
 }
 
 /**

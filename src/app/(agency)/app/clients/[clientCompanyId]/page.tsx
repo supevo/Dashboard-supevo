@@ -630,7 +630,13 @@ export default async function ClientDetailPage({
           </Link>
           <div className="mt-2 flex items-center gap-2">
             <h1 className="text-2xl font-bold">{company.name}</h1>
-            <ClientHealthDot health={healthMap.get(clientCompanyId)} showLabel />
+            {/* Legacy clients run on a fixed package and are not on the Ampel. */}
+            {!company.isLegacy && (
+              <ClientHealthDot
+                health={healthMap.get(clientCompanyId)}
+                showLabel
+              />
+            )}
           </div>
           <p className="text-sm text-muted-foreground">
             {company.contactEmail ?? '—'} ·{' '}

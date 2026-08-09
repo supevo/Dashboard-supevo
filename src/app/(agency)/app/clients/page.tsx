@@ -152,7 +152,7 @@ export default async function ClientsPage() {
                           <p className="truncate text-sm font-medium group-hover:text-primary">
                             {c.name}
                           </p>
-                          <ClientHealthDot health={healthMap.get(c.id)} />
+                          {/* Legacy clients are not on the fair-share traffic light. */}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">
                           {pkg ? LEGACY_PACKAGE_INFO[pkg].label : 'Legacy'}
