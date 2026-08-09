@@ -31,6 +31,7 @@ export function OneDriveBrowser({
   onPickFile,
   onPickFolder,
   busy = false,
+  scope,
 }: {
   open: boolean;
   onClose: () => void;
@@ -39,6 +40,8 @@ export function OneDriveBrowser({
   onPickFile?: (item: DriveItem) => void;
   onPickFolder?: (item: Crumb) => void;
   busy?: boolean;
+  /** 'full' browses the entire OneDrive (admins) instead of the configured base. */
+  scope?: 'full';
 }) {
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: 'OneDrive' }]);
   const [items, setItems] = useState<DriveItem[]>([]);
@@ -47,12 +50,17 @@ export function OneDriveBrowser({
 
   const current = crumbs[crumbs.length - 1] ?? { id: null, name: 'OneDrive' };
 
-  const load = useCallback(async (folderId: string | null) => {
+  const load = useCallback(
+    async (folderId: string | null) => {
     setLoading(true);
     setError(null);
     try {
-      const url = folderId
-        ? `/api/integrations/onedrive/browse?folderId=${encodeURIComponent(folderId)}`
+      const params = new URLSearchParams();
+      if (folderId) params.set('folderId', folderId);
+      if (scope) params.set('scope', scope);
+      const qs = params.toString();
+      const url = qs
+        ? `/api/integrations/onedrive/browse?${qs}`
         : '/api/integrations/onedrive/browse';
       const res = await fetch(url, { cache: 'no-store' });
       const data = (await res.json().catch(() => null)) as
@@ -69,7 +77,9 @@ export function OneDriveBrowser({
     } finally {
       setLoading(false);
     }
-  }, []);
+    },
+    [scope],
+  );
 
   useEffect(() => {
     if (open) {

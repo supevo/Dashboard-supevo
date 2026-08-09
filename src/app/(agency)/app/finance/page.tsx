@@ -4,7 +4,7 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { ExpensesPanel } from '@/features/print-billing/components/expenses-panel';
 import { BillingPanel } from '@/features/billing/components/billing-panel';
-import { AccountingOverview } from '@/features/accounting/components/accounting-overview';
+import { MonthClosePanel } from '@/features/accounting/components/month-close-panel';
 import { CompaniesPanel } from '@/features/accounting/components/companies-panel';
 import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
@@ -27,20 +27,30 @@ export default async function FinancePage({
     month?: string;
     firma?: string;
     jahr?: string;
+    monat?: string;
   }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
   if (!isSuperAdmin(user)) redirect('/app');
 
   const sp = await searchParams;
-  const activeTab = sp.tab ?? 'uebersicht';
+  const activeTab = sp.tab ?? 'monatsabschluss';
   const jahr = Number(sp.jahr) || new Date().getFullYear();
+  const monat = Number(sp.monat) || new Date().getMonth() + 1;
 
   const tabs: TabDef[] = [
     {
-      key: 'uebersicht',
-      label: '📊 Übersicht',
-      content: <AccountingOverview orgId={orgId} />,
+      key: 'monatsabschluss',
+      label: '📅 Monatsabschluss',
+      content: (
+        <MonthClosePanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          year={jahr}
+          month={monat}
+          basePath="/app/finance?tab=monatsabschluss"
+        />
+      ),
     },
     {
       key: 'firmen',
