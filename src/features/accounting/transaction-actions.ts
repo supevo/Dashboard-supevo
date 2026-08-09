@@ -27,17 +27,26 @@ import {
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
+/**
+ * Dedup hash for a statement line. `occurrence` distinguishes genuinely repeated
+ * identical bookings within one statement (2 equal payments same day → kept as
+ * two rows). Occurrence 0 keeps the legacy format, so re-importing does not
+ * duplicate rows imported before this fix – it only adds the missing extras.
+ */
 function importHash(
   billingEntityId: string,
   t: ParsedTransaction,
+  occurrence: number,
 ): string {
-  return createHash('sha256')
-    .update(
-      [billingEntityId, t.datum, t.betragCents, t.gegen ?? '', t.zweck ?? ''].join(
-        '|',
-      ),
-    )
-    .digest('hex');
+  const base = [
+    billingEntityId,
+    t.datum,
+    t.betragCents,
+    t.gegen ?? '',
+    t.zweck ?? '',
+  ];
+  const parts = occurrence > 0 ? [...base, occurrence] : base;
+  return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
 /**
@@ -162,9 +171,13 @@ export async function importBankStatementAction(
   const ruleMap = await getCategoryRuleMap(supabase, entityId);
 
   const seen = new Set<string>();
+  const occ = new Map<string, number>(); // base key → times seen in THIS file
   const rows = [];
   for (const t of transactions) {
-    const hash = importHash(entityId, t);
+    const baseKey = `${t.datum}|${t.betragCents}|${t.gegen ?? ''}|${t.zweck ?? ''}`;
+    const occurrence = occ.get(baseKey) ?? 0;
+    occ.set(baseKey, occurrence + 1);
+    const hash = importHash(entityId, t, occurrence);
     if (knownHashes.has(hash) || seen.has(hash)) continue;
     seen.add(hash);
     const ruleHit = ruleMap.get(normalizeMatchKey(t.gegen) ?? '') ?? null;
