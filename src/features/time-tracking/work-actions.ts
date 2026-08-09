@@ -34,16 +34,16 @@ async function autoCloseStaleSession(
   userId: string,
 ): Promise<void> {
   const dayStart = startOfBerlinDayUtc();
-  const { data: open } = await supabase
+  const { data: openRows } = await supabase
     .from('work_sessions')
     .select('id, organization_id, user_id, clock_in')
     .eq('user_id', userId)
     .is('clock_out', null)
-    .lt('clock_in', dayStart) // only sessions NOT started today
-    .maybeSingle();
-  if (!open) return;
-
-  await autoCloseSession(supabase, open);
+    .lt('clock_in', dayStart); // only sessions NOT started today
+  // Close every leftover (usually one, but be robust against several).
+  for (const open of openRows ?? []) {
+    await autoCloseSession(supabase, open);
+  }
 }
 
 export async function clockInAction(
@@ -58,6 +58,22 @@ export async function clockInAction(
 
   // Recover from a forgotten clock-out (session left open on a previous day).
   await autoCloseStaleSession(supabase, user.id);
+
+  // Idempotency: if a session started today is still open (e.g. an auto-logout
+  // closed the widget UI but left today's row open), treat clock-in as a no-op
+  // instead of hitting the unique open-session index → hard error. The status
+  // widget only inspects today's sessions, so this reconciles the two.
+  const { data: openToday } = await supabase
+    .from('work_sessions')
+    .select('id')
+    .eq('user_id', user.id)
+    .is('clock_out', null)
+    .gte('clock_in', startOfBerlinDayUtc())
+    .maybeSingle();
+  if (openToday) {
+    revalidatePath('/app/time');
+    return successResult('Du bist bereits eingestempelt.');
+  }
 
   const { error } = await supabase.from('work_sessions').insert({
     organization_id: parsed.data.orgId,

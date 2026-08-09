@@ -26,7 +26,8 @@ export interface VacationCalendar {
   days: VacationDay[];
 }
 
-const WEEKS = 16;
+/** A full year ahead so the whole vacation year is visible, not just a quarter. */
+const WEEKS = 52;
 /** Skip the first two weeks – no spontaneous vacation planning. */
 const LEAD_DAYS = 14;
 
