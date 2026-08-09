@@ -12,8 +12,8 @@ export default async function ClientPlanPage() {
       <div>
         <h1 className="text-2xl font-bold">🗺️ Marketingplan</h1>
         <p className="text-sm text-muted-foreground">
-          Euer Jahresplan zur Abstimmung. Akzeptierte Maßnahmen setzen wir
-          automatisch um.
+          Euer Plan in Phasen zur Abstimmung. Akzeptierte Maßnahmen setzen wir
+          wie besprochen um.
         </p>
       </div>
 

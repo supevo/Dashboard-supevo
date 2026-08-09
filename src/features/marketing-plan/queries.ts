@@ -7,7 +7,7 @@ export type ItemStatus = 'proposed' | 'change_requested' | 'accepted' | 'embedde
 
 export interface PlanItem {
   id: string;
-  month: number;
+  phaseId: string | null;
   title: string;
   description: string | null;
   status: ItemStatus;
@@ -15,77 +15,128 @@ export interface PlanItem {
   taskId: string | null;
 }
 
+export interface PlanPhase {
+  id: string;
+  title: string;
+  timeframeHint: string | null;
+  outcome: string | null;
+  items: PlanItem[];
+}
+
 export interface MarketingPlan {
   id: string;
   clientCompanyId: string;
   organizationId: string;
-  year: number;
   title: string;
   status: PlanStatus;
+  closingNote: string | null;
+  phases: PlanPhase[];
+  /** Flat list of all measures across phases (convenience for callers). */
   items: PlanItem[];
 }
 
-function mapItems(rows: {
+type ItemRow = {
   id: string;
-  month: number;
+  phase_id: string | null;
   title: string;
   description: string | null;
   status: string;
   client_note: string | null;
   task_id: string | null;
-}[]): PlanItem[] {
-  return rows
-    .map((i) => ({
-      id: i.id,
-      month: i.month,
-      title: i.title,
-      description: i.description,
-      status: i.status as ItemStatus,
-      clientNote: i.client_note,
-      taskId: i.task_id,
-    }))
-    .sort((a, b) => a.month - b.month);
+  position: number;
+};
+
+function mapItem(i: ItemRow): PlanItem {
+  return {
+    id: i.id,
+    phaseId: i.phase_id,
+    title: i.title,
+    description: i.description,
+    status: i.status as ItemStatus,
+    clientNote: i.client_note,
+    taskId: i.task_id,
+  };
 }
 
-/** Loads a client's marketing plan for a year (service client, agency-verified). */
+type Service = ReturnType<typeof createSupabaseServiceClient>;
+
+/** Assembles a plan (phases + their measures) from a plan row. */
+async function assemble(
+  service: Service,
+  plan: {
+    id: string;
+    client_company_id: string;
+    organization_id: string;
+    title: string;
+    status: string;
+    closing_note: string | null;
+  },
+): Promise<MarketingPlan> {
+  const [{ data: phases }, { data: items }] = await Promise.all([
+    service
+      .from('marketing_plan_phases')
+      .select('id, title, timeframe_hint, outcome, position')
+      .eq('plan_id', plan.id)
+      .order('position', { ascending: true }),
+    service
+      .from('marketing_plan_items')
+      .select(
+        'id, phase_id, title, description, status, client_note, task_id, position',
+      )
+      .eq('plan_id', plan.id)
+      .order('position', { ascending: true }),
+  ]);
+
+  const allItems = (items ?? []).map(mapItem);
+  const byPhase = new Map<string, PlanItem[]>();
+  for (const it of allItems) {
+    if (!it.phaseId) continue;
+    byPhase.set(it.phaseId, [...(byPhase.get(it.phaseId) ?? []), it]);
+  }
+
+  return {
+    id: plan.id,
+    clientCompanyId: plan.client_company_id,
+    organizationId: plan.organization_id,
+    title: plan.title,
+    status: plan.status as PlanStatus,
+    closingNote: plan.closing_note,
+    phases: (phases ?? []).map((p) => ({
+      id: p.id,
+      title: p.title,
+      timeframeHint: p.timeframe_hint,
+      outcome: p.outcome,
+      items: byPhase.get(p.id) ?? [],
+    })),
+    items: allItems,
+  };
+}
+
+const PLAN_COLS =
+  'id, client_company_id, organization_id, title, status, closing_note';
+
+/** Loads a client's marketing plan (one per client). Agency-verified caller. */
 export async function getPlan(
   clientCompanyId: string,
-  year: number,
 ): Promise<MarketingPlan | null> {
   const service = createSupabaseServiceClient();
   const { data: plan, error } = await service
     .from('marketing_plans')
-    .select('id, client_company_id, organization_id, year, title, status')
+    .select(PLAN_COLS)
     .eq('client_company_id', clientCompanyId)
-    .eq('year', year)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle();
   if (error) {
-    // Don't swallow a missing table / broken query — it makes the "anlegen"
-    // button appear while every insert then fails silently.
     console.error('[marketing-plan] getPlan failed', {
       code: error.code,
       message: error.message,
     });
   }
   if (!plan) return null;
-
-  const { data: items } = await service
-    .from('marketing_plan_items')
-    .select('id, month, title, description, status, client_note, task_id')
-    .eq('plan_id', plan.id);
-
-  return {
-    id: plan.id,
-    clientCompanyId: plan.client_company_id,
-    organizationId: plan.organization_id,
-    year: plan.year,
-    title: plan.title,
-    status: plan.status as PlanStatus,
-    items: mapItems(items ?? []),
-  };
+  return assemble(service, plan);
 }
 
-/** The current client's plan to review (only when released, i.e. not draft). */
 /**
  * Whether the current client has a marketing plan worth showing (any non-draft
  * plan). Used to hide the Marketingplan nav item when none is deposited.
@@ -102,32 +153,19 @@ export async function hasMyMarketingPlan(): Promise<boolean> {
   return (count ?? 0) > 0;
 }
 
+/** The current client's plan to review (only when released, i.e. not draft). */
 export async function getMyPlan(): Promise<MarketingPlan | null> {
   const company = await getMyClientCompany();
   if (!company) return null;
   const service = createSupabaseServiceClient();
   const { data: plan } = await service
     .from('marketing_plans')
-    .select('id, client_company_id, organization_id, year, title, status')
+    .select(PLAN_COLS)
     .eq('client_company_id', company.clientCompanyId)
     .neq('status', 'draft')
-    .order('year', { ascending: false })
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   if (!plan) return null;
-
-  const { data: items } = await service
-    .from('marketing_plan_items')
-    .select('id, month, title, description, status, client_note, task_id')
-    .eq('plan_id', plan.id);
-
-  return {
-    id: plan.id,
-    clientCompanyId: plan.client_company_id,
-    organizationId: plan.organization_id,
-    year: plan.year,
-    title: plan.title,
-    status: plan.status as PlanStatus,
-    items: mapItems(items ?? []),
-  };
+  return assemble(service, plan);
 }

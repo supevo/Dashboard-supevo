@@ -92,7 +92,6 @@ export default async function ClientDetailPage({
   // batch. Admin-only queries resolve to null/[] for normal staff, so nothing
   // extra is fetched for them. Only the OneDrive folder mapping stays sequential
   // because it depends on whether OneDrive is configured.
-  const planYear = new Date().getFullYear();
   const [
     requests,
     healthMap,
@@ -121,7 +120,7 @@ export default async function ClientDetailPage({
     getInquiryEndpoint(clientCompanyId),
     listInquiries(clientCompanyId),
     listCompanyHub(clientCompanyId),
-    getPlan(clientCompanyId, planYear),
+    getPlan(clientCompanyId),
     listMarketingReports(clientCompanyId),
     getOnboarding(clientCompanyId, orgId),
     isAdmin ? getLegacySettings(clientCompanyId) : Promise.resolve(null),
@@ -524,17 +523,17 @@ export default async function ClientDetailPage({
       content: (
         <Card>
           <CardHeader>
-            <CardTitle>🗺️ Marketingplan {planYear}</CardTitle>
+            <CardTitle>🗺️ Marketingplan</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Jahresplan aus Maßnahmen pro Monat. Zur Abstimmung an den Kunden
-              geben; akzeptierte Maßnahmen ins Kanban übernehmen.
+              Phasenbasierter Plan aus einzelnen Maßnahmen – ohne festen
+              Zeitraum. Zur Abstimmung an den Kunden geben; Maßnahmen ins Kanban
+              übernehmen.
             </p>
           </CardHeader>
           <CardContent>
             <PlanManager
               clientCompanyId={clientCompanyId}
               plan={marketingPlan}
-              year={planYear}
             />
           </CardContent>
         </Card>
