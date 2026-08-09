@@ -92,6 +92,7 @@ export default async function FinancePage({
         <ReconcilePanel
           orgId={orgId}
           activeFirma={sp.firma}
+          year={jahr}
           basePath="/app/finance?tab=abgleich"
         />
       ),

@@ -113,12 +113,26 @@ export async function applyReceiptMatchAction(input: {
   return successResult('Beleg zugeordnet.');
 }
 
+/** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */
+function inScope(
+  datum: string,
+  scope: { year?: number; month?: number },
+): boolean {
+  if (scope.month == null) return true; // 'all'
+  const y = Number(datum.slice(0, 4));
+  const m = Number(datum.slice(5, 7));
+  return y === scope.year && m === scope.month;
+}
+
 /**
  * Runs the reconcile engine for a company and auto-applies the confident matches
- * (score ≥ 0.85). Suggestions below that stay for manual confirmation.
+ * (score ≥ 0.85). Scope limits which bookings are considered by date: pass a
+ * month (with year) to reconcile just that month, or omit it for all open items
+ * across every month (e.g. to catch up on earlier unpaid payments).
  */
 export async function runReconcileAction(
   billingEntityId: string,
+  scope: { year?: number; month?: number } = {},
 ): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(billingEntityId).success) {
     return errorResult(de.errors.VALIDATION);
@@ -127,7 +141,9 @@ export async function runReconcileAction(
   const orgId = await authorizeEntity(supabase, billingEntityId);
   if (!orgId) return errorResult(de.errors.FORBIDDEN);
 
-  const { payments, receipts } = await getReconcileSuggestions(billingEntityId);
+  const all = await getReconcileSuggestions(billingEntityId);
+  const payments = all.payments.filter((p) => inScope(p.txDatum, scope));
+  const receipts = all.receipts.filter((r) => inScope(r.txDatum, scope));
 
   let applied = 0;
   for (const p of payments) {
@@ -144,7 +160,9 @@ export async function runReconcileAction(
     receipts.filter((r) => !r.match.auto).length;
 
   revalidatePath('/app/finance');
+  const where =
+    scope.month != null ? `${scope.month}/${scope.year}` : 'alle Monate';
   return successResult(
-    `${applied} sichere Zuordnungen übernommen. ${openSuggestions} Vorschläge zum Prüfen.`,
+    `${applied} sichere Zuordnungen übernommen (${where}). ${openSuggestions} Vorschläge zum Prüfen.`,
   );
 }

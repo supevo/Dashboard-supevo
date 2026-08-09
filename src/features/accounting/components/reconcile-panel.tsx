@@ -23,10 +23,12 @@ function pct(score: number): string {
 export async function ReconcilePanel({
   orgId,
   activeFirma,
+  year,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
+  year: number;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -59,7 +61,7 @@ export async function ReconcilePanel({
           activeId={active.entity.id}
           basePath={basePath}
         />
-        <RunReconcileButton billingEntityId={active.entity.id} />
+        <RunReconcileButton billingEntityId={active.entity.id} year={year} />
       </div>
 
       <section className="space-y-2">
