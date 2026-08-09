@@ -58,7 +58,10 @@ export async function getClientHealthMap(
     .is('deleted_at', null);
   const factorByCompany = new Map(
     (companies ?? [])
-      .filter((c) => c.is_active)
+      // Legacy clients are not part of the fair-share traffic light: they run on
+      // a fixed legacy package, so they neither get a health level nor dilute
+      // the active clients' shares.
+      .filter((c) => c.is_active && !c.is_legacy)
       .map(
         (c) =>
           [
