@@ -10,6 +10,8 @@ import {
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
 import { BankUploadForm } from '@/features/accounting/components/bank-upload-form';
+import { AutoCategorizeButton } from '@/features/accounting/components/auto-categorize-button';
+import { TransactionCategorySelect } from '@/features/accounting/components/transaction-category-select';
 
 function formatDate(d: string | null): string {
   if (!d) return '—';
@@ -84,6 +86,10 @@ export async function TransactionsPanel({
         <BankUploadForm billingEntityId={active.entity.id} />
       </div>
 
+      {txns.length > 0 && (
+        <AutoCategorizeButton billingEntityId={active.entity.id} />
+      )}
+
       {txns.length === 0 ? (
         <EmptyState
           icon="📄"
@@ -98,6 +104,7 @@ export async function TransactionsPanel({
                 <th className="px-3 py-2 font-medium">Datum</th>
                 <th className="px-3 py-2 font-medium">Empfänger / Zahler</th>
                 <th className="px-3 py-2 font-medium">Verwendungszweck</th>
+                <th className="px-3 py-2 font-medium">Kategorie</th>
                 <th className="px-3 py-2 text-right font-medium">Betrag</th>
               </tr>
             </thead>
@@ -115,6 +122,13 @@ export async function TransactionsPanel({
                     title={t.zweck ?? ''}
                   >
                     {t.zweck ?? '—'}
+                  </td>
+                  <td className="px-3 py-2">
+                    <TransactionCategorySelect
+                      transactionId={t.id}
+                      value={t.kategorie_id}
+                      konfidenz={t.konfidenz}
+                    />
                   </td>
                   <td
                     className={`whitespace-nowrap px-3 py-2 text-right font-medium ${
