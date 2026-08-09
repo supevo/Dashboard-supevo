@@ -37,6 +37,7 @@ create table if not exists public.bookkeeping_receipts (
   netto_cents bigint,
   ust_satz numeric(5, 2),
   rechnungsnummer text,
+  kategorie_id text,
   konfidenz numeric(5, 2),
   rohtext text,
   erkannt jsonb not null default '{}'::jsonb,

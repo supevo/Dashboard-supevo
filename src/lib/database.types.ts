@@ -2663,6 +2663,7 @@ export interface Database {
           netto_cents: number | null;
           ust_satz: number | null;
           rechnungsnummer: string | null;
+          kategorie_id: string | null;
           konfidenz: number | null;
           rohtext: string | null;
           erkannt: Record<string, unknown>;
@@ -2689,6 +2690,7 @@ export interface Database {
           netto_cents?: number | null;
           ust_satz?: number | null;
           rechnungsnummer?: string | null;
+          kategorie_id?: string | null;
           konfidenz?: number | null;
           rohtext?: string | null;
           erkannt?: Record<string, unknown>;

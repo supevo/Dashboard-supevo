@@ -11,6 +11,8 @@ import {
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
 import { ReceiptImportButton } from '@/features/accounting/components/receipt-import-button';
+import { ReceiptExtractButton } from '@/features/accounting/components/receipt-extract-button';
+import { kategorieLabel } from '@/features/accounting/categories';
 
 function formatDate(d: string | null): string {
   if (!d) return '—';
@@ -109,6 +111,10 @@ export async function ReceiptsPanel({
         </div>
       </div>
 
+      {(counts.einnahme > 0 || counts.ausgabe > 0) && (
+        <ReceiptExtractButton mode="all" id={active.entity.id} />
+      )}
+
       {lastLog && (
         <p className="text-xs text-muted-foreground">
           Letzter Import: {formatDate(lastLog.created_at)} ·{' '}
@@ -134,7 +140,9 @@ export async function ReceiptsPanel({
                 <th className="px-3 py-2 font-medium">Händler</th>
                 <th className="px-3 py-2 font-medium">Datum</th>
                 <th className="px-3 py-2 text-right font-medium">Brutto</th>
+                <th className="px-3 py-2 font-medium">Kategorie</th>
                 <th className="px-3 py-2 font-medium">Status</th>
+                <th className="px-3 py-2 font-medium">KI</th>
               </tr>
             </thead>
             <tbody>
@@ -153,10 +161,14 @@ export async function ReceiptsPanel({
                       ? formatEuroCents(r.brutto_cents)
                       : '—'}
                   </td>
+                  <td className="px-3 py-2">{kategorieLabel(r.kategorie_id)}</td>
                   <td className="px-3 py-2">
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                       {STATUS_LABEL[r.status] ?? r.status}
                     </span>
+                  </td>
+                  <td className="px-3 py-2">
+                    <ReceiptExtractButton mode="one" id={r.id} />
                   </td>
                 </tr>
               ))}
