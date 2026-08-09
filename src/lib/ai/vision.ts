@@ -38,6 +38,107 @@ export function isReceiptVisionEnabled(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
+export interface AiBankTransaction {
+  datum: string | null;
+  gegen: string | null;
+  zweck: string | null;
+  betrag: number | null; // euros, negative = Ausgang
+}
+export interface AiBankStatement {
+  account_iban: string | null;
+  transactions: AiBankTransaction[];
+}
+
+const BANK_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    account_iban: { type: ['string', 'null'] },
+    transactions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          datum: { type: ['string', 'null'] },
+          gegen: { type: ['string', 'null'] },
+          zweck: { type: ['string', 'null'] },
+          betrag: { type: ['number', 'null'] },
+        },
+        required: ['datum', 'gegen', 'zweck', 'betrag'],
+      },
+    },
+  },
+  required: ['account_iban', 'transactions'],
+} as const;
+
+const BANK_SYSTEM = [
+  'Du liest deutsche Bankkontoauszüge (CSV, MT940, CAMT.053 oder PDF) und gibst',
+  'ALLE Umsätze strukturiert zurück. datum als YYYY-MM-DD. betrag als Zahl in Euro',
+  '(Punkt als Dezimaltrennzeichen): positiv = Geldeingang, negativ = Geldausgang.',
+  'gegen = Name der Gegenpartei (Empfänger/Zahler), zweck = Verwendungszweck.',
+  'account_iban = IBAN des Auszug-Kontos, falls erkennbar, sonst null. Lass keine',
+  'Buchung aus; erfinde keine.',
+].join(' ');
+
+/**
+ * KI-Fallback für Kontoauszüge: liest jede Buchung, wenn die deterministischen
+ * Parser nichts finden (fummelige MT940/PDF). Text-Auszüge gehen als input_text,
+ * PDFs als input_file. Nur OpenAI; ohne Key null. Wirft nie.
+ */
+export async function extractBankStatement(input: {
+  text?: string;
+  pdfBytes?: Buffer;
+}): Promise<AiBankStatement | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+
+    const userContent: unknown[] = [
+      { type: 'input_text', text: 'Lies alle Umsätze aus diesem Kontoauszug.' },
+    ];
+    if (input.pdfBytes) {
+      userContent.push({
+        type: 'input_file',
+        filename: 'auszug.pdf',
+        file_data: `data:application/pdf;base64,${input.pdfBytes.toString('base64')}`,
+      });
+    } else if (input.text) {
+      // Guard against pathologically large inputs.
+      userContent.push({ type: 'input_text', text: input.text.slice(0, 120_000) });
+    } else {
+      return null;
+    }
+
+    const params = {
+      model: visionModel(),
+      input: [
+        { role: 'system', content: BANK_SYSTEM },
+        { role: 'user', content: userContent },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'kontoauszug',
+          strict: true,
+          schema: BANK_SCHEMA,
+        },
+      },
+    } as unknown as Parameters<typeof client.responses.create>[0];
+
+    const res = await client.responses.create(params);
+    const text = (res as { output_text?: string }).output_text;
+    if (!text) return null;
+    return JSON.parse(text) as AiBankStatement;
+  } catch (e) {
+    logger.warn('vision.bank_extract_failed', { error: (e as Error).message });
+    return null;
+  }
+}
+
 const EXT_MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

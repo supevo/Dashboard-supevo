@@ -434,6 +434,101 @@ export async function ensureFolderByPath(
   return parentId;
 }
 
+/**
+ * Ensures a child folder with `name` exists under `parentId`, returning its id.
+ * Reuses an existing child of the same name (case-insensitive) or creates it.
+ */
+export async function ensureChildFolder(
+  orgId: string,
+  parentId: string,
+  name: string,
+): Promise<string | null> {
+  const token = await getAccessToken(orgId);
+  if (!token) return null;
+  const clean = name.trim();
+  if (!clean) return parentId;
+
+  const existing = await listFolder(orgId, parentId);
+  const hit = existing?.find(
+    (i) => i.isFolder && i.name.toLowerCase() === clean.toLowerCase(),
+  );
+  if (hit) return hit.id;
+
+  const res = await fetch(
+    `${GRAPH}/me/drive/items/${encodeURIComponent(parentId)}/children`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: clean,
+        folder: {},
+        '@microsoft.graph.conflictBehavior': 'fail',
+      }),
+    },
+  );
+  if (res.ok) {
+    const created = (await res.json()) as { id?: string };
+    return created.id ?? null;
+  }
+  // Lost a race / already exists → re-list and match.
+  const again = await listFolder(orgId, parentId);
+  return (
+    again?.find(
+      (i) => i.isFolder && i.name.toLowerCase() === clean.toLowerCase(),
+    )?.id ?? null
+  );
+}
+
+/** Ensures a chain of nested subfolders under `rootId`, returning the deepest id. */
+export async function ensureSubfolderPath(
+  orgId: string,
+  rootId: string,
+  segments: string[],
+): Promise<string | null> {
+  let current = rootId;
+  for (const seg of segments) {
+    const next = await ensureChildFolder(orgId, current, seg);
+    if (!next) return null;
+    current = next;
+  }
+  return current;
+}
+
+/**
+ * Collects every file (non-folder) under `rootId`, descending into subfolders
+ * (year/month structures). Bounded by node + file caps so a huge tree can't run
+ * away. Returns null only if the connection itself is unavailable.
+ */
+export async function listFolderFilesRecursive(
+  orgId: string,
+  rootId: string | null,
+  opts: { maxFiles?: number; maxNodes?: number } = {},
+): Promise<DriveItem[] | null> {
+  const maxFiles = opts.maxFiles ?? 5000;
+  const maxNodes = opts.maxNodes ?? 800;
+  const queue: (string | null)[] = [rootId];
+  const files: DriveItem[] = [];
+  let nodes = 0;
+  let anyOk = false;
+
+  while (queue.length > 0 && nodes < maxNodes && files.length < maxFiles) {
+    const folderId = queue.shift() ?? null;
+    nodes += 1;
+    const items = await listFolder(orgId, folderId);
+    if (items === null) continue;
+    anyOk = true;
+    for (const item of items) {
+      if (item.isFolder) queue.push(item.id);
+      else files.push(item);
+    }
+  }
+  if (!anyOk) return null;
+  return files;
+}
+
 export function graphConfigured(): OneDriveConfig | null {
   return getOneDriveConfig();
 }

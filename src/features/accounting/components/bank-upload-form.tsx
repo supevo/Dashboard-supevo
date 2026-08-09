@@ -35,7 +35,7 @@ export function BankUploadForm({ billingEntityId }: { billingEntityId: string })
             id="file"
             name="file"
             type="file"
-            accept=".csv,.xml,.sta,.txt,.940,.mt940,text/csv,text/xml,application/xml"
+            accept=".csv,.xml,.sta,.txt,.940,.mt940,.pdf,text/csv,text/xml,application/xml,application/pdf"
             required
             className="block text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm hover:file:bg-muted"
           />
@@ -43,8 +43,9 @@ export function BankUploadForm({ billingEntityId }: { billingEntityId: string })
         <SubmitButton>Importieren</SubmitButton>
       </div>
       <p className="text-xs text-muted-foreground">
-        Unterstützt: CSV (dt. Banken, Sparkasse/Volksbank, CAMT-CSV), CAMT.053
-        (XML), MT940 (.sta). Doppelte Umsätze werden automatisch übersprungen.
+        CSV (dt. Banken/CAMT-CSV), CAMT.053 (XML), MT940 (.sta) oder PDF. Klappt
+        ein Format mal nicht, liest die KI den Auszug automatisch aus. Doppelte
+        Umsätze werden übersprungen.
       </p>
       {state.status === 'error' && (
         <Alert variant="destructive">{state.message}</Alert>
