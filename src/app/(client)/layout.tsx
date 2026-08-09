@@ -15,6 +15,19 @@ import { ExpressHeaderBadge } from '@/features/express/components/express-header
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { getMyAccountManagers } from '@/features/account-manager/queries';
 import { ClientChatDock } from '@/features/messenger/components/client-chat-dock';
+import {
+  LayoutDashboard,
+  FolderKanban,
+  BarChart3,
+  Inbox,
+  Lightbulb,
+  CalendarDays,
+  Megaphone,
+  Sparkles,
+  KeyRound,
+  BadgeCheck,
+  Receipt,
+} from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
 const MENU_ITEMS: UserMenuItem[] = [
@@ -53,25 +66,27 @@ export default async function ClientLayout({
   // werden in die passende Gruppe eingehängt.
   const navItems: NavItem[] = [
     { href: '#arbeitsbereich', label: 'Arbeitsbereich', heading: true },
-    { href: '/portal', label: 'Übersicht' },
-    { href: '/portal/projects', label: 'Projekte' },
-    { href: '/portal/reports', label: 'Berichte' },
+    { href: '/portal', label: 'Übersicht', icon: <LayoutDashboard /> },
+    { href: '/portal/projects', label: 'Projekte', icon: <FolderKanban /> },
+    { href: '/portal/reports', label: 'Berichte', icon: <BarChart3 /> },
     ...(inquiriesEnabled
-      ? [{ href: '/portal/inquiries', label: de.nav.inquiries }]
+      ? [{ href: '/portal/inquiries', label: de.nav.inquiries, icon: <Inbox /> }]
       : []),
 
     { href: '#planung', label: 'Planung & Kreativität', heading: true },
-    { href: '/portal/ideas', label: 'Ideen' },
-    { href: '/portal/appointments', label: 'Termine' },
-    ...(hasPlan ? [{ href: '/portal/plan', label: 'Marketingplan' }] : []),
+    { href: '/portal/ideas', label: 'Ideen', icon: <Lightbulb /> },
+    { href: '/portal/appointments', label: 'Termine', icon: <CalendarDays /> },
+    ...(hasPlan
+      ? [{ href: '/portal/plan', label: 'Marketingplan', icon: <Megaphone /> }]
+      : []),
 
     { href: '#brand', label: 'Brand', heading: true },
-    { href: '/portal/hub', label: 'Brand-Hub' },
+    { href: '/portal/hub', label: 'Brand-Hub', icon: <Sparkles /> },
 
     { href: '#verwaltung', label: 'Verwaltung & Zugänge', heading: true },
-    { href: '/portal/access', label: 'Zugänge' },
-    { href: '/portal/membership', label: 'Mitgliedschaft' },
-    { href: '/portal/invoices', label: 'Rechnungen' },
+    { href: '/portal/access', label: 'Zugänge', icon: <KeyRound /> },
+    { href: '/portal/membership', label: 'Mitgliedschaft', icon: <BadgeCheck /> },
+    { href: '/portal/invoices', label: 'Rechnungen', icon: <Receipt /> },
   ];
 
   const expressStatus = company
