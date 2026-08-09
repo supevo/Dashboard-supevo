@@ -6,6 +6,7 @@ import { ExpensesPanel } from '@/features/print-billing/components/expenses-pane
 import { BillingPanel } from '@/features/billing/components/billing-panel';
 import { AccountingOverview } from '@/features/accounting/components/accounting-overview';
 import { CompaniesPanel } from '@/features/accounting/components/companies-panel';
+import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,8 +45,19 @@ export default async function FinancePage({
       ),
     },
     {
+      key: 'belege',
+      label: '🧾 Belege',
+      content: (
+        <ReceiptsPanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          basePath="/app/finance?tab=belege"
+        />
+      ),
+    },
+    {
       key: 'ausgaben',
-      label: '💶 Ausgaben',
+      label: '💶 Drucksachen',
       content: (
         <ExpensesPanel
           orgId={orgId}

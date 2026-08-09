@@ -2645,6 +2645,96 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bookkeeping_receipts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          kind: string;
+          source: string;
+          onedrive_item_id: string | null;
+          file_name: string;
+          file_mime: string | null;
+          file_size: number | null;
+          haendler: string | null;
+          beleg_datum: string | null;
+          brutto_cents: number | null;
+          ust_cents: number | null;
+          netto_cents: number | null;
+          ust_satz: number | null;
+          rechnungsnummer: string | null;
+          konfidenz: number | null;
+          rohtext: string | null;
+          erkannt: Record<string, unknown>;
+          status: string;
+          notiz: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          kind: string;
+          source?: string;
+          onedrive_item_id?: string | null;
+          file_name: string;
+          file_mime?: string | null;
+          file_size?: number | null;
+          haendler?: string | null;
+          beleg_datum?: string | null;
+          brutto_cents?: number | null;
+          ust_cents?: number | null;
+          netto_cents?: number | null;
+          ust_satz?: number | null;
+          rechnungsnummer?: string | null;
+          konfidenz?: number | null;
+          rohtext?: string | null;
+          erkannt?: Record<string, unknown>;
+          status?: string;
+          notiz?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_receipts']['Insert']
+        >;
+        Relationships: [];
+      };
+      bookkeeping_import_log: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          kind: string;
+          source: string | null;
+          imported_count: number;
+          skipped_count: number;
+          error_count: number;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          kind: string;
+          source?: string | null;
+          imported_count?: number;
+          skipped_count?: number;
+          error_count?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_import_log']['Insert']
+        >;
+        Relationships: [];
+      };
       billing_entities: {
         Row: {
           id: string;
