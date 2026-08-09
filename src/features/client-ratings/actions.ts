@@ -6,19 +6,19 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { createNotifications } from '@/features/notifications/create';
-import { awardClientPraiseXp } from '@/features/gamification/xp';
+import { awardClientResultXp } from '@/features/gamification/xp';
 import { de } from '@/lib/i18n/de';
 import { type ActionResult, errorResult, successResult } from '@/lib/action-result';
 
 const schema = z.object({
   taskId: z.string().uuid(),
   projectId: z.string().uuid(),
-  stars: z.coerce.number().int().min(1).max(5),
+  stars: z.coerce.number().int().min(1).max(10),
   comment: z.string().trim().max(2000).optional().or(z.literal('')),
 });
 
 /**
- * A client rates the execution of a client-visible task (1–5 stars + optional
+ * A client rates the result of a client-visible task on a 1–10 scale (+ optional
  * comment). Authorization: the task is read through the caller's RLS-scoped
  * client, so it only resolves if the client may actually see it (non-internal,
  * their project). The rating is then written with the service client.
@@ -68,8 +68,9 @@ export async function rateTaskExecutionAction(input: {
   );
   if (error) return errorResult(de.errors.INTERNAL);
 
-  // Bonus XP for the person who finished the task when the client is happy (≥4★).
-  await awardClientPraiseXp({ orgId: task.organization_id, taskId, stars });
+  // Bonus XP for the person who finished the task, proportional to the client's
+  // 1–10 result rating.
+  await awardClientResultXp({ orgId: task.organization_id, taskId, rating: stars });
 
   // Notify agency staff on the project about the client feedback.
   const { data: members } = await service
@@ -83,8 +84,8 @@ export async function rateTaskExecutionAction(input: {
         organizationId: task.organization_id,
         recipientId,
         type: 'client_comment' as const,
-        title: `Kundenbewertung: ${stars}★`,
-        body: comment.trim().slice(0, 140) || `${stars} von 5 Sternen`,
+        title: `Kundenbewertung: ${stars}/10`,
+        body: comment.trim().slice(0, 140) || `${stars} von 10 Punkten`,
         entityType: 'task',
         entityId: taskId,
       })),

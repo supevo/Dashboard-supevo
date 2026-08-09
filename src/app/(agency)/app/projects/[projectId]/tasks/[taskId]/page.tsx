@@ -21,8 +21,6 @@ import { listLabels, listTaskLabels } from '@/features/labels/queries';
 import { LabelPicker } from '@/features/labels/components/label-picker';
 import { StartTimerButton } from '@/features/time-tracking/components/start-timer-button';
 import { getRunningTimer } from '@/features/time-tracking/queries';
-import { TaskRating } from '@/features/ratings/components/task-rating';
-import { getTaskRating } from '@/features/ratings/queries';
 import { TaskKudosPanel } from '@/features/task-kudos/components/task-kudos-panel';
 import { getTaskKudos } from '@/features/task-kudos/queries';
 import { getTaskClientRating } from '@/features/client-ratings/queries';
@@ -65,7 +63,6 @@ export default async function TaskDetailPage({
     approvals,
     members,
     runningTimer,
-    rating,
     taskKudos,
     clientRating,
     actualMinutes,
@@ -81,7 +78,6 @@ export default async function TaskDetailPage({
     listProjectApprovals(projectId),
     listProjectMembers(projectId),
     getRunningTimer(user.id),
-    getTaskRating(taskId, user.id),
     getTaskKudos(taskId, user.id),
     getTaskClientRating(taskId),
     getTaskActualMinutes(taskId),
@@ -89,7 +85,6 @@ export default async function TaskDetailPage({
     getTaskViewStats(taskId),
     getOneDriveStatus(orgId),
   ]);
-  const isAssignee = task.assignees.some((a) => a.userId === user.id);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
 
   return (
@@ -307,9 +302,19 @@ export default async function TaskDetailPage({
                 <CardTitle>⭐ Kundenbewertung</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1">
-                <div className="text-lg text-amber-400" aria-label={`${clientRating.stars} von 5 Sternen`}>
-                  {'★'.repeat(clientRating.stars)}
-                  <span className="text-muted-foreground/30">{'★'.repeat(5 - clientRating.stars)}</span>
+                <div
+                  className="flex items-center gap-2 text-amber-400"
+                  aria-label={`${clientRating.stars} von 10`}
+                >
+                  <span className="text-lg leading-none">
+                    {'★'.repeat(clientRating.stars)}
+                    <span className="text-muted-foreground/30">
+                      {'★'.repeat(Math.max(0, 10 - clientRating.stars))}
+                    </span>
+                  </span>
+                  <span className="text-sm font-medium tabular-nums text-foreground">
+                    {clientRating.stars}/10
+                  </span>
                 </div>
                 {clientRating.comment && (
                   <p className="text-sm text-muted-foreground">„{clientRating.comment}“</p>
@@ -327,20 +332,6 @@ export default async function TaskDetailPage({
             </CardHeader>
             <CardContent>
               <TaskKudosPanel projectId={projectId} taskId={taskId} info={taskKudos} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>{de.rating.title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TaskRating
-                projectId={projectId}
-                taskId={taskId}
-                summary={rating}
-                canRate={!isAssignee}
-              />
             </CardContent>
           </Card>
 
