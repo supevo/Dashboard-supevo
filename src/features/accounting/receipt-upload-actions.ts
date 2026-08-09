@@ -25,8 +25,8 @@ const MAX_BYTES = 25 * 1024 * 1024;
 const KAT_IDS = new Set(KATEGORIEN.map((k) => k.id));
 const KAT_CONTEXT = KATEGORIEN.map((k) => ({ id: k.id, label: k.label, art: k.art }));
 const MONTHS_LONG = [
-  '01 Januar', '02 Februar', '03 März', '04 April', '05 Mai', '06 Juni',
-  '07 Juli', '08 August', '09 September', '10 Oktober', '11 November', '12 Dezember',
+  '01. Januar', '02. Februar', '03. März', '04. April', '05. Mai', '06. Juni',
+  '07. Juli', '08. August', '09. September', '10. Oktober', '11. November', '12. Dezember',
 ];
 
 /** Year/month subfolder segments from a receipt date (falls back to today). */

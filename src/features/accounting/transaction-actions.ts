@@ -15,7 +15,11 @@ import {
   parseBankStatement,
   decodeStatementBytes,
 } from '@/features/accounting/bank-import/parse';
-import type { ParsedTransaction } from '@/features/accounting/bank-import/types';
+import {
+  type ParsedTransaction,
+  normalizeDate,
+} from '@/features/accounting/bank-import/types';
+import { extractBankStatement } from '@/lib/ai/vision';
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -68,29 +72,62 @@ export async function importBankStatementAction(
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId });
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const text = decodeStatementBytes(bytes);
-  const parsed = parseBankStatement(text);
+  const buf = Buffer.from(await file.arrayBuffer());
+  const isPdf =
+    file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 
-  if (parsed.format === 'unknown') {
-    return errorResult(
-      'Format nicht erkannt. Unterstützt: CSV (dt. Banken), CAMT.053 (XML), MT940. PDF folgt.',
-    );
+  let transactions: ParsedTransaction[] = [];
+  let accountIban: string | null = null;
+  let formatLabel = 'ki';
+
+  // Deterministic parsers first for text formats (free + exact); PDF goes to KI.
+  if (!isPdf) {
+    const parsed = parseBankStatement(decodeStatementBytes(buf));
+    if (parsed.transactions.length > 0) {
+      transactions = parsed.transactions;
+      accountIban = parsed.accountIban;
+      formatLabel = parsed.format;
+    }
   }
-  if (parsed.transactions.length === 0) {
-    return errorResult(
-      `Keine Umsätze in der Datei gefunden (erkanntes Format: ${parsed.format}).`,
+
+  // KI fallback: guarantees it works for fiddly MT940 / PDF / odd CSVs.
+  if (transactions.length === 0) {
+    const ai = await extractBankStatement(
+      isPdf ? { pdfBytes: buf } : { text: decodeStatementBytes(buf) },
     );
+    if (!ai) {
+      return errorResult(
+        'Konnte den Auszug nicht lesen. Ist die KI aktiviert (OPENAI_API_KEY)?',
+      );
+    }
+    accountIban = ai.account_iban || null;
+    formatLabel = isPdf ? 'ki-pdf' : 'ki';
+    transactions = ai.transactions.flatMap((t) => {
+      const datum = t.datum ? normalizeDate(t.datum) : null;
+      if (!datum || t.betrag == null || !Number.isFinite(t.betrag)) return [];
+      return [
+        {
+          datum,
+          gegen: t.gegen,
+          zweck: t.zweck,
+          betragCents: Math.round(t.betrag * 100),
+        },
+      ];
+    });
+  }
+
+  if (transactions.length === 0) {
+    return errorResult('Keine Umsätze im Auszug gefunden (auch nicht per KI).');
   }
 
   // Resolve / create the bank account by IBAN, if the statement exposes one.
   let kontoId: string | null = null;
-  if (parsed.accountIban) {
+  if (accountIban) {
     const { data: existing } = await supabase
       .from('bookkeeping_accounts')
       .select('id')
       .eq('billing_entity_id', entityId)
-      .eq('iban', parsed.accountIban)
+      .eq('iban', accountIban)
       .maybeSingle();
     if (existing) kontoId = existing.id;
     else {
@@ -99,8 +136,8 @@ export async function importBankStatementAction(
         .insert({
           organization_id: orgId,
           billing_entity_id: entityId,
-          iban: parsed.accountIban,
-          name: parsed.accountIban,
+          iban: accountIban,
+          name: accountIban,
           typ: 'giro',
         })
         .select('id')
@@ -119,7 +156,7 @@ export async function importBankStatementAction(
 
   const seen = new Set<string>();
   const rows = [];
-  for (const t of parsed.transactions) {
+  for (const t of transactions) {
     const hash = importHash(entityId, t);
     if (knownHashes.has(hash) || seen.has(hash)) continue;
     seen.add(hash);
@@ -144,13 +181,13 @@ export async function importBankStatementAction(
     if (error) return errorResult(de.errors.INTERNAL);
     imported = count ?? rows.length;
   }
-  const skipped = parsed.transactions.length - imported;
+  const skipped = transactions.length - imported;
 
   await supabase.from('bookkeeping_import_log').insert({
     organization_id: orgId,
     billing_entity_id: entityId,
     kind: 'kontoauszug',
-    source: `${file.name} (${parsed.format})`,
+    source: `${file.name} (${formatLabel})`,
     imported_count: imported,
     skipped_count: skipped < 0 ? 0 : skipped,
     error_count: 0,
@@ -160,7 +197,7 @@ export async function importBankStatementAction(
   revalidatePath('/app/finance');
   return successResult(
     imported > 0
-      ? `${imported} Umsätze importiert (${skipped} bereits vorhanden), Format ${parsed.format}.`
-      : `Keine neuen Umsätze – alle ${parsed.transactions.length} bereits vorhanden.`,
+      ? `${imported} Umsätze importiert (${skipped} bereits vorhanden), Format ${formatLabel}.`
+      : `Keine neuen Umsätze – alle ${transactions.length} bereits vorhanden.`,
   );
 }
