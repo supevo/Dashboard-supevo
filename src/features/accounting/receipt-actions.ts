@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser, authorize } from '@/lib/authz/authorize';
-import { listFolder } from '@/lib/onedrive/graph';
+import { listFolderFilesRecursive } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
 import { de } from '@/lib/i18n/de';
 import {
@@ -69,14 +69,13 @@ export async function importOneDriveReceiptsAction(input: {
     );
   }
 
-  // List the folder (non-recursive). OneDrive connection is per organization.
-  const items = await listFolder(orgId, folderId);
-  if (items === null) {
+  // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).
+  const files = await listFolderFilesRecursive(orgId, folderId);
+  if (files === null) {
     return errorResult(
       'OneDrive nicht erreichbar. Ist das Konto noch verbunden?',
     );
   }
-  const files = items.filter((i) => !i.isFolder);
 
   // Existing receipts of this company → dedup by OneDrive item id.
   const { data: known } = await supabase
