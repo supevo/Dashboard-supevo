@@ -2735,6 +2735,86 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bookkeeping_accounts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          bank: string | null;
+          name: string | null;
+          iban: string | null;
+          saldo_cents: number | null;
+          typ: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          bank?: string | null;
+          name?: string | null;
+          iban?: string | null;
+          saldo_cents?: number | null;
+          typ?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_accounts']['Insert']
+        >;
+        Relationships: [];
+      };
+      bookkeeping_transactions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          konto_id: string | null;
+          datum: string;
+          gegen: string | null;
+          zweck: string | null;
+          betrag_cents: number;
+          kategorie_id: string | null;
+          konfidenz: number | null;
+          status: string;
+          privatanteil: number;
+          beleg_id: string | null;
+          re_id: string | null;
+          beleg_nicht_noetig: boolean;
+          notiz: string | null;
+          import_hash: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          konto_id?: string | null;
+          datum: string;
+          gegen?: string | null;
+          zweck?: string | null;
+          betrag_cents: number;
+          kategorie_id?: string | null;
+          konfidenz?: number | null;
+          status?: string;
+          privatanteil?: number;
+          beleg_id?: string | null;
+          re_id?: string | null;
+          beleg_nicht_noetig?: boolean;
+          notiz?: string | null;
+          import_hash?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_transactions']['Insert']
+        >;
+        Relationships: [];
+      };
       billing_entities: {
         Row: {
           id: string;
