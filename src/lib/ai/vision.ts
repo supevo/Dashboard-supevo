@@ -74,11 +74,13 @@ const BANK_SCHEMA = {
 
 const BANK_SYSTEM = [
   'Du liest deutsche Bankkontoauszüge (CSV, MT940, CAMT.053 oder PDF) und gibst',
-  'ALLE Umsätze strukturiert zurück. datum als YYYY-MM-DD. betrag als Zahl in Euro',
-  '(Punkt als Dezimaltrennzeichen): positiv = Geldeingang, negativ = Geldausgang.',
-  'gegen = Name der Gegenpartei (Empfänger/Zahler), zweck = Verwendungszweck.',
-  'account_iban = IBAN des Auszug-Kontos, falls erkennbar, sonst null. Lass keine',
-  'Buchung aus; erfinde keine.',
+  'JEDE einzelne Buchung strukturiert zurück. datum als YYYY-MM-DD. betrag als',
+  'Zahl in Euro (Punkt als Dezimaltrennzeichen): positiv = Geldeingang, negativ =',
+  'Geldausgang. gegen = Name der Gegenpartei (Empfänger/Zahler), zweck =',
+  'Verwendungszweck. account_iban = IBAN des Auszug-Kontos, falls erkennbar,',
+  'sonst null. WICHTIG: Gib ausnahmslos ALLE Umsätze zurück, fasse nichts',
+  'zusammen, lasse keine Zeile aus und erfinde keine. Zwei Buchungen mit',
+  'gleichem Betrag/Datum sind zwei getrennte Einträge.',
 ].join(' ');
 
 /**
@@ -115,6 +117,8 @@ export async function extractBankStatement(input: {
 
     const params = {
       model: visionModel(),
+      // High cap so long statements (many bookings) are never truncated.
+      max_output_tokens: 32000,
       input: [
         { role: 'system', content: BANK_SYSTEM },
         { role: 'user', content: userContent },

@@ -93,26 +93,11 @@ export async function importBankStatementAction(
   let accountIban: string | null = null;
   let formatLabel = 'ki';
 
-  // Deterministic parsers first for text formats (free + exact); PDF goes to KI.
-  if (!isPdf) {
-    const parsed = parseBankStatement(decodeStatementBytes(buf));
-    if (parsed.transactions.length > 0) {
-      transactions = parsed.transactions;
-      accountIban = parsed.accountIban;
-      formatLabel = parsed.format;
-    }
-  }
-
-  // KI fallback: guarantees it works for fiddly MT940 / PDF / odd CSVs.
-  if (transactions.length === 0) {
-    const ai = await extractBankStatement(
-      isPdf ? { pdfBytes: buf } : { text: decodeStatementBytes(buf) },
-    );
-    if (!ai) {
-      return errorResult(
-        'Konnte den Auszug nicht lesen. Ist die KI aktiviert (OPENAI_API_KEY)?',
-      );
-    }
+  // KI ist die primäre Lesart – liest jede Buchung aus jedem Format zuverlässig.
+  const ai = await extractBankStatement(
+    isPdf ? { pdfBytes: buf } : { text: decodeStatementBytes(buf) },
+  );
+  if (ai) {
     accountIban = ai.account_iban || null;
     formatLabel = isPdf ? 'ki-pdf' : 'ki';
     transactions = ai.transactions.flatMap((t) => {
@@ -127,10 +112,20 @@ export async function importBankStatementAction(
         },
       ];
     });
+  } else if (!isPdf) {
+    // Notfall (KI nicht verfügbar): deterministische Parser für Textformate.
+    const parsed = parseBankStatement(decodeStatementBytes(buf));
+    transactions = parsed.transactions;
+    accountIban = parsed.accountIban;
+    formatLabel = parsed.format;
   }
 
   if (transactions.length === 0) {
-    return errorResult('Keine Umsätze im Auszug gefunden (auch nicht per KI).');
+    return errorResult(
+      ai
+        ? 'Keine Umsätze im Auszug erkannt.'
+        : 'Konnte den Auszug nicht lesen. Ist die KI aktiviert (OPENAI_API_KEY)?',
+    );
   }
 
   // Resolve / create the bank account by IBAN, if the statement exposes one.
