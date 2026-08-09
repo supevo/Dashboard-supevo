@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   matchPaymentsToInvoices,
   matchReceiptsToTransactions,
+  matchPaymentCombinations,
   AUTO_THRESHOLD,
 } from '../reconcile';
 
@@ -41,6 +42,35 @@ describe('matchPaymentsToInvoices', () => {
       { id: 'i1', number: 'RE-1', grossCents: 10000, issueDate: '2024-03-01', kunde: 'x' },
     ];
     expect(matchPaymentsToInvoices(payments, invoices)).toHaveLength(0);
+  });
+});
+
+describe('matchPaymentCombinations', () => {
+  it('matches one payment to a sum of several invoices (same client)', () => {
+    const payments = [
+      { id: 't1', datum: '2024-03-20', gegen: 'Kunde AG', zweck: 'Sammelzahlung', betragCents: 30000 },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-1', grossCents: 10000, issueDate: '2024-03-01', kunde: 'Kunde AG' },
+      { id: 'i2', number: 'RE-2', grossCents: 20000, issueDate: '2024-03-02', kunde: 'Kunde AG' },
+      { id: 'i3', number: 'RE-3', grossCents: 55000, issueDate: '2024-03-03', kunde: 'Kunde AG' },
+    ];
+    const combos = matchPaymentCombinations(payments, invoices);
+    expect(combos).toHaveLength(1);
+    expect(combos[0]!.invoiceIds.sort()).toEqual(['i1', 'i2']);
+    expect(combos[0]!.totalCents).toBe(30000);
+    expect(combos[0]!.auto).toBe(true);
+  });
+
+  it('returns nothing when no subset sums to the payment', () => {
+    const payments = [
+      { id: 't1', datum: '2024-03-20', gegen: 'Kunde AG', zweck: 'x', betragCents: 12345 },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-1', grossCents: 10000, issueDate: '2024-03-01', kunde: 'Kunde AG' },
+      { id: 'i2', number: 'RE-2', grossCents: 20000, issueDate: '2024-03-02', kunde: 'Kunde AG' },
+    ];
+    expect(matchPaymentCombinations(payments, invoices)).toHaveLength(0);
   });
 });
 

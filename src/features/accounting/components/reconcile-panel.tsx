@@ -9,6 +9,7 @@ import {
 import {
   RunReconcileButton,
   ApplyMatchButton,
+  ApplyComboButton,
 } from '@/features/accounting/components/reconcile-buttons';
 
 function pct(score: number): string {
@@ -51,7 +52,9 @@ export async function ReconcilePanel({
     isDefault: c.entity.is_default,
   }));
 
-  const { payments, receipts } = await getReconcileSuggestions(active.entity.id);
+  const { payments, receipts, combos } = await getReconcileSuggestions(
+    active.entity.id,
+  );
 
   return (
     <div className="space-y-6">
@@ -116,6 +119,59 @@ export async function ReconcilePanel({
           </div>
         )}
       </section>
+
+      {combos.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">
+            Sammelzahlungen{' '}
+            <span className="text-muted-foreground">({combos.length})</span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Eine Zahlung deckt mehrere Rechnungen ab (Summe passt).
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Zahlung</th>
+                  <th className="px-3 py-2 font-medium">Rechnungen</th>
+                  <th className="px-3 py-2 text-right font-medium">Summe</th>
+                  <th className="px-3 py-2 text-right font-medium">Score</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {combos.map((c) => (
+                  <tr key={c.match.txId} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      {c.txGegen ?? '—'} · {formatEuroCents(c.match.paymentCents)}
+                      <div className="text-xs text-muted-foreground">{c.txDatum}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {c.invoices.map((inv) => (
+                        <div key={inv.id} className="text-xs">
+                          {inv.number ?? '—'} · {inv.kunde ?? '—'} ·{' '}
+                          {formatEuroCents(inv.grossCents)}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {formatEuroCents(c.match.totalCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right">{pct(c.match.score)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <ApplyComboButton
+                        transactionId={c.match.txId}
+                        invoiceIds={c.match.invoiceIds}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">

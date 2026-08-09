@@ -3,7 +3,9 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   matchPaymentsToInvoices,
   matchReceiptsToTransactions,
+  matchPaymentCombinations,
   type Match,
+  type ComboMatch,
   type TxLite,
   type InvoiceLite,
   type ReceiptLite,
@@ -28,9 +30,22 @@ export interface ReceiptSuggestion {
   txBetragCents: number;
 }
 
+export interface ComboSuggestion {
+  match: ComboMatch;
+  txDatum: string;
+  txGegen: string | null;
+  invoices: {
+    id: string;
+    number: string | null;
+    kunde: string | null;
+    grossCents: number;
+  }[];
+}
+
 export interface ReconcileSuggestions {
   payments: PaymentSuggestion[];
   receipts: ReceiptSuggestion[];
+  combos: ComboSuggestion[];
 }
 
 /**
@@ -119,6 +134,14 @@ export async function getReconcileSuggestions(
   const paymentMatches = matchPaymentsToInvoices(payments, invoices);
   const receiptMatches = matchReceiptsToTransactions(receipts, outgoing);
 
+  // Combination matches on what the 1:1 pass left unmatched.
+  const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
+  const usedInv = new Set(paymentMatches.map((m) => m.rightId));
+  const comboMatches = matchPaymentCombinations(
+    payments.filter((p) => !usedPayTx.has(p.id)),
+    invoices.filter((i) => !usedInv.has(i.id)),
+  );
+
   const txById = new Map(allTx.map((t) => [t.id, t]));
   const invById = new Map(invoices.map((i) => [i.id, i]));
   const recById = new Map(receipts.map((r) => [r.id, r]));
@@ -157,5 +180,28 @@ export async function getReconcileSuggestions(
     ];
   });
 
-  return { payments: paymentsOut, receipts: receiptsOut };
+  const combosOut: ComboSuggestion[] = comboMatches.flatMap((m) => {
+    const tx = txById.get(m.txId);
+    if (!tx) return [];
+    const invoices2 = m.invoiceIds
+      .map((id) => invById.get(id))
+      .filter((x): x is InvoiceLite => !!x)
+      .map((inv) => ({
+        id: inv.id,
+        number: inv.number,
+        kunde: inv.kunde,
+        grossCents: inv.grossCents,
+      }));
+    if (invoices2.length < 2) return [];
+    return [
+      {
+        match: m,
+        txDatum: tx.datum,
+        txGegen: tx.gegen,
+        invoices: invoices2,
+      },
+    ];
+  });
+
+  return { payments: paymentsOut, receipts: receiptsOut, combos: combosOut };
 }

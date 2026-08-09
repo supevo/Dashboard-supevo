@@ -6,6 +6,7 @@ import {
   runReconcileAction,
   applyPaymentMatchAction,
   applyReceiptMatchAction,
+  applyComboMatchAction,
 } from '@/features/accounting/reconcile-actions';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -90,6 +91,31 @@ export function ApplyMatchButton(
             receiptId: props.receiptId,
             transactionId: props.transactionId,
           });
+    setBusy(false);
+    if (res.status === 'success') router.refresh();
+  }
+
+  return (
+    <Button type="button" size="sm" onClick={apply} disabled={busy}>
+      {busy ? '…' : 'Übernehmen'}
+    </Button>
+  );
+}
+
+/** Confirms one combination suggestion (payment ↔ several invoices). */
+export function ApplyComboButton({
+  transactionId,
+  invoiceIds,
+}: {
+  transactionId: string;
+  invoiceIds: string[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function apply() {
+    setBusy(true);
+    const res = await applyComboMatchAction({ transactionId, invoiceIds });
     setBusy(false);
     if (res.status === 'success') router.refresh();
   }

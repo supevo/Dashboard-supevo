@@ -44,6 +44,42 @@ async function linkReceipt(
   return !e1 && !e2;
 }
 
+/** Links a payment to a combination of invoices via the allocations table. */
+async function linkCombo(
+  supabase: Supabase,
+  params: {
+    txId: string;
+    orgId: string;
+    entityId: string;
+    invoiceIds: string[];
+  },
+): Promise<boolean> {
+  const { data: invs } = await supabase
+    .from('invoices')
+    .select('id, gross_cents')
+    .in('id', params.invoiceIds);
+  if (!invs || invs.length === 0) return false;
+  const rows = invs.map((i) => ({
+    organization_id: params.orgId,
+    billing_entity_id: params.entityId,
+    transaction_id: params.txId,
+    invoice_id: i.id,
+    betrag_cents: i.gross_cents,
+  }));
+  const { error } = await supabase
+    .from('bookkeeping_tx_allocations')
+    .upsert(rows, {
+      onConflict: 'transaction_id,invoice_id',
+      ignoreDuplicates: true,
+    });
+  if (error) return false;
+  await supabase
+    .from('bookkeeping_transactions')
+    .update({ status: 'gebucht' })
+    .eq('id', params.txId);
+  return true;
+}
+
 async function authorizeEntity(
   supabase: Supabase,
   billingEntityId: string,
@@ -113,6 +149,41 @@ export async function applyReceiptMatchAction(input: {
   return successResult('Beleg zugeordnet.');
 }
 
+/** Confirms one combination suggestion (payment ↔ several invoices). */
+export async function applyComboMatchAction(input: {
+  transactionId: string;
+  invoiceIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.transactionId).success ||
+    !Array.isArray(input.invoiceIds) ||
+    input.invoiceIds.length < 2 ||
+    input.invoiceIds.length > 8 ||
+    !input.invoiceIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: tx } = await supabase
+    .from('bookkeeping_transactions')
+    .select('organization_id, billing_entity_id')
+    .eq('id', input.transactionId)
+    .maybeSingle();
+  if (!tx) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: tx.organization_id });
+
+  const ok = await linkCombo(supabase, {
+    txId: input.transactionId,
+    orgId: tx.organization_id,
+    entityId: tx.billing_entity_id,
+    invoiceIds: input.invoiceIds,
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Sammelzahlung zugeordnet.');
+}
+
 /** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */
 function inScope(
   datum: string,
@@ -144,6 +215,7 @@ export async function runReconcileAction(
   const all = await getReconcileSuggestions(billingEntityId);
   const payments = all.payments.filter((p) => inScope(p.txDatum, scope));
   const receipts = all.receipts.filter((r) => inScope(r.txDatum, scope));
+  const combos = all.combos.filter((c) => inScope(c.txDatum, scope));
 
   let applied = 0;
   for (const p of payments) {
@@ -154,10 +226,21 @@ export async function runReconcileAction(
     if (!r.match.auto) continue;
     if (await linkReceipt(supabase, r.match.leftId, r.match.rightId)) applied += 1;
   }
+  for (const c of combos) {
+    if (!c.match.auto) continue;
+    const ok = await linkCombo(supabase, {
+      txId: c.match.txId,
+      orgId,
+      entityId: billingEntityId,
+      invoiceIds: c.match.invoiceIds,
+    });
+    if (ok) applied += 1;
+  }
 
   const openSuggestions =
     payments.filter((p) => !p.match.auto).length +
-    receipts.filter((r) => !r.match.auto).length;
+    receipts.filter((r) => !r.match.auto).length +
+    combos.filter((c) => !c.match.auto).length;
 
   revalidatePath('/app/finance');
   const where =
