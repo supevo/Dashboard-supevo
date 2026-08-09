@@ -12,6 +12,12 @@ import {
 } from '@/lib/action-result';
 import { KATEGORIEN } from '@/features/accounting/categories';
 import { categorizeTransaction } from '@/features/accounting/categorize';
+import {
+  getCategoryRuleMap,
+  upsertCategoryRule,
+  deleteCategoryRule,
+  normalizeMatchKey,
+} from '@/features/accounting/category-rules';
 
 const VALID_IDS = new Set(KATEGORIEN.map((k) => k.id));
 
@@ -31,7 +37,7 @@ export async function setTransactionCategoryAction(input: {
   const supabase = await createSupabaseServerClient();
   const { data: tx } = await supabase
     .from('bookkeeping_transactions')
-    .select('organization_id')
+    .select('organization_id, billing_entity_id, gegen')
     .eq('id', input.transactionId)
     .maybeSingle();
   if (!tx) return errorResult(de.errors.FORBIDDEN);
@@ -49,8 +55,26 @@ export async function setTransactionCategoryAction(input: {
     .eq('id', input.transactionId);
   if (error) return errorResult(de.errors.INTERNAL);
 
+  // Learn from the manual pick: remember payee → category (or forget on clear),
+  // so future transactions of the same counterparty categorize themselves.
+  if (kategorieId) {
+    await upsertCategoryRule(supabase, {
+      orgId: tx.organization_id,
+      billingEntityId: tx.billing_entity_id,
+      gegen: tx.gegen,
+      kategorieId,
+      userId: user.id,
+    });
+  } else {
+    await deleteCategoryRule(supabase, tx.billing_entity_id, tx.gegen);
+  }
+
   revalidatePath('/app/finance');
-  return successResult('Kategorie gespeichert.');
+  return successResult(
+    kategorieId
+      ? 'Kategorie gespeichert – gilt künftig automatisch für diesen Empfänger.'
+      : 'Kategorie entfernt.',
+  );
 }
 
 /**
@@ -75,20 +99,28 @@ export async function autoCategorizeAction(
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId: entity.organization_id });
 
-  const { data: rows } = await supabase
-    .from('bookkeeping_transactions')
-    .select('id, gegen, zweck, betrag_cents')
-    .eq('billing_entity_id', billingEntityId)
-    .is('kategorie_id', null)
-    .limit(2000);
+  const [{ data: rows }, ruleMap] = await Promise.all([
+    supabase
+      .from('bookkeeping_transactions')
+      .select('id, gegen, zweck, betrag_cents')
+      .eq('billing_entity_id', billingEntityId)
+      .is('kategorie_id', null)
+      .limit(2000),
+    getCategoryRuleMap(supabase, billingEntityId),
+  ]);
 
   let updated = 0;
   for (const t of rows ?? []) {
-    const guess = categorizeTransaction({
-      gegen: t.gegen,
-      zweck: t.zweck,
-      betragCents: t.betrag_cents,
-    });
+    // Learned rule (same payee → chosen category) wins over the keyword engine.
+    const ruleHit = ruleMap.get(normalizeMatchKey(t.gegen) ?? '');
+    const kategorieId = ruleHit ?? null;
+    const guess = kategorieId
+      ? { kategorieId, konfidenz: 1 }
+      : categorizeTransaction({
+          gegen: t.gegen,
+          zweck: t.zweck,
+          betragCents: t.betrag_cents,
+        });
     if (!guess) continue;
     const { error } = await supabase
       .from('bookkeeping_transactions')
