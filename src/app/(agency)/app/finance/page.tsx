@@ -9,6 +9,7 @@ import { CompaniesPanel } from '@/features/accounting/components/companies-panel
 import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
 import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel';
+import { TaxPanel } from '@/features/accounting/components/tax-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,13 +22,19 @@ export const dynamic = 'force-dynamic';
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; month?: string; firma?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    month?: string;
+    firma?: string;
+    jahr?: string;
+  }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
   if (!isSuperAdmin(user)) redirect('/app');
 
   const sp = await searchParams;
   const activeTab = sp.tab ?? 'uebersicht';
+  const jahr = Number(sp.jahr) || new Date().getFullYear();
 
   const tabs: TabDef[] = [
     {
@@ -76,6 +83,18 @@ export default async function FinancePage({
           orgId={orgId}
           activeFirma={sp.firma}
           basePath="/app/finance?tab=abgleich"
+        />
+      ),
+    },
+    {
+      key: 'steuer',
+      label: '📈 Steuer',
+      content: (
+        <TaxPanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          year={jahr}
+          basePath="/app/finance?tab=steuer"
         />
       ),
     },
