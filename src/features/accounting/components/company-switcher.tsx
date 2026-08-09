@@ -14,14 +14,20 @@ export interface CompanyOption {
  * (e.g. supevo GmbH / ONE STEP) live in one system; the switcher scopes every
  * view below to one strictly separated set of books.
  */
+/** Special company id for the consolidated ("all companies") view. */
+export const ALL_COMPANIES = '__all__';
+
 export function CompanySwitcher({
   companies,
   activeId,
   basePath,
+  allLabel,
 }: {
   companies: CompanyOption[];
   activeId: string;
   basePath: string;
+  /** When set, adds an "all companies" option (consolidated view). */
+  allLabel?: string;
 }) {
   const router = useRouter();
   return (
@@ -36,6 +42,9 @@ export function CompanySwitcher({
         }
         className="h-9 w-auto min-w-[12rem]"
       >
+        {allLabel && companies.length > 1 && (
+          <option value={ALL_COMPANIES}>{allLabel}</option>
+        )}
         {companies.map((c) => (
           <option key={c.id} value={c.id}>
             {c.label}

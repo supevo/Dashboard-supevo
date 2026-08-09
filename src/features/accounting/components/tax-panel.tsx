@@ -1,10 +1,14 @@
 import { listAccountingCompanies } from '@/features/accounting/queries';
-import { getTaxOverview } from '@/features/accounting/tax/tax-queries';
+import {
+  getTaxOverview,
+  aggregateTaxOverviews,
+} from '@/features/accounting/tax/tax-queries';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Alert } from '@/components/ui/alert';
 import {
   CompanySwitcher,
+  ALL_COMPANIES,
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
 import { YearSwitcher } from '@/features/accounting/components/year-switcher';
@@ -48,27 +52,44 @@ export async function TaxPanel({
       />
     );
   }
-  const active =
-    companies.find((c) => c.entity.id === activeFirma) ?? companies[0];
-  if (!active) return null;
   const options: CompanyOption[] = companies.map((c) => ({
     id: c.entity.id,
     label: c.entity.name,
     isDefault: c.entity.is_default,
   }));
 
+  const combined = activeFirma === ALL_COMPANIES && companies.length > 1;
+  const active =
+    companies.find((c) => c.entity.id === activeFirma) ?? companies[0];
+  if (!combined && !active) return null;
+
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
-  const ov = await getTaxOverview(active.entity.id, year);
-  const firmaBase = `${basePath}&firma=${active.entity.id}`;
+
+  // Combined = sum of each company's individually-correct calculation.
+  const perFirmaOverviews = combined
+    ? await Promise.all(
+        companies.map(async (c) => ({
+          name: c.entity.name,
+          ov: await getTaxOverview(c.entity.id, year),
+        })),
+      )
+    : [];
+  const ov = combined
+    ? aggregateTaxOverviews(perFirmaOverviews.map((p) => p.ov))
+    : await getTaxOverview(active!.entity.id, year);
+
+  const activeId = combined ? ALL_COMPANIES : active!.entity.id;
+  const firmaBase = `${basePath}&firma=${activeId}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <CompanySwitcher
           companies={options}
-          activeId={active.entity.id}
+          activeId={activeId}
           basePath={basePath}
+          allLabel="🏢 Alle Firmen zusammen"
         />
         <YearSwitcher year={year} years={years} basePath={firmaBase} />
       </div>
@@ -159,11 +180,49 @@ export async function TaxPanel({
         <p className="mb-3 text-xs text-muted-foreground">
           Näherung ohne Sozialversicherung/Freibeträge – kein Ersatz für den
           Steuerberater.
+          {combined
+            ? ' Jede Firma wird korrekt einzeln gerechnet (eigene Rechtsform) und dann summiert.'
+            : ''}
         </p>
+
+        {combined && (
+          <div className="mb-4 overflow-x-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Firma</th>
+                  <th className="px-3 py-2 text-right font-medium">Ertragsteuer</th>
+                  <th className="px-3 py-2 text-right font-medium">Gewerbesteuer</th>
+                  <th className="px-3 py-2 text-right font-medium">Rücklage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perFirmaOverviews.map((p) => (
+                  <tr key={p.name} className="border-t">
+                    <td className="px-3 py-2">{p.name}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {formatEuroCents(p.ov.estimate.ertragsteuerCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {formatEuroCents(p.ov.estimate.gewerbesteuerCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-medium tabular-nums">
+                      {formatEuroCents(p.ov.estimate.ruecklageCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="max-w-md text-sm">
           {ov.estimate.lines.map((l, i) => (
             <Row key={i} label={l.label} cents={l.cents} />
           ))}
+          {combined && (
+            <Row label="Gewerbesteuer (Summe)" cents={ov.estimate.gewerbesteuerCents} />
+          )}
           <Row label="Ertragsteuer gesamt" cents={ov.estimate.ertragsteuerCents} strong />
           {ov.estimate.offeneUstCents > 0 && (
             <Row label="Offene USt (Zahllast)" cents={ov.estimate.offeneUstCents} />

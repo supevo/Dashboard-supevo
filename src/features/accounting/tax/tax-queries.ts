@@ -6,6 +6,7 @@ import {
   computeUst,
   type EuerTx,
   type EuerResult,
+  type EuerLine,
   type UstResult,
 } from '@/features/accounting/tax/euer-ust';
 import {
@@ -81,5 +82,61 @@ export async function getTaxOverview(
     profileMissing: !profile,
     rechtsformLabel: info.label,
     kleinunternehmer,
+  };
+}
+
+function mergeLines(lists: EuerLine[][]): EuerLine[] {
+  const m = new Map<string, EuerLine>();
+  for (const list of lists) {
+    for (const l of list) {
+      const ex = m.get(l.kategorieId);
+      if (ex) ex.nettoCents += l.nettoCents;
+      else m.set(l.kategorieId, { ...l });
+    }
+  }
+  return [...m.values()].sort((a, b) => b.nettoCents - a.nettoCents);
+}
+
+/**
+ * Consolidated view over several companies: EÜR and USt are summed; the tax
+ * estimate is the SUM of each company's individually correct estimate (each
+ * legal form is computed on its own – not merged into one). estimate.lines is
+ * left empty for the combined case; the caller shows a per-company breakdown.
+ */
+export function aggregateTaxOverviews(list: TaxOverview[]): TaxOverview {
+  const einnahmen = mergeLines(list.map((o) => o.euer.einnahmen));
+  const ausgaben = mergeLines(list.map((o) => o.euer.ausgaben));
+  const sum = (f: (o: TaxOverview) => number): number =>
+    list.reduce((s, o) => s + f(o), 0);
+
+  return {
+    year: list[0]?.year ?? new Date().getFullYear(),
+    euer: {
+      einnahmen,
+      ausgaben,
+      einnahmenNettoCents: sum((o) => o.euer.einnahmenNettoCents),
+      ausgabenNettoCents: sum((o) => o.euer.ausgabenNettoCents),
+      gewinnCents: sum((o) => o.euer.gewinnCents),
+      unkategorisiert: sum((o) => o.euer.unkategorisiert),
+    },
+    ust: {
+      kleinunternehmer: false,
+      umsatz19NettoCents: sum((o) => o.ust.umsatz19NettoCents),
+      ust19Cents: sum((o) => o.ust.ust19Cents),
+      umsatz7NettoCents: sum((o) => o.ust.umsatz7NettoCents),
+      ust7Cents: sum((o) => o.ust.ust7Cents),
+      vorsteuerCents: sum((o) => o.ust.vorsteuerCents),
+      zahllastCents: sum((o) => o.ust.zahllastCents),
+    },
+    estimate: {
+      lines: [],
+      ertragsteuerCents: sum((o) => o.estimate.ertragsteuerCents),
+      gewerbesteuerCents: sum((o) => o.estimate.gewerbesteuerCents),
+      offeneUstCents: sum((o) => o.estimate.offeneUstCents),
+      ruecklageCents: sum((o) => o.estimate.ruecklageCents),
+    },
+    profileMissing: false,
+    rechtsformLabel: 'Alle Firmen zusammen',
+    kleinunternehmer: false,
   };
 }
