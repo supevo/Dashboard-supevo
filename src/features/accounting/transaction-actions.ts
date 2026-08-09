@@ -20,6 +20,10 @@ import {
   normalizeDate,
 } from '@/features/accounting/bank-import/types';
 import { extractBankStatement } from '@/lib/ai/vision';
+import {
+  getCategoryRuleMap,
+  normalizeMatchKey,
+} from '@/features/accounting/category-rules';
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -154,12 +158,16 @@ export async function importBankStatementAction(
     .not('import_hash', 'is', null);
   const knownHashes = new Set((known ?? []).map((r) => r.import_hash));
 
+  // Learned category rules (payee → category) are applied to new rows at import.
+  const ruleMap = await getCategoryRuleMap(supabase, entityId);
+
   const seen = new Set<string>();
   const rows = [];
   for (const t of transactions) {
     const hash = importHash(entityId, t);
     if (knownHashes.has(hash) || seen.has(hash)) continue;
     seen.add(hash);
+    const ruleHit = ruleMap.get(normalizeMatchKey(t.gegen) ?? '') ?? null;
     rows.push({
       organization_id: orgId,
       billing_entity_id: entityId,
@@ -168,6 +176,8 @@ export async function importBankStatementAction(
       gegen: t.gegen,
       zweck: t.zweck,
       betrag_cents: t.betragCents,
+      kategorie_id: ruleHit,
+      konfidenz: ruleHit ? 100 : null,
       import_hash: hash,
       created_by: user.id,
     });

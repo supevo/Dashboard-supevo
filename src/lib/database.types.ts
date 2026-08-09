@@ -2737,6 +2737,34 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bookkeeping_category_rules: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          match_key: string;
+          kategorie_id: string;
+          hits: number;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          match_key: string;
+          kategorie_id: string;
+          hits?: number;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_category_rules']['Insert']
+        >;
+        Relationships: [];
+      };
       bookkeeping_tx_allocations: {
         Row: {
           id: string;
