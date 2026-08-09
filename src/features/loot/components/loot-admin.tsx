@@ -7,15 +7,11 @@ import { useRouter } from 'next/navigation';
 import {
   saveLootConfigAction,
   deleteLootItemAction,
+  updateLootItemWeightsAction,
   giftBoxAction,
 } from '@/features/loot/actions';
 import type { LootConfig, LootItem } from '@/features/loot/queries';
-import {
-  type BoxTier,
-  WEIGHT_MIN,
-  WEIGHT_MAX,
-  boxArtUrl,
-} from '@/features/loot/shared';
+import { type BoxTier, WEIGHT_MAX, boxArtUrl } from '@/features/loot/shared';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
@@ -54,6 +50,78 @@ interface ExclusiveBanner {
   imageUrl: string;
 }
 
+/** One product row with editable per-box weights (saves on change). */
+function LootItemRow({
+  item,
+  pending,
+  onDelete,
+}: {
+  item: LootItem;
+  pending: boolean;
+  onDelete: () => void;
+}) {
+  const router = useRouter();
+  const [, startT] = useTransition();
+  const [c, setC] = useState(item.weightCommon);
+  const [r, setR] = useState(item.weightRare);
+  const [s, setS] = useState(item.weightSuper);
+  const dirty =
+    c !== item.weightCommon || r !== item.weightRare || s !== item.weightSuper;
+
+  const save = () =>
+    startT(async () => {
+      await updateLootItemWeightsAction({ id: item.id, common: c, rare: r, super: s });
+      router.refresh();
+    });
+
+  const box = (val: number, set: (n: number) => void, label: string) => (
+    <span className="flex items-center gap-1" title={label}>
+      <span aria-hidden>{label}</span>
+      <Input
+        type="number"
+        min={0}
+        max={WEIGHT_MAX}
+        value={val}
+        onChange={(e) =>
+          set(Math.max(0, Math.min(WEIGHT_MAX, Number(e.target.value) || 0)))
+        }
+        className="h-8 w-16"
+      />
+    </span>
+  );
+
+  return (
+    <li className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
+      {item.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.imageUrl} alt="" className="h-6 w-6 rounded object-cover" />
+      ) : (
+        <span aria-hidden>{item.type === 'badge' ? item.badgeEmoji ?? '🏅' : '🎁'}</span>
+      )}
+      <span className="min-w-0 flex-1 truncate font-medium">{item.name}</span>
+      <div className="flex items-center gap-1.5">
+        {box(c, setC, '📦')}
+        {box(r, setR, '🎁')}
+        {box(s, setS, '💎')}
+      </div>
+      {dirty && (
+        <Button size="sm" variant="outline" onClick={save}>
+          Speichern
+        </Button>
+      )}
+      <button
+        type="button"
+        disabled={pending}
+        aria-label="Löschen"
+        className="rounded px-1 text-muted-foreground hover:bg-muted"
+        onClick={onDelete}
+      >
+        ✕
+      </button>
+    </li>
+  );
+}
+
 export function LootAdmin({
   config,
   items,
@@ -76,11 +144,13 @@ export function LootAdmin({
   const [cfg, setCfg] = useState(config);
 
   // Neues Item
-  const [boxTier, setBoxTier] = useState<BoxTier>('common');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'physical' | 'badge' | 'banner' | 'frame'>('physical');
-  const [weight, setWeight] = useState(10);
+  // Gewicht je Box (0 = in dieser Box nicht enthalten).
+  const [wCommon, setWCommon] = useState(10);
+  const [wRare, setWRare] = useState(0);
+  const [wSuper, setWSuper] = useState(0);
   const [badgeEmoji, setBadgeEmoji] = useState('🏅');
   const [badgeName, setBadgeName] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
@@ -130,11 +200,12 @@ export function LootAdmin({
     setBusy(true);
     try {
       const fd = new FormData();
-      fd.set('boxTier', boxTier);
       fd.set('name', effectiveName);
       fd.set('description', description);
       fd.set('type', type);
-      fd.set('weight', String(weight));
+      fd.set('weightCommon', String(wCommon));
+      fd.set('weightRare', String(wRare));
+      fd.set('weightSuper', String(wSuper));
       fd.set('badgeEmoji', badgeEmoji);
       fd.set('badgeName', badgeName);
       if (type === 'banner') fd.set('bannerImageId', bannerImageId);
@@ -205,8 +276,6 @@ export function LootAdmin({
       }
     });
   }
-
-  const byTier = (t: BoxTier) => items.filter((i) => i.boxTier === t);
 
   return (
     <div className="space-y-6">
@@ -298,35 +367,40 @@ export function LootAdmin({
       {/* Add item */}
       <div className="space-y-3 rounded-lg border p-4">
         <div className="text-sm font-semibold">Item zu einer Box hinzufügen</div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Box</label>
-            <Select value={boxTier} onChange={(e) => setBoxTier(e.target.value as BoxTier)}>
-              <option value="common">📦 Common</option>
-              <option value="rare">🎁 Rare</option>
-              <option value="super">💎 Super Rare</option>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Typ</label>
-            <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge' | 'banner' | 'frame')}>
-              <option value="physical">Physisch (du löst ein)</option>
-              <option value="badge">Badge (digital, automatisch)</option>
-              <option value="banner">Titelbild (nur über Lootbox)</option>
-              <option value="frame">Profilrahmen (nur über Lootbox)</option>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">
-              Häufigkeit ({WEIGHT_MIN}–{WEIGHT_MAX})
-            </label>
-            <Input
-              type="number"
-              min={WEIGHT_MIN}
-              max={WEIGHT_MAX}
-              value={weight}
-              onChange={(e) => setWeight(Math.max(WEIGHT_MIN, Math.min(WEIGHT_MAX, Number(e.target.value) || WEIGHT_MIN)))}
-            />
+        <div className="space-y-1 sm:max-w-xs">
+          <label className="text-xs text-muted-foreground">Typ</label>
+          <Select value={type} onChange={(e) => setType(e.target.value as 'physical' | 'badge' | 'banner' | 'frame')}>
+            <option value="physical">Physisch (du löst ein)</option>
+            <option value="badge">Badge (digital, automatisch)</option>
+            <option value="banner">Titelbild (nur über Lootbox)</option>
+            <option value="frame">Profilrahmen (nur über Lootbox)</option>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">
+            Gewinnchance je Box (0 = in dieser Box nicht enthalten, sonst 1–{WEIGHT_MAX})
+          </label>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {(
+              [
+                ['📦 Common', wCommon, setWCommon],
+                ['🎁 Rare', wRare, setWRare],
+                ['💎 Super Rare', wSuper, setWSuper],
+              ] as [string, number, (n: number) => void][]
+            ).map(([label, val, set]) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="w-28 shrink-0 text-xs">{label}</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={WEIGHT_MAX}
+                  value={val}
+                  onChange={(e) =>
+                    set(Math.max(0, Math.min(WEIGHT_MAX, Number(e.target.value) || 0)))
+                  }
+                />
+              </div>
+            ))}
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -483,8 +557,10 @@ export function LootAdmin({
           {busy ? 'Wird gespeichert …' : 'Item hinzufügen'}
         </Button>
         <p className="text-xs text-muted-foreground">
-          Die Häufigkeit bestimmt die Ziehwahrscheinlichkeit innerhalb der Box: <b>{WEIGHT_MIN}</b> = sehr
-          selten, <b>{WEIGHT_MAX}</b> = sehr häufig. Seltene Top-Preise bekommen einen niedrigen Wert.
+          Jedes Produkt kann in jeder Box vorkommen – die Gewinnchance pro Box legst du
+          separat fest (0 = in dieser Box nicht enthalten). Höherer Wert = größere Chance
+          innerhalb dieser Box. Beispiel: ein Top-Preis mit Common <b>1</b>, Rare <b>5</b>,
+          Super <b>20</b> ist in der Super-Box am wahrscheinlichsten.
         </p>
       </div>
 
@@ -536,40 +612,32 @@ export function LootAdmin({
         )}
       </div>
 
-      {/* Item lists */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {(['common', 'rare', 'super'] as BoxTier[]).map((t) => (
-          <div key={t} className="rounded-lg border p-3">
-            <div className="mb-2 text-sm font-semibold">{TIER_LABEL[t]}</div>
-            {byTier(t).length === 0 ? (
-              <p className="text-xs text-muted-foreground">Leer</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {byTier(t).map((i) => (
-                  <li key={i.id} className="flex items-center gap-2 text-sm">
-                    {i.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={i.imageUrl} alt="" className="h-6 w-6 rounded object-cover" />
-                    ) : (
-                      <span aria-hidden>{i.type === 'badge' ? i.badgeEmoji ?? '🏅' : '🎁'}</span>
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{i.name}</span>
-                    <span className="text-xs text-muted-foreground">×{i.weight}</span>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      aria-label="Löschen"
-                      className="rounded px-1 text-muted-foreground hover:bg-muted"
-                      onClick={() => start(async () => { await deleteLootItemAction(i.id); router.refresh(); })}
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
+      {/* Item list with per-box weights */}
+      <div className="rounded-lg border p-3">
+        <div className="mb-1 text-sm font-semibold">Produkte & Gewinnchancen je Box</div>
+        <div className="mb-2 text-xs text-muted-foreground">
+          Pro Produkt die Gewichtung für 📦 Common · 🎁 Rare · 💎 Super Rare (0 = in
+          dieser Box nicht enthalten).
+        </div>
+        {items.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Noch keine Produkte.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {items.map((i) => (
+              <LootItemRow
+                key={i.id}
+                item={i}
+                pending={pending}
+                onDelete={() =>
+                  start(async () => {
+                    await deleteLootItemAction(i.id);
+                    router.refresh();
+                  })
+                }
+              />
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

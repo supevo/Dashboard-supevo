@@ -93,9 +93,13 @@ export async function computeAwards(
   const taskIds = (tasks ?? []).map((t) => t.id);
   const taskById = new Map((tasks ?? []).map((t) => [t.id, t] as const));
 
-  // Ratings (avg stars) per task.
+  // Quality per task = the client's 1–10 result rating (employees no longer
+  // rate internally). qualityFactor maps 1→0.5 … 10→1.5.
   const { data: ratings } = taskIds.length
-    ? await service.from('task_ratings').select('task_id, stars').in('task_id', taskIds)
+    ? await service
+        .from('client_task_ratings')
+        .select('task_id, stars')
+        .in('task_id', taskIds)
     : { data: [] as { task_id: string; stars: number }[] };
   const ratingAgg = new Map<string, { sum: number; n: number }>();
   for (const r of ratings ?? []) {

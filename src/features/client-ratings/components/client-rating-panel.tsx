@@ -9,9 +9,10 @@ import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
 /**
- * Client-facing star rating for a finished task: "Wie bewerten Sie die
- * Ausführung dieser Aufgabe?" 1–5 stars + optional comment. Shows and lets the
- * client update an existing rating.
+ * Client-facing result rating for a finished task: "Wie bewerten Sie das
+ * Ergebnis dieser Aufgabe?" 1–10 + optional comment. Shows and lets the client
+ * update an existing rating. The 1–10 result feeds an XP bonus to the person who
+ * finished the task.
  */
 export function ClientRatingPanel({
   taskId,
@@ -32,7 +33,7 @@ export function ClientRatingPanel({
 
   function submit() {
     if (stars < 1) {
-      setError('Bitte wählen Sie 1 bis 5 Sterne.');
+      setError('Bitte wählen Sie 1 bis 10.');
       return;
     }
     setError(null);
@@ -52,31 +53,38 @@ export function ClientRatingPanel({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Wie bewerten Sie die Ausführung dieser Aufgabe?
+        Wie bewerten Sie das Ergebnis dieser Aufgabe? (1–10)
       </p>
-      <div className="flex items-center gap-1" role="radiogroup" aria-label="Sterne">
-        {[1, 2, 3, 4, 5].map((n) => (
+      <div
+        className="flex flex-wrap items-center gap-1"
+        role="radiogroup"
+        aria-label="Bewertung 1 bis 10"
+        onMouseLeave={() => setHover(0)}
+      >
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
           <button
             key={n}
             type="button"
-            aria-label={`${n} Stern${n > 1 ? 'e' : ''}`}
+            aria-label={`${n} von 10`}
             aria-checked={stars === n}
             role="radio"
             disabled={pending}
             onMouseEnter={() => setHover(n)}
-            onMouseLeave={() => setHover(0)}
             onClick={() => {
               setStars(n);
               setSaved(false);
             }}
             className={cn(
-              'text-3xl leading-none transition',
+              'text-2xl leading-none transition',
               n <= shown ? 'text-amber-400' : 'text-muted-foreground/30 hover:text-amber-300',
             )}
           >
-            ★
+            {n <= shown ? '★' : '☆'}
           </button>
         ))}
+        <span className="ml-2 text-sm font-medium tabular-nums text-muted-foreground">
+          {shown > 0 ? `${shown}/10` : ''}
+        </span>
       </div>
 
       <Textarea

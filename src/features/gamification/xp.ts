@@ -22,8 +22,71 @@ export function missionXpForEffort(minutes: number | null | undefined): number {
   return Math.max(1, Math.round((m / 60) * XP_PER_HOUR));
 }
 export const XP_EFFICIENT = 8; // finished within the KI-estimated effort
-export const XP_CLIENT_PRAISE = 12; // bonus when the client rates the task ≥ 4★
+/** XP je Ergebnis-Punkt der Kundenbewertung (1–10): 1 → 2 XP … 10 → 20 XP. */
+export const XP_CLIENT_RESULT_PER_POINT = 2;
 export const XP_CLIENT_UPDATE = 2; // sending the client a "done" update
+
+/** XP bonus for a client's 1–10 result rating (proportional, min 1). */
+export function clientResultXp(rating: number): number {
+  const r = Math.max(1, Math.min(10, Math.round(rating)));
+  return Math.max(1, r * XP_CLIENT_RESULT_PER_POINT);
+}
+
+/** Ordnungsdienst: XP fürs Erledigen bzw. Gegenprüfen eines Checkpunkts. */
+export const XP_CHORE_DONE = 6;
+export const XP_CHORE_VERIFY = 3;
+
+/**
+ * Grants the office-chore XP once a chore assignment is verified: the doer for
+ * getting it done, and (when present) the verifier for the double-check. Keyed
+ * by the assignment id (ref_id), so it never double-counts. Written with the
+ * service client because it credits users other than the caller.
+ */
+export async function awardChoreXp(params: {
+  orgId: string;
+  assignmentId: string;
+  doerId: string;
+  verifierId: string | null;
+}): Promise<void> {
+  const { orgId, assignmentId, doerId, verifierId } = params;
+  const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+  const service = createSupabaseServiceClient();
+  const factor = await xpFactor(orgId);
+
+  const rows: {
+    user_id: string;
+    organization_id: string;
+    kind: string;
+    points: number;
+    task_id: null;
+    ref_id: string;
+  }[] = [
+    {
+      user_id: doerId,
+      organization_id: orgId,
+      kind: 'chore_done',
+      points: applyBoost(XP_CHORE_DONE, factor),
+      task_id: null,
+      ref_id: assignmentId,
+    },
+  ];
+  if (verifierId && verifierId !== doerId) {
+    rows.push({
+      user_id: verifierId,
+      organization_id: orgId,
+      kind: 'chore_verify',
+      points: applyBoost(XP_CHORE_VERIFY, factor),
+      task_id: null,
+      ref_id: assignmentId,
+    });
+  }
+  for (const row of rows) {
+    const { error } = await service.from('xp_events').insert(row as never);
+    if (error && error.code !== '23505') {
+      console.error('chore xp insert failed', error);
+    }
+  }
+}
 
 export const STREAK_MILESTONES: { days: number; kind: string; points: number }[] = [
   { days: 3, kind: 'streak_3', points: 15 },
@@ -167,17 +230,18 @@ export async function awardTaskXp(params: {
 }
 
 /**
- * Bonus XP when a client rates a completed task highly (≥ 4★). Awarded to the
- * person who finished the task. Idempotent per task (unique on user+kind+task).
- * A no-op when the task has no completer or the rating is below the bar.
+ * Bonus XP for the client's 1–10 result rating, awarded to the person who
+ * finished the task – proportional to the rating (clientResultXp). Because the
+ * client can revise their rating, this reconciles to the latest value: it clears
+ * any earlier result-XP for the task and writes the current one. A no-op when
+ * the task has no completer.
  */
-export async function awardClientPraiseXp(params: {
+export async function awardClientResultXp(params: {
   orgId: string;
   taskId: string;
-  stars: number;
+  rating: number;
 }): Promise<void> {
-  const { orgId, taskId, stars } = params;
-  if (stars < 4) return;
+  const { orgId, taskId, rating } = params;
   // Triggered by a client → write via the service client (a client can't insert
   // an XP event for an agency user under RLS).
   const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
@@ -191,15 +255,21 @@ export async function awardClientPraiseXp(params: {
   if (!completer) return;
 
   const factor = await xpFactor(orgId);
+  // Reconcile to the latest rating: drop the prior result-XP, then write current.
+  await service
+    .from('xp_events')
+    .delete()
+    .eq('kind', 'client_result')
+    .eq('task_id', taskId);
   const { error } = await service.from('xp_events').insert({
     user_id: completer,
     organization_id: orgId,
-    kind: 'client_praise',
-    points: applyBoost(XP_CLIENT_PRAISE, factor),
+    kind: 'client_result',
+    points: applyBoost(clientResultXp(rating), factor),
     task_id: taskId,
   });
   if (error && error.code !== '23505') {
-    console.error('client_praise xp insert failed', error);
+    console.error('client_result xp insert failed', error);
   }
 }
 

@@ -107,6 +107,8 @@ const updateSchema = z.object({
   id: z.string().uuid(),
   status: z.enum(statusValues).optional(),
   adminNotes: z.string().max(8000).optional(),
+  title: z.string().trim().min(1).max(140).optional(),
+  message: z.string().max(4000).optional(),
 });
 
 /** Admin: updates a feedback item's status and/or notes (prompts). */
@@ -118,11 +120,20 @@ export async function updateFeedbackAction(
   const orgId = await requireAdminOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
 
-  const patch: { updated_at: string; status?: string; admin_notes?: string | null } = {
+  const patch: {
+    updated_at: string;
+    status?: string;
+    admin_notes?: string | null;
+    title?: string;
+    message?: string | null;
+  } = {
     updated_at: new Date().toISOString(),
   };
   if (parsed.data.status) patch.status = parsed.data.status;
   if (parsed.data.adminNotes !== undefined) patch.admin_notes = parsed.data.adminNotes;
+  if (parsed.data.title !== undefined) patch.title = parsed.data.title;
+  if (parsed.data.message !== undefined)
+    patch.message = parsed.data.message || null;
 
   const { error } = await createSupabaseServiceClient()
     .from('feedback')

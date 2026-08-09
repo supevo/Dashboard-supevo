@@ -36,6 +36,7 @@ import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
 import { ClientFolderLink } from '@/features/onedrive/components/client-folder-link';
+import { ClientFilesBrowser } from '@/features/onedrive/components/client-files-browser';
 import { Tabs, type TabDef } from '@/components/ui/tabs';
 import {
   SettingsDrawer,
@@ -138,10 +139,9 @@ export default async function ClientDetailPage({
     listClientTaskOptions(clientCompanyId),
   ]);
 
-  // OneDrive folder mapping (admin only; card hidden when not configured).
-  const oneDriveFolder = oneDrive?.configured
-    ? await getClientFolder(orgId, clientCompanyId)
-    : null;
+  // OneDrive folder mapped to this client. Fetched for all staff so the Dateien
+  // tab can show the inline folder browser; the admin mapping card reuses it.
+  const clientFolder = await getClientFolder(orgId, clientCompanyId);
 
   // Assemble the board bundles for the merged client view (one per project).
   const boardBundles = (
@@ -588,9 +588,24 @@ export default async function ClientDetailPage({
               <CardContent>
                 <ClientFolderLink
                   clientCompanyId={clientCompanyId}
-                  currentPath={oneDriveFolder?.folderPath ?? null}
+                  currentPath={clientFolder?.folderPath ?? null}
                   connected={oneDrive.connected}
                 />
+              </CardContent>
+            </Card>
+          )}
+
+          {clientFolder && (
+            <Card>
+              <CardHeader>
+                <CardTitle>☁️ OneDrive-Dateien</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Ordnerstruktur dieses Kunden – durchklicken und Dateien
+                  herunterladen.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ClientFilesBrowser clientCompanyId={clientCompanyId} />
               </CardContent>
             </Card>
           )}
