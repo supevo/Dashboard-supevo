@@ -7,6 +7,7 @@ import {
   resolveFolderByPath,
   getItemMeta,
 } from '@/lib/onedrive/graph';
+import { getClientFolder } from '@/features/onedrive/queries';
 
 /**
  * Lists a OneDrive folder's children for the picker (agency staff). When a base
@@ -24,6 +25,38 @@ export async function GET(request: NextRequest) {
 
   const requestedId = request.nextUrl.searchParams.get('folderId');
   const requested = requestedId && requestedId.length > 0 ? requestedId : null;
+
+  // Client-scoped browsing: confine navigation to the folder mapped to this
+  // client company (the "Dateien"-Tab uses this). Navigation can never leave the
+  // client's subtree.
+  const clientCompanyId = request.nextUrl.searchParams.get('clientCompanyId');
+  if (clientCompanyId) {
+    const cf = await getClientFolder(orgId, clientCompanyId);
+    if (!cf) {
+      return NextResponse.json({ error: 'no_folder', items: [] }, { status: 200 });
+    }
+    const baseMeta = await getItemMeta(orgId, cf.folderId);
+    if (!baseMeta) {
+      return NextResponse.json({ error: 'not_connected', items: [] });
+    }
+    const basePath = `${baseMeta.parentPath}/${baseMeta.name}`;
+
+    const targetId = requested ?? cf.folderId;
+    if (requested && requested !== cf.folderId) {
+      const meta = await getItemMeta(orgId, requested);
+      const inside =
+        meta != null &&
+        (meta.parentPath === basePath || meta.parentPath.startsWith(`${basePath}/`));
+      if (!inside) {
+        return NextResponse.json({ error: 'out_of_scope', items: [] }, { status: 403 });
+      }
+    }
+    const items = await listFolder(orgId, targetId);
+    if (items === null) {
+      return NextResponse.json({ error: 'not_connected', items: [] });
+    }
+    return NextResponse.json({ items, baseId: cf.folderId });
+  }
 
   // Resolve the configured base folder, if any.
   const service = createSupabaseServiceClient();
