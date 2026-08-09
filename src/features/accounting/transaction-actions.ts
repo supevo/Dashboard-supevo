@@ -27,17 +27,26 @@ import {
 
 const MAX_BYTES = 15 * 1024 * 1024;
 
+/**
+ * Dedup hash for a statement line. `occurrence` distinguishes genuinely repeated
+ * identical bookings within one statement (2 equal payments same day → kept as
+ * two rows). Occurrence 0 keeps the legacy format, so re-importing does not
+ * duplicate rows imported before this fix – it only adds the missing extras.
+ */
 function importHash(
   billingEntityId: string,
   t: ParsedTransaction,
+  occurrence: number,
 ): string {
-  return createHash('sha256')
-    .update(
-      [billingEntityId, t.datum, t.betragCents, t.gegen ?? '', t.zweck ?? ''].join(
-        '|',
-      ),
-    )
-    .digest('hex');
+  const base = [
+    billingEntityId,
+    t.datum,
+    t.betragCents,
+    t.gegen ?? '',
+    t.zweck ?? '',
+  ];
+  const parts = occurrence > 0 ? [...base, occurrence] : base;
+  return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
 /**
@@ -84,26 +93,11 @@ export async function importBankStatementAction(
   let accountIban: string | null = null;
   let formatLabel = 'ki';
 
-  // Deterministic parsers first for text formats (free + exact); PDF goes to KI.
-  if (!isPdf) {
-    const parsed = parseBankStatement(decodeStatementBytes(buf));
-    if (parsed.transactions.length > 0) {
-      transactions = parsed.transactions;
-      accountIban = parsed.accountIban;
-      formatLabel = parsed.format;
-    }
-  }
-
-  // KI fallback: guarantees it works for fiddly MT940 / PDF / odd CSVs.
-  if (transactions.length === 0) {
-    const ai = await extractBankStatement(
-      isPdf ? { pdfBytes: buf } : { text: decodeStatementBytes(buf) },
-    );
-    if (!ai) {
-      return errorResult(
-        'Konnte den Auszug nicht lesen. Ist die KI aktiviert (OPENAI_API_KEY)?',
-      );
-    }
+  // KI ist die primäre Lesart – liest jede Buchung aus jedem Format zuverlässig.
+  const ai = await extractBankStatement(
+    isPdf ? { pdfBytes: buf } : { text: decodeStatementBytes(buf) },
+  );
+  if (ai) {
     accountIban = ai.account_iban || null;
     formatLabel = isPdf ? 'ki-pdf' : 'ki';
     transactions = ai.transactions.flatMap((t) => {
@@ -118,10 +112,20 @@ export async function importBankStatementAction(
         },
       ];
     });
+  } else if (!isPdf) {
+    // Notfall (KI nicht verfügbar): deterministische Parser für Textformate.
+    const parsed = parseBankStatement(decodeStatementBytes(buf));
+    transactions = parsed.transactions;
+    accountIban = parsed.accountIban;
+    formatLabel = parsed.format;
   }
 
   if (transactions.length === 0) {
-    return errorResult('Keine Umsätze im Auszug gefunden (auch nicht per KI).');
+    return errorResult(
+      ai
+        ? 'Keine Umsätze im Auszug erkannt.'
+        : 'Konnte den Auszug nicht lesen. Ist die KI aktiviert (OPENAI_API_KEY)?',
+    );
   }
 
   // Resolve / create the bank account by IBAN, if the statement exposes one.
@@ -162,9 +166,13 @@ export async function importBankStatementAction(
   const ruleMap = await getCategoryRuleMap(supabase, entityId);
 
   const seen = new Set<string>();
+  const occ = new Map<string, number>(); // base key → times seen in THIS file
   const rows = [];
   for (const t of transactions) {
-    const hash = importHash(entityId, t);
+    const baseKey = `${t.datum}|${t.betragCents}|${t.gegen ?? ''}|${t.zweck ?? ''}`;
+    const occurrence = occ.get(baseKey) ?? 0;
+    occ.set(baseKey, occurrence + 1);
+    const hash = importHash(entityId, t, occurrence);
     if (knownHashes.has(hash) || seen.has(hash)) continue;
     seen.add(hash);
     const ruleHit = ruleMap.get(normalizeMatchKey(t.gegen) ?? '') ?? null;

@@ -26,3 +26,8 @@ export type MoveTaskInput = z.infer<typeof moveTaskSchema>;
 export const archiveTaskSchema = z.object({
   taskId: z.string().uuid(),
 });
+
+export const deleteTaskSchema = z.object({
+  taskId: z.string().uuid(),
+  projectId: z.string().uuid().optional(),
+});

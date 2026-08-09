@@ -7,16 +7,38 @@ export type BookkeepingTransaction =
 export type BookkeepingAccount =
   Database['public']['Tables']['bookkeeping_accounts']['Row'];
 
-/** Transactions of one company, newest first. */
+export interface PeriodFilter {
+  year?: number;
+  month?: number; // 0 or undefined = whole year (or all if no year)
+}
+
+/** [from, to] ISO date bounds for a year/month filter, or null for no filter. */
+export function periodBounds(
+  p: PeriodFilter,
+): { from: string; to: string } | null {
+  if (!p.year) return null;
+  if (p.month && p.month >= 1 && p.month <= 12) {
+    const mm = String(p.month).padStart(2, '0');
+    const last = new Date(p.year, p.month, 0).getDate();
+    return { from: `${p.year}-${mm}-01`, to: `${p.year}-${mm}-${last}` };
+  }
+  return { from: `${p.year}-01-01`, to: `${p.year}-12-31` };
+}
+
+/** Transactions of one company, newest first (optionally filtered by period). */
 export async function listTransactions(
   billingEntityId: string,
-  limit = 300,
+  period: PeriodFilter = {},
+  limit = 500,
 ): Promise<BookkeepingTransaction[]> {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  let q = supabase
     .from('bookkeeping_transactions')
     .select('*')
-    .eq('billing_entity_id', billingEntityId)
+    .eq('billing_entity_id', billingEntityId);
+  const b = periodBounds(period);
+  if (b) q = q.gte('datum', b.from).lte('datum', b.to);
+  const { data } = await q
     .order('datum', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -39,13 +61,16 @@ export async function listBankAccounts(
 /** Count + summed in/out of a company's transactions (for the tab header). */
 export async function transactionSummary(
   billingEntityId: string,
+  period: PeriodFilter = {},
 ): Promise<{ count: number; inCents: number; outCents: number }> {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  let q = supabase
     .from('bookkeeping_transactions')
     .select('betrag_cents')
-    .eq('billing_entity_id', billingEntityId)
-    .limit(10000);
+    .eq('billing_entity_id', billingEntityId);
+  const b = periodBounds(period);
+  if (b) q = q.gte('datum', b.from).lte('datum', b.to);
+  const { data } = await q.limit(10000);
   let inCents = 0;
   let outCents = 0;
   for (const t of data ?? []) {

@@ -10,6 +10,7 @@ import {
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
 import { BankUploadForm } from '@/features/accounting/components/bank-upload-form';
+import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { AutoCategorizeButton } from '@/features/accounting/components/auto-categorize-button';
 import { TransactionCategorySelect } from '@/features/accounting/components/transaction-category-select';
 
@@ -27,10 +28,14 @@ function formatDate(d: string | null): string {
 export async function TransactionsPanel({
   orgId,
   activeFirma,
+  year,
+  month,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
+  year: number;
+  month: number;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -55,19 +60,31 @@ export async function TransactionsPanel({
     isDefault: c.entity.is_default,
   }));
 
+  const period = { year, month };
   const [txns, summary] = await Promise.all([
-    listTransactions(active.entity.id),
-    transactionSummary(active.entity.id),
+    listTransactions(active.entity.id, period),
+    transactionSummary(active.entity.id, period),
   ]);
+  const nowYear = new Date().getFullYear();
+  const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
+  const firmaBase = `${basePath}&firma=${active.entity.id}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CompanySwitcher
-          companies={options}
-          activeId={active.entity.id}
-          basePath={basePath}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <CompanySwitcher
+            companies={options}
+            activeId={active.entity.id}
+            basePath={basePath}
+          />
+          <MonthSwitcher
+            year={year}
+            month={month}
+            years={years}
+            basePath={firmaBase}
+          />
+        </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>
             <span className="font-medium text-foreground">{summary.count}</span>{' '}

@@ -7,8 +7,11 @@ import {
   clientRequestChangeAction,
   clientAcceptWholePlanAction,
 } from '@/features/marketing-plan/actions';
-import type { MarketingPlan, PlanItem } from '@/features/marketing-plan/queries';
-import { MONTHS } from '@/features/marketing-plan/components/plan-manager';
+import type {
+  MarketingPlan,
+  PlanItem,
+  PlanPhase,
+} from '@/features/marketing-plan/queries';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
@@ -101,15 +104,36 @@ function ItemRow({ item }: { item: PlanItem }) {
   );
 }
 
+function PhaseBlock({ phase }: { phase: PlanPhase }) {
+  if (phase.items.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-bold">{phase.title}</h3>
+        {phase.timeframeHint && (
+          <span className="text-xs text-muted-foreground">
+            {phase.timeframeHint}
+          </span>
+        )}
+      </div>
+      <ul className="space-y-2">
+        {phase.items.map((it) => (
+          <ItemRow key={it.id} item={it} />
+        ))}
+      </ul>
+      {phase.outcome && (
+        <p className="mt-2 rounded-lg bg-muted p-2.5 text-sm text-muted-foreground">
+          {phase.outcome}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function PlanReview({ plan }: { plan: MarketingPlan }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
-  const byMonth = new Map<number, PlanItem[]>();
-  for (const it of plan.items) {
-    byMonth.set(it.month, [...(byMonth.get(it.month) ?? []), it]);
-  }
-  const months = [...byMonth.keys()].sort((a, b) => a - b);
   const allDecided = plan.items.every(
     (i) => i.status === 'accepted' || i.status === 'embedded',
   );
@@ -124,7 +148,7 @@ export function PlanReview({ plan }: { plan: MarketingPlan }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Euer Marketingplan {plan.year}. Akzeptiere die einzelnen Maßnahmen oder
+          Euer Marketingplan in Phasen. Akzeptiere die einzelnen Maßnahmen oder
           wünsche Änderungen – oder nimm gleich den ganzen Plan an.
         </p>
         {plan.status !== 'accepted' && plan.items.length > 0 && (
@@ -145,18 +169,13 @@ export function PlanReview({ plan }: { plan: MarketingPlan }) {
         </Alert>
       )}
 
-      {months.map((m) => (
-        <div key={m}>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            {MONTHS[m - 1]}
-          </div>
-          <ul className="space-y-2">
-            {(byMonth.get(m) ?? []).map((it) => (
-              <ItemRow key={it.id} item={it} />
-            ))}
-          </ul>
-        </div>
+      {plan.phases.map((phase) => (
+        <PhaseBlock key={phase.id} phase={phase} />
       ))}
+
+      {plan.closingNote && (
+        <p className="text-sm text-muted-foreground">{plan.closingNote}</p>
+      )}
 
       {plan.items.length === 0 && (
         <p className="text-sm text-muted-foreground">

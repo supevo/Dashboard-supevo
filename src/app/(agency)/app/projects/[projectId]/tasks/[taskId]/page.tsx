@@ -31,6 +31,7 @@ import { EffortPanel } from '@/features/estimate/components/effort-panel';
 import { getTaskActualMinutes } from '@/features/estimate/queries';
 import { BriefingEditor } from '@/features/tasks/components/briefing-editor';
 import { ArchiveTaskButton } from '@/features/tasks/components/archive-task-button';
+import { DeleteTaskButton } from '@/features/tasks/components/delete-task-button';
 import { DueDateEditor } from '@/features/tasks/components/due-date-editor';
 import { VisibilityEditor } from '@/features/tasks/components/visibility-editor';
 import { EditableTaskTitle } from '@/features/tasks/components/editable-task-title';
@@ -127,6 +128,9 @@ export default async function TaskDetailPage({
               taskId={taskId}
               isArchived={task.isArchived}
             />
+          )}
+          {task.canManage && (
+            <DeleteTaskButton projectId={projectId} taskId={taskId} />
           )}
           {!task.isInternal && (
             <ClientNotifyButton

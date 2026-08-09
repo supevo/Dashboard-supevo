@@ -499,9 +499,10 @@ export interface Database {
           id: string;
           organization_id: string;
           client_company_id: string;
-          year: number;
+          year: number | null;
           title: string;
           status: string;
+          closing_note: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -511,9 +512,10 @@ export interface Database {
           id?: string;
           organization_id: string;
           client_company_id: string;
-          year: number;
+          year?: number | null;
           title?: string;
           status?: string;
+          closing_note?: string | null;
           created_by?: string | null;
           updated_at?: string;
           accepted_at?: string | null;
@@ -521,11 +523,37 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['marketing_plans']['Insert']>;
         Relationships: [];
       };
+      marketing_plan_phases: {
+        Row: {
+          id: string;
+          plan_id: string;
+          title: string;
+          timeframe_hint: string | null;
+          outcome: string | null;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          plan_id: string;
+          title: string;
+          timeframe_hint?: string | null;
+          outcome?: string | null;
+          position?: number;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['marketing_plan_phases']['Insert']
+        >;
+        Relationships: [];
+      };
       marketing_plan_items: {
         Row: {
           id: string;
           plan_id: string;
-          month: number;
+          phase_id: string | null;
+          month: number | null;
           title: string;
           description: string | null;
           status: string;
@@ -538,7 +566,8 @@ export interface Database {
         Insert: {
           id?: string;
           plan_id: string;
-          month?: number;
+          phase_id?: string | null;
+          month?: number | null;
           title: string;
           description?: string | null;
           status?: string;

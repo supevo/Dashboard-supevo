@@ -43,9 +43,8 @@ export function BankUploadForm({ billingEntityId }: { billingEntityId: string })
         <SubmitButton>Importieren</SubmitButton>
       </div>
       <p className="text-xs text-muted-foreground">
-        CSV (dt. Banken/CAMT-CSV), CAMT.053 (XML), MT940 (.sta) oder PDF. Klappt
-        ein Format mal nicht, liest die KI den Auszug automatisch aus. Doppelte
-        Umsätze werden übersprungen.
+        CSV, CAMT.053 (XML), MT940 (.sta) oder PDF. Die KI liest jede Buchung
+        aus – bereits importierte Überschneidungen werden übersprungen.
       </p>
       {state.status === 'error' && (
         <Alert variant="destructive">{state.message}</Alert>

@@ -7,22 +7,34 @@ export type BookkeepingReceipt =
 export type BookkeepingImportLog =
   Database['public']['Tables']['bookkeeping_import_log']['Row'];
 
-/** Receipts of one company, newest first (optionally filtered by kind). */
+/**
+ * Receipts of one company, newest first (optionally by kind). When a concrete
+ * month is given, only receipts dated in that month are returned; month 0 / no
+ * month shows all (so not-yet-read receipts without a date stay visible).
+ */
 export async function listReceipts(
   billingEntityId: string,
   kind?: 'einnahme' | 'ausgabe',
-  limit = 200,
+  period: { year?: number; month?: number } = {},
+  limit = 300,
 ): Promise<BookkeepingReceipt[]> {
   const supabase = await createSupabaseServerClient();
   let q = supabase
     .from('bookkeeping_receipts')
     .select('*')
-    .eq('billing_entity_id', billingEntityId)
+    .eq('billing_entity_id', billingEntityId);
+  if (kind) q = q.eq('kind', kind);
+  if (period.year && period.month && period.month >= 1 && period.month <= 12) {
+    const mm = String(period.month).padStart(2, '0');
+    const last = new Date(period.year, period.month, 0).getDate();
+    q = q
+      .gte('beleg_datum', `${period.year}-${mm}-01`)
+      .lte('beleg_datum', `${period.year}-${mm}-${last}`);
+  }
+  const { data } = await q
     .order('beleg_datum', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (kind) q = q.eq('kind', kind);
-  const { data } = await q;
   return data ?? [];
 }
 

@@ -8,6 +8,8 @@ import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/session';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { createNotifications } from '@/features/notifications/create';
 import { resolveClientQueue, embedItems } from '@/features/marketing-plan/embed';
+import { DEFAULT_PLAN_TEMPLATE, type PlanTemplate } from './template';
+import { generatePlanDraft } from './ai-draft';
 import {
   type ActionResult,
   errorResult,
@@ -27,7 +29,7 @@ async function requireAgencyOrg(): Promise<string | null> {
 async function planForOrg(service: Service, planId: string, orgId: string) {
   const { data } = await service
     .from('marketing_plans')
-    .select('id, organization_id, client_company_id, year, status')
+    .select('id, organization_id, client_company_id, status')
     .eq('id', planId)
     .eq('organization_id', orgId)
     .maybeSingle();
@@ -50,105 +52,364 @@ async function planForItem(service: Service, itemId: string) {
   return plan;
 }
 
-// --- Agentur ---------------------------------------------------------------
+/** Loads the plan that a phase belongs to (id, org, client). */
+async function planForPhase(service: Service, phaseId: string) {
+  const { data: phase } = await service
+    .from('marketing_plan_phases')
+    .select('plan_id')
+    .eq('id', phaseId)
+    .maybeSingle();
+  if (!phase) return null;
+  const { data: plan } = await service
+    .from('marketing_plans')
+    .select('id, organization_id, client_company_id')
+    .eq('id', phase.plan_id)
+    .maybeSingle();
+  return plan;
+}
 
-const createSchema = z.object({
-  clientCompanyId: z.string().uuid(),
-  year: z.coerce.number().int().min(2020).max(2100),
-  title: z.string().trim().max(140).optional().or(z.literal('')),
-});
+/** Returns the client's plan id, creating an empty plan if none exists yet. */
+async function ensurePlan(
+  service: Service,
+  orgId: string,
+  clientCompanyId: string,
+  userId: string,
+): Promise<{ id: string } | { error: string }> {
+  const { data: existing } = await service
+    .from('marketing_plans')
+    .select('id')
+    .eq('client_company_id', clientCompanyId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (existing) return { id: existing.id };
+
+  const { data, error } = await service
+    .from('marketing_plans')
+    .insert({
+      organization_id: orgId,
+      client_company_id: clientCompanyId,
+      title: 'Marketingplan',
+      created_by: userId,
+    })
+    .select('id')
+    .single();
+  if (error || !data) {
+    console.error('[marketing-plan] ensurePlan insert failed', {
+      code: error?.code,
+      message: error?.message,
+    });
+    return {
+      error:
+        error?.code === '42P01'
+          ? 'Marketingplan-Tabellen fehlen (Migration 0119 nicht ausgeführt).'
+          : 'Anlegen fehlgeschlagen.',
+    };
+  }
+  return { id: data.id };
+}
+
+/** Inserts template/AI phases + their measures into an (empty) plan. */
+async function insertContent(
+  service: Service,
+  planId: string,
+  content: PlanTemplate,
+): Promise<void> {
+  let phasePos = 0;
+  for (const phase of content.phases) {
+    const { data: row } = await service
+      .from('marketing_plan_phases')
+      .insert({
+        plan_id: planId,
+        title: phase.title,
+        timeframe_hint: phase.timeframeHint || null,
+        outcome: phase.outcome || null,
+        position: (phasePos += 1),
+      })
+      .select('id')
+      .single();
+    if (!row) continue;
+    const rows = phase.measures.map((title, i) => ({
+      plan_id: planId,
+      phase_id: row.id,
+      title,
+      position: (i + 1) * 1000,
+    }));
+    if (rows.length > 0) {
+      await service.from('marketing_plan_items').insert(rows);
+    }
+  }
+  if (content.closingNote) {
+    await service
+      .from('marketing_plans')
+      .update({ closing_note: content.closingNote })
+      .eq('id', planId);
+  }
+}
+
+// --- Agentur: Plan-Grundgerüst ---------------------------------------------
+
+const clientSchema = z.object({ clientCompanyId: z.string().uuid() });
 
 export async function createPlanAction(input: unknown): Promise<ActionResult> {
-  const parsed = createSchema.safeParse(input);
+  const parsed = clientSchema.safeParse(input);
   if (!parsed.success) return errorResult('Ungültige Werte.');
   const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
   const user = await requireUser();
 
   const service = createSupabaseServiceClient();
-  const { error } = await service.from('marketing_plans').insert({
-    organization_id: orgId,
-    client_company_id: parsed.data.clientCompanyId,
-    year: parsed.data.year,
-    title: parsed.data.title || 'Marketingplan',
-    created_by: user.id,
-  });
-  if (error) {
-    return errorResult(
-      error.code === '23505'
-        ? 'Für dieses Jahr existiert bereits ein Plan.'
-        : 'Anlegen fehlgeschlagen.',
-    );
-  }
+  const res = await ensurePlan(service, orgId, parsed.data.clientCompanyId, user.id);
+  if ('error' in res) return errorResult(res.error);
   revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
   return successResult('Plan angelegt.');
 }
 
-const addItemSchema = z.object({
+/** Fills an (empty) plan with the agency's standard 5-phase template. */
+export async function applyTemplateAction(input: unknown): Promise<ActionResult> {
+  const parsed = clientSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültige Werte.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const user = await requireUser();
+  const service = createSupabaseServiceClient();
+
+  const res = await ensurePlan(service, orgId, parsed.data.clientCompanyId, user.id);
+  if ('error' in res) return errorResult(res.error);
+
+  const { count } = await service
+    .from('marketing_plan_phases')
+    .select('id', { count: 'exact', head: true })
+    .eq('plan_id', res.id);
+  if ((count ?? 0) > 0) {
+    return errorResult('Der Plan enthält bereits Phasen.');
+  }
+
+  await insertContent(service, res.id, DEFAULT_PLAN_TEMPLATE);
+  revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
+  return successResult('Vorlage eingefügt.');
+}
+
+/** Generates a plan draft via AI (falls back to the template) for an empty plan. */
+export async function aiDraftPlanAction(input: unknown): Promise<ActionResult> {
+  const parsed = clientSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültige Werte.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const user = await requireUser();
+  const service = createSupabaseServiceClient();
+
+  const res = await ensurePlan(service, orgId, parsed.data.clientCompanyId, user.id);
+  if ('error' in res) return errorResult(res.error);
+
+  const { count } = await service
+    .from('marketing_plan_phases')
+    .select('id', { count: 'exact', head: true })
+    .eq('plan_id', res.id);
+  if ((count ?? 0) > 0) {
+    return errorResult('Der Plan enthält bereits Phasen.');
+  }
+
+  const { data: company } = await service
+    .from('client_companies')
+    .select('name, industry, notes')
+    .eq('id', parsed.data.clientCompanyId)
+    .maybeSingle();
+
+  const { plan, usedAi } = await generatePlanDraft({
+    name: company?.name ?? 'Kunde',
+    industry: company?.industry ?? null,
+    notes: company?.notes ?? null,
+  });
+  await insertContent(service, res.id, plan);
+  revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
+  return successResult(
+    usedAi
+      ? 'KI-Entwurf erstellt – jetzt anpassen.'
+      : 'KI nicht verfügbar – Vorlage eingefügt.',
+  );
+}
+
+// --- Agentur: Phasen -------------------------------------------------------
+
+const addPhaseSchema = z.object({
   planId: z.string().uuid(),
-  month: z.coerce.number().int().min(1).max(12),
+  title: z.string().trim().min(2).max(200),
+});
+
+export async function addPhaseAction(input: unknown): Promise<ActionResult> {
+  const parsed = addPhaseSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Bitte einen Phasen-Titel angeben.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForOrg(service, parsed.data.planId, orgId);
+  if (!plan) return errorResult('Plan nicht gefunden.');
+
+  const { data: last } = await service
+    .from('marketing_plan_phases')
+    .select('position')
+    .eq('plan_id', parsed.data.planId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const position = (last?.position ?? 0) + 1;
+
+  const { error } = await service.from('marketing_plan_phases').insert({
+    plan_id: parsed.data.planId,
+    title: parsed.data.title,
+    position,
+  });
+  if (error) return errorResult('Hinzufügen fehlgeschlagen.');
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Phase hinzugefügt.');
+}
+
+const updatePhaseSchema = z.object({
+  phaseId: z.string().uuid(),
+  title: z.string().trim().min(2).max(200),
+  timeframeHint: z.string().trim().max(200).optional().or(z.literal('')),
+  outcome: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+export async function updatePhaseAction(input: unknown): Promise<ActionResult> {
+  const parsed = updatePhaseSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültige Werte.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForPhase(service, parsed.data.phaseId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
+
+  const { error } = await service
+    .from('marketing_plan_phases')
+    .update({
+      title: parsed.data.title,
+      timeframe_hint: parsed.data.timeframeHint || null,
+      outcome: parsed.data.outcome || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.phaseId);
+  if (error) return errorResult('Speichern fehlgeschlagen.');
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Phase gespeichert.');
+}
+
+export async function deletePhaseAction(phaseId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(phaseId).success) return errorResult('Ungültig.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForPhase(service, phaseId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
+  await service.from('marketing_plan_phases').delete().eq('id', phaseId);
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Phase gelöscht.');
+}
+
+const movePhaseSchema = z.object({
+  phaseId: z.string().uuid(),
+  direction: z.enum(['up', 'down']),
+});
+
+/** Swaps a phase's position with its neighbour in the given direction. */
+export async function movePhaseAction(input: unknown): Promise<ActionResult> {
+  const parsed = movePhaseSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültig.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForPhase(service, parsed.data.phaseId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
+
+  const { data: phases } = await service
+    .from('marketing_plan_phases')
+    .select('id, position')
+    .eq('plan_id', plan.id)
+    .order('position', { ascending: true });
+  if (!phases) return errorResult('Nicht gefunden.');
+
+  const idx = phases.findIndex((p) => p.id === parsed.data.phaseId);
+  const swapIdx = parsed.data.direction === 'up' ? idx - 1 : idx + 1;
+  if (idx < 0 || swapIdx < 0 || swapIdx >= phases.length) {
+    return successResult('Bereits am Rand.');
+  }
+  const a = phases[idx]!;
+  const b = phases[swapIdx]!;
+  await Promise.all([
+    service
+      .from('marketing_plan_phases')
+      .update({ position: b.position })
+      .eq('id', a.id),
+    service
+      .from('marketing_plan_phases')
+      .update({ position: a.position })
+      .eq('id', b.id),
+  ]);
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Verschoben.');
+}
+
+const closingSchema = z.object({
+  planId: z.string().uuid(),
+  closingNote: z.string().trim().max(2000).optional().or(z.literal('')),
+});
+
+export async function updatePlanClosingAction(input: unknown): Promise<ActionResult> {
+  const parsed = closingSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültige Werte.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForOrg(service, parsed.data.planId, orgId);
+  if (!plan) return errorResult('Plan nicht gefunden.');
+  await service
+    .from('marketing_plans')
+    .update({
+      closing_note: parsed.data.closingNote || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.planId);
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Gespeichert.');
+}
+
+// --- Agentur: Maßnahmen ----------------------------------------------------
+
+const addItemSchema = z.object({
+  phaseId: z.string().uuid(),
   title: z.string().trim().min(2).max(200),
   description: z.string().trim().max(4000).optional().or(z.literal('')),
 });
 
 export async function addPlanItemAction(input: unknown): Promise<ActionResult> {
   const parsed = addItemSchema.safeParse(input);
-  if (!parsed.success) return errorResult('Bitte Monat + Titel angeben.');
+  if (!parsed.success) return errorResult('Bitte Titel der Maßnahme angeben.');
   const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
-
   const service = createSupabaseServiceClient();
-  const plan = await planForOrg(service, parsed.data.planId, orgId);
-  if (!plan) return errorResult('Plan nicht gefunden.');
+  const plan = await planForPhase(service, parsed.data.phaseId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Phase nicht gefunden.');
+
+  const { data: last } = await service
+    .from('marketing_plan_items')
+    .select('position')
+    .eq('phase_id', parsed.data.phaseId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const position = (last?.position ?? 0) + 1000;
 
   const { error } = await service.from('marketing_plan_items').insert({
-    plan_id: parsed.data.planId,
-    month: parsed.data.month,
+    plan_id: plan.id,
+    phase_id: parsed.data.phaseId,
     title: parsed.data.title,
     description: parsed.data.description || null,
-    position: Date.now(),
+    position,
   });
   if (error) return errorResult('Hinzufügen fehlgeschlagen.');
   revalidatePath(`/app/clients/${plan.client_company_id}`);
   return successResult('Maßnahme hinzugefügt.');
-}
-
-const updateItemSchema = z.object({
-  itemId: z.string().uuid(),
-  month: z.coerce.number().int().min(1).max(12).optional(),
-  title: z.string().trim().min(2).max(200).optional(),
-  description: z.string().trim().max(4000).optional(),
-});
-
-export async function updatePlanItemAction(input: unknown): Promise<ActionResult> {
-  const parsed = updateItemSchema.safeParse(input);
-  if (!parsed.success) return errorResult('Ungültige Werte.');
-  const orgId = await requireAgencyOrg();
-  if (!orgId) return errorResult('Keine Berechtigung.');
-
-  const service = createSupabaseServiceClient();
-  const patch: {
-    month?: number;
-    title?: string;
-    description?: string | null;
-    updated_at: string;
-  } = { updated_at: new Date().toISOString() };
-  if (parsed.data.month) patch.month = parsed.data.month;
-  if (parsed.data.title) patch.title = parsed.data.title;
-  if (parsed.data.description !== undefined)
-    patch.description = parsed.data.description || null;
-
-  // Ownership via the item's plan org (admin RLS also guards).
-  const plan = await planForItem(service, parsed.data.itemId);
-  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
-
-  const { error } = await service
-    .from('marketing_plan_items')
-    .update(patch)
-    .eq('id', parsed.data.itemId);
-  if (error) return errorResult('Speichern fehlgeschlagen.');
-  revalidatePath(`/app/clients/${plan.client_company_id}`);
-  return successResult('Gespeichert.');
 }
 
 export async function deletePlanItemAction(itemId: string): Promise<ActionResult> {
@@ -189,7 +450,7 @@ export async function releasePlanAction(planId: string): Promise<ActionResult> {
         recipientId,
         type: 'task_for_approval' as const,
         title: 'Marketingplan zur Abstimmung',
-        body: `Euer Marketingplan ${plan.year} liegt zur Abstimmung bereit.`,
+        body: 'Euer Marketingplan liegt zur Abstimmung bereit.',
         entityType: 'marketing_plan',
         entityId: planId,
       })),
@@ -200,9 +461,9 @@ export async function releasePlanAction(planId: string): Promise<ActionResult> {
 }
 
 /**
- * Agency: embeds accepted plan items as kanban tasks in the client's first
- * project (queue column), due-dated to the item's month. Idempotent per item
- * (already-embedded items are skipped).
+ * Agency: embeds the plan's measures as kanban tasks in the client's first
+ * project (queue column), grouped by phase, without due dates. Idempotent per
+ * item (already-embedded items are skipped).
  */
 export async function embedPlanAction(planId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(planId).success) return errorResult('Ungültig.');
@@ -216,25 +477,39 @@ export async function embedPlanAction(planId: string): Promise<ActionResult> {
   const target = await resolveClientQueue(service, plan.client_company_id);
   if (!target) return errorResult('Der Kunde hat noch kein Projekt/Board.');
 
-  const { data: items } = await service
-    .from('marketing_plan_items')
-    .select('id, month, title, description')
-    .eq('plan_id', planId)
-    .in('status', ['accepted', 'proposed', 'change_requested']);
+  const [{ data: items }, { data: phases }] = await Promise.all([
+    service
+      .from('marketing_plan_items')
+      .select('id, phase_id, title, description, position')
+      .eq('plan_id', planId)
+      .in('status', ['accepted', 'proposed', 'change_requested'])
+      .order('position', { ascending: true }),
+    service
+      .from('marketing_plan_phases')
+      .select('id, title, position')
+      .eq('plan_id', planId)
+      .order('position', { ascending: true }),
+  ]);
   if (!items || items.length === 0) {
     return errorResult('Keine übernehmbaren Maßnahmen (bereits übernommen?).');
   }
+  const phaseTitle = new Map((phases ?? []).map((p) => [p.id, p.title]));
+  const phaseOrder = new Map((phases ?? []).map((p, i) => [p.id, i]));
+  const ordered = [...items].sort(
+    (a, b) =>
+      (phaseOrder.get(a.phase_id ?? '') ?? 999) -
+        (phaseOrder.get(b.phase_id ?? '') ?? 999) || a.position - b.position,
+  );
 
   const embedded = await embedItems(
     service,
-    {
-      orgId,
-      clientCompanyId: plan.client_company_id,
-      year: plan.year,
-      createdBy: user.id,
-      target,
-    },
-    items,
+    { orgId, createdBy: user.id, target },
+    ordered.map((it) => ({
+      id: it.id,
+      title: it.title,
+      description: it.description,
+      phaseTitle: it.phase_id ? phaseTitle.get(it.phase_id) ?? null : null,
+    })),
   );
 
   revalidatePath(`/app/clients/${plan.client_company_id}`);
@@ -321,7 +596,7 @@ export async function clientAcceptWholePlanAction(planId: string): Promise<Actio
   const service = createSupabaseServiceClient();
   const { data: plan } = await service
     .from('marketing_plans')
-    .select('id, client_company_id, organization_id, year')
+    .select('id, client_company_id, organization_id')
     .eq('id', planId)
     .maybeSingle();
   if (!plan || plan.client_company_id !== company.clientCompanyId) {
@@ -355,7 +630,7 @@ export async function clientAcceptWholePlanAction(planId: string): Promise<Actio
         recipientId,
         type: 'approval_granted' as const,
         title: 'Marketingplan akzeptiert',
-        body: `${user.fullName ?? user.email} hat den Marketingplan ${plan.year} akzeptiert.`,
+        body: `${user.fullName ?? user.email} hat den Marketingplan akzeptiert.`,
         entityType: 'marketing_plan',
         entityId: planId,
       })),

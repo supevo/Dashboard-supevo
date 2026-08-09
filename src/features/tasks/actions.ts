@@ -17,7 +17,12 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { archiveTaskSchema, createTaskSchema, moveTaskSchema } from './schema';
+import {
+  archiveTaskSchema,
+  createTaskSchema,
+  deleteTaskSchema,
+  moveTaskSchema,
+} from './schema';
 
 function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   return error.flatten().fieldErrors as Record<string, string[]>;
@@ -779,4 +784,57 @@ async function setArchived(
   return successResult(
     archived ? 'Aufgabe archiviert.' : 'Aufgabe wiederhergestellt.',
   );
+}
+
+/**
+ * Permanently deletes a task (and, via ON DELETE CASCADE, its comments,
+ * checklist items, attachments, labels, ratings … time entries and XP events
+ * keep their history with a null task_id). Only project managers may delete;
+ * everyone else should archive instead.
+ */
+export async function deleteTaskAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = deleteTaskSchema.safeParse({
+    taskId: formData.get('taskId'),
+    projectId: formData.get('projectId') ?? undefined,
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { taskId, projectId } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // RLS read gate: only returns the task if the caller may see it.
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, project_id, organization_id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return errorResult(de.errors.FORBIDDEN);
+
+  // Deleting is destructive → require manage rights on the project.
+  const { data: canManage } = await supabase.rpc('can_manage_project', {
+    p_project_id: task.project_id,
+  });
+  if (canManage !== true) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service.from('tasks').delete().eq('id', taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: task.organization_id,
+    action: 'delete',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: {},
+  });
+
+  const pid = projectId ?? task.project_id;
+  revalidatePath(`/app/projects/${pid}`);
+  revalidatePath(`/portal/projects/${pid}`);
+  return successResult('Aufgabe gelöscht.');
 }

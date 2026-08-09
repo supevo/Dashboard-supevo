@@ -5,6 +5,7 @@ import { PresenceTracker } from '@/components/layout/presence-tracker';
 import { CommandPalette } from '@/components/layout/command-palette';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
+import { Logo } from '@/components/layout/logo';
 import { RunningTimer } from '@/components/layout/running-timer';
 import { UserMenu, type UserMenuItem } from '@/components/layout/user-menu';
 import { de } from '@/lib/i18n/de';
@@ -69,8 +70,8 @@ export function AppShell({
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-6">
-          <p className="text-sm font-bold text-primary">{de.app.name}</p>
-          <p className="text-xs text-muted-foreground">{areaLabel}</p>
+          <Logo className="h-7" />
+          <p className="mt-1 text-xs text-muted-foreground">{areaLabel}</p>
         </div>
         <SidebarNav items={navItems} />
         {/* pb-16 keeps the footer clear of the floating feedback button that
