@@ -2601,6 +2601,50 @@ export interface Database {
         >;
         Relationships: [];
       };
+      accounting_profiles: {
+        Row: {
+          billing_entity_id: string;
+          organization_id: string;
+          rechtsform: string;
+          inhaber: string | null;
+          kleinunternehmer: boolean;
+          ust_periode: string;
+          hebesatz: number | null;
+          kirchensteuer: boolean;
+          splitting: boolean;
+          weitere_einkuenfte_cents: number;
+          belegregeln: Record<string, unknown>;
+          onedrive_einnahmen_folder_id: string | null;
+          onedrive_einnahmen_folder_path: string | null;
+          onedrive_ausgaben_folder_id: string | null;
+          onedrive_ausgaben_folder_path: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          billing_entity_id: string;
+          organization_id: string;
+          rechtsform?: string;
+          inhaber?: string | null;
+          kleinunternehmer?: boolean;
+          ust_periode?: string;
+          hebesatz?: number | null;
+          kirchensteuer?: boolean;
+          splitting?: boolean;
+          weitere_einkuenfte_cents?: number;
+          belegregeln?: Record<string, unknown>;
+          onedrive_einnahmen_folder_id?: string | null;
+          onedrive_einnahmen_folder_path?: string | null;
+          onedrive_ausgaben_folder_id?: string | null;
+          onedrive_ausgaben_folder_path?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['accounting_profiles']['Insert']
+        >;
+        Relationships: [];
+      };
       billing_entities: {
         Row: {
           id: string;
