@@ -40,6 +40,10 @@ export interface LootItem {
   description: string | null;
   type: 'physical' | 'badge' | 'banner' | 'frame';
   weight: number;
+  /** Per-box win weights (0 = not in that box). */
+  weightCommon: number;
+  weightRare: number;
+  weightSuper: number;
   badgeEmoji: string | null;
   badgeName: string | null;
   imageUrl: string | null;
@@ -280,19 +284,29 @@ export async function listRedemptions(orgId: string): Promise<Redemption[]> {
 
 /** All loot items of the org for the admin editor. */
 export async function listLootItems(orgId: string): Promise<LootItem[]> {
+  // '*' so the per-tier weight columns (migration 0111) come through; cast to
+  // read them.
   const { data } = await createSupabaseServiceClient()
     .from('loot_items')
-    .select('id, box_tier, name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id, frame_image_id')
+    .select('*')
     .eq('organization_id', orgId)
-    .order('box_tier', { ascending: true })
     .order('created_at', { ascending: true });
-  return (data ?? []).map((r) => ({
+  return (data ?? []).map((row) => {
+    const r = row as typeof row & {
+      weight_common?: number;
+      weight_rare?: number;
+      weight_super?: number;
+    };
+    return {
     id: r.id,
     boxTier: r.box_tier as BoxTier,
     name: r.name,
     description: r.description,
     type: r.type as 'physical' | 'badge' | 'banner' | 'frame',
     weight: r.weight,
+    weightCommon: Number(r.weight_common ?? 0),
+    weightRare: Number(r.weight_rare ?? 0),
+    weightSuper: Number(r.weight_super ?? 0),
     badgeEmoji: r.badge_emoji,
     badgeName: r.badge_name,
     imageUrl: r.banner_image_id
@@ -302,5 +316,6 @@ export async function listLootItems(orgId: string): Promise<LootItem[]> {
         : r.image_path
           ? lootItemImageUrl(r.id)
           : null,
-  }));
+    };
+  });
 }

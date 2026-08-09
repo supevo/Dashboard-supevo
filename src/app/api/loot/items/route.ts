@@ -4,13 +4,12 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser, primaryAgencyOrgId } from '@/features/auth/session';
 import { isOrgAdmin } from '@/lib/authz/policies';
 import { FILES_BUCKET } from '@/lib/files/storage';
-import { WEIGHT_MIN, WEIGHT_MAX } from '@/features/loot/queries';
+import { WEIGHT_MAX } from '@/features/loot/queries';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-const TIERS = ['common', 'rare', 'super'];
 
 function isSameOrigin(request: NextRequest): boolean {
   const origin = request.headers.get('origin');
@@ -38,10 +37,6 @@ export async function POST(request: NextRequest) {
   }
 
   const form = await request.formData();
-  const boxTier = String(form.get('boxTier') ?? '');
-  if (!TIERS.includes(boxTier)) {
-    return NextResponse.json({ error: 'Ungültige Box.' }, { status: 400 });
-  }
   const name = String(form.get('name') ?? '').trim().slice(0, 80);
   if (name.length < 2) {
     return NextResponse.json({ error: 'Bitte einen Namen angeben.' }, { status: 400 });
@@ -56,7 +51,26 @@ export async function POST(request: NextRequest) {
         : rawType === 'frame'
           ? 'frame'
           : 'physical';
-  const weight = Math.max(WEIGHT_MIN, Math.min(WEIGHT_MAX, Number(form.get('weight')) || 10));
+  // Per-box win weights (0 = not in that box). An item must be in ≥1 box.
+  const clampW = (v: FormDataEntryValue | null) =>
+    Math.max(0, Math.min(WEIGHT_MAX, Number(v) || 0));
+  const weightCommon = clampW(form.get('weightCommon'));
+  const weightRare = clampW(form.get('weightRare'));
+  const weightSuper = clampW(form.get('weightSuper'));
+  if (weightCommon + weightRare + weightSuper <= 0) {
+    return NextResponse.json(
+      { error: 'Bitte mindestens eine Box-Gewichtung > 0 angeben.' },
+      { status: 400 },
+    );
+  }
+  // Legacy columns (box_tier NOT NULL): "home" box = highest weight.
+  const legacyTier =
+    weightSuper >= weightRare && weightSuper >= weightCommon
+      ? 'super'
+      : weightRare >= weightCommon
+        ? 'rare'
+        : 'common';
+  const legacyWeight = Math.max(1, weightCommon, weightRare, weightSuper);
   const badgeEmoji = String(form.get('badgeEmoji') ?? '').trim().slice(0, 8);
   const badgeName = String(form.get('badgeName') ?? '').trim().slice(0, 60);
   const bannerImageId = String(form.get('bannerImageId') ?? '').trim();
@@ -127,17 +141,20 @@ export async function POST(request: NextRequest) {
   const { error } = await service.from('loot_items').insert({
     id: itemId,
     organization_id: orgId,
-    box_tier: boxTier,
+    box_tier: legacyTier,
     name,
     description: description || null,
     type,
-    weight,
+    weight: legacyWeight,
+    weight_common: weightCommon,
+    weight_rare: weightRare,
+    weight_super: weightSuper,
     badge_emoji: type === 'badge' ? badgeEmoji || '🏅' : null,
     badge_name: type === 'badge' ? badgeName || name : null,
     image_path: imagePath,
     banner_image_id: type === 'banner' ? bannerImageId : null,
     frame_image_id: type === 'frame' ? frameImageId : null,
-  });
+  } as never);
   if (error) {
     if (imagePath) await service.storage.from(FILES_BUCKET).remove([imagePath]);
     return NextResponse.json({ error: `Speichern fehlgeschlagen: ${error.message}` }, { status: 500 });

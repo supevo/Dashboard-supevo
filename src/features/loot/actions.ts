@@ -76,19 +76,42 @@ export async function openBoxAction(
     if (balance < price) return errorResult('Nicht genug Coins für diese Box.');
   }
 
-  const { data: items } = await service
+  // Every item can appear in every box; the per-tier weight (0 = not in this
+  // box) decides the odds. '*' so the tier weight columns (migration 0111) come
+  // through at runtime; read them via a cast.
+  const weightCol = `weight_${parsed.data}` as
+    | 'weight_common'
+    | 'weight_rare'
+    | 'weight_super';
+  type LootRow = {
+    name: string;
+    description: string | null;
+    type: string;
+    badge_emoji: string | null;
+    badge_name: string | null;
+    image_path: string | null;
+    banner_image_id: string | null;
+    frame_image_id: string | null;
+    weight_common?: number;
+    weight_rare?: number;
+    weight_super?: number;
+  };
+  const { data: allItems } = await service
     .from('loot_items')
-    .select('name, description, type, weight, badge_emoji, badge_name, image_path, banner_image_id, frame_image_id')
-    .eq('organization_id', orgId)
-    .eq('box_tier', parsed.data);
-  if (!items || items.length === 0) return errorResult('Diese Box ist noch leer.');
+    .select('*')
+    .eq('organization_id', orgId);
+  const tierWeight = (it: LootRow) => Math.max(0, Number(it[weightCol] ?? 0));
+  const items = ((allItems ?? []) as unknown as LootRow[]).filter(
+    (it) => tierWeight(it) > 0,
+  );
+  if (items.length === 0) return errorResult('Diese Box ist noch leer.');
 
-  // Weighted random draw.
-  const totalWeight = items.reduce((n, it) => n + Math.max(1, it.weight), 0);
+  // Weighted random draw by the box's tier weight.
+  const totalWeight = items.reduce((n, it) => n + tierWeight(it), 0);
   let roll = Math.random() * totalWeight;
   let drawn = items[0]!;
   for (const it of items) {
-    roll -= Math.max(1, it.weight);
+    roll -= tierWeight(it);
     if (roll <= 0) {
       drawn = it;
       break;
@@ -313,6 +336,35 @@ export async function deleteLootItemAction(id: string): Promise<ActionResult> {
   if (error) return errorResult(error.message);
   revalidatePath('/app/motivation');
   return successResult('Gelöscht.');
+}
+
+const itemWeightsSchema = z.object({
+  id: z.string().uuid(),
+  common: z.coerce.number().int().min(0).max(100),
+  rare: z.coerce.number().int().min(0).max(100),
+  super: z.coerce.number().int().min(0).max(100),
+});
+
+/** Admin: sets an item's per-box win weights (0 = not in that box). */
+export async function updateLootItemWeightsAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const parsed = itemWeightsSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Ungültige Werte.');
+  const orgId = await requireAdminOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const { error } = await createSupabaseServiceClient()
+    .from('loot_items')
+    .update({
+      weight_common: parsed.data.common,
+      weight_rare: parsed.data.rare,
+      weight_super: parsed.data.super,
+    } as never)
+    .eq('id', parsed.data.id)
+    .eq('organization_id', orgId);
+  if (error) return errorResult(error.message);
+  revalidatePath('/app/motivation');
+  return successResult('Gespeichert.');
 }
 
 /**
