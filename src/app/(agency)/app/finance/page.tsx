@@ -8,6 +8,7 @@ import { AccountingOverview } from '@/features/accounting/components/accounting-
 import { CompaniesPanel } from '@/features/accounting/components/companies-panel';
 import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
+import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,17 @@ export default async function FinancePage({
           orgId={orgId}
           activeFirma={sp.firma}
           basePath="/app/finance?tab=belege"
+        />
+      ),
+    },
+    {
+      key: 'abgleich',
+      label: '🔗 Abgleich',
+      content: (
+        <ReconcilePanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          basePath="/app/finance?tab=abgleich"
         />
       ),
     },
