@@ -19,7 +19,7 @@ export function Tabs({ tabs, initialKey }: { tabs: TabDef[]; initialKey?: string
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-1 overflow-x-auto border-b">
+      <div className="flex flex-wrap gap-1 border-b">
         {tabs.map((t) => (
           <button
             key={t.key}
