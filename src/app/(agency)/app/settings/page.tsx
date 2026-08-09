@@ -10,6 +10,8 @@ import { buttonVariants } from '@/components/ui/button';
 import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
 import { getOneDriveStatus } from '@/features/onedrive/queries';
 import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
+import { ChoreAdmin } from '@/features/office-chores/components/chore-admin';
+import { listOrgChores } from '@/features/office-chores/queries';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage({
@@ -19,9 +21,10 @@ export default async function SettingsPage({
 }) {
   const { orgId } = await requireOrgAdminPage();
   // Independent → parallel. Org and OneDrive-Status don't depend on each other.
-  const [org, oneDriveStatus, sp, cookieStore] = await Promise.all([
+  const [org, oneDriveStatus, chores, sp, cookieStore] = await Promise.all([
     getOrganization(orgId),
     getOneDriveStatus(orgId),
+    listOrgChores(orgId),
     searchParams,
     cookies(),
   ]);
@@ -94,6 +97,19 @@ export default async function SettingsPage({
             errorReason={oneDriveParam === 'error' ? (sp.od_reason ?? 'unknown') : null}
             errorDetail={sp.od_detail ?? null}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🧹 Ordnungsdienst (Ausstempel-Checkliste)</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Beim Ausstempeln bekommt jede:r einen zufällig &amp; fair zugeteilten
+            Checkpunkt. Ein:e Kolleg:in prüft danach gegen – beide erhalten XP.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ChoreAdmin chores={chores} />
         </CardContent>
       </Card>
 

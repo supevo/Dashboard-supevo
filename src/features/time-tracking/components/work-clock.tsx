@@ -14,6 +14,7 @@ import { formatMinutes } from '@/lib/time';
 import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { PulseWidget } from '@/features/pulse/components/pulse-widget';
+import { ClockOutChoresModal } from '@/features/office-chores/components/clock-out-chores';
 import type { WorkStatus } from '@/features/time-tracking/queries';
 
 export function WorkClock({
@@ -44,6 +45,7 @@ export function WorkClock({
   );
   const router = useRouter();
   const [showPulse, setShowPulse] = useState(false);
+  const [showChores, setShowChores] = useState(false);
 
   const anyError =
     [inState, outState, startBreakState, endBreakState].find(
@@ -64,6 +66,12 @@ export function WorkClock({
   useEffect(() => {
     if (outState.status === 'success' && weeklyPulseDue) setShowPulse(true);
   }, [outState, weeklyPulseDue]);
+
+  // After clocking out, show the assigned office chore (modal self-closes when
+  // nothing was assigned).
+  useEffect(() => {
+    if (outState.status === 'success') setShowChores(true);
+  }, [outState]);
 
   const statusLabel = !status.openSessionId
     ? de.time.statusClockedOut
@@ -113,6 +121,11 @@ export function WorkClock({
           </>
         )}
       </div>
+
+      <ClockOutChoresModal
+        open={showChores}
+        onClose={() => setShowChores(false)}
+      />
 
       {showPulse && (
         <div

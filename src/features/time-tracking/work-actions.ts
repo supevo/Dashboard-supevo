@@ -10,6 +10,7 @@ import {
   awardWorkdayXp,
   WORKDAY_MIN_NET_MINUTES,
 } from '@/features/gamification/work-xp';
+import { assignClockOutChore } from '@/features/office-chores/queries';
 import { startOfBerlinDayUtc, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import {
@@ -121,6 +122,18 @@ export async function clockOutAction(): Promise<ActionResult> {
     await awardWorkdayIfQualified(supabase, user.id, open.organization_id);
   } catch {
     /* XP is a bonus, not part of the core action */
+  }
+
+  // Ordnungsdienst: assign a fair, random office chore for this clock-out.
+  // Best-effort – never blocks the clock-out (and a no-op until 0113 is applied).
+  try {
+    await assignClockOutChore({
+      orgId: open.organization_id,
+      userId: user.id,
+      workSessionId: open.id,
+    });
+  } catch {
+    /* chore assignment is optional */
   }
 
   revalidatePath('/app/time');

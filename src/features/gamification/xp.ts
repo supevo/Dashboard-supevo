@@ -32,6 +32,62 @@ export function clientResultXp(rating: number): number {
   return Math.max(1, r * XP_CLIENT_RESULT_PER_POINT);
 }
 
+/** Ordnungsdienst: XP fürs Erledigen bzw. Gegenprüfen eines Checkpunkts. */
+export const XP_CHORE_DONE = 6;
+export const XP_CHORE_VERIFY = 3;
+
+/**
+ * Grants the office-chore XP once a chore assignment is verified: the doer for
+ * getting it done, and (when present) the verifier for the double-check. Keyed
+ * by the assignment id (ref_id), so it never double-counts. Written with the
+ * service client because it credits users other than the caller.
+ */
+export async function awardChoreXp(params: {
+  orgId: string;
+  assignmentId: string;
+  doerId: string;
+  verifierId: string | null;
+}): Promise<void> {
+  const { orgId, assignmentId, doerId, verifierId } = params;
+  const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+  const service = createSupabaseServiceClient();
+  const factor = await xpFactor(orgId);
+
+  const rows: {
+    user_id: string;
+    organization_id: string;
+    kind: string;
+    points: number;
+    task_id: null;
+    ref_id: string;
+  }[] = [
+    {
+      user_id: doerId,
+      organization_id: orgId,
+      kind: 'chore_done',
+      points: applyBoost(XP_CHORE_DONE, factor),
+      task_id: null,
+      ref_id: assignmentId,
+    },
+  ];
+  if (verifierId && verifierId !== doerId) {
+    rows.push({
+      user_id: verifierId,
+      organization_id: orgId,
+      kind: 'chore_verify',
+      points: applyBoost(XP_CHORE_VERIFY, factor),
+      task_id: null,
+      ref_id: assignmentId,
+    });
+  }
+  for (const row of rows) {
+    const { error } = await service.from('xp_events').insert(row as never);
+    if (error && error.code !== '23505') {
+      console.error('chore xp insert failed', error);
+    }
+  }
+}
+
 export const STREAK_MILESTONES: { days: number; kind: string; points: number }[] = [
   { days: 3, kind: 'streak_3', points: 15 },
   { days: 7, kind: 'streak_7', points: 40 },

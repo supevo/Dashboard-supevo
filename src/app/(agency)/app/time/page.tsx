@@ -10,6 +10,8 @@ import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { TimerStop } from '@/features/time-tracking/components/timer-stop';
 import { ManualEntryForm } from '@/features/time-tracking/components/manual-entry-form';
 import { TimeEntryRow } from '@/features/time-tracking/components/time-entry-row';
+import { ChoreVerifications } from '@/features/office-chores/components/chore-verifications';
+import { listMyVerifications } from '@/features/office-chores/queries';
 import { startOfBerlinDayUtc, formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -18,12 +20,13 @@ export default async function TimePage() {
 
   const weekSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const [status, timer, today, week, projects] = await Promise.all([
+  const [status, timer, today, week, projects, verifications] = await Promise.all([
     getWorkStatus(user.id),
     getRunningTimer(user.id),
     getMyTimeSummary(user.id, startOfBerlinDayUtc()),
     getMyTimeSummary(user.id, weekSince),
     listProjects(orgId),
+    listMyVerifications(user.id),
   ]);
   const projectName = new Map(projects.map((p) => [p.id, p.name]));
 
@@ -50,6 +53,20 @@ export default async function TimePage() {
           </CardContent>
         </Card>
       </div>
+
+      {verifications.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>🧹 Ordnungsdienst – Kontrolle</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Kurz gegenprüfen und bestätigen – dafür gibt es XP.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ChoreVerifications items={verifications} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
