@@ -4,8 +4,9 @@ import { createNotifications } from '@/features/notifications/create';
 import { logger } from '@/lib/logger';
 
 // A pending approval is nudged once it is this old, then again after each gap.
-const REMIND_AFTER_DAYS = 3;
-const REMIND_GAP_DAYS = 3;
+// Der Kunde soll alle 2 Tage erinnert werden, bis er die Freigabe erteilt.
+const REMIND_AFTER_DAYS = 2;
+const REMIND_GAP_DAYS = 2;
 
 function daysAgo(days: number): string {
   const d = new Date();
