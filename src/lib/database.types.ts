@@ -2698,6 +2698,7 @@ export interface Database {
           erkannt: Record<string, unknown> | null;
           status: string;
           notiz: string | null;
+          extract_failed_at: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -2725,6 +2726,7 @@ export interface Database {
           erkannt?: Record<string, unknown> | null;
           status?: string;
           notiz?: string | null;
+          extract_failed_at?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
