@@ -15,7 +15,8 @@ import {
   updatePlanItemAction,
   deletePlanItemAction,
   releasePlanAction,
-  embedPlanAction,
+  embedNextPhaseAction,
+  embedPlanPhaseAction,
 } from '@/features/marketing-plan/actions';
 import type {
   MarketingPlan,
@@ -255,7 +256,7 @@ function PhaseCard({
 
       {error && <Alert variant="destructive">{error}</Alert>}
 
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           disabled={pending}
@@ -264,22 +265,33 @@ function PhaseCard({
         >
           Phase löschen
         </button>
-        <Button
-          size="sm"
-          disabled={pending || !dirty || title.trim().length < 2}
-          onClick={() =>
-            run(() =>
-              updatePhaseAction({
-                phaseId: phase.id,
-                title,
-                timeframeHint: hint,
-                outcome,
-              }),
-            )
-          }
-        >
-          Phase speichern
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || !phase.items.some((i) => i.status !== 'embedded')}
+            onClick={() => run(() => embedPlanPhaseAction(phase.id))}
+            title="Nur diese Phase ins Kanban übernehmen (Label „Marketingplan“)"
+          >
+            Diese Phase ins Kanban
+          </Button>
+          <Button
+            size="sm"
+            disabled={pending || !dirty || title.trim().length < 2}
+            onClick={() =>
+              run(() =>
+                updatePhaseAction({
+                  phaseId: phase.id,
+                  title,
+                  timeframeHint: hint,
+                  outcome,
+                }),
+              )
+            }
+          >
+            Phase speichern
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -438,11 +450,11 @@ export function PlanManager({
           )}
           <Button
             size="sm"
-            disabled={pending || plan.items.length === 0}
-            onClick={() => run(() => embedPlanAction(plan.id))}
-            title="Offene Maßnahmen als Kanban-Aufgaben übernehmen (ohne Fälligkeit)"
+            disabled={pending || !plan.items.some((i) => i.status !== 'embedded')}
+            onClick={() => run(() => embedNextPhaseAction(plan.id))}
+            title="Die nächste offene Phase als Kanban-Aufgaben übernehmen (mit Label „Marketingplan“)"
           >
-            Ins Kanban übernehmen
+            Nächste Phase ins Kanban
           </Button>
         </div>
       </div>
