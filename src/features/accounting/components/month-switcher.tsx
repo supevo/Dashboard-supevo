@@ -24,10 +24,8 @@ export function MonthSwitcher({
   basePath: string;
 }) {
   const router = useRouter();
-  const go = (y: number, m: number) => {
+  const go = (y: number, m: number) =>
     router.push(`${basePath}&jahr=${y}&monat=${m}`);
-    router.refresh();
-  };
   return (
     <div className="flex items-center gap-2">
       <Select
