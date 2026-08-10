@@ -116,18 +116,37 @@ export async function extractReceiptAction(receiptId: string): Promise<ActionRes
   return successResult('Beleg ausgelesen.');
 }
 
+export interface ExtractBatchResult {
+  ok: boolean;
+  message: string;
+  done: number;
+  failed: number;
+  /** Receipts still without an amount after this run (for the client loop). */
+  remaining: number;
+}
+
 /**
- * Reads every not-yet-extracted receipt of a company (brutto still null). Capped
- * per run to keep latency + KI cost bounded – re-run to continue.
+ * Reads a SMALL batch of not-yet-extracted receipts (brutto still null) so each
+ * call reliably finishes within the serverless time budget. The client calls
+ * this repeatedly (showing progress) until nothing is left or no progress is
+ * made – that keeps the UI responsive and guarantees it terminates.
  */
 export async function extractOpenReceiptsAction(
   billingEntityId: string,
-): Promise<ActionResult> {
+): Promise<ExtractBatchResult> {
+  const fail = (message: string): ExtractBatchResult => ({
+    ok: false,
+    message,
+    done: 0,
+    failed: 0,
+    remaining: 0,
+  });
+
   if (!z.string().uuid().safeParse(billingEntityId).success) {
-    return errorResult(de.errors.VALIDATION);
+    return fail(de.errors.VALIDATION);
   }
   if (!isReceiptVisionEnabled()) {
-    return errorResult('KI-Auslesen ist nicht aktiviert (OPENAI_API_KEY fehlt).');
+    return fail('KI-Auslesen ist nicht aktiviert (OPENAI_API_KEY fehlt).');
   }
 
   const supabase = await createSupabaseServerClient();
@@ -136,21 +155,25 @@ export async function extractOpenReceiptsAction(
     .select('organization_id')
     .eq('id', billingEntityId)
     .maybeSingle();
-  if (!entity) return errorResult(de.errors.FORBIDDEN);
+  if (!entity) return fail(de.errors.FORBIDDEN);
 
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId: entity.organization_id });
 
-  // Cap per run to stay within the serverless time budget, but process several
-  // receipts in parallel so one run clears most inboxes. Re-run for the rest.
-  const BATCH = 45;
-  const CONCURRENCY = 5;
+  // Small batch + a wall-clock budget: never let one call run into the function
+  // timeout. Each receipt itself is capped (see extractReceipt).
+  const BATCH = 8;
+  const CONCURRENCY = 4;
+  const BUDGET_MS = 60_000;
+  const startedAt = Date.now();
+
   const { data: pending } = await supabase
     .from('bookkeeping_receipts')
     .select('id, organization_id, onedrive_item_id, file_mime')
     .eq('billing_entity_id', billingEntityId)
     .is('brutto_cents', null)
     .not('onedrive_item_id', 'is', null)
+    .order('created_at', { ascending: true })
     .limit(BATCH);
 
   const ctx = await buildContext(supabase, billingEntityId);
@@ -184,14 +207,25 @@ export async function extractOpenReceiptsAction(
     else done += 1;
   }
 
-  // Process in parallel chunks to keep wall-time bounded.
   for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    if (Date.now() - startedAt > BUDGET_MS) break;
     await Promise.all(queue.slice(i, i + CONCURRENCY).map(extractOne));
   }
 
+  // How many still need extraction after this run (drives the client loop).
+  const { count: remaining } = await supabase
+    .from('bookkeeping_receipts')
+    .select('id', { count: 'exact', head: true })
+    .eq('billing_entity_id', billingEntityId)
+    .is('brutto_cents', null)
+    .not('onedrive_item_id', 'is', null);
+
   revalidatePath('/app/finance');
-  return successResult(
-    `${done} Belege ausgelesen${failed > 0 ? `, ${failed} fehlgeschlagen` : ''}.` +
-      (pending && pending.length === BATCH ? ' Erneut ausführen für weitere.' : ''),
-  );
+  return {
+    ok: true,
+    done,
+    failed,
+    remaining: remaining ?? 0,
+    message: `${done} ausgelesen${failed > 0 ? `, ${failed} fehlgeschlagen` : ''}.`,
+  };
 }
