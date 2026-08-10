@@ -48,6 +48,36 @@ export interface ReconcileSuggestions {
   combos: ComboSuggestion[];
 }
 
+export type PeriodClass = 'in' | 'vor' | 'folge' | null;
+
+/**
+ * Classifies a booking date against a selected month: 'in' = within the month,
+ * 'vor'/'folge' = within 3 days before/after the month (payment in the
+ * previous/following month), null = outside the ±3-day window (hidden). With no
+ * month (0/undefined) everything counts as 'in'.
+ */
+export function classifyByMonth(
+  datum: string | null,
+  year?: number,
+  month?: number,
+): PeriodClass {
+  if (!month || !year) return 'in';
+  if (!datum) return null;
+  const d = datum.slice(0, 10);
+  const mm = String(month).padStart(2, '0');
+  const first = `${year}-${mm}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const last = `${year}-${mm}-${String(lastDay).padStart(2, '0')}`;
+  if (d >= first && d <= last) return 'in';
+  const DAY = 86_400_000;
+  const dMs = new Date(`${d}T00:00:00Z`).getTime();
+  const firstMs = new Date(`${first}T00:00:00Z`).getTime();
+  const lastMs = new Date(`${last}T00:00:00Z`).getTime();
+  if (dMs < firstMs && firstMs - dMs <= 3 * DAY) return 'vor';
+  if (dMs > lastMs && dMs - lastMs <= 3 * DAY) return 'folge';
+  return null;
+}
+
 export interface ReconcileDiagnostics {
   receiptsAusgabe: number;
   receiptsAusgabeMitBetrag: number;

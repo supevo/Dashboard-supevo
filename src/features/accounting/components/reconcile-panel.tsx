@@ -1,11 +1,16 @@
 import { listAccountingCompanies } from '@/features/accounting/queries';
-import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
+import {
+  getReconcileSuggestions,
+  classifyByMonth,
+  type PeriodClass,
+} from '@/features/accounting/reconcile-queries';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
   CompanySwitcher,
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
+import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import {
   RunReconcileButton,
   ApplyMatchButton,
@@ -16,20 +21,32 @@ function pct(score: number): string {
   return `${Math.round(score * 100)} %`;
 }
 
+/** Small badge for cross-boundary bookings (payment in prev/following month). */
+function PeriodBadge({ period }: { period: PeriodClass }) {
+  if (period !== 'vor' && period !== 'folge') return null;
+  return (
+    <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+      {period === 'vor' ? 'Zahlung im Vormonat' : 'Zahlung im Folgemonat'}
+    </span>
+  );
+}
+
 /**
  * Abgleich tab: run the reconcile engine (auto-applies confident matches) and
- * confirm the remaining suggestions – payments ↔ open invoices and receipts ↔
- * outgoing transactions.
+ * confirm the remaining suggestions. The month picker limits the view to the
+ * selected month plus a ±3-day fringe; fringe bookings are flagged.
  */
 export async function ReconcilePanel({
   orgId,
   activeFirma,
   year,
+  month,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
   year: number;
+  month: number;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -52,19 +69,42 @@ export async function ReconcilePanel({
     isDefault: c.entity.is_default,
   }));
 
-  const { payments, receipts, combos } = await getReconcileSuggestions(
-    active.entity.id,
-  );
+  const all = await getReconcileSuggestions(active.entity.id);
+  // Filter to the selected month (+/- 3 days), keeping each row's period class.
+  const inView = <T extends { txDatum: string }>(list: T[]) =>
+    list
+      .map((s) => ({ s, period: classifyByMonth(s.txDatum, year, month) }))
+      .filter((x): x is { s: T; period: PeriodClass } => x.period !== null);
+
+  const payments = inView(all.payments);
+  const combos = inView(all.combos);
+  const receipts = inView(all.receipts);
+
+  const nowYear = new Date().getFullYear();
+  const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
+  const firmaBase = `${basePath}&firma=${active.entity.id}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <CompanySwitcher
-          companies={options}
-          activeId={active.entity.id}
-          basePath={basePath}
+        <div className="flex flex-wrap items-center gap-2">
+          <CompanySwitcher
+            companies={options}
+            activeId={active.entity.id}
+            basePath={basePath}
+          />
+          <MonthSwitcher
+            year={year}
+            month={month}
+            years={years}
+            basePath={firmaBase}
+          />
+        </div>
+        <RunReconcileButton
+          billingEntityId={active.entity.id}
+          year={year}
+          month={month}
         />
-        <RunReconcileButton billingEntityId={active.entity.id} year={year} />
       </div>
 
       <section className="space-y-2">
@@ -89,11 +129,14 @@ export async function ReconcilePanel({
                 </tr>
               </thead>
               <tbody>
-                {payments.map((p) => (
+                {payments.map(({ s: p, period }) => (
                   <tr key={`${p.match.leftId}-${p.match.rightId}`} className="border-t">
                     <td className="px-3 py-2">
                       {p.txGegen ?? '—'} · {formatEuroCents(p.txBetragCents)}
-                      <div className="text-xs text-muted-foreground">{p.txDatum}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {p.txDatum}
+                        <PeriodBadge period={period} />
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       {p.invoiceNumber ?? '—'} · {p.invoiceKunde ?? '—'}
@@ -141,11 +184,14 @@ export async function ReconcilePanel({
                 </tr>
               </thead>
               <tbody>
-                {combos.map((c) => (
+                {combos.map(({ s: c, period }) => (
                   <tr key={c.match.txId} className="border-t align-top">
                     <td className="px-3 py-2">
                       {c.txGegen ?? '—'} · {formatEuroCents(c.match.paymentCents)}
-                      <div className="text-xs text-muted-foreground">{c.txDatum}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {c.txDatum}
+                        <PeriodBadge period={period} />
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       {c.invoices.map((inv) => (
@@ -195,7 +241,7 @@ export async function ReconcilePanel({
                 </tr>
               </thead>
               <tbody>
-                {receipts.map((r) => (
+                {receipts.map(({ s: r, period }) => (
                   <tr key={`${r.match.leftId}-${r.match.rightId}`} className="border-t">
                     <td className="px-3 py-2">
                       {r.receiptHaendler ?? '—'} ·{' '}
@@ -208,7 +254,10 @@ export async function ReconcilePanel({
                     </td>
                     <td className="px-3 py-2">
                       {r.txGegen ?? '—'} · {formatEuroCents(r.txBetragCents)}
-                      <div className="text-xs text-muted-foreground">{r.txDatum}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {r.txDatum}
+                        <PeriodBadge period={period} />
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {r.match.reason}

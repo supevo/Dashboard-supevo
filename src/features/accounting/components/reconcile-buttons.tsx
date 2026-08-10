@@ -9,13 +9,7 @@ import {
   applyComboMatchAction,
 } from '@/features/accounting/reconcile-actions';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
-
-const MONTHS = [
-  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
-  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
-];
 
 /**
  * Runs the reconcile engine (auto-applies confident matches). The scope dropdown
@@ -25,22 +19,23 @@ const MONTHS = [
 export function RunReconcileButton({
   billingEntityId,
   year,
+  month,
 }: {
   billingEntityId: string;
   year: number;
+  /** 0 = alle Monate; 1–12 = nur dieser Monat (±3 Tage). */
+  month: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [scope, setScope] = useState('all');
   const [msg, setMsg] = useState<string | null>(null);
 
   async function run() {
     setBusy(true);
     setMsg(null);
-    const month = scope === 'all' ? undefined : Number(scope);
     const res = await runReconcileAction(billingEntityId, {
       year,
-      month,
+      month: month >= 1 && month <= 12 ? month : undefined,
     });
     setBusy(false);
     setMsg('message' in res ? (res.message ?? '') : '');
@@ -49,19 +44,6 @@ export function RunReconcileButton({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select
-        value={scope}
-        onChange={(e) => setScope(e.target.value)}
-        disabled={busy}
-        className="h-9 w-auto"
-      >
-        <option value="all">Alle offenen</option>
-        {MONTHS.map((m, i) => (
-          <option key={i} value={String(i + 1)}>
-            {m} {year}
-          </option>
-        ))}
-      </Select>
       <Button type="button" variant="outline" size="sm" onClick={run} disabled={busy}>
         {busy ? 'Gleiche ab …' : '🔗 Abgleich starten'}
       </Button>
