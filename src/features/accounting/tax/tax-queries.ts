@@ -85,6 +85,61 @@ export async function getTaxOverview(
   };
 }
 
+/** A zeroed overview, used when a company's calculation fails (never crash). */
+function emptyOverview(year: number): TaxOverview {
+  return {
+    year,
+    euer: {
+      einnahmen: [],
+      ausgaben: [],
+      einnahmenNettoCents: 0,
+      ausgabenNettoCents: 0,
+      gewinnCents: 0,
+      unkategorisiert: 0,
+    },
+    ust: {
+      kleinunternehmer: false,
+      umsatz19NettoCents: 0,
+      ust19Cents: 0,
+      umsatz7NettoCents: 0,
+      ust7Cents: 0,
+      vorsteuerCents: 0,
+      zahllastCents: 0,
+    },
+    estimate: {
+      lines: [],
+      ertragsteuerCents: 0,
+      gewerbesteuerCents: 0,
+      offeneUstCents: 0,
+      ruecklageCents: 0,
+    },
+    profileMissing: true,
+    rechtsformLabel: '—',
+    kleinunternehmer: false,
+  };
+}
+
+/**
+ * Crash-safe wrapper: a broken calculation for one company must never take down
+ * the whole (especially consolidated) Steuer view. Logs and returns a zeroed
+ * overview instead.
+ */
+export async function getTaxOverviewSafe(
+  billingEntityId: string,
+  year: number,
+): Promise<TaxOverview> {
+  try {
+    return await getTaxOverview(billingEntityId, year);
+  } catch (e) {
+    console.error('[tax] getTaxOverview failed', {
+      billingEntityId,
+      year,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return emptyOverview(year);
+  }
+}
+
 function mergeLines(lists: EuerLine[][]): EuerLine[] {
   const m = new Map<string, EuerLine>();
   for (const list of lists) {

@@ -279,7 +279,12 @@ export async function extractReceipt(
       },
     } as unknown as Parameters<typeof client.responses.create>[0];
 
-    const res = await client.responses.create(params);
+    // Hard per-receipt timeout + a single retry, so one slow/hanging document
+    // can never stall the whole batch.
+    const res = await client.responses.create(params, {
+      timeout: 40000,
+      maxRetries: 1,
+    });
     const text = (res as { output_text?: string }).output_text;
     if (!text) return null;
     return JSON.parse(text) as ReceiptExtraction;

@@ -21,18 +21,62 @@ export function ReceiptExtractButton({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  async function run() {
+  async function runOne() {
     setBusy(true);
     setMsg(null);
-    const res =
-      mode === 'all'
-        ? await extractOpenReceiptsAction(id)
-        : await extractReceiptAction(id);
-    setBusy(false);
-    const text = 'message' in res ? (res.message ?? '') : '';
-    setMsg({ ok: res.status === 'success', text });
-    if (res.status === 'success') router.refresh();
+    try {
+      const res = await extractReceiptAction(id);
+      const text = 'message' in res ? (res.message ?? '') : '';
+      setMsg({ ok: res.status === 'success', text });
+      if (res.status === 'success') router.refresh();
+    } catch {
+      setMsg({ ok: false, text: 'Auslesen fehlgeschlagen. Bitte erneut versuchen.' });
+    } finally {
+      setBusy(false);
+    }
   }
+
+  /**
+   * Reads all open receipts in small batches, looping until nothing is left or a
+   * batch makes no progress. Shows a live count and never hangs on a timeout.
+   */
+  async function runAll() {
+    setBusy(true);
+    setMsg(null);
+    let totalDone = 0;
+    let totalFailed = 0;
+    try {
+      for (let i = 0; i < 50; i++) {
+        const res = await extractOpenReceiptsAction(id);
+        if (!res.ok) {
+          setMsg({ ok: false, text: res.message });
+          break;
+        }
+        totalDone += res.done;
+        totalFailed += res.failed;
+        router.refresh();
+        setMsg({
+          ok: true,
+          text:
+            res.remaining > 0
+              ? `${totalDone} ausgelesen … noch ${res.remaining}`
+              : `Fertig: ${totalDone} ausgelesen${totalFailed > 0 ? `, ${totalFailed} fehlgeschlagen` : ''}.`,
+        });
+        // Stop when done or when a batch couldn't make progress (stuck items).
+        if (res.remaining === 0 || res.done === 0) break;
+      }
+    } catch {
+      setMsg({
+        ok: false,
+        text: `Abgebrochen (Zeitüberschreitung). ${totalDone} ausgelesen – bitte erneut starten für den Rest.`,
+      });
+    } finally {
+      setBusy(false);
+      router.refresh();
+    }
+  }
+
+  const run = mode === 'all' ? runAll : runOne;
 
   if (mode === 'one') {
     return (
