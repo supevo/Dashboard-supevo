@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface TabDef {
@@ -16,6 +16,13 @@ export interface TabDef {
  */
 export function Tabs({ tabs, initialKey }: { tabs: TabDef[]; initialKey?: string }) {
   const [active, setActive] = useState(initialKey ?? tabs[0]?.key ?? '');
+
+  // When the server passes a new initialKey (URL ?tab= changed via a link or a
+  // switcher), follow it. Plain tab-button clicks don't change the URL, so this
+  // never fights user interaction.
+  useEffect(() => {
+    if (initialKey) setActive(initialKey);
+  }, [initialKey]);
 
   return (
     <div className="space-y-6">

@@ -7,7 +7,11 @@ import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/session';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { createNotifications } from '@/features/notifications/create';
-import { resolveClientQueue, embedItems } from '@/features/marketing-plan/embed';
+import {
+  resolveClientQueue,
+  embedItems,
+  ensureMarketingLabel,
+} from '@/features/marketing-plan/embed';
 import { DEFAULT_PLAN_TEMPLATE, type PlanTemplate } from './template';
 import { generatePlanDraft } from './ai-draft';
 import {
@@ -412,6 +416,35 @@ export async function addPlanItemAction(input: unknown): Promise<ActionResult> {
   return successResult('Maßnahme hinzugefügt.');
 }
 
+const updateItemSchema = z.object({
+  itemId: z.string().uuid(),
+  title: z.string().trim().min(2).max(200),
+  description: z.string().trim().max(4000).optional().or(z.literal('')),
+});
+
+/** Edits a measure's title (and optional description). */
+export async function updatePlanItemAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateItemSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Bitte Titel der Maßnahme angeben.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForItem(service, parsed.data.itemId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
+
+  const { error } = await service
+    .from('marketing_plan_items')
+    .update({
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.itemId);
+  if (error) return errorResult('Speichern fehlgeschlagen.');
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Maßnahme gespeichert.');
+}
+
 export async function deletePlanItemAction(itemId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(itemId).success) return errorResult('Ungültig.');
   const orgId = await requireAgencyOrg();
@@ -461,11 +494,72 @@ export async function releasePlanAction(planId: string): Promise<ActionResult> {
 }
 
 /**
- * Agency: embeds the plan's measures as kanban tasks in the client's first
- * project (queue column), grouped by phase, without due dates. Idempotent per
- * item (already-embedded items are skipped).
+ * Embeds the open measures of ONE phase as kanban tasks in the client's queue
+ * column, marked with the "Marketingplan" label (so the team recognises them as
+ * auto-processed plan work). No due dates. Idempotent per item.
  */
-export async function embedPlanAction(planId: string): Promise<ActionResult> {
+async function embedOnePhase(
+  service: Service,
+  plan: { id: string; organization_id: string; client_company_id: string },
+  phaseId: string,
+  userId: string,
+): Promise<ActionResult> {
+  const target = await resolveClientQueue(service, plan.client_company_id);
+  if (!target) return errorResult('Der Kunde hat noch kein Projekt/Board.');
+
+  const [{ data: phase }, { data: items }] = await Promise.all([
+    service
+      .from('marketing_plan_phases')
+      .select('id, title')
+      .eq('id', phaseId)
+      .maybeSingle(),
+    service
+      .from('marketing_plan_items')
+      .select('id, title, description, position')
+      .eq('phase_id', phaseId)
+      .in('status', ['accepted', 'proposed', 'change_requested'])
+      .order('position', { ascending: true }),
+  ]);
+  if (!items || items.length === 0) {
+    return errorResult('Keine übernehmbaren Maßnahmen in dieser Phase (bereits übernommen?).');
+  }
+
+  const labelId = await ensureMarketingLabel(service, plan.organization_id);
+  const embedded = await embedItems(
+    service,
+    { orgId: plan.organization_id, createdBy: userId, target, labelId },
+    items.map((it) => ({
+      id: it.id,
+      title: it.title,
+      description: it.description,
+      phaseTitle: phase?.title ?? null,
+    })),
+  );
+
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  revalidatePath(`/app/projects/${target.projectId}`);
+  return successResult(
+    `Phase „${phase?.title ?? ''}“: ${embedded} Maßnahme(n) ins Kanban übernommen.`,
+  );
+}
+
+/** Agency: embeds a single, chosen phase into the client's board. */
+export async function embedPlanPhaseAction(phaseId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(phaseId).success) return errorResult('Ungültig.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const user = await requireUser();
+  const service = createSupabaseServiceClient();
+  const plan = await planForPhase(service, phaseId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Phase nicht gefunden.');
+  return embedOnePhase(service, plan, phaseId, user.id);
+}
+
+/**
+ * Agency: embeds the NEXT phase (by order) that still has open measures. The
+ * plan is rolled out phase by phase, never all at once.
+ */
+export async function embedNextPhaseAction(planId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(planId).success) return errorResult('Ungültig.');
   const orgId = await requireAgencyOrg();
   if (!orgId) return errorResult('Keine Berechtigung.');
@@ -474,47 +568,22 @@ export async function embedPlanAction(planId: string): Promise<ActionResult> {
   const plan = await planForOrg(service, planId, orgId);
   if (!plan) return errorResult('Plan nicht gefunden.');
 
-  const target = await resolveClientQueue(service, plan.client_company_id);
-  if (!target) return errorResult('Der Kunde hat noch kein Projekt/Board.');
-
-  const [{ data: items }, { data: phases }] = await Promise.all([
-    service
+  const { data: phases } = await service
+    .from('marketing_plan_phases')
+    .select('id')
+    .eq('plan_id', planId)
+    .order('position', { ascending: true });
+  for (const phase of phases ?? []) {
+    const { count } = await service
       .from('marketing_plan_items')
-      .select('id, phase_id, title, description, position')
-      .eq('plan_id', planId)
-      .in('status', ['accepted', 'proposed', 'change_requested'])
-      .order('position', { ascending: true }),
-    service
-      .from('marketing_plan_phases')
-      .select('id, title, position')
-      .eq('plan_id', planId)
-      .order('position', { ascending: true }),
-  ]);
-  if (!items || items.length === 0) {
-    return errorResult('Keine übernehmbaren Maßnahmen (bereits übernommen?).');
+      .select('id', { count: 'exact', head: true })
+      .eq('phase_id', phase.id)
+      .in('status', ['accepted', 'proposed', 'change_requested']);
+    if ((count ?? 0) > 0) {
+      return embedOnePhase(service, plan, phase.id, user.id);
+    }
   }
-  const phaseTitle = new Map((phases ?? []).map((p) => [p.id, p.title]));
-  const phaseOrder = new Map((phases ?? []).map((p, i) => [p.id, i]));
-  const ordered = [...items].sort(
-    (a, b) =>
-      (phaseOrder.get(a.phase_id ?? '') ?? 999) -
-        (phaseOrder.get(b.phase_id ?? '') ?? 999) || a.position - b.position,
-  );
-
-  const embedded = await embedItems(
-    service,
-    { orgId, createdBy: user.id, target },
-    ordered.map((it) => ({
-      id: it.id,
-      title: it.title,
-      description: it.description,
-      phaseTitle: it.phase_id ? phaseTitle.get(it.phase_id) ?? null : null,
-    })),
-  );
-
-  revalidatePath(`/app/clients/${plan.client_company_id}`);
-  revalidatePath(`/app/projects/${target.projectId}`);
-  return successResult(`${embedded} Maßnahme(n) ins Kanban übernommen.`);
+  return errorResult('Alle Phasen sind bereits ins Kanban übernommen.');
 }
 
 // --- Kunde -----------------------------------------------------------------

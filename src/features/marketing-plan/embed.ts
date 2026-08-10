@@ -54,6 +54,39 @@ export interface EmbeddableItem {
   phaseTitle: string | null;
 }
 
+const MARKETING_LABEL = 'Marketingplan';
+const MARKETING_LABEL_COLOR = '#8b5cf6'; // violet
+
+/**
+ * Finds (or creates) the org's "Marketingplan" label, so embedded tasks are
+ * clearly marked as plan work that the team processes automatically. Returns
+ * null on failure (embedding then just skips the label).
+ */
+export async function ensureMarketingLabel(
+  service: Service,
+  orgId: string,
+): Promise<string | null> {
+  const { data: existing } = await service
+    .from('labels')
+    .select('id')
+    .eq('organization_id', orgId)
+    .ilike('name', MARKETING_LABEL)
+    .maybeSingle();
+  if (existing) return existing.id;
+
+  const { data: created } = await service
+    .from('labels')
+    .insert({
+      organization_id: orgId,
+      name: MARKETING_LABEL,
+      color: MARKETING_LABEL_COLOR,
+      is_client_visible: false,
+    })
+    .select('id')
+    .maybeSingle();
+  return created?.id ?? null;
+}
+
 /**
  * Creates one kanban task per plan measure in the client's queue column and
  * marks each item 'embedded'. No due date – the plan has no fixed timeframe;
@@ -65,6 +98,7 @@ export async function embedItems(
     orgId: string;
     createdBy: string;
     target: QueueTarget;
+    labelId?: string | null;
   },
   items: EmbeddableItem[],
 ): Promise<number> {
@@ -91,6 +125,14 @@ export async function embedItems(
       .select('id')
       .single();
     if (task) {
+      // Mark as marketing-plan work (auto-processed by the team).
+      if (ctx.labelId) {
+        await service.from('task_labels').insert({
+          task_id: task.id,
+          label_id: ctx.labelId,
+          organization_id: ctx.orgId,
+        });
+      }
       await service
         .from('marketing_plan_items')
         .update({

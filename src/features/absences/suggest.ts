@@ -8,6 +8,13 @@ export interface VacationSuggestion {
   reason: string;
 }
 
+/** How long the employee wants to be away. */
+export type VacationLength = 'few' | 'week' | 'twoweeks';
+
+export function parseVacationLength(v: string | null | undefined): VacationLength {
+  return v === 'few' || v === 'twoweeks' ? v : 'week';
+}
+
 interface WeekStat {
   index: number;
   start: string; // Monday (YYYY-MM-DD)
@@ -50,14 +57,17 @@ function overlaps(aS: string, aE: string, bS: string, bE: string): boolean {
 }
 
 /**
- * Suggests the most sensible one-week vacation window for a user over the next
- * ~10 weeks, weighing their own upcoming deadlines and how many teammates are
- * already away that week. Uses AI to pick + explain when available, otherwise a
- * transparent heuristic. Returns null only if there is no candidate week.
+ * Suggests the most sensible vacation window for a user over the next ~10 weeks,
+ * weighing their own upcoming deadlines and how many teammates are already away.
+ * The desired length is chosen by the employee. A two-week block is only ever
+ * proposed when BOTH weeks are truly clear (no own deadlines, nobody else away)
+ * – otherwise it falls back to a single week, so long blocks don't tear holes in
+ * the planning. Uses AI to pick + explain when available, otherwise a heuristic.
  */
 export async function suggestVacation(
   userId: string,
   orgId: string,
+  length: VacationLength = 'week',
 ): Promise<VacationSuggestion | null> {
   const supabase = await createSupabaseServerClient();
   const start0 = nextMonday();
@@ -125,14 +135,61 @@ export async function suggestVacation(
     });
   }
 
-  // Heuristic best: lowest score, earliest on a tie.
-  const best = [...weeks].sort((a, b) => a.score - b.score || a.index - b.index)[0];
-  if (!best) return null;
+  if (weeks.length === 0) return null;
 
-  const heuristicReason = `KW ${best.isoWeek}: wenige eigene Deadlines (${best.deadlines}) und ${best.teamAbsent === 0 ? 'niemand' : `${best.teamAbsent} Kolleg:innen`} aus dem Team abwesend – gute Abdeckung.`;
+  // Heuristic best single week: lowest score, earliest on a tie.
+  const bestWeek = [...weeks].sort(
+    (a, b) => a.score - b.score || a.index - b.index,
+  )[0]!;
+
+  // A few days = Mon–Wed of the best week.
+  if (length === 'few') {
+    const wed = new Date(bestWeek.start + 'T00:00:00Z');
+    wed.setUTCDate(wed.getUTCDate() + 2);
+    return {
+      start: bestWeek.start,
+      end: iso(wed),
+      reason: `KW ${bestWeek.isoWeek}: ruhige Tage – ${bestWeek.deadlines} eigene Deadlines, ${bestWeek.teamAbsent === 0 ? 'niemand' : `${bestWeek.teamAbsent} Kolleg:innen`} sonst abwesend.`,
+    };
+  }
+
+  // Two weeks: only when BOTH weeks are truly clear (no own deadlines and nobody
+  // else away). Otherwise fall back to one week so the plan stays covered.
+  if (length === 'twoweeks') {
+    let feasible: { start: string; end: string; isoWeek: number } | null = null;
+    for (let i = 0; i < weeks.length - 1; i++) {
+      const a = weeks[i]!;
+      const b = weeks[i + 1]!;
+      if (
+        a.deadlines === 0 &&
+        b.deadlines === 0 &&
+        a.teamAbsent === 0 &&
+        b.teamAbsent === 0
+      ) {
+        feasible = { start: a.start, end: b.end, isoWeek: a.isoWeek };
+        break;
+      }
+    }
+    if (feasible) {
+      return {
+        start: feasible.start,
+        end: feasible.end,
+        reason: `KW ${feasible.isoWeek}–${feasible.isoWeek + 1}: zwei Wochen am Stück machbar – keine eigenen Deadlines und niemand sonst aus dem Team abwesend.`,
+      };
+    }
+    // Not feasible → recommend a single week instead, with a clear note.
+    return {
+      start: bestWeek.start,
+      end: bestWeek.end,
+      reason: `Zwei Wochen am Stück sind aktuell nicht machbar (Deadlines/Team-Abwesenheit würden die Planung reißen). Empfehlung: eine Woche in KW ${bestWeek.isoWeek}.`,
+    };
+  }
+
+  // One week (default).
+  const heuristicReason = `KW ${bestWeek.isoWeek}: wenige eigene Deadlines (${bestWeek.deadlines}) und ${bestWeek.teamAbsent === 0 ? 'niemand' : `${bestWeek.teamAbsent} Kolleg:innen`} aus dem Team abwesend – gute Abdeckung.`;
 
   if (!isAiEnabled()) {
-    return { start: best.start, end: best.end, reason: heuristicReason };
+    return { start: bestWeek.start, end: bestWeek.end, reason: heuristicReason };
   }
 
   // Let the AI pick among the candidate weeks and explain in one sentence.
@@ -161,5 +218,5 @@ export async function suggestVacation(
     }
   }
 
-  return { start: best.start, end: best.end, reason: heuristicReason };
+  return { start: bestWeek.start, end: bestWeek.end, reason: heuristicReason };
 }

@@ -35,8 +35,11 @@ function tooltip(d: VacationDay): string {
   return parts.length ? parts.join(' · ') : 'Frei – gute Zeit';
 }
 
+type VacationLength = 'few' | 'week' | 'twoweeks';
+
 export function VacationCalendar({ days }: { days: VacationDay[] }) {
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const [length, setLength] = useState<VacationLength>('week');
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -58,7 +61,9 @@ export function VacationCalendar({ days }: { days: VacationDay[] }) {
     setLoading(true);
     setFailed(false);
     try {
-      const res = await fetch('/api/absences/suggest', { cache: 'no-store' });
+      const res = await fetch(`/api/absences/suggest?length=${length}`, {
+        cache: 'no-store',
+      });
       const data = (await res.json()) as { suggestion: Suggestion | null };
       if (data.suggestion) setSuggestion(data.suggestion);
       else setFailed(true);
@@ -100,6 +105,18 @@ export function VacationCalendar({ days }: { days: VacationDay[] }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">Dauer:</span>
+          <select
+            value={length}
+            onChange={(e) => setLength(e.target.value as VacationLength)}
+            className="h-9 rounded-md border bg-background px-2 text-sm"
+          >
+            <option value="few">Ein paar Tage</option>
+            <option value="week">1 Woche</option>
+            <option value="twoweeks">2 Wochen</option>
+          </select>
+        </label>
         <button
           type="button"
           onClick={fetchSuggestion}

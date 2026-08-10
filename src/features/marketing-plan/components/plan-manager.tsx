@@ -12,12 +12,15 @@ import {
   movePhaseAction,
   updatePlanClosingAction,
   addPlanItemAction,
+  updatePlanItemAction,
   deletePlanItemAction,
   releasePlanAction,
-  embedPlanAction,
+  embedNextPhaseAction,
+  embedPlanPhaseAction,
 } from '@/features/marketing-plan/actions';
 import type {
   MarketingPlan,
+  PlanItem,
   PlanPhase,
 } from '@/features/marketing-plan/queries';
 import { Input } from '@/components/ui/input';
@@ -49,6 +52,92 @@ function useRun() {
       router.refresh();
     });
   return { pending, error, run };
+}
+
+/** A single measure: click the text to edit it inline (title). */
+function MeasureRow({ item }: { item: PlanItem }) {
+  const { pending, error, run } = useRun();
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(item.title);
+
+  const save = () =>
+    run(
+      () => updatePlanItemAction({ itemId: item.id, title, description: '' }),
+      () => setEditing(false),
+    );
+
+  if (item.status === 'embedded') {
+    return (
+      <li className="flex items-start justify-between gap-2 rounded border bg-muted/30 px-2 py-1.5 text-sm">
+        <span className="min-w-0">
+          {item.title}
+          <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+            Im Kanban
+          </span>
+        </span>
+      </li>
+    );
+  }
+
+  if (editing) {
+    return (
+      <li className="rounded border bg-muted/30 px-2 py-1.5">
+        <div className="flex gap-2">
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={200}
+            autoFocus
+            className="h-8"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && title.trim().length >= 2) save();
+              if (e.key === 'Escape') {
+                setTitle(item.title);
+                setEditing(false);
+              }
+            }}
+          />
+          <Button size="sm" disabled={pending || title.trim().length < 2} onClick={save}>
+            OK
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending}
+            onClick={() => {
+              setTitle(item.title);
+              setEditing(false);
+            }}
+          >
+            Abbrechen
+          </Button>
+        </div>
+        {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      </li>
+    );
+  }
+
+  return (
+    <li className="flex items-start justify-between gap-2 rounded border bg-muted/30 px-2 py-1.5 text-sm">
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="Zum Bearbeiten klicken"
+        className="min-w-0 flex-1 text-left hover:text-primary"
+      >
+        {item.title}
+      </button>
+      <button
+        type="button"
+        disabled={pending}
+        aria-label="Maßnahme löschen"
+        onClick={() => run(() => deletePlanItemAction(item.id))}
+        className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+      >
+        ✕
+      </button>
+    </li>
+  );
 }
 
 function MeasureAdd({ phaseId }: { phaseId: string }) {
@@ -145,30 +234,7 @@ function PhaseCard({
 
       <ul className="mt-3 space-y-1">
         {phase.items.map((it) => (
-          <li
-            key={it.id}
-            className="flex items-start justify-between gap-2 rounded border bg-muted/30 px-2 py-1.5 text-sm"
-          >
-            <span className="min-w-0">
-              {it.title}
-              {it.status === 'embedded' && (
-                <span className="ml-2 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
-                  Im Kanban
-                </span>
-              )}
-            </span>
-            {it.status !== 'embedded' && (
-              <button
-                type="button"
-                disabled={pending}
-                aria-label="Maßnahme löschen"
-                onClick={() => run(() => deletePlanItemAction(it.id))}
-                className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
-              >
-                ✕
-              </button>
-            )}
-          </li>
+          <MeasureRow key={it.id} item={it} />
         ))}
         {phase.items.length === 0 && (
           <li className="text-xs text-muted-foreground">Noch keine Maßnahmen.</li>
@@ -190,7 +256,7 @@ function PhaseCard({
 
       {error && <Alert variant="destructive">{error}</Alert>}
 
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
           disabled={pending}
@@ -199,22 +265,33 @@ function PhaseCard({
         >
           Phase löschen
         </button>
-        <Button
-          size="sm"
-          disabled={pending || !dirty || title.trim().length < 2}
-          onClick={() =>
-            run(() =>
-              updatePhaseAction({
-                phaseId: phase.id,
-                title,
-                timeframeHint: hint,
-                outcome,
-              }),
-            )
-          }
-        >
-          Phase speichern
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || !phase.items.some((i) => i.status !== 'embedded')}
+            onClick={() => run(() => embedPlanPhaseAction(phase.id))}
+            title="Nur diese Phase ins Kanban übernehmen (Label „Marketingplan“)"
+          >
+            Diese Phase ins Kanban
+          </Button>
+          <Button
+            size="sm"
+            disabled={pending || !dirty || title.trim().length < 2}
+            onClick={() =>
+              run(() =>
+                updatePhaseAction({
+                  phaseId: phase.id,
+                  title,
+                  timeframeHint: hint,
+                  outcome,
+                }),
+              )
+            }
+          >
+            Phase speichern
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -373,11 +450,11 @@ export function PlanManager({
           )}
           <Button
             size="sm"
-            disabled={pending || plan.items.length === 0}
-            onClick={() => run(() => embedPlanAction(plan.id))}
-            title="Offene Maßnahmen als Kanban-Aufgaben übernehmen (ohne Fälligkeit)"
+            disabled={pending || !plan.items.some((i) => i.status !== 'embedded')}
+            onClick={() => run(() => embedNextPhaseAction(plan.id))}
+            title="Die nächste offene Phase als Kanban-Aufgaben übernehmen (mit Label „Marketingplan“)"
           >
-            Ins Kanban übernehmen
+            Nächste Phase ins Kanban
           </Button>
         </div>
       </div>

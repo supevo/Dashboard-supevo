@@ -62,7 +62,18 @@ export async function requestAppointmentAction(
     opt3_date: v.opt3_date ?? null,
     opt3_time: v.opt3_time ?? null,
   });
-  if (error) return errorResult(de.errors.INTERNAL);
+  if (error) {
+    console.error('[appointments] request insert failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return errorResult(
+      error.code === '42P01'
+        ? 'Termin-Tabelle fehlt (Migration 0088 nicht ausgeführt).'
+        : de.errors.INTERNAL,
+    );
+  }
 
   // Notify the agency's managers of the new request.
   const { data: staff } = await service
