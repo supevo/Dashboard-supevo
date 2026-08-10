@@ -141,34 +141,40 @@ export async function extractOpenReceiptsAction(
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId: entity.organization_id });
 
+  // Cap per run to stay within the serverless time budget, but process several
+  // receipts in parallel so one run clears most inboxes. Re-run for the rest.
+  const BATCH = 45;
+  const CONCURRENCY = 5;
   const { data: pending } = await supabase
     .from('bookkeeping_receipts')
     .select('id, organization_id, onedrive_item_id, file_mime')
     .eq('billing_entity_id', billingEntityId)
     .is('brutto_cents', null)
     .not('onedrive_item_id', 'is', null)
-    .limit(15);
+    .limit(BATCH);
 
   const ctx = await buildContext(supabase, billingEntityId);
+  const queue = (pending ?? []).filter((r) => r.onedrive_item_id);
   let done = 0;
   let failed = 0;
-  for (const r of pending ?? []) {
-    if (!r.onedrive_item_id) continue;
+
+  async function extractOne(r: (typeof queue)[number]): Promise<void> {
+    if (!r.onedrive_item_id) return;
     const file = await downloadItem(r.organization_id, r.onedrive_item_id);
     if (!file) {
       failed += 1;
-      continue;
+      return;
     }
     const mime = resolveReceiptMime(file.name, r.file_mime || file.mime);
     if (!isReadableReceiptMime(mime)) {
       failed += 1;
-      continue;
+      return;
     }
     const ext = await extractReceipt(file.bytes, mime, ctx);
     const update = toReceiptUpdate(ext);
     if (!update) {
       failed += 1;
-      continue;
+      return;
     }
     const { error } = await supabase
       .from('bookkeeping_receipts')
@@ -178,9 +184,14 @@ export async function extractOpenReceiptsAction(
     else done += 1;
   }
 
+  // Process in parallel chunks to keep wall-time bounded.
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    await Promise.all(queue.slice(i, i + CONCURRENCY).map(extractOne));
+  }
+
   revalidatePath('/app/finance');
   return successResult(
     `${done} Belege ausgelesen${failed > 0 ? `, ${failed} fehlgeschlagen` : ''}.` +
-      (pending && pending.length === 15 ? ' Erneut ausführen für weitere.' : ''),
+      (pending && pending.length === BATCH ? ' Erneut ausführen für weitere.' : ''),
   );
 }
