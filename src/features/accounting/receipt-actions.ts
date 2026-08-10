@@ -134,3 +134,33 @@ export async function importOneDriveReceiptsAction(input: {
       : `Keine neuen Belege – alle ${files.length} bereits importiert.`,
   );
 }
+
+const setKindSchema = z.object({
+  receiptId: z.string().uuid(),
+  kind: z.enum(['einnahme', 'ausgabe']),
+});
+
+/** Manually switch a receipt between Einnahme and Ausgabe. */
+export async function setReceiptKindAction(input: unknown): Promise<ActionResult> {
+  const parsed = setKindSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: receipt } = await supabase
+    .from('bookkeeping_receipts')
+    .select('organization_id')
+    .eq('id', parsed.data.receiptId)
+    .maybeSingle();
+  if (!receipt) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: receipt.organization_id });
+
+  const { error } = await supabase
+    .from('bookkeeping_receipts')
+    .update({ kind: parsed.data.kind })
+    .eq('id', parsed.data.receiptId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Art geändert.');
+}
