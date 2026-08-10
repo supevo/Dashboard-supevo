@@ -38,6 +38,14 @@ function toReceiptUpdate(
   if (!ext) return null;
   const kategorieId =
     ext.kategorie_id && KAT_IDS.has(ext.kategorie_id) ? ext.kategorie_id : null;
+  // Content-based Einnahme/Ausgabe: the KI's detected direction wins over
+  // whichever import folder/button the file happened to come in through.
+  const kind =
+    ext.richtung === 'ausgang'
+      ? 'ausgabe'
+      : ext.richtung === 'eingang'
+        ? 'einnahme'
+        : undefined;
   return {
     haendler: ext.haendler,
     beleg_datum: ext.datum,
@@ -49,6 +57,7 @@ function toReceiptUpdate(
     kategorie_id: kategorieId,
     konfidenz: ext.konfidenz == null ? null : Math.round(ext.konfidenz * 100),
     erkannt: ext as unknown as Record<string, unknown>,
+    ...(kind ? { kind } : {}),
     // Status NICHT auf 'zugeordnet' setzen – ausgelesen heißt nur "erkannt",
     // zugeordnet wird ein Beleg erst beim Abgleich (linkReceipt).
   };

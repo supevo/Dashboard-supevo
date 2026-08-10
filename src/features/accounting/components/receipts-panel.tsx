@@ -14,6 +14,7 @@ import { ReceiptImportButton } from '@/features/accounting/components/receipt-im
 import { ReceiptExtractButton } from '@/features/accounting/components/receipt-extract-button';
 import { ReceiptDropzone } from '@/features/accounting/components/receipt-dropzone';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
+import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 function quelleLabel(source: string, konfidenz: number | null): string {
@@ -182,7 +183,10 @@ export async function ReceiptsPanel({
               {receipts.map((r) => (
                 <tr key={r.id} className="border-t">
                   <td className="px-3 py-2">
-                    {r.kind === 'einnahme' ? '⬆️ Einnahme' : '⬇️ Ausgabe'}
+                    <ReceiptKindSelect
+                      receiptId={r.id}
+                      value={r.kind === 'einnahme' ? 'einnahme' : 'ausgabe'}
+                    />
                   </td>
                   <td className="max-w-[18rem] truncate px-3 py-2" title={r.file_name}>
                     {r.file_name}
