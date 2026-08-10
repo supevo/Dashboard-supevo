@@ -50,6 +50,42 @@ function importHash(
   return createHash('sha256').update(parts.join('|')).digest('hex');
 }
 
+const GENERIC_PAYEE = new Set([
+  '',
+  'n/a',
+  'na',
+  'unbekannt',
+  'keine angabe',
+  '-',
+  '—',
+]);
+
+/** True when a row carries a real counterparty name (not empty / "N/A"). */
+function hasPayee(t: ParsedTransaction): boolean {
+  const g = (t.gegen ?? '').trim().toLowerCase();
+  return g.length > 0 && !GENERIC_PAYEE.has(g);
+}
+
+/**
+ * Removes "shadow" duplicates that the KI sometimes emits: the exact same
+ * booking once WITH a real payee and once WITHOUT (N/A + a generic term like
+ * "ONLINE-UEBERWEISUNG"). When a date+amount group contains both a named and an
+ * unnamed row, the unnamed one is dropped. Genuinely unnamed bookings (no named
+ * counterpart) and distinct named bookings are kept, and order is preserved.
+ */
+function collapseShadowDuplicates(
+  txns: ParsedTransaction[],
+): { kept: ParsedTransaction[]; dropped: number } {
+  const namedKeys = new Set<string>();
+  for (const t of txns) {
+    if (hasPayee(t)) namedKeys.add(`${t.datum}|${t.betragCents}`);
+  }
+  const kept = txns.filter(
+    (t) => hasPayee(t) || !namedKeys.has(`${t.datum}|${t.betragCents}`),
+  );
+  return { kept, dropped: txns.length - kept.length };
+}
+
 /**
  * Imports a bank statement file (CSV / CAMT.053 / MT940). Auto-detects the
  * format, decodes Windows-1252 when needed, dedups against already-imported
@@ -119,6 +155,15 @@ export async function importBankStatementAction(
     transactions = parsed.transactions;
     accountIban = parsed.accountIban;
     formatLabel = parsed.format;
+  }
+
+  // KI-Härtung: doppelt gelesene Buchungen (benannt + namenloses Duplikat)
+  // zusammenfassen. Bei den deterministischen Parsern nicht nötig.
+  let shadowDropped = 0;
+  if (ai) {
+    const collapsed = collapseShadowDuplicates(transactions);
+    transactions = collapsed.kept;
+    shadowDropped = collapsed.dropped;
   }
 
   if (transactions.length === 0) {
@@ -213,11 +258,15 @@ export async function importBankStatementAction(
     created_by: user.id,
   });
 
+  const shadowNote =
+    shadowDropped > 0 ? ` ${shadowDropped} Doppel-Lesungen zusammengefasst.` : '';
+
   revalidatePath('/app/finance');
   return successResult(
-    imported > 0
+    (imported > 0
       ? `${imported} Umsätze importiert (${skipped} bereits vorhanden), Format ${formatLabel}.`
-      : `Keine neuen Umsätze – alle ${transactions.length} bereits vorhanden.`,
+      : `Keine neuen Umsätze – alle ${transactions.length} bereits vorhanden.`) +
+      shadowNote,
   );
 }
 

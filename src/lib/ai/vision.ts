@@ -80,7 +80,9 @@ const BANK_SYSTEM = [
   'Verwendungszweck. account_iban = IBAN des Auszug-Kontos, falls erkennbar,',
   'sonst null. WICHTIG: Gib ausnahmslos ALLE Umsätze zurück, fasse nichts',
   'zusammen, lasse keine Zeile aus und erfinde keine. Zwei Buchungen mit',
-  'gleichem Betrag/Datum sind zwei getrennte Einträge.',
+  'gleichem Betrag/Datum sind zwei getrennte Einträge. Gib aber JEDE Buchung',
+  'GENAU EINMAL zurück – niemals dieselbe Zeile doppelt (einmal mit und einmal',
+  'ohne Namen). Wenn ein Name erkennbar ist, setze ihn direkt in gegen.',
 ].join(' ');
 
 /**
