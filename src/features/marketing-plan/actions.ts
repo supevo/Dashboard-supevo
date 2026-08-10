@@ -412,6 +412,35 @@ export async function addPlanItemAction(input: unknown): Promise<ActionResult> {
   return successResult('Maßnahme hinzugefügt.');
 }
 
+const updateItemSchema = z.object({
+  itemId: z.string().uuid(),
+  title: z.string().trim().min(2).max(200),
+  description: z.string().trim().max(4000).optional().or(z.literal('')),
+});
+
+/** Edits a measure's title (and optional description). */
+export async function updatePlanItemAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateItemSchema.safeParse(input);
+  if (!parsed.success) return errorResult('Bitte Titel der Maßnahme angeben.');
+  const orgId = await requireAgencyOrg();
+  if (!orgId) return errorResult('Keine Berechtigung.');
+  const service = createSupabaseServiceClient();
+  const plan = await planForItem(service, parsed.data.itemId);
+  if (!plan || plan.organization_id !== orgId) return errorResult('Nicht gefunden.');
+
+  const { error } = await service
+    .from('marketing_plan_items')
+    .update({
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', parsed.data.itemId);
+  if (error) return errorResult('Speichern fehlgeschlagen.');
+  revalidatePath(`/app/clients/${plan.client_company_id}`);
+  return successResult('Maßnahme gespeichert.');
+}
+
 export async function deletePlanItemAction(itemId: string): Promise<ActionResult> {
   if (!z.string().uuid().safeParse(itemId).success) return errorResult('Ungültig.');
   const orgId = await requireAgencyOrg();
