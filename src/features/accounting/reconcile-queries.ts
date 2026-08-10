@@ -186,26 +186,44 @@ export async function getReconcileSuggestions(
     .from('bookkeeping_receipts')
     .select('id, haendler, beleg_datum, brutto_cents, kind')
     .eq('billing_entity_id', billingEntityId)
-    .eq('kind', 'ausgabe')
+    .in('kind', ['ausgabe', 'einnahme'])
     .not('brutto_cents', 'is', null)
-    .limit(2000);
-  const receipts: ReceiptLite[] = (receiptRows ?? [])
-    .filter((r) => !linkedReceiptIds.has(r.id))
-    .map((r) => ({
-      id: r.id,
-      datum: r.beleg_datum,
-      haendler: r.haendler,
-      bruttoCents: r.brutto_cents,
-    }));
+    .limit(4000);
+  const toLite = (r: {
+    id: string;
+    haendler: string | null;
+    beleg_datum: string | null;
+    brutto_cents: number | null;
+  }): ReceiptLite => ({
+    id: r.id,
+    datum: r.beleg_datum,
+    haendler: r.haendler,
+    bruttoCents: r.brutto_cents,
+  });
+  const ausgabeReceipts: ReceiptLite[] = (receiptRows ?? [])
+    .filter((r) => r.kind === 'ausgabe' && !linkedReceiptIds.has(r.id))
+    .map(toLite);
+  const einnahmeReceipts: ReceiptLite[] = (receiptRows ?? [])
+    .filter((r) => r.kind === 'einnahme' && !linkedReceiptIds.has(r.id))
+    .map(toLite);
 
   const paymentMatches = matchPaymentsToInvoices(payments, invoices);
-  const receiptMatches = matchReceiptsToTransactions(receipts, outgoing);
+  const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
+
+  // Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
+  // einer Rechnung zugeordnet wurden).
+  const incomingForReceipts = payments.filter((p) => !usedPayTx.has(p.id));
+  const receiptMatches = [
+    ...matchReceiptsToTransactions(ausgabeReceipts, outgoing, 'out'),
+    ...matchReceiptsToTransactions(einnahmeReceipts, incomingForReceipts, 'in'),
+  ];
+  const receipts = [...ausgabeReceipts, ...einnahmeReceipts];
 
   // Combination matches on what the 1:1 pass left unmatched.
-  const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
   const usedInv = new Set(paymentMatches.map((m) => m.rightId));
+  const usedReceiptTx = new Set(receiptMatches.map((m) => m.rightId));
   const comboMatches = matchPaymentCombinations(
-    payments.filter((p) => !usedPayTx.has(p.id)),
+    payments.filter((p) => !usedPayTx.has(p.id) && !usedReceiptTx.has(p.id)),
     invoices.filter((i) => !usedInv.has(i.id)),
   );
 

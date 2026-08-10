@@ -255,11 +255,6 @@ export async function runReconcileAction(
     const d = await getReconcileDiagnostics(billingEntityId);
     const hints: string[] = [];
     const ohneBetrag = d.receiptsAusgabe - d.receiptsAusgabeMitBetrag;
-    if (d.receiptsAusgabe === 0 && d.receiptsEinnahme > 0) {
-      hints.push(
-        `Alle ${d.receiptsEinnahme} Belege sind als Einnahme markiert – für den Ausgaben-Abgleich fehlen Ausgabe-Belege.`,
-      );
-    }
     if (ohneBetrag > 0) {
       hints.push(
         `${ohneBetrag} Ausgabe-Belege ohne ausgelesenen Betrag – bitte zuerst „Belege mit KI auslesen“.`,
@@ -268,14 +263,17 @@ export async function runReconcileAction(
     if (d.receiptsAusgabeMitBetrag > 0 && d.txOutOffen === 0) {
       hints.push('Keine offenen Ausgaben-Umsätze zum Zuordnen.');
     }
-    if (d.txInOffen > 0 && d.offeneRechnungen === 0) {
+    if (d.txInOffen > 0 && d.offeneRechnungen === 0 && d.receiptsEinnahme === 0) {
       hints.push(
-        `${d.txInOffen} Zahlungseingänge, aber keine offenen Rechnungen im System zum Zuordnen.`,
+        `${d.txInOffen} Zahlungseingänge, aber weder offene Rechnungen noch Einnahme-Belege zum Zuordnen.`,
       );
     }
-    if (hints.length === 0 && d.receiptsAusgabeMitBetrag > 0 && d.txOutOffen > 0) {
+    if (
+      hints.length === 0 &&
+      (d.receiptsAusgabeMitBetrag > 0 || d.receiptsEinnahme > 0)
+    ) {
       hints.push(
-        'Beträge/Daten der Belege passen zu keinem Umsatz genau genug – bitte manuell zuordnen.',
+        'Beträge oder Daten passen zu keinem Umsatz genau genug – bitte manuell zuordnen.',
       );
     }
     if (hints.length > 0) msg += ' Grund: ' + hints.join(' ');

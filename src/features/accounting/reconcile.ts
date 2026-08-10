@@ -328,14 +328,21 @@ export function matchPaymentCombinations(
 }
 
 /** Matches receipts to outgoing transactions (leftId=receipt, rightId=tx). */
+/**
+ * Matches receipts to bank transactions. `sign` selects the direction: 'out'
+ * pairs Ausgabe-Belege with outgoing payments, 'in' pairs Einnahme-Belege with
+ * incoming payments. Amount is compared on absolute values in scoreReceiptTx.
+ */
 export function matchReceiptsToTransactions(
   receipts: ReceiptLite[],
-  outgoing: TxLite[],
+  txs: TxLite[],
+  sign: 'out' | 'in' = 'out',
 ): Match[] {
   const candidates: Match[] = [];
   for (const rec of receipts) {
-    for (const tx of outgoing) {
-      if (tx.betragCents >= 0) continue;
+    for (const tx of txs) {
+      if (sign === 'out' && tx.betragCents >= 0) continue;
+      if (sign === 'in' && tx.betragCents <= 0) continue;
       const m = scoreReceiptTx(rec, tx);
       if (m) candidates.push(m);
     }
