@@ -10,7 +10,10 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
+import {
+  getReconcileSuggestions,
+  getReconcileDiagnostics,
+} from '@/features/accounting/reconcile-queries';
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -245,7 +248,37 @@ export async function runReconcileAction(
   revalidatePath('/app/finance');
   const where =
     scope.month != null ? `${scope.month}/${scope.year}` : 'alle Monate';
-  return successResult(
-    `${applied} sichere Zuordnungen übernommen (${where}). ${openSuggestions} Vorschläge zum Prüfen.`,
-  );
+  let msg = `${applied} sichere Zuordnungen übernommen (${where}). ${openSuggestions} Vorschläge zum Prüfen.`;
+
+  // Nothing matched at all → explain why, instead of a bare "0".
+  if (applied === 0 && openSuggestions === 0) {
+    const d = await getReconcileDiagnostics(billingEntityId);
+    const hints: string[] = [];
+    const ohneBetrag = d.receiptsAusgabe - d.receiptsAusgabeMitBetrag;
+    if (d.receiptsAusgabe === 0 && d.receiptsEinnahme > 0) {
+      hints.push(
+        `Alle ${d.receiptsEinnahme} Belege sind als Einnahme markiert – für den Ausgaben-Abgleich fehlen Ausgabe-Belege.`,
+      );
+    }
+    if (ohneBetrag > 0) {
+      hints.push(
+        `${ohneBetrag} Ausgabe-Belege ohne ausgelesenen Betrag – bitte zuerst „Belege mit KI auslesen“.`,
+      );
+    }
+    if (d.receiptsAusgabeMitBetrag > 0 && d.txOutOffen === 0) {
+      hints.push('Keine offenen Ausgaben-Umsätze zum Zuordnen.');
+    }
+    if (d.txInOffen > 0 && d.offeneRechnungen === 0) {
+      hints.push(
+        `${d.txInOffen} Zahlungseingänge, aber keine offenen Rechnungen im System zum Zuordnen.`,
+      );
+    }
+    if (hints.length === 0 && d.receiptsAusgabeMitBetrag > 0 && d.txOutOffen > 0) {
+      hints.push(
+        'Beträge/Daten der Belege passen zu keinem Umsatz genau genug – bitte manuell zuordnen.',
+      );
+    }
+    if (hints.length > 0) msg += ' Grund: ' + hints.join(' ');
+  }
+  return successResult(msg);
 }
