@@ -49,7 +49,19 @@ export async function submitIdeaAction(
     description: description ? description : null,
     created_by: user.id,
   });
-  if (error) return errorResult(de.errors.INTERNAL);
+  if (error) {
+    // Surface the real cause instead of a blanket "unerwarteter Fehler".
+    console.error('[ideas] submit insert failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    return errorResult(
+      error.code === '42P01'
+        ? 'Ideen-Tabelle fehlt (Migration 0087 nicht ausgeführt).'
+        : de.errors.INTERNAL,
+    );
+  }
 
   revalidatePath('/portal/ideas');
   return successResult('Idee gespeichert.');
