@@ -1,6 +1,6 @@
 import { listAccountingCompanies } from '@/features/accounting/queries';
 import {
-  getTaxOverview,
+  getTaxOverviewSafe,
   aggregateTaxOverviews,
 } from '@/features/accounting/tax/tax-queries';
 import { formatEuroCents } from '@/lib/money';
@@ -71,13 +71,13 @@ export async function TaxPanel({
     ? await Promise.all(
         companies.map(async (c) => ({
           name: c.entity.name,
-          ov: await getTaxOverview(c.entity.id, year),
+          ov: await getTaxOverviewSafe(c.entity.id, year),
         })),
       )
     : [];
   const ov = combined
     ? aggregateTaxOverviews(perFirmaOverviews.map((p) => p.ov))
-    : await getTaxOverview(active!.entity.id, year);
+    : await getTaxOverviewSafe(active!.entity.id, year);
 
   const activeId = combined ? ALL_COMPANIES : active!.entity.id;
   const firmaBase = `${basePath}&firma=${activeId}`;
