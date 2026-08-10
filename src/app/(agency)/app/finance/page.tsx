@@ -13,6 +13,8 @@ import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel
 import { TaxPanel } from '@/features/accounting/components/tax-panel';
 
 export const dynamic = 'force-dynamic';
+// Belege-KI-Auslesen (Server Action dieser Route) darf länger laufen.
+export const maxDuration = 120;
 
 /**
  * Finanzen – the money area (Ressourcen), super-admin only. Bundles the new
