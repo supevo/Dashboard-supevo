@@ -48,6 +48,73 @@ export interface ReconcileSuggestions {
   combos: ComboSuggestion[];
 }
 
+export interface ReconcileDiagnostics {
+  receiptsAusgabe: number;
+  receiptsAusgabeMitBetrag: number;
+  receiptsEinnahme: number;
+  txOutOffen: number;
+  txInOffen: number;
+  offeneRechnungen: number;
+}
+
+/** Raw counts that explain WHY reconcile finds (or doesn't find) matches. */
+export async function getReconcileDiagnostics(
+  billingEntityId: string,
+): Promise<ReconcileDiagnostics> {
+  const supabase = await createSupabaseServerClient();
+
+  const [
+    { count: receiptsAusgabe },
+    { count: receiptsAusgabeMitBetrag },
+    { count: receiptsEinnahme },
+    { count: txOutOffen },
+    { count: txInOffen },
+    { count: offeneRechnungen },
+  ] = await Promise.all([
+    supabase
+      .from('bookkeeping_receipts')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .eq('kind', 'ausgabe'),
+    supabase
+      .from('bookkeeping_receipts')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .eq('kind', 'ausgabe')
+      .not('brutto_cents', 'is', null),
+    supabase
+      .from('bookkeeping_receipts')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .eq('kind', 'einnahme'),
+    supabase
+      .from('bookkeeping_transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .lt('betrag_cents', 0)
+      .is('beleg_id', null),
+    supabase
+      .from('bookkeeping_transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .gt('betrag_cents', 0)
+      .is('re_id', null),
+    supabase
+      .from('invoices')
+      .select('id', { count: 'exact', head: true })
+      .eq('billing_entity_id', billingEntityId)
+      .neq('status', 'paid'),
+  ]);
+  return {
+    receiptsAusgabe: receiptsAusgabe ?? 0,
+    receiptsAusgabeMitBetrag: receiptsAusgabeMitBetrag ?? 0,
+    receiptsEinnahme: receiptsEinnahme ?? 0,
+    txOutOffen: txOutOffen ?? 0,
+    txInOffen: txInOffen ?? 0,
+    offeneRechnungen: offeneRechnungen ?? 0,
+  };
+}
+
 /**
  * Computes (does not persist) the current reconcile suggestions for a company:
  * incoming payments ↔ open invoices, and receipts ↔ outgoing transactions.
