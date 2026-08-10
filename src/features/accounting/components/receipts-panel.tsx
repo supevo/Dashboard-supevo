@@ -161,7 +161,18 @@ export async function ReceiptsPanel({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
             <h3 className="text-sm font-semibold">Belegarchiv</h3>
             <span className="text-xs text-muted-foreground">
-              {receipts.length} Dateien · Aufbewahrung 10 Jahre (GoBD)
+              {receipts.length} Dateien
+              {receipts.filter((r) => r.extract_failed_at).length > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-rose-600 dark:text-rose-400">
+                    {receipts.filter((r) => r.extract_failed_at).length} mit
+                    Lesefehler
+                  </span>
+                  {' (nochmal „Belege mit KI auslesen“ wiederholt sie)'}
+                </>
+              )}{' '}
+              · Aufbewahrung 10 Jahre (GoBD)
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -205,9 +216,15 @@ export async function ReceiptsPanel({
                     </span>
                   </td>
                   <td className="px-3 py-2">
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
-                      {STATUS_LABEL[r.status] ?? r.status}
-                    </span>
+                    {r.extract_failed_at ? (
+                      <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs text-rose-600 dark:text-rose-400">
+                        ⚠️ Lesefehler
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                        {STATUS_LABEL[r.status] ?? r.status}
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <ReceiptExtractButton mode="one" id={r.id} />
