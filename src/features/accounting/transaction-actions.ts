@@ -15,6 +15,7 @@ import {
   parseBankStatement,
   decodeStatementBytes,
 } from '@/features/accounting/bank-import/parse';
+import { periodBounds } from '@/features/accounting/transaction-queries';
 import {
   type ParsedTransaction,
   normalizeDate,
@@ -218,4 +219,80 @@ export async function importBankStatementAction(
       ? `${imported} Umsätze importiert (${skipped} bereits vorhanden), Format ${formatLabel}.`
       : `Keine neuen Umsätze – alle ${transactions.length} bereits vorhanden.`,
   );
+}
+
+/** Loads a transaction's org for the authorization gate. */
+async function txOrg(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  id: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('bookkeeping_transactions')
+    .select('organization_id')
+    .eq('id', id)
+    .maybeSingle();
+  return data?.organization_id ?? null;
+}
+
+/** Deletes a single bank transaction (e.g. a wrongly imported / duplicate row). */
+export async function deleteTransactionAction(id: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(id).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const orgId = await txOrg(supabase, id);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const { error } = await supabase
+    .from('bookkeeping_transactions')
+    .delete()
+    .eq('id', id);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Umsatz gelöscht.');
+}
+
+const deleteMonthSchema = z.object({
+  billingEntityId: z.string().uuid(),
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(0).max(12),
+});
+
+/**
+ * Bulk-deletes a company's transactions for a period: a concrete month
+ * (1–12) or, with month 0, the whole selected year. For cleaning up a botched
+ * import in one go.
+ */
+export async function deleteMonthTransactionsAction(
+  input: unknown,
+): Promise<ActionResult> {
+  const parsed = deleteMonthSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { billingEntityId, year, month } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: entity } = await supabase
+    .from('billing_entities')
+    .select('organization_id')
+    .eq('id', billingEntityId)
+    .maybeSingle();
+  if (!entity) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: entity.organization_id });
+
+  const bounds = periodBounds({ year, month });
+  if (!bounds) return errorResult(de.errors.VALIDATION);
+
+  const { error, count } = await supabase
+    .from('bookkeeping_transactions')
+    .delete({ count: 'exact' })
+    .eq('billing_entity_id', billingEntityId)
+    .gte('datum', bounds.from)
+    .lte('datum', bounds.to);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/finance');
+  return successResult(`${count ?? 0} Umsätze gelöscht.`);
 }

@@ -13,6 +13,8 @@ import { BankUploadForm } from '@/features/accounting/components/bank-upload-for
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { AutoCategorizeButton } from '@/features/accounting/components/auto-categorize-button';
 import { TransactionCategorySelect } from '@/features/accounting/components/transaction-category-select';
+import { DeleteTransactionButton } from '@/features/accounting/components/delete-transaction-button';
+import { DeleteMonthTransactionsButton } from '@/features/accounting/components/delete-month-transactions-button';
 
 function formatDate(d: string | null): string {
   if (!d) return '—';
@@ -104,7 +106,15 @@ export async function TransactionsPanel({
       </div>
 
       {txns.length > 0 && (
-        <AutoCategorizeButton billingEntityId={active.entity.id} />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <AutoCategorizeButton billingEntityId={active.entity.id} />
+          <DeleteMonthTransactionsButton
+            billingEntityId={active.entity.id}
+            year={year}
+            month={month}
+            count={summary.count}
+          />
+        </div>
       )}
 
       {txns.length === 0 ? (
@@ -123,6 +133,7 @@ export async function TransactionsPanel({
                 <th className="px-3 py-2 font-medium">Verwendungszweck</th>
                 <th className="px-3 py-2 font-medium">Kategorie</th>
                 <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                <th className="px-3 py-2 font-medium" aria-label="Löschen"></th>
               </tr>
             </thead>
             <tbody>
@@ -155,6 +166,9 @@ export async function TransactionsPanel({
                     }`}
                   >
                     {formatEuroCents(t.betrag_cents)}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <DeleteTransactionButton id={t.id} />
                   </td>
                 </tr>
               ))}
