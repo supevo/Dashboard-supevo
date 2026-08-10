@@ -39,6 +39,8 @@ export interface Match {
   score: number;
   reason: string;
   auto: boolean;
+  /** Days between the two dates – used to break ties toward the closest match. */
+  dist?: number;
 }
 
 const LEGAL_FORMS = /\b(gmbh|ug|ag|kg|ohg|gbr|e\.?k\.?|mbh|co|ltd|inc|e\.?v\.?)\b/gi;
@@ -103,9 +105,21 @@ function scorePaymentInvoice(tx: TxLite, inv: InvoiceLite): Match | null {
     s += amt;
     reasons.push(amt >= 0.3 ? 'Betrag exakt' : 'Betrag passend');
   }
-  if (inv.issueDate && daysBetween(tx.datum, inv.issueDate) <= 90) {
-    s += 0.1;
-    reasons.push('Zeitfenster');
+  // Graduated time proximity: a payment close to the invoice date scores higher
+  // than one months apart (so recurring same-amount items pick the right date).
+  let dist = Number.POSITIVE_INFINITY;
+  if (inv.issueDate) {
+    dist = daysBetween(tx.datum, inv.issueDate);
+    if (dist <= 7) {
+      s += 0.15;
+      reasons.push('Zeitfenster ±7 Tage');
+    } else if (dist <= 30) {
+      s += 0.1;
+      reasons.push('Zeitfenster ±30 Tage');
+    } else if (dist <= 90) {
+      s += 0.05;
+      reasons.push('Zeitfenster ±90 Tage');
+    }
   }
   const sim = nameSimilarity(tx.gegen, inv.kunde);
   if (sim > 0.3) {
@@ -121,12 +135,18 @@ function scorePaymentInvoice(tx: TxLite, inv: InvoiceLite): Match | null {
     score: Math.round(s * 100) / 100,
     reason: reasons.join(', '),
     auto: s >= AUTO_THRESHOLD,
+    dist,
   };
 }
 
-/** Greedy assignment: highest score first, each side used once. */
+/** Greedy assignment: highest score first, ties broken toward the closest date;
+ *  each side used once. */
 function greedy(candidates: Match[]): Match[] {
-  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  const sorted = [...candidates].sort(
+    (a, b) =>
+      b.score - a.score ||
+      (a.dist ?? Number.POSITIVE_INFINITY) - (b.dist ?? Number.POSITIVE_INFINITY),
+  );
   const usedLeft = new Set<string>();
   const usedRight = new Set<string>();
   const out: Match[] = [];
@@ -176,17 +196,25 @@ function scoreReceiptTx(rec: ReceiptLite, tx: TxLite): Match | null {
     return null; // amount must be close for receipts
   }
 
+  let dist = Number.POSITIVE_INFINITY;
   if (rec.datum) {
-    const d = daysBetween(tx.datum, rec.datum);
-    if (d <= 3) {
+    dist = daysBetween(tx.datum, rec.datum);
+    // A receipt and its bank payment are days–weeks apart, not months. Beyond
+    // ~60 days it is not the same payment – don't suggest it at all, so a
+    // recurring same-amount booking from an earlier month can't be picked.
+    if (dist > 60) return null;
+    if (dist <= 3) {
       s += 0.3;
       reasons.push('Datum ±3 Tage');
-    } else if (d <= 14) {
+    } else if (dist <= 14) {
       s += 0.2;
       reasons.push('Datum ±14 Tage');
-    } else if (d <= 45) {
+    } else if (dist <= 45) {
       s += 0.1;
       reasons.push('Datum ±45 Tage');
+    } else {
+      s += 0.03;
+      reasons.push('Datum ±60 Tage');
     }
   }
 
@@ -204,6 +232,7 @@ function scoreReceiptTx(rec: ReceiptLite, tx: TxLite): Match | null {
     score: Math.round(s * 100) / 100,
     reason: reasons.join(', '),
     auto: s >= AUTO_THRESHOLD,
+    dist,
   };
 }
 
