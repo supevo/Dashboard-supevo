@@ -16,7 +16,7 @@ export async function listReceipts(
   billingEntityId: string,
   kind?: 'einnahme' | 'ausgabe',
   period: { year?: number; month?: number } = {},
-  limit = 300,
+  limit = 3000,
 ): Promise<BookkeepingReceipt[]> {
   const supabase = await createSupabaseServerClient();
   let q = supabase
