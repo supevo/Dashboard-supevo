@@ -32,6 +32,7 @@ export interface TaxOverview {
 export async function getTaxOverview(
   billingEntityId: string,
   year: number,
+  month = 0,
 ): Promise<TaxOverview> {
   const supabase = await createSupabaseServerClient();
 
@@ -46,8 +47,12 @@ export async function getTaxOverview(
   const info = rechtsformInfo(profile?.rechtsform);
   const kleinunternehmer = profile?.kleinunternehmer ?? false;
 
-  const from = `${year}-01-01`;
-  const to = `${year}-12-31`;
+  // month 1–12 → just that month; 0 → whole year.
+  const mm = month >= 1 && month <= 12 ? String(month).padStart(2, '0') : null;
+  const from = mm ? `${year}-${mm}-01` : `${year}-01-01`;
+  const to = mm
+    ? `${year}-${mm}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`
+    : `${year}-12-31`;
   const { data: rows } = await supabase
     .from('bookkeeping_transactions')
     .select('betrag_cents, kategorie_id, privatanteil')
@@ -127,9 +132,10 @@ function emptyOverview(year: number): TaxOverview {
 export async function getTaxOverviewSafe(
   billingEntityId: string,
   year: number,
+  month = 0,
 ): Promise<TaxOverview> {
   try {
-    return await getTaxOverview(billingEntityId, year);
+    return await getTaxOverview(billingEntityId, year, month);
   } catch (e) {
     console.error('[tax] getTaxOverview failed', {
       billingEntityId,

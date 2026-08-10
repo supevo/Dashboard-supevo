@@ -11,7 +11,12 @@ import {
   ALL_COMPANIES,
   type CompanyOption,
 } from '@/features/accounting/components/company-switcher';
-import { YearSwitcher } from '@/features/accounting/components/year-switcher';
+import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
+
+const MONTH_NAMES = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
 
 function Row({ label, cents, strong }: { label: string; cents: number; strong?: boolean }) {
   return (
@@ -34,11 +39,13 @@ export async function TaxPanel({
   orgId,
   activeFirma,
   year,
+  month,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
   year: number;
+  month: number;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -71,16 +78,19 @@ export async function TaxPanel({
     ? await Promise.all(
         companies.map(async (c) => ({
           name: c.entity.name,
-          ov: await getTaxOverviewSafe(c.entity.id, year),
+          ov: await getTaxOverviewSafe(c.entity.id, year, month),
         })),
       )
     : [];
   const ov = combined
     ? aggregateTaxOverviews(perFirmaOverviews.map((p) => p.ov))
-    : await getTaxOverviewSafe(active!.entity.id, year);
+    : await getTaxOverviewSafe(active!.entity.id, year, month);
 
   const activeId = combined ? ALL_COMPANIES : active!.entity.id;
   const firmaBase = `${basePath}&firma=${activeId}`;
+  // Period label for the section headers: month name + year, or just the year.
+  const periodLabel =
+    month >= 1 && month <= 12 ? `${MONTH_NAMES[month - 1]} ${year}` : `${year}`;
 
   return (
     <div className="space-y-6">
@@ -91,7 +101,12 @@ export async function TaxPanel({
           basePath={basePath}
           allLabel="🏢 Alle Firmen zusammen"
         />
-        <YearSwitcher year={year} years={years} basePath={firmaBase} />
+        <MonthSwitcher
+          year={year}
+          month={month}
+          years={years}
+          basePath={firmaBase}
+        />
       </div>
 
       {ov.profileMissing && (
@@ -111,7 +126,7 @@ export async function TaxPanel({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* EÜR */}
         <section className="rounded-lg border p-4">
-          <h2 className="mb-2 text-lg font-semibold">EÜR {ov.year}</h2>
+          <h2 className="mb-2 text-lg font-semibold">EÜR {periodLabel}</h2>
           <p className="mb-2 text-xs text-muted-foreground">
             {ov.rechtsformLabel} · §4 Abs. 3 EStG (netto)
           </p>
@@ -149,7 +164,7 @@ export async function TaxPanel({
 
         {/* USt-VA */}
         <section className="rounded-lg border p-4">
-          <h2 className="mb-2 text-lg font-semibold">Umsatzsteuer {ov.year}</h2>
+          <h2 className="mb-2 text-lg font-semibold">Umsatzsteuer {periodLabel}</h2>
           {ov.kleinunternehmer ? (
             <p className="text-sm text-muted-foreground">
               Kleinunternehmer nach §19 UStG – keine Umsatzsteuer.
@@ -176,7 +191,7 @@ export async function TaxPanel({
 
       {/* Steuerschätzung */}
       <section className="rounded-lg border p-4">
-        <h2 className="mb-1 text-lg font-semibold">Steuerschätzung {ov.year}</h2>
+        <h2 className="mb-1 text-lg font-semibold">Steuerschätzung {periodLabel}</h2>
         <p className="mb-3 text-xs text-muted-foreground">
           Näherung ohne Sozialversicherung/Freibeträge – kein Ersatz für den
           Steuerberater.
