@@ -19,7 +19,10 @@ export function YearSwitcher({
       <span className="text-sm text-muted-foreground">Jahr:</span>
       <Select
         value={String(year)}
-        onChange={(e) => router.push(`${basePath}&jahr=${e.target.value}`)}
+        onChange={(e) => {
+          router.push(`${basePath}&jahr=${e.target.value}`);
+          router.refresh();
+        }}
         className="h-9 w-auto"
       >
         {years.map((y) => (

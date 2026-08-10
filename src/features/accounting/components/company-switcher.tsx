@@ -35,11 +35,12 @@ export function CompanySwitcher({
       <span className="text-sm text-muted-foreground">Firma:</span>
       <Select
         value={activeId}
-        onChange={(e) =>
-          router.push(
-            `${basePath}&firma=${encodeURIComponent(e.target.value)}`,
-          )
-        }
+        onChange={(e) => {
+          router.push(`${basePath}&firma=${encodeURIComponent(e.target.value)}`);
+          // Force a fresh server render so the switched view can't be served
+          // stale from the client router cache.
+          router.refresh();
+        }}
         className="h-9 w-auto min-w-[12rem]"
       >
         {allLabel && companies.length > 1 && (
