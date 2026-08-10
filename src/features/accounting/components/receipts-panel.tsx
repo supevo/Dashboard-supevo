@@ -14,6 +14,10 @@ import { ReceiptImportButton } from '@/features/accounting/components/receipt-im
 import { ReceiptExtractButton } from '@/features/accounting/components/receipt-extract-button';
 import { ReceiptDropzone } from '@/features/accounting/components/receipt-dropzone';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
+import {
+  KindFilter,
+  type ArtFilter,
+} from '@/features/accounting/components/kind-filter';
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
 import { kategorieLabel } from '@/features/accounting/categories';
 
@@ -47,12 +51,14 @@ export async function ReceiptsPanel({
   activeFirma,
   year,
   month,
+  art,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
   year: number;
   month: number;
+  art: ArtFilter;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -77,8 +83,10 @@ export async function ReceiptsPanel({
     isDefault: c.entity.is_default,
   }));
 
+  const kindFilter =
+    art === 'einnahmen' ? 'einnahme' : art === 'ausgaben' ? 'ausgabe' : undefined;
   const [receipts, counts, logs] = await Promise.all([
-    listReceipts(active.entity.id, undefined, { year, month }),
+    listReceipts(active.entity.id, kindFilter, { year, month }),
     receiptCounts(active.entity.id),
     listImportLogs(active.entity.id),
   ]);
@@ -105,6 +113,7 @@ export async function ReceiptsPanel({
             years={years}
             basePath={firmaBase}
           />
+          <KindFilter value={art} basePath={firmaBase} />
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>

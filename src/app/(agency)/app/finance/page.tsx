@@ -11,6 +11,7 @@ import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
 import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel';
 import { TaxPanel } from '@/features/accounting/components/tax-panel';
+import { parseArt } from '@/features/accounting/components/kind-filter';
 
 export const dynamic = 'force-dynamic';
 // Belege-KI-Auslesen (Server Action dieser Route) darf länger laufen.
@@ -31,6 +32,7 @@ export default async function FinancePage({
     firma?: string;
     jahr?: string;
     monat?: string;
+    art?: string;
   }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
@@ -42,6 +44,7 @@ export default async function FinancePage({
   const monat = Number(sp.monat) || new Date().getMonth() + 1;
   // Umsätze/Belege lists default to "Alle Monate" (0) so nothing is hidden.
   const monatListe = Number(sp.monat) || 0;
+  const art = parseArt(sp.art);
 
   const tabs: TabDef[] = [
     {
@@ -89,6 +92,7 @@ export default async function FinancePage({
           activeFirma={sp.firma}
           year={jahr}
           month={monatListe}
+          art={art}
           basePath="/app/finance?tab=umsaetze"
         />
       ),
@@ -102,6 +106,7 @@ export default async function FinancePage({
           activeFirma={sp.firma}
           year={jahr}
           month={monatListe}
+          art={art}
           basePath="/app/finance?tab=belege"
         />
       ),
@@ -115,6 +120,7 @@ export default async function FinancePage({
           activeFirma={sp.firma}
           year={jahr}
           month={monat}
+          art={art}
           basePath="/app/finance?tab=abgleich"
         />
       ),

@@ -12,10 +12,28 @@ import {
 } from '@/features/accounting/components/company-switcher';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import {
+  KindFilter,
+  type ArtFilter,
+} from '@/features/accounting/components/kind-filter';
+import {
+  ExportReconcileButton,
+  type ReconcileExportRow,
+} from '@/features/accounting/components/export-reconcile-button';
+import {
   RunReconcileButton,
   ApplyMatchButton,
   ApplyComboButton,
 } from '@/features/accounting/components/reconcile-buttons';
+
+const MONTHS = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
+
+/** cents → German euro string without the € sign (for CSV). */
+function euro(cents: number): string {
+  return (cents / 100).toFixed(2).replace('.', ',');
+}
 
 function pct(score: number): string {
   return `${Math.round(score * 100)} %`;
@@ -41,12 +59,14 @@ export async function ReconcilePanel({
   activeFirma,
   year,
   month,
+  art,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
   year: number;
   month: number;
+  art: ArtFilter;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -76,13 +96,57 @@ export async function ReconcilePanel({
       .map((s) => ({ s, period: classifyByMonth(s.txDatum, year, month) }))
       .filter((x): x is { s: T; period: PeriodClass } => x.period !== null);
 
-  const payments = inView(all.payments);
-  const combos = inView(all.combos);
-  const receipts = inView(all.receipts);
+  // Einnahmen/Ausgaben filter by the bank booking direction. Payments &
+  // Sammelzahlungen are always incoming (Einnahme); receipts can be either.
+  const wantIn = art === 'einnahmen';
+  const wantOut = art === 'ausgaben';
+  const payments = wantOut ? [] : inView(all.payments);
+  const combos = wantOut ? [] : inView(all.combos);
+  const receipts = inView(all.receipts).filter(({ s }) =>
+    wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
+  );
+
+  // Flat rows for the CSV export (respects the current month + art filter).
+  const exportRows: ReconcileExportRow[] = [
+    ...payments.map(({ s: p }) => ({
+      art: 'Einnahme' as const,
+      datum: p.txDatum,
+      beschreibung: p.txGegen ?? '',
+      betrag: euro(p.txBetragCents),
+      zuordnung: `Rechnung ${p.invoiceNumber ?? '—'} · ${p.invoiceKunde ?? '—'}`,
+      score: `${Math.round(p.match.score * 100)} %`,
+      grund: p.match.reason,
+    })),
+    ...combos.map(({ s: c }) => ({
+      art: 'Einnahme' as const,
+      datum: c.txDatum,
+      beschreibung: c.txGegen ?? '',
+      betrag: euro(c.match.paymentCents),
+      zuordnung: `${c.invoices.length} Rechnungen: ${c.invoices
+        .map((i) => i.number ?? '—')
+        .join(', ')}`,
+      score: `${Math.round(c.match.score * 100)} %`,
+      grund: 'Sammelzahlung – Summe passt',
+    })),
+    ...receipts.map(({ s: r }) => ({
+      art: (r.txBetragCents >= 0 ? 'Einnahme' : 'Ausgabe') as
+        | 'Einnahme'
+        | 'Ausgabe',
+      datum: r.txDatum,
+      beschreibung: r.txGegen ?? r.receiptHaendler ?? '',
+      betrag: euro(r.txBetragCents),
+      zuordnung: `Beleg ${r.receiptHaendler ?? '—'}${
+        r.receiptBruttoCents != null ? ` · ${euro(r.receiptBruttoCents)}` : ''
+      }`,
+      score: `${Math.round(r.match.score * 100)} %`,
+      grund: r.match.reason,
+    })),
+  ];
 
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
+  const monthLabel = month >= 1 && month <= 12 ? `${MONTHS[month - 1]}-${year}` : `${year}`;
 
   return (
     <div className="space-y-6">
@@ -99,12 +163,22 @@ export async function ReconcilePanel({
             years={years}
             basePath={firmaBase}
           />
+          <KindFilter value={art} basePath={firmaBase} />
         </div>
-        <RunReconcileButton
-          billingEntityId={active.entity.id}
-          year={year}
-          month={month}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportReconcileButton
+            rows={exportRows}
+            fileName={`abgleich-${active.entity.name}-${monthLabel}.csv`.replace(
+              /\s+/g,
+              '_',
+            )}
+          />
+          <RunReconcileButton
+            billingEntityId={active.entity.id}
+            year={year}
+            month={month}
+          />
+        </div>
       </div>
 
       <section className="space-y-2">
