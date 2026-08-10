@@ -13,6 +13,7 @@ import {
 import {
   getReconcileSuggestions,
   getReconcileDiagnostics,
+  classifyByMonth,
 } from '@/features/accounting/reconcile-queries';
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -192,10 +193,9 @@ function inScope(
   datum: string,
   scope: { year?: number; month?: number },
 ): boolean {
-  if (scope.month == null) return true; // 'all'
-  const y = Number(datum.slice(0, 4));
-  const m = Number(datum.slice(5, 7));
-  return y === scope.year && m === scope.month;
+  // Same window as the panel: the month plus a ±3-day fringe into the
+  // previous/following month, so cross-boundary payments are included.
+  return classifyByMonth(datum, scope.year, scope.month) !== null;
 }
 
 /**

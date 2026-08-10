@@ -114,6 +114,7 @@ export default async function FinancePage({
           orgId={orgId}
           activeFirma={sp.firma}
           year={jahr}
+          month={monat}
           basePath="/app/finance?tab=abgleich"
         />
       ),
