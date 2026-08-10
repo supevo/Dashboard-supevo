@@ -2695,7 +2695,7 @@ export interface Database {
           kategorie_id: string | null;
           konfidenz: number | null;
           rohtext: string | null;
-          erkannt: Record<string, unknown>;
+          erkannt: Record<string, unknown> | null;
           status: string;
           notiz: string | null;
           created_by: string | null;
@@ -2722,7 +2722,7 @@ export interface Database {
           kategorie_id?: string | null;
           konfidenz?: number | null;
           rohtext?: string | null;
-          erkannt?: Record<string, unknown>;
+          erkannt?: Record<string, unknown> | null;
           status?: string;
           notiz?: string | null;
           created_by?: string | null;

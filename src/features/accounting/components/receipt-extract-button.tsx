@@ -45,9 +45,12 @@ export function ReceiptExtractButton({
     setMsg(null);
     let totalDone = 0;
     let totalFailed = 0;
+    let prevRemaining = Infinity;
     try {
-      for (let i = 0; i < 50; i++) {
-        const res = await extractOpenReceiptsAction(id);
+      // Enough iterations for large inboxes (batch of 8 → up to ~1600 receipts).
+      for (let i = 0; i < 200; i++) {
+        // First call clears old failure markers so failed receipts get retried.
+        const res = await extractOpenReceiptsAction(id, i === 0);
         if (!res.ok) {
           setMsg({ ok: false, text: res.message });
           break;
@@ -60,15 +63,18 @@ export function ReceiptExtractButton({
           text:
             res.remaining > 0
               ? `${totalDone} ausgelesen … noch ${res.remaining}`
-              : `Fertig: ${totalDone} ausgelesen${totalFailed > 0 ? `, ${totalFailed} fehlgeschlagen` : ''}.`,
+              : `Fertig: ${totalDone} ausgelesen${totalFailed > 0 ? `, ${totalFailed} übersprungen (nicht lesbar)` : ''}.`,
         });
-        // Stop when done or when a batch couldn't make progress (stuck items).
-        if (res.remaining === 0 || res.done === 0) break;
+        if (res.remaining === 0) break;
+        // Safety: every processed receipt is marked, so remaining must shrink.
+        // If it ever doesn't, stop instead of looping forever.
+        if (res.remaining >= prevRemaining) break;
+        prevRemaining = res.remaining;
       }
     } catch {
       setMsg({
         ok: false,
-        text: `Abgebrochen (Zeitüberschreitung). ${totalDone} ausgelesen – bitte erneut starten für den Rest.`,
+        text: `Unterbrochen. ${totalDone} ausgelesen – „mit KI auslesen“ erneut klicken, um fortzufahren.`,
       });
     } finally {
       setBusy(false);

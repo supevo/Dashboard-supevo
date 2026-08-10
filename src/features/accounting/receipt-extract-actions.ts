@@ -121,18 +121,34 @@ export interface ExtractBatchResult {
   message: string;
   done: number;
   failed: number;
-  /** Receipts still without an amount after this run (for the client loop). */
+  /** Receipts still un-attempted after this run (drives the client loop). */
   remaining: number;
 }
 
+/** Marks a receipt as attempted-but-failed so the drain moves past it. */
+async function markFailed(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  id: string,
+): Promise<void> {
+  await supabase
+    .from('bookkeeping_receipts')
+    .update({ erkannt: { _extract_failed: true, at: new Date().toISOString() } })
+    .eq('id', id);
+}
+
 /**
- * Reads a SMALL batch of not-yet-extracted receipts (brutto still null) so each
- * call reliably finishes within the serverless time budget. The client calls
- * this repeatedly (showing progress) until nothing is left or no progress is
- * made – that keeps the UI responsive and guarantees it terminates.
+ * Reads a SMALL batch of not-yet-attempted receipts so each call reliably
+ * finishes within the serverless time budget. "Attempted" is tracked via the
+ * `erkannt` column (set on success AND on failure), so failing receipts can't
+ * clog the queue – the drain always makes progress and terminates. The client
+ * calls this repeatedly (with a live progress count) until nothing is left.
+ *
+ * `retryFailed` (sent on the first call of a manual run) clears prior failure
+ * markers so a fresh click re-attempts previously-failed receipts.
  */
 export async function extractOpenReceiptsAction(
   billingEntityId: string,
+  retryFailed = false,
 ): Promise<ExtractBatchResult> {
   const fail = (message: string): ExtractBatchResult => ({
     ok: false,
@@ -160,18 +176,30 @@ export async function extractOpenReceiptsAction(
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId: entity.organization_id });
 
-  // Small batch + a wall-clock budget: never let one call run into the function
-  // timeout. Each receipt itself is capped (see extractReceipt).
-  const BATCH = 8;
-  const CONCURRENCY = 4;
-  const BUDGET_MS = 60_000;
+  // Fresh manual run: give previously-failed receipts another chance.
+  if (retryFailed) {
+    await supabase
+      .from('bookkeeping_receipts')
+      .update({ erkannt: null })
+      .eq('billing_entity_id', billingEntityId)
+      .eq('erkannt->>_extract_failed', 'true');
+  }
+
+  // Small batch + gentle concurrency (avoid 429 rate limits) + a wall-clock
+  // budget so one call never hits the function timeout. Each receipt is capped
+  // and retried inside extractReceipt.
+  const BATCH = 6;
+  const CONCURRENCY = 2;
+  const BUDGET_MS = 55_000;
   const startedAt = Date.now();
 
+  // "Un-attempted" = erkannt is null. Failures set erkannt (a marker), so they
+  // are excluded next round instead of clogging the front of the queue.
   const { data: pending } = await supabase
     .from('bookkeeping_receipts')
     .select('id, organization_id, onedrive_item_id, file_mime')
     .eq('billing_entity_id', billingEntityId)
-    .is('brutto_cents', null)
+    .is('erkannt', null)
     .not('onedrive_item_id', 'is', null)
     .order('created_at', { ascending: true })
     .limit(BATCH);
@@ -186,25 +214,32 @@ export async function extractOpenReceiptsAction(
     const file = await downloadItem(r.organization_id, r.onedrive_item_id);
     if (!file) {
       failed += 1;
+      await markFailed(supabase, r.id);
       return;
     }
     const mime = resolveReceiptMime(file.name, r.file_mime || file.mime);
     if (!isReadableReceiptMime(mime)) {
       failed += 1;
+      await markFailed(supabase, r.id);
       return;
     }
     const ext = await extractReceipt(file.bytes, mime, ctx);
     const update = toReceiptUpdate(ext);
     if (!update) {
       failed += 1;
+      await markFailed(supabase, r.id);
       return;
     }
     const { error } = await supabase
       .from('bookkeeping_receipts')
       .update(update)
       .eq('id', r.id);
-    if (error) failed += 1;
-    else done += 1;
+    if (error) {
+      failed += 1;
+      await markFailed(supabase, r.id);
+    } else {
+      done += 1;
+    }
   }
 
   for (let i = 0; i < queue.length; i += CONCURRENCY) {
@@ -212,12 +247,12 @@ export async function extractOpenReceiptsAction(
     await Promise.all(queue.slice(i, i + CONCURRENCY).map(extractOne));
   }
 
-  // How many still need extraction after this run (drives the client loop).
+  // How many are still un-attempted after this run (drives the client loop).
   const { count: remaining } = await supabase
     .from('bookkeeping_receipts')
     .select('id', { count: 'exact', head: true })
     .eq('billing_entity_id', billingEntityId)
-    .is('brutto_cents', null)
+    .is('erkannt', null)
     .not('onedrive_item_id', 'is', null);
 
   revalidatePath('/app/finance');
