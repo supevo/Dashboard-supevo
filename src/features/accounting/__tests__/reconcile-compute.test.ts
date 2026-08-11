@@ -143,6 +143,104 @@ describe('computeReconcile – gemischte Einnahmen und Ausgaben zusammen', () =>
   });
 });
 
+describe('computeReconcile – Randfälle & falsche/knifflige Angaben', () => {
+  it('matcht mit Skonto auf der Rechnung (bis 3,5 % weniger gezahlt)', () => {
+    const input = base({
+      txRows: [tx('p1', '2026-03-05', 'Kunde AG', 9650, 'Zahlung RE-5')],
+      invoiceRows: [
+        {
+          id: 'i1',
+          invoice_number: 'RE-5',
+          gross_cents: 10000,
+          issue_date: '2026-03-01',
+          client_company_id: 'c1',
+        },
+      ],
+      clientName: new Map([['c1', 'Kunde AG']]),
+    });
+    const res = computeReconcile(input);
+    expect(res.payments).toHaveLength(1);
+    expect(res.payments[0]!.invoiceNumber).toBe('RE-5');
+  });
+
+  it('matcht Beleg trotz abweichendem Händlernamen, wenn Betrag+Datum exakt', () => {
+    const input = base({
+      txRows: [tx('t1', '2026-03-05', 'PAYPAL *ACME', -11900)],
+      receiptRows: [receipt('r1', '2026-03-04', 'ACME GmbH', 11900, 'ausgabe')],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(1);
+  });
+
+  it('matcht NICHT, wenn Beleg und Buchung > 60 Tage auseinander liegen', () => {
+    const input = base({
+      txRows: [tx('t1', '2026-06-01', 'ACME GmbH', -11900)],
+      receiptRows: [receipt('r1', '2026-01-01', 'ACME GmbH', 11900, 'ausgabe')],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(0);
+    expect(res.missingReceipts).toHaveLength(1); // Buchung wird als offen gemeldet
+  });
+
+  it('bei gleichem Betrag mehrfach im Monat gewinnt die nächstgelegene Buchung', () => {
+    const input = base({
+      txRows: [
+        tx('t1', '2026-03-11', 'ACME GmbH', -5000),
+        tx('t2', '2026-03-24', 'ACME GmbH', -5000),
+      ],
+      receiptRows: [
+        receipt('r1', '2026-03-10', 'ACME GmbH', 5000, 'ausgabe'),
+        receipt('r2', '2026-03-25', 'ACME GmbH', 5000, 'ausgabe'),
+      ],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(2);
+    const byReceiptDate = Object.fromEntries(
+      res.receipts.map((r) => [r.receiptDatum, r.txDatum]),
+    );
+    // r1 (10.) → t1 (11.), r2 (25.) → t2 (24.) – jeweils näheres Datum.
+    expect(byReceiptDate['2026-03-10']).toBe('2026-03-11');
+    expect(byReceiptDate['2026-03-25']).toBe('2026-03-24');
+  });
+
+  it('falsch ausgelesener Betrag matcht nicht (surft als "Beleg fehlt" auf, statt falsch zuzuordnen)', () => {
+    const input = base({
+      // Beleg-Betrag ist falsch ausgelesen (9900 statt 11900).
+      txRows: [tx('t1', '2026-03-05', 'ACME GmbH', -11900)],
+      receiptRows: [receipt('r1', '2026-03-04', 'ACME GmbH', 9900, 'ausgabe')],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(0); // keine falsche Zuordnung
+    expect(res.missingReceipts).toHaveLength(1); // Nutzer sieht das Problem
+  });
+
+  it('Sammelzahlung und Teilzahlung im selben Lauf, ohne sich zu stören', () => {
+    const input = base({
+      txRows: [
+        // Sammelzahlung: eine Zahlung deckt RE-A + RE-B.
+        tx('pс', '2026-03-15', 'Sammel AG', 30000, 'RE-A RE-B'),
+        // Teilzahlung: RE-C in zwei Raten.
+        tx('pt1', '2026-03-05', 'Raten AG', 25000, 'RE-C Rate 1'),
+        tx('pt2', '2026-03-25', 'Raten AG', 25000, 'RE-C Rate 2'),
+      ],
+      invoiceRows: [
+        { id: 'ia', invoice_number: 'RE-A', gross_cents: 10000, issue_date: '2026-03-01', client_company_id: 'c1' },
+        { id: 'ib', invoice_number: 'RE-B', gross_cents: 20000, issue_date: '2026-03-02', client_company_id: 'c1' },
+        { id: 'ic', invoice_number: 'RE-C', gross_cents: 50000, issue_date: '2026-03-01', client_company_id: 'c2' },
+      ],
+      clientName: new Map([
+        ['c1', 'Sammel AG'],
+        ['c2', 'Raten AG'],
+      ]),
+    });
+    const res = computeReconcile(input);
+    expect(res.combos).toHaveLength(1);
+    expect(res.combos[0]!.invoices).toHaveLength(2);
+    expect(res.splits).toHaveLength(1);
+    expect(res.splits[0]!.payments).toHaveLength(2);
+  });
+});
+
 describe('computeReconcile – Teilzahlungen & bereits verbuchte Posten', () => {
   it('erkennt eine Rechnung, die in mehreren Teilzahlungen beglichen wurde', () => {
     const input = base({

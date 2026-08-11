@@ -145,16 +145,30 @@ export function computeReconcile({
     .filter((r) => r.kind === 'einnahme' && !linkedReceiptIds.has(r.id))
     .map(toLite);
 
-  // Teilzahlungen ZUERST (mehrere Zahlungen → eine Rechnung). Läuft die 1:1-
-  // Zuordnung vorher, würde eine einzelne Rate – deren Rechnungsnummer im Zweck
-  // steht – die Rechnung schon als 1:1-Treffer "verbrauchen", und die
-  // Ratenzahlung würde nie erkannt.
+  // Reihenfolge: die "mehrteiligen" Muster ZUERST, weil die 1:1-Zuordnung sonst
+  // eine Zahlung schon an eine einzelne Rechnung "verbraucht" (die Rechnungs-
+  // nummer im Zweck allein reicht ihr), bevor Sammel-/Teilzahlung greifen kann.
+
+  // 1) Teilzahlungen: mehrere Zahlungen → eine Rechnung.
   const splitMatches = matchInvoiceSplitPayments(payments, invoices);
   const usedSplitTx = new Set(splitMatches.flatMap((m) => m.txIds));
   const usedSplitInv = new Set(splitMatches.map((m) => m.invoiceId));
-  const paymentsLeft = payments.filter((p) => !usedSplitTx.has(p.id));
-  const invoicesLeft = invoices.filter((i) => !usedSplitInv.has(i.id));
+  const paymentsAfterSplit = payments.filter((p) => !usedSplitTx.has(p.id));
+  const invoicesAfterSplit = invoices.filter((i) => !usedSplitInv.has(i.id));
 
+  // 2) Sammelzahlungen: eine Zahlung → mehrere Rechnungen.
+  const comboMatches = matchPaymentCombinations(
+    paymentsAfterSplit,
+    invoicesAfterSplit,
+  );
+  const usedComboTx = new Set(comboMatches.map((m) => m.txId));
+  const usedComboInv = new Set(comboMatches.flatMap((m) => m.invoiceIds));
+  const paymentsLeft = paymentsAfterSplit.filter((p) => !usedComboTx.has(p.id));
+  const invoicesLeft = invoicesAfterSplit.filter(
+    (i) => !usedComboInv.has(i.id),
+  );
+
+  // 3) 1:1 Zahlung ↔ Rechnung auf dem Rest.
   const paymentMatches = matchPaymentsToInvoices(
     paymentsLeft,
     invoicesLeft,
@@ -162,8 +176,8 @@ export function computeReconcile({
   );
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 
-  // Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
-  // einer Rechnung zugeordnet wurden).
+  // 4) Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
+  //    einer Rechnung/Sammelzahlung zugeordnet wurden).
   const incomingForReceipts = paymentsLeft.filter((p) => !usedPayTx.has(p.id));
   const receiptMatches = [
     ...matchReceiptsToTransactions(ausgabeReceipts, outgoing, 'out', minScore),
@@ -175,17 +189,6 @@ export function computeReconcile({
     ),
   ];
   const receipts = [...ausgabeReceipts, ...einnahmeReceipts];
-
-  // Sammelzahlungen (eine Zahlung → mehrere Rechnungen) auf dem Rest.
-  const usedInv = new Set(paymentMatches.map((m) => m.rightId));
-  const usedReceiptTx = new Set(receiptMatches.map((m) => m.rightId));
-  const openPayments = paymentsLeft.filter(
-    (p) => !usedPayTx.has(p.id) && !usedReceiptTx.has(p.id),
-  );
-  const comboMatches = matchPaymentCombinations(
-    openPayments,
-    invoicesLeft.filter((i) => !usedInv.has(i.id)),
-  );
 
   const txById = new Map(allTx.map((t) => [t.id, t]));
   const invById = new Map(invoices.map((i) => [i.id, i]));
