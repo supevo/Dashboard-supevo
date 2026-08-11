@@ -18,6 +18,45 @@ import {
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
+/**
+ * Marks an invoice as paid once its matched payments (1:1 via re_id + any
+ * allocations) cover the gross amount (Skonto tolerance 3,5 %). Keeps the
+ * Rechnungen tab in sync with the Abgleich instead of leaving paid invoices
+ * open. Never un-pays and never touches a manually voided invoice.
+ */
+async function settleInvoiceIfCovered(
+  supabase: Supabase,
+  invoiceId: string,
+): Promise<void> {
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('gross_cents, status')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!inv || inv.status === 'paid' || inv.status === 'void') return;
+
+  const [{ data: allocs }, { data: direct }] = await Promise.all([
+    supabase
+      .from('bookkeeping_tx_allocations')
+      .select('betrag_cents')
+      .eq('invoice_id', invoiceId),
+    supabase
+      .from('bookkeeping_transactions')
+      .select('betrag_cents')
+      .eq('re_id', invoiceId),
+  ]);
+  const covered =
+    (allocs ?? []).reduce((s, a) => s + a.betrag_cents, 0) +
+    (direct ?? []).reduce((s, t) => s + t.betrag_cents, 0);
+  // Fully covered (allowing up to 3,5 % Skonto shortfall).
+  if (covered >= Math.round(inv.gross_cents * 0.965)) {
+    await supabase
+      .from('invoices')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', invoiceId);
+  }
+}
+
 /** Links a payment transaction to an invoice (tx.re_id + status gebucht). */
 async function linkPayment(
   supabase: Supabase,
@@ -28,7 +67,9 @@ async function linkPayment(
     .from('bookkeeping_transactions')
     .update({ re_id: invoiceId, status: 'gebucht' })
     .eq('id', txId);
-  return !error;
+  if (error) return false;
+  await settleInvoiceIfCovered(supabase, invoiceId);
+  return true;
 }
 
 /** Links a receipt to an outgoing transaction (tx.beleg_id + receipt status). */
@@ -81,6 +122,7 @@ async function linkCombo(
     .from('bookkeeping_transactions')
     .update({ status: 'gebucht' })
     .eq('id', params.txId);
+  for (const inv of invs) await settleInvoiceIfCovered(supabase, inv.id);
   return true;
 }
 
@@ -120,6 +162,7 @@ async function linkSplit(
       'id',
       params.transactions.map((t) => t.id),
     );
+  await settleInvoiceIfCovered(supabase, params.invoiceId);
   return true;
 }
 
