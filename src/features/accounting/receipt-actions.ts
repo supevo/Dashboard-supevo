@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 import { requireUser, authorize } from '@/lib/authz/authorize';
-import { listFolderFilesRecursive } from '@/lib/onedrive/graph';
+import { listFolder, listFolderFilesRecursive } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
 import { de } from '@/lib/i18n/de';
 import {
@@ -16,7 +17,76 @@ import {
 const importSchema = z.object({
   billingEntityId: z.string().uuid(),
   kind: z.enum(['einnahmen', 'ausgaben']),
+  // Optional: nur EINEN direkten Unterordner des verknüpften Ordners importieren.
+  subfolderId: z.string().min(1).max(1024).optional(),
 });
+
+const subfoldersSchema = z.object({
+  billingEntityId: z.string().uuid(),
+  kind: z.enum(['einnahmen', 'ausgaben']),
+});
+
+/** Resolves the linked OneDrive folder id/path for a company + kind. */
+async function linkedFolder(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  billingEntityId: string,
+  kind: 'einnahmen' | 'ausgaben',
+): Promise<{ id: string | null; path: string | null }> {
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select(
+      'onedrive_einnahmen_folder_id, onedrive_einnahmen_folder_path, onedrive_ausgaben_folder_id, onedrive_ausgaben_folder_path',
+    )
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  return kind === 'einnahmen'
+    ? {
+        id: profile?.onedrive_einnahmen_folder_id ?? null,
+        path: profile?.onedrive_einnahmen_folder_path ?? null,
+      }
+    : {
+        id: profile?.onedrive_ausgaben_folder_id ?? null,
+        path: profile?.onedrive_ausgaben_folder_path ?? null,
+      };
+}
+
+/**
+ * Lists the immediate subfolders of a company's linked Einnahmen/Ausgaben folder,
+ * so the Belege import can be narrowed to a single subfolder (e.g. one month).
+ */
+export async function listReceiptSubfoldersAction(input: {
+  billingEntityId: string;
+  kind: 'einnahmen' | 'ausgaben';
+}): Promise<{
+  ok: boolean;
+  folders?: { id: string; name: string; childCount: number | null }[];
+  error?: string;
+}> {
+  const parsed = subfoldersSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: de.errors.VALIDATION };
+  const { billingEntityId, kind } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: entity } = await supabase
+    .from('billing_entities')
+    .select('organization_id')
+    .eq('id', billingEntityId)
+    .maybeSingle();
+  if (!entity) return { ok: false, error: de.errors.FORBIDDEN };
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: entity.organization_id });
+
+  const folder = await linkedFolder(supabase, billingEntityId, kind);
+  if (!folder.id) return { ok: false, error: 'Kein Ordner verknüpft.' };
+
+  const children = await listFolder(entity.organization_id, folder.id);
+  if (children === null) return { ok: false, error: 'OneDrive nicht erreichbar.' };
+  const folders = children
+    .filter((c) => c.isFolder)
+    .map((c) => ({ id: c.id, name: c.name, childCount: c.childCount }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  return { ok: true, folders };
+}
 
 /**
  * Scans a company's linked OneDrive folder (Einnahmen or Ausgaben) and imports
@@ -28,10 +98,11 @@ const importSchema = z.object({
 export async function importOneDriveReceiptsAction(input: {
   billingEntityId: string;
   kind: 'einnahmen' | 'ausgaben';
+  subfolderId?: string;
 }): Promise<ActionResult> {
   const parsed = importSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { billingEntityId, kind } = parsed.data;
+  const { billingEntityId, kind, subfolderId } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
 
@@ -47,30 +118,34 @@ export async function importOneDriveReceiptsAction(input: {
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId });
 
-  const { data: profile } = await supabase
-    .from('accounting_profiles')
-    .select(
-      'onedrive_einnahmen_folder_id, onedrive_einnahmen_folder_path, onedrive_ausgaben_folder_id, onedrive_ausgaben_folder_path',
-    )
-    .eq('billing_entity_id', billingEntityId)
-    .maybeSingle();
-
-  const folderId =
-    kind === 'einnahmen'
-      ? profile?.onedrive_einnahmen_folder_id
-      : profile?.onedrive_ausgaben_folder_id;
-  const folderPath =
-    kind === 'einnahmen'
-      ? profile?.onedrive_einnahmen_folder_path
-      : profile?.onedrive_ausgaben_folder_path;
+  const folder = await linkedFolder(supabase, billingEntityId, kind);
+  const folderId = folder.id;
+  let folderPath = folder.path;
   if (!folderId) {
     return errorResult(
       `Kein ${kind === 'einnahmen' ? 'Einnahmen' : 'Ausgaben'}-Ordner verknüpft. Bitte zuerst im Tab „Firmen" verbinden.`,
     );
   }
 
+  // Optional: nur einen direkten Unterordner importieren. Der Unterordner muss
+  // wirklich unter dem verknüpften Ordner liegen (sonst kein Import von
+  // beliebigen OneDrive-Ordnern).
+  let scanRootId = folderId;
+  if (subfolderId) {
+    const children = await listFolder(orgId, folderId);
+    if (children === null) {
+      return errorResult('OneDrive nicht erreichbar. Ist das Konto noch verbunden?');
+    }
+    const sub = children.find((c) => c.isFolder && c.id === subfolderId);
+    if (!sub) {
+      return errorResult('Unterordner nicht gefunden. Bitte Liste neu laden.');
+    }
+    scanRootId = subfolderId;
+    folderPath = `${folderPath ?? ''}/${sub.name}`.replace(/^\/+/, '');
+  }
+
   // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).
-  const files = await listFolderFilesRecursive(orgId, folderId);
+  const files = await listFolderFilesRecursive(orgId, scanRootId);
   if (files === null) {
     return errorResult(
       'OneDrive nicht erreichbar. Ist das Konto noch verbunden?',
@@ -132,7 +207,60 @@ export async function importOneDriveReceiptsAction(input: {
     imported > 0
       ? `${imported} neue Belege importiert (${skipped} bereits vorhanden).`
       : `Keine neuen Belege – alle ${files.length} bereits importiert.`,
+    { imported },
   );
+}
+
+const updateFieldsSchema = z.object({
+  receiptId: z.string().uuid(),
+  haendler: z.string().trim().max(200).nullable().optional(),
+  belegDatum: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  bruttoCents: z.number().int().min(0).max(1_000_000_00).nullable().optional(),
+});
+
+/**
+ * Manually correct a receipt's extracted values (Händler, Belegdatum,
+ * Bruttobetrag) when the KI read them wrong. Setting a Bruttobetrag also clears
+ * a previous Lesefehler, so the receipt becomes matchable in the Abgleich.
+ */
+export async function updateReceiptFieldsAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateFieldsSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { receiptId, haendler, belegDatum, bruttoCents } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: receipt } = await supabase
+    .from('bookkeeping_receipts')
+    .select('organization_id')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (!receipt) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: receipt.organization_id });
+
+  const patch: Database['public']['Tables']['bookkeeping_receipts']['Update'] =
+    {};
+  if (haendler !== undefined) patch.haendler = haendler || null;
+  if (belegDatum !== undefined) patch.beleg_datum = belegDatum;
+  if (bruttoCents !== undefined) {
+    patch.brutto_cents = bruttoCents;
+    // Ein manuell gesetzter Betrag hebt einen früheren Lesefehler auf.
+    if (bruttoCents != null) patch.extract_failed_at = null;
+  }
+  if (Object.keys(patch).length === 0) return successResult('Nichts geändert.');
+
+  const { error } = await supabase
+    .from('bookkeeping_receipts')
+    .update(patch)
+    .eq('id', receiptId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Beleg aktualisiert.');
 }
 
 const setKindSchema = z.object({

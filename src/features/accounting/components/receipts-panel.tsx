@@ -4,7 +4,6 @@ import {
   receiptCounts,
   listImportLogs,
 } from '@/features/accounting/receipt-queries';
-import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
   CompanySwitcher,
@@ -19,6 +18,7 @@ import {
   type ArtFilter,
 } from '@/features/accounting/components/kind-filter';
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
+import { ReceiptFieldsEdit } from '@/features/accounting/components/receipt-fields-edit';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 function quelleLabel(source: string, konfidenz: number | null): string {
@@ -52,6 +52,7 @@ export async function ReceiptsPanel({
   year,
   month,
   art,
+  fixedKind,
   basePath,
 }: {
   orgId: string;
@@ -59,6 +60,8 @@ export async function ReceiptsPanel({
   year: number;
   month: number;
   art: ArtFilter;
+  /** Sperrt den Tab auf eine Belegart (Ausgangs-/Eingangsrechnungen). */
+  fixedKind?: 'einnahme' | 'ausgabe';
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -84,7 +87,8 @@ export async function ReceiptsPanel({
   }));
 
   const kindFilter =
-    art === 'einnahmen' ? 'einnahme' : art === 'ausgaben' ? 'ausgabe' : undefined;
+    fixedKind ??
+    (art === 'einnahmen' ? 'einnahme' : art === 'ausgaben' ? 'ausgabe' : undefined);
   const [receipts, counts, logs] = await Promise.all([
     listReceipts(active.entity.id, kindFilter, { year, month }),
     receiptCounts(active.entity.id),
@@ -113,35 +117,51 @@ export async function ReceiptsPanel({
             years={years}
             basePath={firmaBase}
           />
-          <KindFilter value={art} basePath={firmaBase} />
+          {!fixedKind && <KindFilter value={art} basePath={firmaBase} />}
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <span>
-            <span className="font-medium text-foreground">{counts.einnahme}</span>{' '}
-            Einnahmen
-          </span>
-          <span>
-            <span className="font-medium text-foreground">{counts.ausgabe}</span>{' '}
-            Ausgaben
-          </span>
+          {(!fixedKind || fixedKind === 'einnahme') && (
+            <span>
+              <span className="font-medium text-foreground">
+                {counts.einnahme}
+              </span>{' '}
+              Ausgangsrechnungen
+            </span>
+          )}
+          {(!fixedKind || fixedKind === 'ausgabe') && (
+            <span>
+              <span className="font-medium text-foreground">
+                {counts.ausgabe}
+              </span>{' '}
+              Eingangsrechnungen
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border p-4">
-          <ReceiptImportButton
-            billingEntityId={active.entity.id}
-            kind="einnahmen"
-            linked={einLinked}
-          />
-        </div>
-        <div className="rounded-lg border p-4">
-          <ReceiptImportButton
-            billingEntityId={active.entity.id}
-            kind="ausgaben"
-            linked={ausLinked}
-          />
-        </div>
+      <div
+        className={
+          fixedKind ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-2'
+        }
+      >
+        {(!fixedKind || fixedKind === 'einnahme') && (
+          <div className="rounded-lg border p-4">
+            <ReceiptImportButton
+              billingEntityId={active.entity.id}
+              kind="einnahmen"
+              linked={einLinked}
+            />
+          </div>
+        )}
+        {(!fixedKind || fixedKind === 'ausgabe') && (
+          <div className="rounded-lg border p-4">
+            <ReceiptImportButton
+              billingEntityId={active.entity.id}
+              kind="ausgaben"
+              linked={ausLinked}
+            />
+          </div>
+        )}
       </div>
 
       <ReceiptDropzone billingEntityId={active.entity.id} />
@@ -211,13 +231,12 @@ export async function ReceiptsPanel({
                   <td className="max-w-[18rem] truncate px-3 py-2" title={r.file_name}>
                     {r.file_name}
                   </td>
-                  <td className="px-3 py-2">{r.haendler ?? '—'}</td>
-                  <td className="px-3 py-2">{formatDate(r.beleg_datum)}</td>
-                  <td className="px-3 py-2 text-right">
-                    {r.brutto_cents != null
-                      ? formatEuroCents(r.brutto_cents)
-                      : '—'}
-                  </td>
+                  <ReceiptFieldsEdit
+                    receiptId={r.id}
+                    haendler={r.haendler}
+                    belegDatum={r.beleg_datum}
+                    bruttoCents={r.brutto_cents}
+                  />
                   <td className="px-3 py-2">{kategorieLabel(r.kategorie_id)}</td>
                   <td className="px-3 py-2">
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">

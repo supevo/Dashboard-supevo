@@ -87,7 +87,7 @@ export default async function FinancePage({
     },
     {
       key: 'umsaetze',
-      label: '💳 Umsätze',
+      label: '🏦 Kontoauszüge',
       content: (
         <TransactionsPanel
           orgId={orgId}
@@ -100,8 +100,8 @@ export default async function FinancePage({
       ),
     },
     {
-      key: 'belege',
-      label: '🧾 Belege',
+      key: 'ausgangsrechnungen',
+      label: '📤 Ausgangsrechnungen',
       content: (
         <ReceiptsPanel
           orgId={orgId}
@@ -109,7 +109,23 @@ export default async function FinancePage({
           year={jahr}
           month={monatListe}
           art={art}
-          basePath="/app/finance?tab=belege"
+          fixedKind="einnahme"
+          basePath="/app/finance?tab=ausgangsrechnungen"
+        />
+      ),
+    },
+    {
+      key: 'eingangsrechnungen',
+      label: '📥 Eingangsrechnungen',
+      content: (
+        <ReceiptsPanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          year={jahr}
+          month={monatListe}
+          art={art}
+          fixedKind="ausgabe"
+          basePath="/app/finance?tab=eingangsrechnungen"
         />
       ),
     },
