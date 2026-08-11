@@ -1,8 +1,5 @@
 import { listAccountingCompanies } from '@/features/accounting/queries';
-import {
-  listTransactions,
-  transactionSummary,
-} from '@/features/accounting/transaction-queries';
+import { listTransactions } from '@/features/accounting/transaction-queries';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -11,6 +8,10 @@ import {
 } from '@/features/accounting/components/company-switcher';
 import { BankUploadForm } from '@/features/accounting/components/bank-upload-form';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
+import {
+  KindFilter,
+  type ArtFilter,
+} from '@/features/accounting/components/kind-filter';
 import { AutoCategorizeButton } from '@/features/accounting/components/auto-categorize-button';
 import { TransactionCategorySelect } from '@/features/accounting/components/transaction-category-select';
 import { DeleteTransactionButton } from '@/features/accounting/components/delete-transaction-button';
@@ -32,12 +33,14 @@ export async function TransactionsPanel({
   activeFirma,
   year,
   month,
+  art,
   basePath,
 }: {
   orgId: string;
   activeFirma?: string;
   year: number;
   month: number;
+  art: ArtFilter;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -63,10 +66,26 @@ export async function TransactionsPanel({
   }));
 
   const period = { year, month };
-  const [txns, summary] = await Promise.all([
+  const [allTxns] = await Promise.all([
     listTransactions(active.entity.id, period),
-    transactionSummary(active.entity.id, period),
   ]);
+  // Einnahmen = Betrag > 0, Ausgaben = Betrag < 0.
+  const txns = allTxns.filter((t) =>
+    art === 'einnahmen'
+      ? t.betrag_cents > 0
+      : art === 'ausgaben'
+        ? t.betrag_cents < 0
+        : true,
+  );
+  const summary = txns.reduce(
+    (acc, t) => {
+      acc.count += 1;
+      if (t.betrag_cents >= 0) acc.inCents += t.betrag_cents;
+      else acc.outCents += t.betrag_cents;
+      return acc;
+    },
+    { count: 0, inCents: 0, outCents: 0 },
+  );
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
@@ -86,6 +105,7 @@ export async function TransactionsPanel({
             years={years}
             basePath={firmaBase}
           />
+          <KindFilter value={art} basePath={firmaBase} />
         </div>
         <div className="flex items-center gap-4 text-sm text-muted-foreground">
           <span>
