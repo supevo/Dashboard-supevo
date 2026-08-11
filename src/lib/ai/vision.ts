@@ -181,6 +181,26 @@ function visionModel(): string {
   return process.env.AI_VISION_MODEL?.trim() || 'gpt-5.4';
 }
 
+/** GPT-5- und o-Serie sind Reasoning-Modelle (nehmen reasoning/verbosity). */
+function isReasoningModel(model: string): boolean {
+  return /^(gpt-5|o[0-9])/i.test(model);
+}
+
+/**
+ * Reasoning-Zusatz für die Responses-API. Belege-Auslesen ist reine
+ * OCR-Extraktion – niedriger Reasoning-Aufwand hält die Aufrufe schnell (sonst
+ * „denkt" das Modell zu lange und läuft ins Timeout → Lesefehler). Bei
+ * Nicht-Reasoning-Modellen bleibt das Objekt leer.
+ */
+function reasoningParams(model: string): Record<string, unknown> {
+  return isReasoningModel(model) ? { reasoning: { effort: 'low' } } : {};
+}
+
+/** Kurze Ausgaben für Reasoning-Modelle (nur strukturiertes JSON nötig). */
+function verbosityFor(model: string): { verbosity: 'low' } | Record<string, never> {
+  return isReasoningModel(model) ? { verbosity: 'low' } : {};
+}
+
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -258,8 +278,13 @@ export async function extractReceipt(
             detail: 'auto',
           };
 
+    const model = visionModel();
     const params = {
-      model: visionModel(),
+      model,
+      // Ausreichend Budget: bei Reasoning-Modellen zählen die Denk-Tokens mit,
+      // sonst kommt die Ausgabe leer/abgeschnitten zurück (→ Lesefehler).
+      max_output_tokens: 6000,
+      ...reasoningParams(model),
       input: [
         { role: 'system', content: systemPrompt(ctx) },
         {
@@ -271,6 +296,7 @@ export async function extractReceipt(
         },
       ],
       text: {
+        ...verbosityFor(model),
         format: {
           type: 'json_schema',
           name: 'beleg',
@@ -280,14 +306,27 @@ export async function extractReceipt(
       },
     } as unknown as Parameters<typeof client.responses.create>[0];
 
-    // Per-receipt timeout, plus the SDK's built-in retries with backoff so
-    // transient errors and 429 rate limits are ridden out instead of failing.
-    const res = await client.responses.create(params, {
-      timeout: 45000,
+    // Per-receipt timeout (großzügig, damit Reasoning-Modelle nicht ins Timeout
+    // laufen), plus die SDK-Retries mit Backoff gegen 429/transiente Fehler.
+    const res = (await client.responses.create(params, {
+      timeout: 90000,
       maxRetries: 3,
-    });
-    const text = (res as { output_text?: string }).output_text;
-    if (!text) return null;
+    })) as {
+      output_text?: string;
+      status?: string;
+      incomplete_details?: { reason?: string };
+    };
+    const text = res.output_text;
+    if (!text) {
+      // Kein Text → sagen WARUM (z. B. Budget aufgebraucht, Content-Filter),
+      // damit „Lesefehler" nicht komplett undurchsichtig ist.
+      logger.warn('vision.extract_empty', {
+        model,
+        status: res.status ?? 'unknown',
+        reason: res.incomplete_details?.reason ?? 'no_output_text',
+      });
+      return null;
+    }
     return JSON.parse(text) as ReceiptExtraction;
   } catch (e) {
     logger.warn('vision.extract_failed', { error: (e as Error).message });
