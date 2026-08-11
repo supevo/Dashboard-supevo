@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { importOneDriveReceiptsAction } from '@/features/accounting/receipt-actions';
+import {
+  importOneDriveReceiptsAction,
+  listReceiptSubfoldersAction,
+} from '@/features/accounting/receipt-actions';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { Select } from '@/components/ui/select';
 
-/** Triggers a OneDrive scan+import for one company/folder (Einnahmen/Ausgaben). */
+type Subfolder = { id: string; name: string; childCount: number | null };
+
+/** Triggers a OneDrive scan+import for one company/folder (Einnahmen/Ausgaben).
+ *  Optionally narrows the import to a single subfolder (e.g. one month). */
 export function ReceiptImportButton({
   billingEntityId,
   kind,
@@ -19,11 +26,37 @@ export function ReceiptImportButton({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [folders, setFolders] = useState<Subfolder[] | null>(null);
+  const [sub, setSub] = useState(''); // '' = ganzer Ordner
+  const [loadingFolders, setLoadingFolders] = useState(false);
+
+  // Unterordner des verknüpften Ordners laden (nachträglich, blockiert die
+  // Seite nicht). Bei Fehler bleibt nur „ganzer Ordner".
+  useEffect(() => {
+    if (!linked) return;
+    let active = true;
+    setLoadingFolders(true);
+    listReceiptSubfoldersAction({ billingEntityId, kind })
+      .then((res) => {
+        if (!active) return;
+        if (res.ok && res.folders) setFolders(res.folders);
+      })
+      .finally(() => {
+        if (active) setLoadingFolders(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [billingEntityId, kind, linked]);
 
   async function run() {
     setBusy(true);
     setMsg(null);
-    const res = await importOneDriveReceiptsAction({ billingEntityId, kind });
+    const res = await importOneDriveReceiptsAction({
+      billingEntityId,
+      kind,
+      subfolderId: sub || undefined,
+    });
     setBusy(false);
     const text = 'message' in res ? (res.message ?? '') : '';
     setMsg({ ok: res.status === 'success', text });
@@ -34,6 +67,29 @@ export function ReceiptImportButton({
 
   return (
     <div className="space-y-2">
+      {linked && folders && folders.length > 0 && (
+        <div className="space-y-1">
+          <label className="text-xs text-muted-foreground">
+            Ordnerauswahl
+          </label>
+          <Select
+            value={sub}
+            onChange={(e) => setSub(e.target.value)}
+            className="h-9 w-full"
+            aria-label="Unterordner"
+            disabled={busy}
+          >
+            <option value="">Ganzer Ordner (alle Unterordner)</option>
+            {folders.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+                {f.childCount != null ? ` (${f.childCount})` : ''}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
+
       <Button
         type="button"
         variant="outline"
@@ -41,8 +97,14 @@ export function ReceiptImportButton({
         onClick={run}
         disabled={busy || !linked}
       >
-        {busy ? 'Scanne …' : `📥 ${label} aus OneDrive importieren`}
+        {busy
+          ? 'Scanne …'
+          : `📥 ${label}${sub ? ' (Unterordner)' : ''} aus OneDrive importieren`}
       </Button>
+
+      {loadingFolders && (
+        <p className="text-xs text-muted-foreground">Unterordner werden geladen …</p>
+      )}
       {!linked && (
         <p className="text-xs text-muted-foreground">
           Kein {label}-Ordner verknüpft (Tab „Firmen“).

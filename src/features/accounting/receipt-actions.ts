@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser, authorize } from '@/lib/authz/authorize';
-import { listFolderFilesRecursive } from '@/lib/onedrive/graph';
+import { listFolder, listFolderFilesRecursive } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
 import { de } from '@/lib/i18n/de';
 import {
@@ -16,7 +16,76 @@ import {
 const importSchema = z.object({
   billingEntityId: z.string().uuid(),
   kind: z.enum(['einnahmen', 'ausgaben']),
+  // Optional: nur EINEN direkten Unterordner des verknüpften Ordners importieren.
+  subfolderId: z.string().min(1).max(1024).optional(),
 });
+
+const subfoldersSchema = z.object({
+  billingEntityId: z.string().uuid(),
+  kind: z.enum(['einnahmen', 'ausgaben']),
+});
+
+/** Resolves the linked OneDrive folder id/path for a company + kind. */
+async function linkedFolder(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  billingEntityId: string,
+  kind: 'einnahmen' | 'ausgaben',
+): Promise<{ id: string | null; path: string | null }> {
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select(
+      'onedrive_einnahmen_folder_id, onedrive_einnahmen_folder_path, onedrive_ausgaben_folder_id, onedrive_ausgaben_folder_path',
+    )
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  return kind === 'einnahmen'
+    ? {
+        id: profile?.onedrive_einnahmen_folder_id ?? null,
+        path: profile?.onedrive_einnahmen_folder_path ?? null,
+      }
+    : {
+        id: profile?.onedrive_ausgaben_folder_id ?? null,
+        path: profile?.onedrive_ausgaben_folder_path ?? null,
+      };
+}
+
+/**
+ * Lists the immediate subfolders of a company's linked Einnahmen/Ausgaben folder,
+ * so the Belege import can be narrowed to a single subfolder (e.g. one month).
+ */
+export async function listReceiptSubfoldersAction(input: {
+  billingEntityId: string;
+  kind: 'einnahmen' | 'ausgaben';
+}): Promise<{
+  ok: boolean;
+  folders?: { id: string; name: string; childCount: number | null }[];
+  error?: string;
+}> {
+  const parsed = subfoldersSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: de.errors.VALIDATION };
+  const { billingEntityId, kind } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: entity } = await supabase
+    .from('billing_entities')
+    .select('organization_id')
+    .eq('id', billingEntityId)
+    .maybeSingle();
+  if (!entity) return { ok: false, error: de.errors.FORBIDDEN };
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: entity.organization_id });
+
+  const folder = await linkedFolder(supabase, billingEntityId, kind);
+  if (!folder.id) return { ok: false, error: 'Kein Ordner verknüpft.' };
+
+  const children = await listFolder(entity.organization_id, folder.id);
+  if (children === null) return { ok: false, error: 'OneDrive nicht erreichbar.' };
+  const folders = children
+    .filter((c) => c.isFolder)
+    .map((c) => ({ id: c.id, name: c.name, childCount: c.childCount }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  return { ok: true, folders };
+}
 
 /**
  * Scans a company's linked OneDrive folder (Einnahmen or Ausgaben) and imports
@@ -28,10 +97,11 @@ const importSchema = z.object({
 export async function importOneDriveReceiptsAction(input: {
   billingEntityId: string;
   kind: 'einnahmen' | 'ausgaben';
+  subfolderId?: string;
 }): Promise<ActionResult> {
   const parsed = importSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { billingEntityId, kind } = parsed.data;
+  const { billingEntityId, kind, subfolderId } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
 
@@ -47,30 +117,34 @@ export async function importOneDriveReceiptsAction(input: {
   const user = await requireUser();
   authorize(user, { type: 'organization.update', orgId });
 
-  const { data: profile } = await supabase
-    .from('accounting_profiles')
-    .select(
-      'onedrive_einnahmen_folder_id, onedrive_einnahmen_folder_path, onedrive_ausgaben_folder_id, onedrive_ausgaben_folder_path',
-    )
-    .eq('billing_entity_id', billingEntityId)
-    .maybeSingle();
-
-  const folderId =
-    kind === 'einnahmen'
-      ? profile?.onedrive_einnahmen_folder_id
-      : profile?.onedrive_ausgaben_folder_id;
-  const folderPath =
-    kind === 'einnahmen'
-      ? profile?.onedrive_einnahmen_folder_path
-      : profile?.onedrive_ausgaben_folder_path;
+  const folder = await linkedFolder(supabase, billingEntityId, kind);
+  const folderId = folder.id;
+  let folderPath = folder.path;
   if (!folderId) {
     return errorResult(
       `Kein ${kind === 'einnahmen' ? 'Einnahmen' : 'Ausgaben'}-Ordner verknüpft. Bitte zuerst im Tab „Firmen" verbinden.`,
     );
   }
 
+  // Optional: nur einen direkten Unterordner importieren. Der Unterordner muss
+  // wirklich unter dem verknüpften Ordner liegen (sonst kein Import von
+  // beliebigen OneDrive-Ordnern).
+  let scanRootId = folderId;
+  if (subfolderId) {
+    const children = await listFolder(orgId, folderId);
+    if (children === null) {
+      return errorResult('OneDrive nicht erreichbar. Ist das Konto noch verbunden?');
+    }
+    const sub = children.find((c) => c.isFolder && c.id === subfolderId);
+    if (!sub) {
+      return errorResult('Unterordner nicht gefunden. Bitte Liste neu laden.');
+    }
+    scanRootId = subfolderId;
+    folderPath = `${folderPath ?? ''}/${sub.name}`.replace(/^\/+/, '');
+  }
+
   // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).
-  const files = await listFolderFilesRecursive(orgId, folderId);
+  const files = await listFolderFilesRecursive(orgId, scanRootId);
   if (files === null) {
     return errorResult(
       'OneDrive nicht erreichbar. Ist das Konto noch verbunden?',
