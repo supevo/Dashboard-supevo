@@ -71,6 +71,17 @@ export interface OpenBooking {
   kategorieId?: string | null;
 }
 
+/** A receipt/invoice for which NO matching bank booking exists (yet). */
+export interface OpenReceipt {
+  receiptId: string;
+  haendler: string | null;
+  datum: string | null;
+  bruttoCents: number | null;
+  rechnungsnummer: string | null;
+  /** = datum, für den Monatsfilter (inView). */
+  txDatum: string;
+}
+
 export interface ReconcileSuggestions {
   payments: PaymentSuggestion[];
   receipts: ReceiptSuggestion[];
@@ -83,6 +94,16 @@ export interface ReconcileSuggestions {
   missingIncoming: OpenBooking[];
   /** Aus dem Abgleich ausgeklammerte Buchungen (bestimmte Kategorien). */
   excluded: OpenBooking[];
+  /**
+   * Ausgangsrechnungen / Einnahme-Belege OHNE passenden Zahlungseingang –
+   * gestellte Rechnungen, die (noch) nicht bezahlt wurden.
+   */
+  unpaidOutgoing: OpenReceipt[];
+  /**
+   * Eingangsrechnungen / Ausgabe-Belege OHNE passende Zahlung –
+   * Lieferantenrechnungen, die (noch) nicht bezahlt sind.
+   */
+  unpaidIncoming: OpenReceipt[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;

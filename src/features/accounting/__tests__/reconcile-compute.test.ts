@@ -364,3 +364,66 @@ describe('computeReconcile – Teilzahlungen & bereits verbuchte Posten', () => 
     expect(res.missingReceipts).toHaveLength(0);
   });
 });
+
+describe('computeReconcile – Belege ohne passende Zahlung (offene Rechnungen)', () => {
+  it('listet eine Ausgangsrechnung ohne Zahlungseingang unter unpaidOutgoing', () => {
+    const input = base({
+      // Kein passender Bankeingang zu diesem Einnahme-Beleg.
+      txRows: [],
+      receiptRows: [
+        receipt('r1', '2026-03-04', 'Kunde AG', 11900, 'einnahme', 'RE-2026-1'),
+      ],
+    });
+    const res = computeReconcile(input);
+    expect(res.unpaidOutgoing).toHaveLength(1);
+    expect(res.unpaidOutgoing[0]!.haendler).toBe('Kunde AG');
+    expect(res.unpaidOutgoing[0]!.rechnungsnummer).toBe('RE-2026-1');
+    expect(res.unpaidOutgoing[0]!.bruttoCents).toBe(11900);
+    expect(res.unpaidIncoming).toHaveLength(0);
+  });
+
+  it('listet eine Eingangsrechnung ohne Zahlung unter unpaidIncoming', () => {
+    const input = base({
+      txRows: [],
+      receiptRows: [
+        receipt('r1', '2026-03-04', 'Lieferant GmbH', 4990, 'ausgabe'),
+      ],
+    });
+    const res = computeReconcile(input);
+    expect(res.unpaidIncoming).toHaveLength(1);
+    expect(res.unpaidIncoming[0]!.haendler).toBe('Lieferant GmbH');
+    expect(res.unpaidOutgoing).toHaveLength(0);
+  });
+
+  it('zeigt bezahlte Belege NICHT als offen (matcht → raus aus der Liste)', () => {
+    const input = base({
+      txRows: [
+        tx('t1', '2026-03-05', 'Kunde AG', 11900, ''), // Eingang
+        tx('t2', '2026-03-06', 'Lieferant GmbH', -4990, ''), // Ausgang
+      ],
+      receiptRows: [
+        receipt('r1', '2026-03-04', 'Kunde AG', 11900, 'einnahme'),
+        receipt('r2', '2026-03-05', 'Lieferant GmbH', 4990, 'ausgabe'),
+      ],
+    });
+    const res = computeReconcile(input);
+    // Beide Belege haben eine passende Buchung → keine offenen.
+    expect(res.receipts).toHaveLength(2);
+    expect(res.unpaidOutgoing).toHaveLength(0);
+    expect(res.unpaidIncoming).toHaveLength(0);
+  });
+
+  it('ignoriert bereits verknüpfte Belege (beleg_id gesetzt)', () => {
+    const input = base({
+      txRows: [
+        { ...tx('t1', '2026-03-05', 'Lieferant GmbH', -4990), beleg_id: 'r1' },
+      ],
+      receiptRows: [
+        receipt('r1', '2026-03-04', 'Lieferant GmbH', 4990, 'ausgabe'),
+      ],
+    });
+    const res = computeReconcile(input);
+    // Schon verbucht → nicht als offen.
+    expect(res.unpaidIncoming).toHaveLength(0);
+  });
+});

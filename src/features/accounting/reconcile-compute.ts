@@ -20,6 +20,7 @@ import type {
   ComboSuggestion,
   SplitSuggestion,
   OpenBooking,
+  OpenReceipt,
 } from '@/features/accounting/reconcile-queries';
 
 /** Raw rows the reconcile computation needs (as fetched from the DB). */
@@ -357,6 +358,25 @@ export function computeReconcile({
       kategorieId: t.kategorie_id,
     }));
 
+  // Belege OHNE passende Zahlung: Rechnungen/Belege, zu denen der Abgleich
+  // keine Bankbewegung gefunden hat. Einnahme = Ausgangsrechnung ohne Eingang,
+  // Ausgabe = Eingangsrechnung ohne Zahlung.
+  const matchedReceiptIds = new Set(receiptMatches.map((m) => m.leftId));
+  const toOpenReceipt = (r: ReceiptLite): OpenReceipt => ({
+    receiptId: r.id,
+    haendler: r.haendler,
+    datum: r.datum,
+    bruttoCents: r.bruttoCents,
+    rechnungsnummer: r.rechnungsnummer ?? null,
+    txDatum: r.datum ?? '',
+  });
+  const unpaidOutgoing: OpenReceipt[] = einnahmeReceipts
+    .filter((r) => !matchedReceiptIds.has(r.id))
+    .map(toOpenReceipt);
+  const unpaidIncoming: OpenReceipt[] = ausgabeReceipts
+    .filter((r) => !matchedReceiptIds.has(r.id))
+    .map(toOpenReceipt);
+
   return {
     payments: paymentsOut,
     receipts: receiptsOut,
@@ -365,5 +385,7 @@ export function computeReconcile({
     missingReceipts,
     missingIncoming,
     excluded,
+    unpaidOutgoing,
+    unpaidIncoming,
   };
 }
