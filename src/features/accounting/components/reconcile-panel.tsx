@@ -4,6 +4,7 @@ import {
   classifyByMonth,
   type PeriodClass,
   type OpenBooking,
+  type ReceiptSuggestion,
 } from '@/features/accounting/reconcile-queries';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -28,6 +29,7 @@ import {
   ApplySplitButton,
 } from '@/features/accounting/components/reconcile-buttons';
 import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
+import { kategorieLabel } from '@/features/accounting/categories';
 
 const MONTHS = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -50,6 +52,52 @@ function PeriodBadge({ period }: { period: PeriodClass }) {
     <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
       {period === 'vor' ? 'Zahlung im Vormonat' : 'Zahlung im Folgemonat'}
     </span>
+  );
+}
+
+/** Konfidenz as a percentage (handles both 0..1 and 0..100 stored values). */
+function konfidenzPct(k: number | null): string | null {
+  if (k == null) return null;
+  const v = k <= 1 ? k * 100 : k;
+  return `${Math.round(v)} %`;
+}
+
+/** Native <details> with the raw fields the KI scanned for this receipt, so the
+ *  user can check what/where at a glance. No JS needed. */
+function ScanDetails({ r }: { r: ReceiptSuggestion }) {
+  const konf = konfidenzPct(r.receiptKonfidenz);
+  const roh = r.receiptRohtext?.trim();
+  return (
+    <details className="mt-1">
+      <summary className="cursor-pointer text-primary">
+        ℹ️ Was die KI gescannt hat
+      </summary>
+      <div className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+        <div>
+          <span className="font-medium">Beleg:</span>{' '}
+          {r.receiptHaendler ?? '—'} · {r.receiptDatum ?? '—'} ·{' '}
+          {r.receiptBruttoCents != null
+            ? formatEuroCents(r.receiptBruttoCents)
+            : '—'}
+        </div>
+        <div>
+          <span className="font-medium">Rechnungsnr.:</span>{' '}
+          {r.receiptRechnungsnummer ?? '—'}
+          {konf ? ` · KI-Konfidenz ${konf}` : ''}
+        </div>
+        <div>
+          <span className="font-medium">Buchung-Zweck:</span>{' '}
+          {r.txZweck ?? '—'}
+        </div>
+        {roh && (
+          <div className="whitespace-pre-wrap break-words">
+            <span className="font-medium">Rohtext:</span>{' '}
+            {roh.slice(0, 500)}
+            {roh.length > 500 ? ' …' : ''}
+          </div>
+        )}
+      </div>
+    </details>
   );
 }
 
@@ -196,6 +244,10 @@ export async function ReconcilePanel({
   // "Beleg fehlt" / "Zuordnung fehlt" – open bookings with no match at all.
   const missingReceipts = wantIn ? [] : inView(all.missingReceipts);
   const missingIncoming = wantOut ? [] : inView(all.missingIncoming);
+  // Ausgeklammerte Kategorien (nicht im Abgleich, aber im CSV separat).
+  const excluded = inView(all.excluded).filter(({ s }) =>
+    wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
+  );
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -260,6 +312,18 @@ export async function ReconcilePanel({
       zuordnung: 'ZUORDNUNG FEHLT',
       score: '—',
       grund: 'Keine passende Rechnung/Beleg gefunden',
+    })),
+    // Ausgeklammerte Kategorien – separat am Ende, mit Steuerberater-Hinweis.
+    ...excluded.map(({ s: e }) => ({
+      art: (e.txBetragCents >= 0 ? 'Einnahme' : 'Ausgabe') as
+        | 'Einnahme'
+        | 'Ausgabe',
+      datum: e.txDatum,
+      beschreibung: e.txGegen ?? e.txZweck ?? '',
+      betrag: euro(e.txBetragCents),
+      zuordnung: `AUSGEKLAMMERT · ${kategorieLabel(e.kategorieId)}`,
+      score: '—',
+      grund: 'Liegt dem Steuerberater vor – separat, nicht im Abgleich',
     })),
   ];
 
@@ -532,6 +596,7 @@ export async function ReconcilePanel({
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {r.match.reason}
+                      <ScanDetails r={r} />
                     </td>
                     <td className="px-3 py-2 text-right">{pct(r.match.score)}</td>
                     <td className="px-3 py-2 text-right">

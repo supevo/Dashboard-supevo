@@ -168,3 +168,36 @@ export async function clearEntityFolderAction(input: {
   revalidatePath(FINANCE_PATH);
   return successResult('Verknüpfung entfernt.');
 }
+
+/** Kategorien, die aus dem Abgleich ausgeklammert werden (je Firma). */
+export async function setAbgleichAusschlussAction(input: {
+  billingEntityId: string;
+  categoryIds: string[];
+}): Promise<ActionResult> {
+  if (
+    typeof input?.billingEntityId !== 'string' ||
+    !Array.isArray(input.categoryIds) ||
+    input.categoryIds.length > 100 ||
+    !input.categoryIds.every((c) => typeof c === 'string' && c.length <= 64)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const orgId = await entityOrgId(input.billingEntityId);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('accounting_profiles').upsert(
+    {
+      billing_entity_id: input.billingEntityId,
+      organization_id: orgId,
+      abgleich_ausschluss: input.categoryIds,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'billing_entity_id' },
+  );
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath(FINANCE_PATH);
+  return successResult('Ausgeklammerte Kategorien gespeichert.');
+}

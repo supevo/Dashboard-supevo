@@ -13,6 +13,7 @@ export interface PaymentSuggestion {
   match: Match;
   txDatum: string;
   txGegen: string | null;
+  txZweck: string | null;
   txBetragCents: number;
   invoiceNumber: string | null;
   invoiceKunde: string | null;
@@ -23,8 +24,12 @@ export interface ReceiptSuggestion {
   receiptHaendler: string | null;
   receiptDatum: string | null;
   receiptBruttoCents: number | null;
+  receiptRechnungsnummer: string | null;
+  receiptKonfidenz: number | null;
+  receiptRohtext: string | null;
   txDatum: string;
   txGegen: string | null;
+  txZweck: string | null;
   txBetragCents: number;
 }
 
@@ -62,6 +67,8 @@ export interface OpenBooking {
   txGegen: string | null;
   txZweck: string | null;
   txBetragCents: number;
+  /** Kategorie der Buchung (für ausgeklammerte Kategorien im CSV-Export). */
+  kategorieId?: string | null;
 }
 
 export interface ReconcileSuggestions {
@@ -74,6 +81,8 @@ export interface ReconcileSuggestions {
   missingReceipts: OpenBooking[];
   /** Eingänge (incoming) without any matching invoice/receipt/combo. */
   missingIncoming: OpenBooking[];
+  /** Aus dem Abgleich ausgeklammerte Buchungen (bestimmte Kategorien). */
+  excluded: OpenBooking[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;
@@ -188,10 +197,17 @@ export async function getReconcileSuggestions(
   const { data: txns } = await supabase
     .from('bookkeeping_transactions')
     .select(
-      'id, datum, gegen, zweck, betrag_cents, re_id, beleg_id, beleg_nicht_noetig',
+      'id, datum, gegen, zweck, betrag_cents, re_id, beleg_id, beleg_nicht_noetig, kategorie_id',
     )
     .eq('billing_entity_id', billingEntityId)
     .limit(5000);
+
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select('abgleich_ausschluss')
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  const excludedCategories = profile?.abgleich_ausschluss ?? [];
 
   const { data: allocRows } = await supabase
     .from('bookkeeping_tx_allocations')
@@ -217,7 +233,9 @@ export async function getReconcileSuggestions(
 
   const { data: receiptRows } = await supabase
     .from('bookkeeping_receipts')
-    .select('id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer')
+    .select(
+      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, konfidenz, rohtext',
+    )
     .eq('billing_entity_id', billingEntityId)
     .in('kind', ['ausgabe', 'einnahme'])
     .not('brutto_cents', 'is', null)
@@ -237,6 +255,7 @@ export async function getReconcileSuggestions(
     clientName,
     receiptRows: receiptRows ?? [],
     dismissed: dismissRows ?? [],
+    excludedCategories,
     minScore,
   });
 }

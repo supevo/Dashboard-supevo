@@ -6,7 +6,7 @@ import { ExpensesPanel } from '@/features/print-billing/components/expenses-pane
 import { BillingPanel } from '@/features/billing/components/billing-panel';
 import { OverviewPanel } from '@/features/accounting/components/overview-panel';
 import { MonthClosePanel } from '@/features/accounting/components/month-close-panel';
-import { CompaniesPanel } from '@/features/accounting/components/companies-panel';
+import { SettingsPanel } from '@/features/accounting/components/settings-panel';
 import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
 import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel';
@@ -53,12 +53,23 @@ export default async function FinancePage({
       key: 'uebersicht',
       label: '📊 Übersicht',
       content: (
-        <OverviewPanel
-          orgId={orgId}
-          activeFirma={sp.firma}
-          year={jahr}
-          basePath="/app/finance?tab=uebersicht"
-        />
+        <div className="space-y-8">
+          <OverviewPanel
+            orgId={orgId}
+            activeFirma={sp.firma}
+            year={jahr}
+            basePath="/app/finance?tab=uebersicht"
+          />
+          <div className="border-t pt-6">
+            <TaxPanel
+              orgId={orgId}
+              activeFirma={sp.firma}
+              year={jahr}
+              month={monat}
+              basePath="/app/finance?tab=uebersicht"
+            />
+          </div>
+        </div>
       ),
     },
     {
@@ -71,17 +82,6 @@ export default async function FinancePage({
           year={jahr}
           month={monat}
           basePath="/app/finance?tab=monatsabschluss"
-        />
-      ),
-    },
-    {
-      key: 'firmen',
-      label: '🏢 Firmen',
-      content: (
-        <CompaniesPanel
-          orgId={orgId}
-          activeFirma={sp.firma}
-          basePath="/app/finance?tab=firmen"
         />
       ),
     },
@@ -145,19 +145,6 @@ export default async function FinancePage({
       ),
     },
     {
-      key: 'steuer',
-      label: '📈 Steuer',
-      content: (
-        <TaxPanel
-          orgId={orgId}
-          activeFirma={sp.firma}
-          year={jahr}
-          month={monat}
-          basePath="/app/finance?tab=steuer"
-        />
-      ),
-    },
-    {
       key: 'ausgaben',
       label: '💶 Drucksachen',
       content: (
@@ -173,6 +160,17 @@ export default async function FinancePage({
       key: 'rechnungen',
       label: '🧾 Rechnungen',
       content: <BillingPanel orgId={orgId} />,
+    },
+    {
+      key: 'einstellungen',
+      label: '⚙️',
+      content: (
+        <SettingsPanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          basePath="/app/finance?tab=einstellungen"
+        />
+      ),
     },
   ];
 
