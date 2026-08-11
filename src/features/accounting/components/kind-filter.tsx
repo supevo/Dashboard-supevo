@@ -2,12 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { Select } from '@/components/ui/select';
+import type { ArtFilter } from '@/features/accounting/components/art-filter';
 
-export type ArtFilter = 'alle' | 'einnahmen' | 'ausgaben';
-
-export function parseArt(v: string | undefined): ArtFilter {
-  return v === 'einnahmen' || v === 'ausgaben' ? v : 'alle';
-}
+// Re-export the type so existing `import { type ArtFilter } from './kind-filter'`
+// keeps working (type-only, so no client-reference is created).
+export type { ArtFilter };
 
 /** Einnahmen/Ausgaben filter. basePath already carries tab (+ firma etc.). */
 export function KindFilter({

@@ -11,7 +11,7 @@ import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
 import { ReconcilePanel } from '@/features/accounting/components/reconcile-panel';
 import { TaxPanel } from '@/features/accounting/components/tax-panel';
-import { parseArt } from '@/features/accounting/components/kind-filter';
+import { parseArt } from '@/features/accounting/components/art-filter';
 
 export const dynamic = 'force-dynamic';
 // Belege-KI-Auslesen (Server Action dieser Route) darf länger laufen.
