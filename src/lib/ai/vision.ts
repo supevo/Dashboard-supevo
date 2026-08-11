@@ -177,7 +177,8 @@ export function isReadableReceiptMime(mime: string): boolean {
 }
 
 function visionModel(): string {
-  return process.env.AI_VISION_MODEL?.trim() || 'gpt-4o-mini';
+  // Standard-Vision-Modell fürs Beleg-Auslesen. Per AI_VISION_MODEL überschreibbar.
+  return process.env.AI_VISION_MODEL?.trim() || 'gpt-5.4';
 }
 
 const SCHEMA = {

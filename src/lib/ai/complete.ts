@@ -16,7 +16,8 @@ import { logger } from '@/lib/logger';
  * The model is overridable via AI_MODEL (must match the active provider).
  */
 
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+// Aktives OpenAI-Standardmodell. Per AI_MODEL (Vercel) überschreibbar.
+const DEFAULT_OPENAI_MODEL = 'gpt-5.4';
 // gemini-2.5-flash is no longer available to new API projects; 2.0-flash is
 // the current broadly-available flash model. Override via AI_MODEL if needed.
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
@@ -89,7 +90,9 @@ async function completeOpenAI(
   const model = modelFor('openai');
   const res = await client.chat.completions.create({
     model,
-    max_tokens: maxTokens,
+    // GPT-5-Modelle verlangen max_completion_tokens (max_tokens wird abgelehnt);
+    // von aktuellen gpt-4o-Modellen ebenfalls unterstützt.
+    max_completion_tokens: maxTokens,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: system },
@@ -185,7 +188,7 @@ export async function aiSelfTest(): Promise<{
       const client = new OpenAI({ apiKey: openaiKey()! });
       const res = await client.chat.completions.create({
         model,
-        max_tokens: 20,
+        max_completion_tokens: 20,
         messages: [{ role: 'user', content: probe }],
       });
       text = res.choices[0]?.message?.content ?? '';
