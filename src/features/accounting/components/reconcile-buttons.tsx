@@ -8,6 +8,10 @@ import {
   applyReceiptMatchAction,
   applyComboMatchAction,
   applySplitMatchAction,
+  dismissPaymentMatchAction,
+  dismissReceiptMatchAction,
+  dismissComboMatchAction,
+  dismissSplitMatchAction,
 } from '@/features/accounting/reconcile-actions';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -100,39 +104,72 @@ export function RerunReconcileButton({
   );
 }
 
-/** Confirms one suggestion (payment↔invoice or receipt↔transaction). */
+type ActionFn = () => Promise<{ status: string }>;
+
+/** Übernehmen + Ablehnen side by side, sharing one busy state. */
+function ApplyReject({ apply, reject }: { apply: ActionFn; reject: ActionFn }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  async function run(fn: ActionFn) {
+    setBusy(true);
+    const res = await fn();
+    setBusy(false);
+    if (res.status === 'success') router.refresh();
+  }
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Button type="button" size="sm" onClick={() => run(apply)} disabled={busy}>
+        {busy ? '…' : 'Übernehmen'}
+      </Button>
+      <button
+        type="button"
+        onClick={() => run(reject)}
+        disabled={busy}
+        title="Vorschlag ablehnen – diese Kombination wird nicht mehr vorgeschlagen"
+        aria-label="Ablehnen"
+        className="rounded px-2 py-1 text-xs text-muted-foreground hover:text-rose-600 disabled:opacity-50"
+      >
+        ✕ Ablehnen
+      </button>
+    </div>
+  );
+}
+
+/** Confirms/rejects one suggestion (payment↔invoice or receipt↔transaction). */
 export function ApplyMatchButton(
   props:
     | { kind: 'payment'; transactionId: string; invoiceId: string }
     | { kind: 'receipt'; receiptId: string; transactionId: string },
 ) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function apply() {
-    setBusy(true);
-    const res =
-      props.kind === 'payment'
-        ? await applyPaymentMatchAction({
-            transactionId: props.transactionId,
-            invoiceId: props.invoiceId,
-          })
-        : await applyReceiptMatchAction({
-            receiptId: props.receiptId,
-            transactionId: props.transactionId,
-          });
-    setBusy(false);
-    if (res.status === 'success') router.refresh();
-  }
-
   return (
-    <Button type="button" size="sm" onClick={apply} disabled={busy}>
-      {busy ? '…' : 'Übernehmen'}
-    </Button>
+    <ApplyReject
+      apply={() =>
+        props.kind === 'payment'
+          ? applyPaymentMatchAction({
+              transactionId: props.transactionId,
+              invoiceId: props.invoiceId,
+            })
+          : applyReceiptMatchAction({
+              receiptId: props.receiptId,
+              transactionId: props.transactionId,
+            })
+      }
+      reject={() =>
+        props.kind === 'payment'
+          ? dismissPaymentMatchAction({
+              transactionId: props.transactionId,
+              invoiceId: props.invoiceId,
+            })
+          : dismissReceiptMatchAction({
+              receiptId: props.receiptId,
+              transactionId: props.transactionId,
+            })
+      }
+    />
   );
 }
 
-/** Confirms one split suggestion (several payments ↔ one invoice). */
+/** Confirms/rejects one split suggestion (several payments ↔ one invoice). */
 export function ApplySplitButton({
   invoiceId,
   transactionIds,
@@ -140,24 +177,15 @@ export function ApplySplitButton({
   invoiceId: string;
   transactionIds: string[];
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function apply() {
-    setBusy(true);
-    const res = await applySplitMatchAction({ invoiceId, transactionIds });
-    setBusy(false);
-    if (res.status === 'success') router.refresh();
-  }
-
   return (
-    <Button type="button" size="sm" onClick={apply} disabled={busy}>
-      {busy ? '…' : 'Übernehmen'}
-    </Button>
+    <ApplyReject
+      apply={() => applySplitMatchAction({ invoiceId, transactionIds })}
+      reject={() => dismissSplitMatchAction({ invoiceId, transactionIds })}
+    />
   );
 }
 
-/** Confirms one combination suggestion (payment ↔ several invoices). */
+/** Confirms/rejects one combination suggestion (payment ↔ several invoices). */
 export function ApplyComboButton({
   transactionId,
   invoiceIds,
@@ -165,19 +193,10 @@ export function ApplyComboButton({
   transactionId: string;
   invoiceIds: string[];
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function apply() {
-    setBusy(true);
-    const res = await applyComboMatchAction({ transactionId, invoiceIds });
-    setBusy(false);
-    if (res.status === 'success') router.refresh();
-  }
-
   return (
-    <Button type="button" size="sm" onClick={apply} disabled={busy}>
-      {busy ? '…' : 'Übernehmen'}
-    </Button>
+    <ApplyReject
+      apply={() => applyComboMatchAction({ transactionId, invoiceIds })}
+      reject={() => dismissComboMatchAction({ transactionId, invoiceIds })}
+    />
   );
 }

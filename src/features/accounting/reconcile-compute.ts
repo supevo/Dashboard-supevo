@@ -50,7 +50,10 @@ export interface ReconcileInputRows {
     beleg_datum: string | null;
     brutto_cents: number | null;
     kind: string;
+    rechnungsnummer?: string | null;
   }[];
+  /** Vom Nutzer abgelehnte Paare (a_id ↔ b_id), die nicht mehr vorgeschlagen werden. */
+  dismissed?: { a_id: string; b_id: string }[];
   minScore?: number;
 }
 
@@ -67,9 +70,19 @@ export function computeReconcile({
   invoiceRows,
   clientName,
   receiptRows,
+  dismissed = [],
   minScore = SUGGEST_THRESHOLD,
 }: ReconcileInputRows): ReconcileSuggestions {
   const allTx = txRows;
+
+  // Abgelehnte Paare in beide Richtungen als Set (Reihenfolge egal).
+  const dismissedPairs = new Set<string>();
+  for (const p of dismissed) {
+    dismissedPairs.add(`${p.a_id}::${p.b_id}`);
+    dismissedPairs.add(`${p.b_id}::${p.a_id}`);
+  }
+  const isDismissed = (a: string, b: string) =>
+    dismissedPairs.has(`${a}::${b}`);
 
   const allocatedTxIds = new Set(allocRows.map((a) => a.transaction_id));
   const invoiceAllocatedCents = new Map<string, number>();
@@ -131,11 +144,13 @@ export function computeReconcile({
     haendler: string | null;
     beleg_datum: string | null;
     brutto_cents: number | null;
+    rechnungsnummer?: string | null;
   }): ReceiptLite => ({
     id: r.id,
     datum: r.beleg_datum,
     haendler: r.haendler,
     bruttoCents: r.brutto_cents,
+    rechnungsnummer: r.rechnungsnummer ?? null,
   });
   const usableReceipts = receiptRows.filter((r) => r.brutto_cents != null);
   const ausgabeReceipts: ReceiptLite[] = usableReceipts
@@ -150,7 +165,9 @@ export function computeReconcile({
   // nummer im Zweck allein reicht ihr), bevor Sammel-/Teilzahlung greifen kann.
 
   // 1) Teilzahlungen: mehrere Zahlungen → eine Rechnung.
-  const splitMatches = matchInvoiceSplitPayments(payments, invoices);
+  const splitMatches = matchInvoiceSplitPayments(payments, invoices).filter(
+    (m) => !m.txIds.some((t) => isDismissed(m.invoiceId, t)),
+  );
   const usedSplitTx = new Set(splitMatches.flatMap((m) => m.txIds));
   const usedSplitInv = new Set(splitMatches.map((m) => m.invoiceId));
   const paymentsAfterSplit = payments.filter((p) => !usedSplitTx.has(p.id));
@@ -160,7 +177,7 @@ export function computeReconcile({
   const comboMatches = matchPaymentCombinations(
     paymentsAfterSplit,
     invoicesAfterSplit,
-  );
+  ).filter((m) => !m.invoiceIds.some((inv) => isDismissed(m.txId, inv)));
   const usedComboTx = new Set(comboMatches.map((m) => m.txId));
   const usedComboInv = new Set(comboMatches.flatMap((m) => m.invoiceIds));
   const paymentsLeft = paymentsAfterSplit.filter((p) => !usedComboTx.has(p.id));
@@ -173,7 +190,7 @@ export function computeReconcile({
     paymentsLeft,
     invoicesLeft,
     minScore,
-  );
+  ).filter((m) => !isDismissed(m.leftId, m.rightId));
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 
   // 4) Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
@@ -187,7 +204,7 @@ export function computeReconcile({
       'in',
       minScore,
     ),
-  ];
+  ].filter((m) => !isDismissed(m.leftId, m.rightId));
   const receipts = [...ausgabeReceipts, ...einnahmeReceipts];
 
   const txById = new Map(allTx.map((t) => [t.id, t]));
