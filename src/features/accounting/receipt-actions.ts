@@ -5,7 +5,11 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/database.types';
 import { requireUser, authorize } from '@/lib/authz/authorize';
-import { listFolder, listFolderFilesRecursive } from '@/lib/onedrive/graph';
+import {
+  listFolder,
+  listFolderFilesRecursive,
+  getItemMeta,
+} from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
 import { de } from '@/lib/i18n/de';
 import {
@@ -24,6 +28,9 @@ const importSchema = z.object({
 const subfoldersSchema = z.object({
   billingEntityId: z.string().uuid(),
   kind: z.enum(['einnahmen', 'ausgaben']),
+  // Für die Navigation: Unterordner DIESES Ordners auflisten (sonst der
+  // verknüpfte Hauptordner).
+  folderId: z.string().min(1).max(1024).optional(),
 });
 
 /** Resolves the linked OneDrive folder id/path for a company + kind. */
@@ -57,6 +64,7 @@ async function linkedFolder(
 export async function listReceiptSubfoldersAction(input: {
   billingEntityId: string;
   kind: 'einnahmen' | 'ausgaben';
+  folderId?: string;
 }): Promise<{
   ok: boolean;
   folders?: { id: string; name: string; childCount: number | null }[];
@@ -64,7 +72,7 @@ export async function listReceiptSubfoldersAction(input: {
 }> {
   const parsed = subfoldersSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: de.errors.VALIDATION };
-  const { billingEntityId, kind } = parsed.data;
+  const { billingEntityId, kind, folderId } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
   const { data: entity } = await supabase
@@ -79,7 +87,10 @@ export async function listReceiptSubfoldersAction(input: {
   const folder = await linkedFolder(supabase, billingEntityId, kind);
   if (!folder.id) return { ok: false, error: 'Kein Ordner verknüpft.' };
 
-  const children = await listFolder(entity.organization_id, folder.id);
+  // Ohne folderId: der verknüpfte Hauptordner. Mit folderId: dessen Unterordner
+  // (für die Navigation in tiefer verschachtelten Strukturen).
+  const target = folderId ?? folder.id;
+  const children = await listFolder(entity.organization_id, target);
   if (children === null) return { ok: false, error: 'OneDrive nicht erreichbar.' };
   const folders = children
     .filter((c) => c.isFolder)
@@ -127,21 +138,17 @@ export async function importOneDriveReceiptsAction(input: {
     );
   }
 
-  // Optional: nur einen direkten Unterordner importieren. Der Unterordner muss
-  // wirklich unter dem verknüpften Ordner liegen (sonst kein Import von
-  // beliebigen OneDrive-Ordnern).
+  // Optional: nur einen (evtl. tief verschachtelten) Unterordner importieren.
+  // Existenz wird über die Metadaten geprüft; der verbundene Drive gehört der
+  // Organisation (Super-Admin-only).
   let scanRootId = folderId;
   if (subfolderId) {
-    const children = await listFolder(orgId, folderId);
-    if (children === null) {
-      return errorResult('OneDrive nicht erreichbar. Ist das Konto noch verbunden?');
-    }
-    const sub = children.find((c) => c.isFolder && c.id === subfolderId);
-    if (!sub) {
-      return errorResult('Unterordner nicht gefunden. Bitte Liste neu laden.');
+    const meta = await getItemMeta(orgId, subfolderId);
+    if (!meta) {
+      return errorResult('Ordner nicht gefunden. Bitte Liste neu laden.');
     }
     scanRootId = subfolderId;
-    folderPath = `${folderPath ?? ''}/${sub.name}`.replace(/^\/+/, '');
+    folderPath = `${folderPath ?? ''}/${meta.name}`.replace(/^\/+/, '');
   }
 
   // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).

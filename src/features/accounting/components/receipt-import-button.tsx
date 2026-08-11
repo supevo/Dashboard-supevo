@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   importOneDriveReceiptsAction,
@@ -9,12 +9,13 @@ import {
 import { useReceiptExtraction } from '@/features/accounting/components/use-receipt-extraction';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-import { Select } from '@/components/ui/select';
 
 type Subfolder = { id: string; name: string; childCount: number | null };
+type Crumb = { id: string | null; name: string };
 
 /** Triggers a OneDrive scan+import for one company/folder (Einnahmen/Ausgaben).
- *  Optionally narrows the import to a single subfolder (e.g. one month). */
+ *  A small folder navigator lets the user drill into nested subfolders and
+ *  import just one (e.g. a single month). Import auto-reads the new receipts. */
 export function ReceiptImportButton({
   billingEntityId,
   kind,
@@ -28,31 +29,42 @@ export function ReceiptImportButton({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [folders, setFolders] = useState<Subfolder[] | null>(null);
-  const [sub, setSub] = useState(''); // '' = ganzer Ordner
   const [loadingFolders, setLoadingFolders] = useState(false);
-  // KI-Auslesen direkt nach dem Import (dieselbe Schleife wie der Auslese-Button).
-  const { busy: extracting, msg: extractMsg, runAll } = useReceiptExtraction(
-    billingEntityId,
+  // Breadcrumb of the folders we drilled into. First = linked root (id null).
+  const [path, setPath] = useState<Crumb[]>([{ id: null, name: 'Hauptordner' }]);
+  const current = path[path.length - 1]!;
+  const { busy: extracting, msg: extractMsg, runAll } =
+    useReceiptExtraction(billingEntityId);
+
+  const loadFolders = useCallback(
+    async (folderId: string | null) => {
+      setLoadingFolders(true);
+      try {
+        const res = await listReceiptSubfoldersAction({
+          billingEntityId,
+          kind,
+          folderId: folderId ?? undefined,
+        });
+        setFolders(res.ok && res.folders ? res.folders : []);
+      } finally {
+        setLoadingFolders(false);
+      }
+    },
+    [billingEntityId, kind],
   );
 
-  // Unterordner des verknüpften Ordners laden (nachträglich, blockiert die
-  // Seite nicht). Bei Fehler bleibt nur „ganzer Ordner".
   useEffect(() => {
     if (!linked) return;
-    let active = true;
-    setLoadingFolders(true);
-    listReceiptSubfoldersAction({ billingEntityId, kind })
-      .then((res) => {
-        if (!active) return;
-        if (res.ok && res.folders) setFolders(res.folders);
-      })
-      .finally(() => {
-        if (active) setLoadingFolders(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [billingEntityId, kind, linked]);
+    void loadFolders(current.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked, current.id, loadFolders]);
+
+  function enter(f: Subfolder) {
+    setPath((p) => [...p, { id: f.id, name: f.name }]);
+  }
+  function jumpTo(index: number) {
+    setPath((p) => p.slice(0, index + 1));
+  }
 
   async function run() {
     setBusy(true);
@@ -60,14 +72,13 @@ export function ReceiptImportButton({
     const res = await importOneDriveReceiptsAction({
       billingEntityId,
       kind,
-      subfolderId: sub || undefined,
+      subfolderId: current.id ?? undefined,
     });
     setBusy(false);
     const text = 'message' in res ? (res.message ?? '') : '';
     setMsg({ ok: res.status === 'success', text });
     if (res.status === 'success') {
       router.refresh();
-      // Neu importierte Belege gleich mit KI auslesen – kein zweiter Klick nötig.
       const imported =
         res.status === 'success' && typeof res.data?.imported === 'number'
           ? res.data.imported
@@ -77,29 +88,53 @@ export function ReceiptImportButton({
   }
 
   const label = kind === 'einnahmen' ? 'Einnahmen' : 'Ausgaben';
+  const inSubfolder = current.id !== null;
 
   return (
     <div className="space-y-2">
-      {linked && folders && folders.length > 0 && (
+      {linked && (
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">
-            Ordnerauswahl
-          </label>
-          <Select
-            value={sub}
-            onChange={(e) => setSub(e.target.value)}
-            className="h-9 w-full"
-            aria-label="Unterordner"
-            disabled={busy}
-          >
-            <option value="">Ganzer Ordner (alle Unterordner)</option>
-            {folders.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-                {f.childCount != null ? ` (${f.childCount})` : ''}
-              </option>
+          <div className="text-xs text-muted-foreground">Ordnerauswahl</div>
+          {/* Breadcrumb */}
+          <div className="flex flex-wrap items-center gap-1 text-xs">
+            {path.map((c, i) => (
+              <span key={`${c.id ?? 'root'}-${i}`} className="flex items-center gap-1">
+                {i > 0 && <span className="text-muted-foreground">›</span>}
+                <button
+                  type="button"
+                  onClick={() => jumpTo(i)}
+                  disabled={busy || extracting}
+                  className={
+                    i === path.length - 1
+                      ? 'font-medium text-foreground'
+                      : 'text-primary hover:underline'
+                  }
+                >
+                  {c.name}
+                </button>
+              </span>
             ))}
-          </Select>
+          </div>
+          {/* Subfolders to drill into */}
+          {loadingFolders ? (
+            <div className="text-xs text-muted-foreground">Ordner werden geladen …</div>
+          ) : folders && folders.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {folders.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => enter(f)}
+                  disabled={busy || extracting}
+                  className="rounded border px-2 py-0.5 text-xs hover:bg-muted disabled:opacity-50"
+                  title="In diesen Unterordner wechseln"
+                >
+                  📁 {f.name}
+                  {f.childCount != null ? ` (${f.childCount})` : ''}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -114,12 +149,9 @@ export function ReceiptImportButton({
           ? 'Scanne …'
           : extracting
             ? 'Lese aus …'
-            : `📥 ${label}${sub ? ' (Unterordner)' : ''} aus OneDrive importieren & auslesen`}
+            : `📥 ${inSubfolder ? `„${current.name}"` : label} importieren & auslesen`}
       </Button>
 
-      {loadingFolders && (
-        <p className="text-xs text-muted-foreground">Unterordner werden geladen …</p>
-      )}
       {!linked && (
         <p className="text-xs text-muted-foreground">
           Kein {label}-Ordner verknüpft (Tab „Firmen“).
