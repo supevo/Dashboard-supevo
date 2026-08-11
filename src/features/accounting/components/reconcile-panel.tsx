@@ -21,6 +21,7 @@ import {
 } from '@/features/accounting/components/export-reconcile-button';
 import {
   RunReconcileButton,
+  RerunReconcileButton,
   ApplyMatchButton,
   ApplyComboButton,
 } from '@/features/accounting/components/reconcile-buttons';
@@ -60,6 +61,7 @@ export async function ReconcilePanel({
   year,
   month,
   art,
+  weak,
   basePath,
 }: {
   orgId: string;
@@ -67,6 +69,8 @@ export async function ReconcilePanel({
   year: number;
   month: number;
   art: ArtFilter;
+  /** "Erneut abgleichen": lenient pass surfacing sub-80 % candidates. */
+  weak: boolean;
   basePath: string;
 }) {
   const companies = await listAccountingCompanies(orgId);
@@ -89,7 +93,7 @@ export async function ReconcilePanel({
     isDefault: c.entity.is_default,
   }));
 
-  const all = await getReconcileSuggestions(active.entity.id);
+  const all = await getReconcileSuggestions(active.entity.id, { weak });
   // Filter to the selected month (+/- 3 days), keeping each row's period class.
   const inView = <T extends { txDatum: string }>(list: T[]) =>
     list
@@ -105,6 +109,9 @@ export async function ReconcilePanel({
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
+  // "Beleg fehlt" / "Zuordnung fehlt" – open bookings with no match at all.
+  const missingReceipts = wantIn ? [] : inView(all.missingReceipts);
+  const missingIncoming = wantOut ? [] : inView(all.missingIncoming);
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -141,12 +148,35 @@ export async function ReconcilePanel({
       score: `${Math.round(r.match.score * 100)} %`,
       grund: r.match.reason,
     })),
+    ...missingReceipts.map(({ s: m }) => ({
+      art: 'Ausgabe' as const,
+      datum: m.txDatum,
+      beschreibung: m.txGegen ?? m.txZweck ?? '',
+      betrag: euro(m.txBetragCents),
+      zuordnung: 'BELEG FEHLT',
+      score: '—',
+      grund: 'Kein passender Beleg gefunden – bitte hochladen',
+    })),
+    ...missingIncoming.map(({ s: m }) => ({
+      art: 'Einnahme' as const,
+      datum: m.txDatum,
+      beschreibung: m.txGegen ?? m.txZweck ?? '',
+      betrag: euro(m.txBetragCents),
+      zuordnung: 'ZUORDNUNG FEHLT',
+      score: '—',
+      grund: 'Keine passende Rechnung/Beleg gefunden',
+    })),
   ];
 
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
   const monthLabel = month >= 1 && month <= 12 ? `${MONTHS[month - 1]}-${year}` : `${year}`;
+  // Preserve month/art in the rerun toggle so the view state is kept.
+  const stateQuery = `&jahr=${year}&monat=${month}&art=${art}`;
+  const toggleHref = weak
+    ? `${firmaBase}${stateQuery}`
+    : `${firmaBase}${stateQuery}&rerun=1`;
 
   return (
     <div className="space-y-6">
@@ -178,8 +208,23 @@ export async function ReconcilePanel({
             year={year}
             month={month}
           />
+          <RerunReconcileButton
+            billingEntityId={active.entity.id}
+            year={year}
+            month={month}
+            rerunHref={toggleHref}
+            active={weak}
+          />
         </div>
       </div>
+
+      {weak && (
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          🔁 Erneut-Modus aktiv: Es werden auch schwächere Treffer (ab 35 %)
+          angezeigt, damit Buchungen unter 80 % noch einmal geprüft werden
+          können. Prüfe die Vorschläge vor dem Übernehmen genau.
+        </p>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">
@@ -351,6 +396,105 @@ export async function ReconcilePanel({
           </div>
         )}
       </section>
+
+      {missingReceipts.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-rose-600 dark:text-rose-400">
+            ❓ Beleg fehlt{' '}
+            <span className="text-muted-foreground">
+              ({missingReceipts.length})
+            </span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den
+            Beleg suchen und im Tab „Belege“ hochladen – danach „Erneut
+            abgleichen“.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-rose-500/30">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Datum</th>
+                  <th className="px-3 py-2 font-medium">Empfänger</th>
+                  <th className="px-3 py-2 font-medium">Verwendungszweck</th>
+                  <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingReceipts.map(({ s: m, period }) => (
+                  <tr key={m.txId} className="border-t">
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {m.txDatum}
+                      <PeriodBadge period={period} />
+                    </td>
+                    <td className="max-w-[16rem] truncate px-3 py-2" title={m.txGegen ?? ''}>
+                      {m.txGegen ?? '—'}
+                    </td>
+                    <td
+                      className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground"
+                      title={m.txZweck ?? ''}
+                    >
+                      {m.txZweck ?? '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-red-600 dark:text-red-400">
+                      {formatEuroCents(m.txBetragCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {missingIncoming.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+            ❓ Eingänge ohne Zuordnung{' '}
+            <span className="text-muted-foreground">
+              ({missingIncoming.length})
+            </span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Zu diesen Zahlungseingängen gibt es weder eine offene Rechnung noch
+            einen Einnahme-Beleg. Rechnung/Beleg ergänzen oder manuell zuordnen.
+          </p>
+          <div className="overflow-x-auto rounded-lg border border-amber-500/30">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Datum</th>
+                  <th className="px-3 py-2 font-medium">Zahler</th>
+                  <th className="px-3 py-2 font-medium">Verwendungszweck</th>
+                  <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingIncoming.map(({ s: m, period }) => (
+                  <tr key={m.txId} className="border-t">
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {m.txDatum}
+                      <PeriodBadge period={period} />
+                    </td>
+                    <td className="max-w-[16rem] truncate px-3 py-2" title={m.txGegen ?? ''}>
+                      {m.txGegen ?? '—'}
+                    </td>
+                    <td
+                      className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground"
+                      title={m.txZweck ?? ''}
+                    >
+                      {m.txZweck ?? '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-emerald-600 dark:text-emerald-400">
+                      {formatEuroCents(m.txBetragCents)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

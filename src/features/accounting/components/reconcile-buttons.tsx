@@ -52,6 +52,53 @@ export function RunReconcileButton({
   );
 }
 
+/**
+ * "Erneut abgleichen": runs the engine again (auto-applies anything now
+ * confident) AND switches the view into the lenient pass (?rerun=1), which
+ * lowers the suggest bar so under-80 % bookings get a second, manual chance.
+ */
+export function RerunReconcileButton({
+  billingEntityId,
+  year,
+  month,
+  rerunHref,
+  active,
+}: {
+  billingEntityId: string;
+  year: number;
+  month: number;
+  /** URL that turns the lenient pass on; a plain href turns it off. */
+  rerunHref: string;
+  active: boolean;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    await runReconcileAction(billingEntityId, {
+      year,
+      month: month >= 1 && month <= 12 ? month : undefined,
+    });
+    setBusy(false);
+    router.push(rerunHref);
+    router.refresh();
+  }
+
+  return (
+    <Button
+      type="button"
+      variant={active ? 'default' : 'outline'}
+      size="sm"
+      onClick={run}
+      disabled={busy}
+      title="Prüft offene Buchungen unter 80 % noch einmal mit gelockerter Schwelle"
+    >
+      {busy ? 'Prüfe erneut …' : '🔁 Erneut abgleichen'}
+    </Button>
+  );
+}
+
 /** Confirms one suggestion (payment↔invoice or receipt↔transaction). */
 export function ApplyMatchButton(
   props:

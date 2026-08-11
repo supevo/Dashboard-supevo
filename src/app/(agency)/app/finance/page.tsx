@@ -33,6 +33,7 @@ export default async function FinancePage({
     jahr?: string;
     monat?: string;
     art?: string;
+    rerun?: string;
   }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
@@ -45,6 +46,7 @@ export default async function FinancePage({
   // Umsätze/Belege lists default to "Alle Monate" (0) so nothing is hidden.
   const monatListe = Number(sp.monat) || 0;
   const art = parseArt(sp.art);
+  const rerun = sp.rerun === '1';
 
   const tabs: TabDef[] = [
     {
@@ -121,6 +123,7 @@ export default async function FinancePage({
           year={jahr}
           month={monat}
           art={art}
+          weak={rerun}
           basePath="/app/finance?tab=abgleich"
         />
       ),

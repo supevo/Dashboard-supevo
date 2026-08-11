@@ -11,6 +11,9 @@
 
 export const SUGGEST_THRESHOLD = 0.55;
 export const AUTO_THRESHOLD = 0.85;
+/** Lower bar for the "erneut abgleichen" pass: surfaces borderline candidates
+ *  (35–55 %) so under-80 % bookings get a second, manual chance. */
+export const WEAK_THRESHOLD = 0.35;
 
 export interface TxLite {
   id: string;
@@ -91,8 +94,12 @@ function amountScore(paidCents: number, grossCents: number): number {
   return 0;
 }
 
-/** Scores one payment↔invoice pair; returns null below the suggest threshold. */
-function scorePaymentInvoice(tx: TxLite, inv: InvoiceLite): Match | null {
+/** Scores one payment↔invoice pair; returns null below `minScore`. */
+function scorePaymentInvoice(
+  tx: TxLite,
+  inv: InvoiceLite,
+  minScore = SUGGEST_THRESHOLD,
+): Match | null {
   let s = 0;
   const reasons: string[] = [];
 
@@ -128,7 +135,7 @@ function scorePaymentInvoice(tx: TxLite, inv: InvoiceLite): Match | null {
   }
 
   s = Math.min(1, s);
-  if (s < SUGGEST_THRESHOLD) return null;
+  if (s < minScore) return null;
   return {
     leftId: tx.id,
     rightId: inv.id,
@@ -163,12 +170,13 @@ function greedy(candidates: Match[]): Match[] {
 export function matchPaymentsToInvoices(
   payments: TxLite[],
   invoices: InvoiceLite[],
+  minScore = SUGGEST_THRESHOLD,
 ): Match[] {
   const candidates: Match[] = [];
   for (const tx of payments) {
     if (tx.betragCents <= 0) continue;
     for (const inv of invoices) {
-      const m = scorePaymentInvoice(tx, inv);
+      const m = scorePaymentInvoice(tx, inv, minScore);
       if (m) candidates.push(m);
     }
   }
@@ -176,7 +184,11 @@ export function matchPaymentsToInvoices(
 }
 
 /** Scores one receipt↔outgoing-transaction pair (amount AND date matter). */
-function scoreReceiptTx(rec: ReceiptLite, tx: TxLite): Match | null {
+function scoreReceiptTx(
+  rec: ReceiptLite,
+  tx: TxLite,
+  minScore = SUGGEST_THRESHOLD,
+): Match | null {
   if (rec.bruttoCents == null || rec.bruttoCents <= 0) return null;
   const outCents = Math.abs(tx.betragCents);
   let s = 0;
@@ -225,7 +237,7 @@ function scoreReceiptTx(rec: ReceiptLite, tx: TxLite): Match | null {
   }
 
   s = Math.min(1, s);
-  if (s < SUGGEST_THRESHOLD) return null;
+  if (s < minScore) return null;
   return {
     leftId: rec.id,
     rightId: tx.id,
@@ -366,13 +378,14 @@ export function matchReceiptsToTransactions(
   receipts: ReceiptLite[],
   txs: TxLite[],
   sign: 'out' | 'in' = 'out',
+  minScore = SUGGEST_THRESHOLD,
 ): Match[] {
   const candidates: Match[] = [];
   for (const rec of receipts) {
     for (const tx of txs) {
       if (sign === 'out' && tx.betragCents >= 0) continue;
       if (sign === 'in' && tx.betragCents <= 0) continue;
-      const m = scoreReceiptTx(rec, tx);
+      const m = scoreReceiptTx(rec, tx, minScore);
       if (m) candidates.push(m);
     }
   }

@@ -4,6 +4,8 @@ import {
   matchPaymentsToInvoices,
   matchReceiptsToTransactions,
   matchPaymentCombinations,
+  SUGGEST_THRESHOLD,
+  WEAK_THRESHOLD,
   type Match,
   type ComboMatch,
   type TxLite,
@@ -42,10 +44,23 @@ export interface ComboSuggestion {
   }[];
 }
 
+/** An open bank booking that the engine found NO document/match for. */
+export interface OpenBooking {
+  txId: string;
+  txDatum: string;
+  txGegen: string | null;
+  txZweck: string | null;
+  txBetragCents: number;
+}
+
 export interface ReconcileSuggestions {
   payments: PaymentSuggestion[];
   receipts: ReceiptSuggestion[];
   combos: ComboSuggestion[];
+  /** Ausgaben (outgoing) without any matching receipt – a Beleg is missing. */
+  missingReceipts: OpenBooking[];
+  /** Eingänge (incoming) without any matching invoice/receipt/combo. */
+  missingIncoming: OpenBooking[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;
@@ -149,10 +164,15 @@ export async function getReconcileDiagnostics(
  * Computes (does not persist) the current reconcile suggestions for a company:
  * incoming payments ↔ open invoices, and receipts ↔ outgoing transactions.
  * Already-linked items are excluded so confirmed matches don't reappear.
+ *
+ * `weak: true` (the "erneut abgleichen" pass) lowers the suggest bar to
+ * WEAK_THRESHOLD so borderline candidates for still-open bookings resurface.
  */
 export async function getReconcileSuggestions(
   billingEntityId: string,
+  opts: { weak?: boolean } = {},
 ): Promise<ReconcileSuggestions> {
+  const minScore = opts.weak ? WEAK_THRESHOLD : SUGGEST_THRESHOLD;
   const supabase = await createSupabaseServerClient();
 
   const { data: txns } = await supabase
@@ -237,15 +257,20 @@ export async function getReconcileSuggestions(
     .filter((r) => r.kind === 'einnahme' && !linkedReceiptIds.has(r.id))
     .map(toLite);
 
-  const paymentMatches = matchPaymentsToInvoices(payments, invoices);
+  const paymentMatches = matchPaymentsToInvoices(payments, invoices, minScore);
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 
   // Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
   // einer Rechnung zugeordnet wurden).
   const incomingForReceipts = payments.filter((p) => !usedPayTx.has(p.id));
   const receiptMatches = [
-    ...matchReceiptsToTransactions(ausgabeReceipts, outgoing, 'out'),
-    ...matchReceiptsToTransactions(einnahmeReceipts, incomingForReceipts, 'in'),
+    ...matchReceiptsToTransactions(ausgabeReceipts, outgoing, 'out', minScore),
+    ...matchReceiptsToTransactions(
+      einnahmeReceipts,
+      incomingForReceipts,
+      'in',
+      minScore,
+    ),
   ];
   const receipts = [...ausgabeReceipts, ...einnahmeReceipts];
 
@@ -318,5 +343,42 @@ export async function getReconcileSuggestions(
     ];
   });
 
-  return { payments: paymentsOut, receipts: receiptsOut, combos: combosOut };
+  // "Beleg fehlt": open Ausgänge with no receipt match at all (the receipt is
+  // missing or unreadable) → the user must find and upload it. Open Eingänge
+  // with no invoice/receipt/combo match are flagged separately.
+  const matchedOutTx = new Set(
+    receiptMatches
+      .map((m) => txById.get(m.rightId))
+      .filter((t): t is (typeof allTx)[number] => !!t && t.betrag_cents < 0)
+      .map((t) => t.id),
+  );
+  const matchedInTx = new Set<string>([
+    ...paymentMatches.map((m) => m.leftId),
+    ...comboMatches.map((m) => m.txId),
+    ...receiptMatches
+      .map((m) => txById.get(m.rightId))
+      .filter((t): t is (typeof allTx)[number] => !!t && t.betrag_cents > 0)
+      .map((t) => t.id),
+  ]);
+  const toOpen = (t: TxLite): OpenBooking => ({
+    txId: t.id,
+    txDatum: t.datum,
+    txGegen: t.gegen,
+    txZweck: t.zweck,
+    txBetragCents: t.betragCents,
+  });
+  const missingReceipts: OpenBooking[] = outgoing
+    .filter((t) => !matchedOutTx.has(t.id))
+    .map(toOpen);
+  const missingIncoming: OpenBooking[] = payments
+    .filter((t) => !matchedInTx.has(t.id))
+    .map(toOpen);
+
+  return {
+    payments: paymentsOut,
+    receipts: receiptsOut,
+    combos: combosOut,
+    missingReceipts,
+    missingIncoming,
+  };
 }
