@@ -368,6 +368,120 @@ export function matchPaymentCombinations(
   return results;
 }
 
+export interface SplitMatch {
+  invoiceId: string;
+  txIds: string[];
+  score: number;
+  reason: string;
+  invoiceCents: number;
+  paidCents: number;
+  auto: boolean;
+}
+
+/**
+ * Best subset (2..maxK) of incoming payments whose sum matches the invoice
+ * gross (exact / rounding / Skonto). DFS over a bounded, sorted candidate set;
+ * returns the subset closest to the target with the fewest items.
+ */
+function bestPaymentSubset(
+  targetCents: number,
+  candidates: TxLite[],
+  maxK = 6,
+): { ids: string[]; sum: number } | null {
+  const sorted = [...candidates]
+    .filter((c) => c.betragCents > 0 && c.betragCents <= targetCents)
+    .sort((a, b) => b.betragCents - a.betragCents)
+    .slice(0, 16);
+  const upper = targetCents + 2; // payments never exceed the invoice (allow rounding)
+
+  const found: { ids: string[]; sum: number; delta: number }[] = [];
+  const chosen: TxLite[] = [];
+
+  function consider(): void {
+    if (chosen.length < 2) return;
+    const sum = chosen.reduce((s, c) => s + c.betragCents, 0);
+    if (comboAmountScore(sum, targetCents) <= 0) return;
+    found.push({
+      ids: chosen.map((c) => c.id),
+      sum,
+      delta: Math.abs(sum - targetCents),
+    });
+  }
+
+  function dfs(start: number, partial: number): void {
+    consider();
+    if (chosen.length >= maxK) return;
+    for (let i = start; i < sorted.length; i += 1) {
+      const next = partial + sorted[i]!.betragCents;
+      if (next > upper) continue; // prune – overshoots the invoice
+      chosen.push(sorted[i]!);
+      dfs(i + 1, next);
+      chosen.pop();
+    }
+  }
+
+  dfs(0, 0);
+  if (found.length === 0) return null;
+  found.sort((a, b) => a.delta - b.delta || a.ids.length - b.ids.length);
+  const best = found[0]!;
+  return { ids: best.ids, sum: best.sum };
+}
+
+/**
+ * Matches ONE invoice (a total amount) to SEVERAL incoming payments that
+ * together sum to it (Teilzahlungen/Ratenzahlung). The inverse of
+ * matchPaymentCombinations. Candidates per invoice are payments of the same
+ * client (name similar) or whose purpose carries the invoice number, each
+ * smaller than the total. Greedy: each payment used at most once. Suggest-only
+ * (never auto) – splitting money across an invoice deserves a human confirm.
+ */
+export function matchInvoiceSplitPayments(
+  payments: TxLite[],
+  invoices: InvoiceLite[],
+): SplitMatch[] {
+  const results: SplitMatch[] = [];
+  const usedTx = new Set<string>();
+
+  // Largest invoices first – they are the likelier candidates for instalments.
+  const ordered = [...invoices]
+    .filter((i) => i.grossCents > 0)
+    .sort((a, b) => b.grossCents - a.grossCents);
+
+  for (const inv of ordered) {
+    const candidates = payments.filter((p) => {
+      if (usedTx.has(p.id)) return false;
+      if (p.betragCents <= 0 || p.betragCents >= inv.grossCents) return false;
+      const byNumber = numberInPurpose(inv.number, p.zweck);
+      const byName = nameSimilarity(p.gegen, inv.kunde) > 0.3;
+      if (!byNumber && !byName) return false;
+      if (inv.issueDate && daysBetween(p.datum, inv.issueDate) > 180) return false;
+      return true;
+    });
+    if (candidates.length < 2) continue;
+
+    const subset = bestPaymentSubset(inv.grossCents, candidates);
+    if (!subset) continue;
+
+    const score = comboAmountScore(subset.sum, inv.grossCents);
+    if (score <= 0) continue;
+
+    subset.ids.forEach((id) => usedTx.add(id));
+    results.push({
+      invoiceId: inv.id,
+      txIds: subset.ids,
+      score,
+      reason:
+        subset.sum === inv.grossCents
+          ? `${subset.ids.length} Zahlungen, Summe exakt`
+          : `${subset.ids.length} Zahlungen, Summe passend`,
+      invoiceCents: inv.grossCents,
+      paidCents: subset.sum,
+      auto: false,
+    });
+  }
+  return results;
+}
+
 /** Matches receipts to outgoing transactions (leftId=receipt, rightId=tx). */
 /**
  * Matches receipts to bank transactions. `sign` selects the direction: 'out'

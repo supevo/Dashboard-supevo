@@ -84,6 +84,45 @@ async function linkCombo(
   return true;
 }
 
+/**
+ * Links SEVERAL payments to ONE invoice (Teilzahlungen) via the allocations
+ * table – each payment allocates its full amount to the invoice. The invoice is
+ * then covered by the sum of the allocations (reconcile hides it once fully
+ * allocated); no re_id is set because it is not a 1:1 link.
+ */
+async function linkSplit(
+  supabase: Supabase,
+  params: {
+    invoiceId: string;
+    orgId: string;
+    entityId: string;
+    transactions: { id: string; betrag_cents: number }[];
+  },
+): Promise<boolean> {
+  const rows = params.transactions.map((t) => ({
+    organization_id: params.orgId,
+    billing_entity_id: params.entityId,
+    transaction_id: t.id,
+    invoice_id: params.invoiceId,
+    betrag_cents: t.betrag_cents,
+  }));
+  const { error } = await supabase
+    .from('bookkeeping_tx_allocations')
+    .upsert(rows, {
+      onConflict: 'transaction_id,invoice_id',
+      ignoreDuplicates: true,
+    });
+  if (error) return false;
+  await supabase
+    .from('bookkeeping_transactions')
+    .update({ status: 'gebucht' })
+    .in(
+      'id',
+      params.transactions.map((t) => t.id),
+    );
+  return true;
+}
+
 async function authorizeEntity(
   supabase: Supabase,
   billingEntityId: string,
@@ -186,6 +225,48 @@ export async function applyComboMatchAction(input: {
   if (!ok) return errorResult(de.errors.INTERNAL);
   revalidatePath('/app/finance');
   return successResult('Sammelzahlung zugeordnet.');
+}
+
+/** Confirms one split suggestion (several payments ↔ one invoice). */
+export async function applySplitMatchAction(input: {
+  invoiceId: string;
+  transactionIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.invoiceId).success ||
+    !Array.isArray(input.transactionIds) ||
+    input.transactionIds.length < 2 ||
+    input.transactionIds.length > 12 ||
+    !input.transactionIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: txs } = await supabase
+    .from('bookkeeping_transactions')
+    .select('id, betrag_cents, organization_id, billing_entity_id')
+    .in('id', input.transactionIds);
+  if (!txs || txs.length !== input.transactionIds.length) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
+  const orgId = txs[0]!.organization_id;
+  const entityId = txs[0]!.billing_entity_id;
+  // All payments must belong to the same company/org (no cross-tenant linking).
+  if (txs.some((t) => t.organization_id !== orgId || t.billing_entity_id !== entityId)) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const ok = await linkSplit(supabase, {
+    invoiceId: input.invoiceId,
+    orgId,
+    entityId,
+    transactions: txs.map((t) => ({ id: t.id, betrag_cents: t.betrag_cents })),
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Teilzahlungen zugeordnet.');
 }
 
 /** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */

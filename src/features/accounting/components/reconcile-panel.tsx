@@ -24,7 +24,9 @@ import {
   RerunReconcileButton,
   ApplyMatchButton,
   ApplyComboButton,
+  ApplySplitButton,
 } from '@/features/accounting/components/reconcile-buttons';
+import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
 
 const MONTHS = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -106,6 +108,7 @@ export async function ReconcilePanel({
   const wantOut = art === 'ausgaben';
   const payments = wantOut ? [] : inView(all.payments);
   const combos = wantOut ? [] : inView(all.combos);
+  const splits = wantOut ? [] : inView(all.splits);
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
@@ -134,6 +137,17 @@ export async function ReconcilePanel({
         .join(', ')}`,
       score: `${Math.round(c.match.score * 100)} %`,
       grund: 'Sammelzahlung – Summe passt',
+    })),
+    ...splits.map(({ s: sp }) => ({
+      art: 'Einnahme' as const,
+      datum: sp.txDatum,
+      beschreibung: sp.payments[0]?.gegen ?? sp.invoiceKunde ?? '',
+      betrag: euro(sp.match.paidCents),
+      zuordnung: `Rechnung ${sp.invoiceNumber ?? '—'} · ${
+        sp.payments.length
+      } Teilzahlungen`,
+      score: `${Math.round(sp.match.score * 100)} %`,
+      grund: sp.match.reason,
     })),
     ...receipts.map(({ s: r }) => ({
       art: (r.txBetragCents >= 0 ? 'Einnahme' : 'Ausgabe') as
@@ -338,6 +352,63 @@ export async function ReconcilePanel({
         </section>
       )}
 
+      {splits.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">
+            Teilzahlungen{' '}
+            <span className="text-muted-foreground">({splits.length})</span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Eine Rechnung (Gesamtbetrag) wurde in mehreren Zahlungen beglichen –
+            die Summe der Zahlungen ergibt den Rechnungsbetrag.
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Rechnung</th>
+                  <th className="px-3 py-2 font-medium">Zahlungen</th>
+                  <th className="px-3 py-2 text-right font-medium">Summe</th>
+                  <th className="px-3 py-2 text-right font-medium">Score</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {splits.map(({ s: sp, period }) => (
+                  <tr key={sp.match.invoiceId} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      {sp.invoiceNumber ?? '—'} · {sp.invoiceKunde ?? '—'}
+                      <div className="text-xs text-muted-foreground">
+                        {formatEuroCents(sp.invoiceGrossCents)}
+                        <PeriodBadge period={period} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {sp.payments.map((p) => (
+                        <div key={p.id} className="text-xs">
+                          {p.datum} · {p.gegen ?? '—'} ·{' '}
+                          {formatEuroCents(p.betragCents)}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {formatEuroCents(sp.match.paidCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right">{pct(sp.match.score)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <ApplySplitButton
+                        invoiceId={sp.match.invoiceId}
+                        transactionIds={sp.match.txIds}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">
           Belege ↔ Buchungen{' '}
@@ -418,6 +489,7 @@ export async function ReconcilePanel({
                   <th className="px-3 py-2 font-medium">Empfänger</th>
                   <th className="px-3 py-2 font-medium">Verwendungszweck</th>
                   <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -438,6 +510,9 @@ export async function ReconcilePanel({
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-red-600 dark:text-red-400">
                       {formatEuroCents(m.txBetragCents)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <NoReceiptToggle transactionId={m.txId} value={false} />
                     </td>
                   </tr>
                 ))}

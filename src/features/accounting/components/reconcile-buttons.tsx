@@ -7,6 +7,7 @@ import {
   applyPaymentMatchAction,
   applyReceiptMatchAction,
   applyComboMatchAction,
+  applySplitMatchAction,
 } from '@/features/accounting/reconcile-actions';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -120,6 +121,31 @@ export function ApplyMatchButton(
             receiptId: props.receiptId,
             transactionId: props.transactionId,
           });
+    setBusy(false);
+    if (res.status === 'success') router.refresh();
+  }
+
+  return (
+    <Button type="button" size="sm" onClick={apply} disabled={busy}>
+      {busy ? '…' : 'Übernehmen'}
+    </Button>
+  );
+}
+
+/** Confirms one split suggestion (several payments ↔ one invoice). */
+export function ApplySplitButton({
+  invoiceId,
+  transactionIds,
+}: {
+  invoiceId: string;
+  transactionIds: string[];
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function apply() {
+    setBusy(true);
+    const res = await applySplitMatchAction({ invoiceId, transactionIds });
     setBusy(false);
     if (res.status === 'success') router.refresh();
   }
