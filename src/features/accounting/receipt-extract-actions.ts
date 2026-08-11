@@ -40,11 +40,13 @@ function toReceiptUpdate(
     ext.kategorie_id && KAT_IDS.has(ext.kategorie_id) ? ext.kategorie_id : null;
   // Content-based Einnahme/Ausgabe: the KI's detected direction wins over
   // whichever import folder/button the file happened to come in through.
+  //   richtung 'ausgang' = Ausgangsrechnung (eigene Firma stellt Rechnung) → Einnahme
+  //   richtung 'eingang' = Eingangsrechnung (Lieferant stellt Rechnung)    → Ausgabe
   const kind =
     ext.richtung === 'ausgang'
-      ? 'ausgabe'
+      ? 'einnahme'
       : ext.richtung === 'eingang'
-        ? 'einnahme'
+        ? 'ausgabe'
         : undefined;
   return {
     haendler: ext.haendler,
