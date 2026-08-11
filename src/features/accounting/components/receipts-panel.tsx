@@ -4,7 +4,6 @@ import {
   receiptCounts,
   listImportLogs,
 } from '@/features/accounting/receipt-queries';
-import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
   CompanySwitcher,
@@ -19,6 +18,7 @@ import {
   type ArtFilter,
 } from '@/features/accounting/components/kind-filter';
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
+import { ReceiptFieldsEdit } from '@/features/accounting/components/receipt-fields-edit';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 function quelleLabel(source: string, konfidenz: number | null): string {
@@ -231,13 +231,12 @@ export async function ReceiptsPanel({
                   <td className="max-w-[18rem] truncate px-3 py-2" title={r.file_name}>
                     {r.file_name}
                   </td>
-                  <td className="px-3 py-2">{r.haendler ?? '—'}</td>
-                  <td className="px-3 py-2">{formatDate(r.beleg_datum)}</td>
-                  <td className="px-3 py-2 text-right">
-                    {r.brutto_cents != null
-                      ? formatEuroCents(r.brutto_cents)
-                      : '—'}
-                  </td>
+                  <ReceiptFieldsEdit
+                    receiptId={r.id}
+                    haendler={r.haendler}
+                    belegDatum={r.beleg_datum}
+                    bruttoCents={r.brutto_cents}
+                  />
                   <td className="px-3 py-2">{kategorieLabel(r.kategorie_id)}</td>
                   <td className="px-3 py-2">
                     <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">

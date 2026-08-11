@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { Database } from '@/lib/database.types';
 import { requireUser, authorize } from '@/lib/authz/authorize';
 import { listFolder, listFolderFilesRecursive } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
@@ -208,6 +209,58 @@ export async function importOneDriveReceiptsAction(input: {
       : `Keine neuen Belege – alle ${files.length} bereits importiert.`,
     { imported },
   );
+}
+
+const updateFieldsSchema = z.object({
+  receiptId: z.string().uuid(),
+  haendler: z.string().trim().max(200).nullable().optional(),
+  belegDatum: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  bruttoCents: z.number().int().min(0).max(1_000_000_00).nullable().optional(),
+});
+
+/**
+ * Manually correct a receipt's extracted values (Händler, Belegdatum,
+ * Bruttobetrag) when the KI read them wrong. Setting a Bruttobetrag also clears
+ * a previous Lesefehler, so the receipt becomes matchable in the Abgleich.
+ */
+export async function updateReceiptFieldsAction(input: unknown): Promise<ActionResult> {
+  const parsed = updateFieldsSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { receiptId, haendler, belegDatum, bruttoCents } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: receipt } = await supabase
+    .from('bookkeeping_receipts')
+    .select('organization_id')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (!receipt) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: receipt.organization_id });
+
+  const patch: Database['public']['Tables']['bookkeeping_receipts']['Update'] =
+    {};
+  if (haendler !== undefined) patch.haendler = haendler || null;
+  if (belegDatum !== undefined) patch.beleg_datum = belegDatum;
+  if (bruttoCents !== undefined) {
+    patch.brutto_cents = bruttoCents;
+    // Ein manuell gesetzter Betrag hebt einen früheren Lesefehler auf.
+    if (bruttoCents != null) patch.extract_failed_at = null;
+  }
+  if (Object.keys(patch).length === 0) return successResult('Nichts geändert.');
+
+  const { error } = await supabase
+    .from('bookkeeping_receipts')
+    .update(patch)
+    .eq('id', receiptId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Beleg aktualisiert.');
 }
 
 const setKindSchema = z.object({
