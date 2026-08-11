@@ -6,6 +6,7 @@ import {
   importOneDriveReceiptsAction,
   listReceiptSubfoldersAction,
 } from '@/features/accounting/receipt-actions';
+import { useReceiptExtraction } from '@/features/accounting/components/use-receipt-extraction';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { Select } from '@/components/ui/select';
@@ -29,6 +30,10 @@ export function ReceiptImportButton({
   const [folders, setFolders] = useState<Subfolder[] | null>(null);
   const [sub, setSub] = useState(''); // '' = ganzer Ordner
   const [loadingFolders, setLoadingFolders] = useState(false);
+  // KI-Auslesen direkt nach dem Import (dieselbe Schleife wie der Auslese-Button).
+  const { busy: extracting, msg: extractMsg, runAll } = useReceiptExtraction(
+    billingEntityId,
+  );
 
   // Unterordner des verknüpften Ordners laden (nachträglich, blockiert die
   // Seite nicht). Bei Fehler bleibt nur „ganzer Ordner".
@@ -60,7 +65,15 @@ export function ReceiptImportButton({
     setBusy(false);
     const text = 'message' in res ? (res.message ?? '') : '';
     setMsg({ ok: res.status === 'success', text });
-    if (res.status === 'success') router.refresh();
+    if (res.status === 'success') {
+      router.refresh();
+      // Neu importierte Belege gleich mit KI auslesen – kein zweiter Klick nötig.
+      const imported =
+        res.status === 'success' && typeof res.data?.imported === 'number'
+          ? res.data.imported
+          : 0;
+      if (imported > 0) await runAll();
+    }
   }
 
   const label = kind === 'einnahmen' ? 'Einnahmen' : 'Ausgaben';
@@ -95,11 +108,13 @@ export function ReceiptImportButton({
         variant="outline"
         size="sm"
         onClick={run}
-        disabled={busy || !linked}
+        disabled={busy || extracting || !linked}
       >
         {busy
           ? 'Scanne …'
-          : `📥 ${label}${sub ? ' (Unterordner)' : ''} aus OneDrive importieren`}
+          : extracting
+            ? 'Lese aus …'
+            : `📥 ${label}${sub ? ' (Unterordner)' : ''} aus OneDrive importieren & auslesen`}
       </Button>
 
       {loadingFolders && (
@@ -112,6 +127,14 @@ export function ReceiptImportButton({
       )}
       {msg && (
         <Alert variant={msg.ok ? 'default' : 'destructive'}>{msg.text}</Alert>
+      )}
+      {extractMsg && (
+        <Alert
+          variant={extractMsg.ok ? 'default' : 'destructive'}
+          className="py-1 text-xs"
+        >
+          🤖 {extractMsg.text}
+        </Alert>
       )}
     </div>
   );

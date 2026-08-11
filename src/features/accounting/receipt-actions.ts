@@ -206,6 +206,7 @@ export async function importOneDriveReceiptsAction(input: {
     imported > 0
       ? `${imported} neue Belege importiert (${skipped} bereits vorhanden).`
       : `Keine neuen Belege – alle ${files.length} bereits importiert.`,
+    { imported },
   );
 }
 
