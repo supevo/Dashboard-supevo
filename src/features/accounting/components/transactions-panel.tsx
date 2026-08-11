@@ -66,9 +66,9 @@ export async function TransactionsPanel({
   }));
 
   const period = { year, month };
-  const [allTxns] = await Promise.all([
-    listTransactions(active.entity.id, period),
-  ]);
+  // High limit so "Alle Monate" doesn't silently hide older transactions
+  // (the summary below is computed from this list too).
+  const allTxns = await listTransactions(active.entity.id, period, 5000);
   // Einnahmen = Betrag > 0, Ausgaben = Betrag < 0.
   const txns = allTxns.filter((t) =>
     art === 'einnahmen'

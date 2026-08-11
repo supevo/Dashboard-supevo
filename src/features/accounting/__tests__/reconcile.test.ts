@@ -3,6 +3,7 @@ import {
   matchPaymentsToInvoices,
   matchReceiptsToTransactions,
   matchPaymentCombinations,
+  matchInvoiceSplitPayments,
   AUTO_THRESHOLD,
 } from '../reconcile';
 
@@ -71,6 +72,48 @@ describe('matchPaymentCombinations', () => {
       { id: 'i2', number: 'RE-2', grossCents: 20000, issueDate: '2024-03-02', kunde: 'Kunde AG' },
     ];
     expect(matchPaymentCombinations(payments, invoices)).toHaveLength(0);
+  });
+});
+
+describe('matchInvoiceSplitPayments', () => {
+  it('matches one invoice total to several partial payments (same client)', () => {
+    const invoices = [
+      { id: 'i1', number: 'RE-9', grossCents: 40000, issueDate: '2024-03-01', kunde: 'Raten AG' },
+    ];
+    const payments = [
+      { id: 't1', datum: '2024-03-05', gegen: 'Raten AG', zweck: 'RE-9 Rate 1', betragCents: 10000 },
+      { id: 't2', datum: '2024-03-20', gegen: 'Raten AG', zweck: 'RE-9 Rate 2', betragCents: 10000 },
+      { id: 't3', datum: '2024-04-05', gegen: 'Raten AG', zweck: 'RE-9 Rate 3', betragCents: 10000 },
+      { id: 't4', datum: '2024-04-20', gegen: 'Raten AG', zweck: 'RE-9 Rate 4', betragCents: 10000 },
+    ];
+    const splits = matchInvoiceSplitPayments(payments, invoices);
+    expect(splits).toHaveLength(1);
+    expect(splits[0]!.invoiceId).toBe('i1');
+    expect(splits[0]!.txIds.sort()).toEqual(['t1', 't2', 't3', 't4']);
+    expect(splits[0]!.paidCents).toBe(40000);
+    // Suggest-only – never auto-applied.
+    expect(splits[0]!.auto).toBe(false);
+  });
+
+  it('does not match unrelated payments that happen to sum up', () => {
+    const invoices = [
+      { id: 'i1', number: 'RE-9', grossCents: 30000, issueDate: '2024-03-01', kunde: 'Raten AG' },
+    ];
+    const payments = [
+      { id: 't1', datum: '2024-03-05', gegen: 'Fremd GmbH', zweck: '', betragCents: 10000 },
+      { id: 't2', datum: '2024-03-06', gegen: 'Anders KG', zweck: '', betragCents: 20000 },
+    ];
+    expect(matchInvoiceSplitPayments(payments, invoices)).toHaveLength(0);
+  });
+
+  it('ignores a single payment that already equals the invoice (1:1, not a split)', () => {
+    const invoices = [
+      { id: 'i1', number: 'RE-9', grossCents: 10000, issueDate: '2024-03-01', kunde: 'Raten AG' },
+    ];
+    const payments = [
+      { id: 't1', datum: '2024-03-05', gegen: 'Raten AG', zweck: 'RE-9', betragCents: 10000 },
+    ];
+    expect(matchInvoiceSplitPayments(payments, invoices)).toHaveLength(0);
   });
 });
 

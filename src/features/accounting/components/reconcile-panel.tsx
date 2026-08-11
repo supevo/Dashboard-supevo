@@ -3,6 +3,7 @@ import {
   getReconcileSuggestions,
   classifyByMonth,
   type PeriodClass,
+  type OpenBooking,
 } from '@/features/accounting/reconcile-queries';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -24,7 +25,9 @@ import {
   RerunReconcileButton,
   ApplyMatchButton,
   ApplyComboButton,
+  ApplySplitButton,
 } from '@/features/accounting/components/reconcile-buttons';
+import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
 
 const MONTHS = [
   'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
@@ -47,6 +50,86 @@ function PeriodBadge({ period }: { period: PeriodClass }) {
     <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
       {period === 'vor' ? 'Zahlung im Vormonat' : 'Zahlung im Folgemonat'}
     </span>
+  );
+}
+
+/** Shared table for open bookings without a match ("Beleg fehlt" / "ohne
+ *  Zuordnung"). One layout, parameterised by accent, peer label and amount sign. */
+function MissingBookingsSection({
+  title,
+  description,
+  accent,
+  rows,
+  peerLabel,
+  amountPositive,
+  withToggle,
+}: {
+  title: string;
+  description: string;
+  accent: 'rose' | 'amber';
+  rows: { s: OpenBooking; period: PeriodClass }[];
+  peerLabel: string;
+  amountPositive: boolean;
+  withToggle: boolean;
+}) {
+  if (rows.length === 0) return null;
+  const border = accent === 'rose' ? 'border-rose-500/30' : 'border-amber-500/30';
+  const head =
+    accent === 'rose'
+      ? 'text-rose-600 dark:text-rose-400'
+      : 'text-amber-600 dark:text-amber-400';
+  const amount = amountPositive
+    ? 'text-emerald-600 dark:text-emerald-400'
+    : 'text-red-600 dark:text-red-400';
+  return (
+    <section className="space-y-2">
+      <h2 className={`text-sm font-semibold ${head}`}>
+        {title} <span className="text-muted-foreground">({rows.length})</span>
+      </h2>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <div className={`overflow-x-auto rounded-lg border ${border}`}>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Datum</th>
+              <th className="px-3 py-2 font-medium">{peerLabel}</th>
+              <th className="px-3 py-2 font-medium">Verwendungszweck</th>
+              <th className="px-3 py-2 text-right font-medium">Betrag</th>
+              {withToggle && <th className="px-3 py-2" />}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ s: m, period }) => (
+              <tr key={m.txId} className="border-t">
+                <td className="whitespace-nowrap px-3 py-2">
+                  {m.txDatum}
+                  <PeriodBadge period={period} />
+                </td>
+                <td className="max-w-[16rem] truncate px-3 py-2" title={m.txGegen ?? ''}>
+                  {m.txGegen ?? '—'}
+                </td>
+                <td
+                  className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground"
+                  title={m.txZweck ?? ''}
+                >
+                  {m.txZweck ?? '—'}
+                </td>
+                <td
+                  className={`whitespace-nowrap px-3 py-2 text-right font-medium ${amount}`}
+                >
+                  {formatEuroCents(m.txBetragCents)}
+                </td>
+                {withToggle && (
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    <NoReceiptToggle transactionId={m.txId} value={false} />
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -106,6 +189,7 @@ export async function ReconcilePanel({
   const wantOut = art === 'ausgaben';
   const payments = wantOut ? [] : inView(all.payments);
   const combos = wantOut ? [] : inView(all.combos);
+  const splits = wantOut ? [] : inView(all.splits);
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
@@ -134,6 +218,17 @@ export async function ReconcilePanel({
         .join(', ')}`,
       score: `${Math.round(c.match.score * 100)} %`,
       grund: 'Sammelzahlung – Summe passt',
+    })),
+    ...splits.map(({ s: sp }) => ({
+      art: 'Einnahme' as const,
+      datum: sp.txDatum,
+      beschreibung: sp.payments[0]?.gegen ?? sp.invoiceKunde ?? '',
+      betrag: euro(sp.match.paidCents),
+      zuordnung: `Rechnung ${sp.invoiceNumber ?? '—'} · ${
+        sp.payments.length
+      } Teilzahlungen`,
+      score: `${Math.round(sp.match.score * 100)} %`,
+      grund: sp.match.reason,
     })),
     ...receipts.map(({ s: r }) => ({
       art: (r.txBetragCents >= 0 ? 'Einnahme' : 'Ausgabe') as
@@ -338,6 +433,63 @@ export async function ReconcilePanel({
         </section>
       )}
 
+      {splits.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">
+            Teilzahlungen{' '}
+            <span className="text-muted-foreground">({splits.length})</span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Eine Rechnung (Gesamtbetrag) wurde in mehreren Zahlungen beglichen –
+            die Summe der Zahlungen ergibt den Rechnungsbetrag.
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Rechnung</th>
+                  <th className="px-3 py-2 font-medium">Zahlungen</th>
+                  <th className="px-3 py-2 text-right font-medium">Summe</th>
+                  <th className="px-3 py-2 text-right font-medium">Score</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {splits.map(({ s: sp, period }) => (
+                  <tr key={sp.match.invoiceId} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      {sp.invoiceNumber ?? '—'} · {sp.invoiceKunde ?? '—'}
+                      <div className="text-xs text-muted-foreground">
+                        {formatEuroCents(sp.invoiceGrossCents)}
+                        <PeriodBadge period={period} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {sp.payments.map((p) => (
+                        <div key={p.id} className="text-xs">
+                          {p.datum} · {p.gegen ?? '—'} ·{' '}
+                          {formatEuroCents(p.betragCents)}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {formatEuroCents(sp.match.paidCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right">{pct(sp.match.score)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <ApplySplitButton
+                        invoiceId={sp.match.invoiceId}
+                        transactionIds={sp.match.txIds}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">
           Belege ↔ Buchungen{' '}
@@ -397,104 +549,25 @@ export async function ReconcilePanel({
         )}
       </section>
 
-      {missingReceipts.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-rose-600 dark:text-rose-400">
-            ❓ Beleg fehlt{' '}
-            <span className="text-muted-foreground">
-              ({missingReceipts.length})
-            </span>
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den
-            Beleg suchen und im Tab „Belege“ hochladen – danach „Erneut
-            abgleichen“.
-          </p>
-          <div className="overflow-x-auto rounded-lg border border-rose-500/30">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Datum</th>
-                  <th className="px-3 py-2 font-medium">Empfänger</th>
-                  <th className="px-3 py-2 font-medium">Verwendungszweck</th>
-                  <th className="px-3 py-2 text-right font-medium">Betrag</th>
-                </tr>
-              </thead>
-              <tbody>
-                {missingReceipts.map(({ s: m, period }) => (
-                  <tr key={m.txId} className="border-t">
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {m.txDatum}
-                      <PeriodBadge period={period} />
-                    </td>
-                    <td className="max-w-[16rem] truncate px-3 py-2" title={m.txGegen ?? ''}>
-                      {m.txGegen ?? '—'}
-                    </td>
-                    <td
-                      className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground"
-                      title={m.txZweck ?? ''}
-                    >
-                      {m.txZweck ?? '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-red-600 dark:text-red-400">
-                      {formatEuroCents(m.txBetragCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <MissingBookingsSection
+        title="❓ Beleg fehlt"
+        description="Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den Beleg suchen und im Tab „Belege“ hochladen – danach „Erneut abgleichen“."
+        accent="rose"
+        rows={missingReceipts}
+        peerLabel="Empfänger"
+        amountPositive={false}
+        withToggle
+      />
 
-      {missingIncoming.length > 0 && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-semibold text-amber-600 dark:text-amber-400">
-            ❓ Eingänge ohne Zuordnung{' '}
-            <span className="text-muted-foreground">
-              ({missingIncoming.length})
-            </span>
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Zu diesen Zahlungseingängen gibt es weder eine offene Rechnung noch
-            einen Einnahme-Beleg. Rechnung/Beleg ergänzen oder manuell zuordnen.
-          </p>
-          <div className="overflow-x-auto rounded-lg border border-amber-500/30">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Datum</th>
-                  <th className="px-3 py-2 font-medium">Zahler</th>
-                  <th className="px-3 py-2 font-medium">Verwendungszweck</th>
-                  <th className="px-3 py-2 text-right font-medium">Betrag</th>
-                </tr>
-              </thead>
-              <tbody>
-                {missingIncoming.map(({ s: m, period }) => (
-                  <tr key={m.txId} className="border-t">
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {m.txDatum}
-                      <PeriodBadge period={period} />
-                    </td>
-                    <td className="max-w-[16rem] truncate px-3 py-2" title={m.txGegen ?? ''}>
-                      {m.txGegen ?? '—'}
-                    </td>
-                    <td
-                      className="max-w-[24rem] truncate px-3 py-2 text-muted-foreground"
-                      title={m.txZweck ?? ''}
-                    >
-                      {m.txZweck ?? '—'}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-emerald-600 dark:text-emerald-400">
-                      {formatEuroCents(m.txBetragCents)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+      <MissingBookingsSection
+        title="❓ Eingänge ohne Zuordnung"
+        description="Zu diesen Zahlungseingängen gibt es weder eine offene Rechnung noch einen Einnahme-Beleg. Rechnung/Beleg ergänzen oder manuell zuordnen."
+        accent="amber"
+        rows={missingIncoming}
+        peerLabel="Zahler"
+        amountPositive
+        withToggle={false}
+      />
     </div>
   );
 }

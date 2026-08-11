@@ -4,10 +4,12 @@ import {
   matchPaymentsToInvoices,
   matchReceiptsToTransactions,
   matchPaymentCombinations,
+  matchInvoiceSplitPayments,
   SUGGEST_THRESHOLD,
   WEAK_THRESHOLD,
   type Match,
   type ComboMatch,
+  type SplitMatch,
   type TxLite,
   type InvoiceLite,
   type ReceiptLite,
@@ -44,6 +46,21 @@ export interface ComboSuggestion {
   }[];
 }
 
+export interface SplitSuggestion {
+  match: SplitMatch;
+  invoiceNumber: string | null;
+  invoiceKunde: string | null;
+  invoiceGrossCents: number;
+  /** Latest payment date – used to place the split in the month view. */
+  txDatum: string;
+  payments: {
+    id: string;
+    datum: string;
+    gegen: string | null;
+    betragCents: number;
+  }[];
+}
+
 /** An open bank booking that the engine found NO document/match for. */
 export interface OpenBooking {
   txId: string;
@@ -57,6 +74,8 @@ export interface ReconcileSuggestions {
   payments: PaymentSuggestion[];
   receipts: ReceiptSuggestion[];
   combos: ComboSuggestion[];
+  /** One invoice total ↔ several partial payments (Teilzahlungen). */
+  splits: SplitSuggestion[];
   /** Ausgaben (outgoing) without any matching receipt – a Beleg is missing. */
   missingReceipts: OpenBooking[];
   /** Eingänge (incoming) without any matching invoice/receipt/combo. */
@@ -177,10 +196,30 @@ export async function getReconcileSuggestions(
 
   const { data: txns } = await supabase
     .from('bookkeeping_transactions')
-    .select('id, datum, gegen, zweck, betrag_cents, re_id, beleg_id')
+    .select(
+      'id, datum, gegen, zweck, betrag_cents, re_id, beleg_id, beleg_nicht_noetig',
+    )
     .eq('billing_entity_id', billingEntityId)
     .limit(5000);
   const allTx = txns ?? [];
+
+  // Sammelzahlungen/Teilzahlungen are recorded in the allocations table, not in
+  // re_id. Without reading it, applied combos/splits would reappear forever.
+  const { data: allocRows } = await supabase
+    .from('bookkeeping_tx_allocations')
+    .select('transaction_id, invoice_id, betrag_cents')
+    .eq('billing_entity_id', billingEntityId)
+    .limit(20000);
+  const allocatedTxIds = new Set(
+    (allocRows ?? []).map((a) => a.transaction_id),
+  );
+  const invoiceAllocatedCents = new Map<string, number>();
+  for (const a of allocRows ?? []) {
+    invoiceAllocatedCents.set(
+      a.invoice_id,
+      (invoiceAllocatedCents.get(a.invoice_id) ?? 0) + a.betrag_cents,
+    );
+  }
 
   const linkedInvoiceIds = new Set(
     allTx.map((t) => t.re_id).filter((x): x is string => !!x),
@@ -188,9 +227,14 @@ export async function getReconcileSuggestions(
   const linkedReceiptIds = new Set(
     allTx.map((t) => t.beleg_id).filter((x): x is string => !!x),
   );
+  // Bookings the user marked as "no receipt needed" stay out of the receipt
+  // matching AND out of the "Beleg fehlt" list.
+  const noDocTxIds = new Set(
+    allTx.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
+  );
 
   const payments: TxLite[] = allTx
-    .filter((t) => t.betrag_cents > 0 && !t.re_id)
+    .filter((t) => t.betrag_cents > 0 && !t.re_id && !allocatedTxIds.has(t.id))
     .map((t) => ({
       id: t.id,
       datum: t.datum,
@@ -199,7 +243,13 @@ export async function getReconcileSuggestions(
       betragCents: t.betrag_cents,
     }));
   const outgoing: TxLite[] = allTx
-    .filter((t) => t.betrag_cents < 0 && !t.beleg_id)
+    .filter(
+      (t) =>
+        t.betrag_cents < 0 &&
+        !t.beleg_id &&
+        !t.beleg_nicht_noetig &&
+        !allocatedTxIds.has(t.id),
+    )
     .map((t) => ({
       id: t.id,
       datum: t.datum,
@@ -224,6 +274,10 @@ export async function getReconcileSuggestions(
 
   const invoices: InvoiceLite[] = (invoiceRows ?? [])
     .filter((i) => !linkedInvoiceIds.has(i.id))
+    // Drop invoices already fully covered by allocations (combo/split applied).
+    .filter(
+      (i) => (invoiceAllocatedCents.get(i.id) ?? 0) < i.gross_cents - 2,
+    )
     .map((i) => ({
       id: i.id,
       number: i.invoice_number,
@@ -277,9 +331,21 @@ export async function getReconcileSuggestions(
   // Combination matches on what the 1:1 pass left unmatched.
   const usedInv = new Set(paymentMatches.map((m) => m.rightId));
   const usedReceiptTx = new Set(receiptMatches.map((m) => m.rightId));
+  const openPayments = payments.filter(
+    (p) => !usedPayTx.has(p.id) && !usedReceiptTx.has(p.id),
+  );
   const comboMatches = matchPaymentCombinations(
-    payments.filter((p) => !usedPayTx.has(p.id) && !usedReceiptTx.has(p.id)),
+    openPayments,
     invoices.filter((i) => !usedInv.has(i.id)),
+  );
+
+  // Teilzahlungen: one invoice total ↔ several payments the earlier passes left
+  // over. Uses payments not already claimed by a 1:1 match, a receipt or a combo.
+  const usedComboTx = new Set(comboMatches.map((m) => m.txId));
+  const usedComboInv = new Set(comboMatches.flatMap((m) => m.invoiceIds));
+  const splitMatches = matchInvoiceSplitPayments(
+    openPayments.filter((p) => !usedComboTx.has(p.id)),
+    invoices.filter((i) => !usedInv.has(i.id) && !usedComboInv.has(i.id)),
   );
 
   const txById = new Map(allTx.map((t) => [t.id, t]));
@@ -343,6 +409,34 @@ export async function getReconcileSuggestions(
     ];
   });
 
+  const splitsOut: SplitSuggestion[] = splitMatches.flatMap((m) => {
+    const inv = invById.get(m.invoiceId);
+    if (!inv) return [];
+    const pays = m.txIds
+      .map((id) => txById.get(id))
+      .filter((t): t is (typeof allTx)[number] => !!t)
+      .map((t) => ({
+        id: t.id,
+        datum: t.datum,
+        gegen: t.gegen,
+        betragCents: t.betrag_cents,
+      }));
+    if (pays.length < 2) return [];
+    // Latest payment date positions the split in the month view.
+    const txDatum = pays.reduce((a, b) => (a.datum >= b.datum ? a : b)).datum;
+    return [
+      {
+        match: m,
+        invoiceNumber: inv.number,
+        invoiceKunde: inv.kunde,
+        invoiceGrossCents: inv.grossCents,
+        txDatum,
+        payments: pays,
+      },
+    ];
+  });
+  const usedSplitTx = new Set(splitMatches.flatMap((m) => m.txIds));
+
   // "Beleg fehlt": open Ausgänge with no receipt match at all (the receipt is
   // missing or unreadable) → the user must find and upload it. Open Eingänge
   // with no invoice/receipt/combo match are flagged separately.
@@ -371,13 +465,19 @@ export async function getReconcileSuggestions(
     .filter((t) => !matchedOutTx.has(t.id))
     .map(toOpen);
   const missingIncoming: OpenBooking[] = payments
-    .filter((t) => !matchedInTx.has(t.id))
+    .filter(
+      (t) =>
+        !matchedInTx.has(t.id) &&
+        !usedSplitTx.has(t.id) &&
+        !noDocTxIds.has(t.id),
+    )
     .map(toOpen);
 
   return {
     payments: paymentsOut,
     receipts: receiptsOut,
     combos: combosOut,
+    splits: splitsOut,
     missingReceipts,
     missingIncoming,
   };

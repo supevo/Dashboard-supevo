@@ -18,6 +18,45 @@ import {
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
+/**
+ * Marks an invoice as paid once its matched payments (1:1 via re_id + any
+ * allocations) cover the gross amount (Skonto tolerance 3,5 %). Keeps the
+ * Rechnungen tab in sync with the Abgleich instead of leaving paid invoices
+ * open. Never un-pays and never touches a manually voided invoice.
+ */
+async function settleInvoiceIfCovered(
+  supabase: Supabase,
+  invoiceId: string,
+): Promise<void> {
+  const { data: inv } = await supabase
+    .from('invoices')
+    .select('gross_cents, status')
+    .eq('id', invoiceId)
+    .maybeSingle();
+  if (!inv || inv.status === 'paid' || inv.status === 'void') return;
+
+  const [{ data: allocs }, { data: direct }] = await Promise.all([
+    supabase
+      .from('bookkeeping_tx_allocations')
+      .select('betrag_cents')
+      .eq('invoice_id', invoiceId),
+    supabase
+      .from('bookkeeping_transactions')
+      .select('betrag_cents')
+      .eq('re_id', invoiceId),
+  ]);
+  const covered =
+    (allocs ?? []).reduce((s, a) => s + a.betrag_cents, 0) +
+    (direct ?? []).reduce((s, t) => s + t.betrag_cents, 0);
+  // Fully covered (allowing up to 3,5 % Skonto shortfall).
+  if (covered >= Math.round(inv.gross_cents * 0.965)) {
+    await supabase
+      .from('invoices')
+      .update({ status: 'paid', paid_at: new Date().toISOString() })
+      .eq('id', invoiceId);
+  }
+}
+
 /** Links a payment transaction to an invoice (tx.re_id + status gebucht). */
 async function linkPayment(
   supabase: Supabase,
@@ -28,7 +67,9 @@ async function linkPayment(
     .from('bookkeeping_transactions')
     .update({ re_id: invoiceId, status: 'gebucht' })
     .eq('id', txId);
-  return !error;
+  if (error) return false;
+  await settleInvoiceIfCovered(supabase, invoiceId);
+  return true;
 }
 
 /** Links a receipt to an outgoing transaction (tx.beleg_id + receipt status). */
@@ -81,6 +122,47 @@ async function linkCombo(
     .from('bookkeeping_transactions')
     .update({ status: 'gebucht' })
     .eq('id', params.txId);
+  for (const inv of invs) await settleInvoiceIfCovered(supabase, inv.id);
+  return true;
+}
+
+/**
+ * Links SEVERAL payments to ONE invoice (Teilzahlungen) via the allocations
+ * table – each payment allocates its full amount to the invoice. The invoice is
+ * then covered by the sum of the allocations (reconcile hides it once fully
+ * allocated); no re_id is set because it is not a 1:1 link.
+ */
+async function linkSplit(
+  supabase: Supabase,
+  params: {
+    invoiceId: string;
+    orgId: string;
+    entityId: string;
+    transactions: { id: string; betrag_cents: number }[];
+  },
+): Promise<boolean> {
+  const rows = params.transactions.map((t) => ({
+    organization_id: params.orgId,
+    billing_entity_id: params.entityId,
+    transaction_id: t.id,
+    invoice_id: params.invoiceId,
+    betrag_cents: t.betrag_cents,
+  }));
+  const { error } = await supabase
+    .from('bookkeeping_tx_allocations')
+    .upsert(rows, {
+      onConflict: 'transaction_id,invoice_id',
+      ignoreDuplicates: true,
+    });
+  if (error) return false;
+  await supabase
+    .from('bookkeeping_transactions')
+    .update({ status: 'gebucht' })
+    .in(
+      'id',
+      params.transactions.map((t) => t.id),
+    );
+  await settleInvoiceIfCovered(supabase, params.invoiceId);
   return true;
 }
 
@@ -186,6 +268,48 @@ export async function applyComboMatchAction(input: {
   if (!ok) return errorResult(de.errors.INTERNAL);
   revalidatePath('/app/finance');
   return successResult('Sammelzahlung zugeordnet.');
+}
+
+/** Confirms one split suggestion (several payments ↔ one invoice). */
+export async function applySplitMatchAction(input: {
+  invoiceId: string;
+  transactionIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.invoiceId).success ||
+    !Array.isArray(input.transactionIds) ||
+    input.transactionIds.length < 2 ||
+    input.transactionIds.length > 12 ||
+    !input.transactionIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: txs } = await supabase
+    .from('bookkeeping_transactions')
+    .select('id, betrag_cents, organization_id, billing_entity_id')
+    .in('id', input.transactionIds);
+  if (!txs || txs.length !== input.transactionIds.length) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
+  const orgId = txs[0]!.organization_id;
+  const entityId = txs[0]!.billing_entity_id;
+  // All payments must belong to the same company/org (no cross-tenant linking).
+  if (txs.some((t) => t.organization_id !== orgId || t.billing_entity_id !== entityId)) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const ok = await linkSplit(supabase, {
+    invoiceId: input.invoiceId,
+    orgId,
+    entityId,
+    transactions: txs.map((t) => ({ id: t.id, betrag_cents: t.betrag_cents })),
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Teilzahlungen zugeordnet.');
 }
 
 /** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */
