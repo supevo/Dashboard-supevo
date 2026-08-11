@@ -33,6 +33,7 @@ export interface ReconcileInputRows {
     re_id: string | null;
     beleg_id: string | null;
     beleg_nicht_noetig: boolean;
+    kategorie_id: string | null;
   }[];
   allocRows: { transaction_id: string; invoice_id: string; betrag_cents: number }[];
   /** Open (not-paid) invoices only. */
@@ -51,9 +52,13 @@ export interface ReconcileInputRows {
     brutto_cents: number | null;
     kind: string;
     rechnungsnummer?: string | null;
+    konfidenz?: number | null;
+    rohtext?: string | null;
   }[];
   /** Vom Nutzer abgelehnte Paare (a_id ↔ b_id), die nicht mehr vorgeschlagen werden. */
   dismissed?: { a_id: string; b_id: string }[];
+  /** Kategorien, die komplett aus dem Abgleich ausgeklammert werden. */
+  excludedCategories?: string[];
   minScore?: number;
 }
 
@@ -71,9 +76,13 @@ export function computeReconcile({
   clientName,
   receiptRows,
   dismissed = [],
+  excludedCategories = [],
   minScore = SUGGEST_THRESHOLD,
 }: ReconcileInputRows): ReconcileSuggestions {
   const allTx = txRows;
+  const excludedCats = new Set(excludedCategories);
+  const isExcludedTx = (t: (typeof allTx)[number]) =>
+    !!t.kategorie_id && excludedCats.has(t.kategorie_id);
 
   // Abgelehnte Paare in beide Richtungen als Set (Reihenfolge egal).
   const dismissedPairs = new Set<string>();
@@ -104,7 +113,13 @@ export function computeReconcile({
   );
 
   const payments: TxLite[] = allTx
-    .filter((t) => t.betrag_cents > 0 && !t.re_id && !allocatedTxIds.has(t.id))
+    .filter(
+      (t) =>
+        t.betrag_cents > 0 &&
+        !t.re_id &&
+        !allocatedTxIds.has(t.id) &&
+        !isExcludedTx(t),
+    )
     .map((t) => ({
       id: t.id,
       datum: t.datum,
@@ -118,7 +133,8 @@ export function computeReconcile({
         t.betrag_cents < 0 &&
         !t.beleg_id &&
         !t.beleg_nicht_noetig &&
-        !allocatedTxIds.has(t.id),
+        !allocatedTxIds.has(t.id) &&
+        !isExcludedTx(t),
     )
     .map((t) => ({
       id: t.id,
@@ -210,6 +226,8 @@ export function computeReconcile({
   const txById = new Map(allTx.map((t) => [t.id, t]));
   const invById = new Map(invoices.map((i) => [i.id, i]));
   const recById = new Map(receipts.map((r) => [r.id, r]));
+  // Zusatz-Infos je Beleg (für die aufklappbare „was wurde gescannt"-Ansicht).
+  const recMetaById = new Map(receiptRows.map((r) => [r.id, r]));
 
   const paymentsOut: PaymentSuggestion[] = paymentMatches.flatMap((m) => {
     const tx = txById.get(m.leftId);
@@ -220,6 +238,7 @@ export function computeReconcile({
         match: m,
         txDatum: tx.datum,
         txGegen: tx.gegen,
+        txZweck: tx.zweck,
         txBetragCents: tx.betrag_cents,
         invoiceNumber: inv.number,
         invoiceKunde: inv.kunde,
@@ -232,14 +251,19 @@ export function computeReconcile({
     const rec = recById.get(m.leftId);
     const tx = txById.get(m.rightId);
     if (!rec || !tx) return [];
+    const meta = recMetaById.get(m.leftId);
     return [
       {
         match: m,
         receiptHaendler: rec.haendler,
         receiptDatum: rec.datum,
         receiptBruttoCents: rec.bruttoCents,
+        receiptRechnungsnummer: meta?.rechnungsnummer ?? null,
+        receiptKonfidenz: meta?.konfidenz ?? null,
+        receiptRohtext: meta?.rohtext ?? null,
         txDatum: tx.datum,
         txGegen: tx.gegen,
+        txZweck: tx.zweck,
         txBetragCents: tx.betrag_cents,
       },
     ];
@@ -320,6 +344,19 @@ export function computeReconcile({
     )
     .map(toOpen);
 
+  // Ausgeklammerte Kategorien: aus dem Abgleich raus, aber für den CSV-Export
+  // (Kommentar „liegt dem Steuerberater vor") separat gesammelt.
+  const excluded: OpenBooking[] = allTx
+    .filter((t) => isExcludedTx(t))
+    .map((t) => ({
+      txId: t.id,
+      txDatum: t.datum,
+      txGegen: t.gegen,
+      txZweck: t.zweck,
+      txBetragCents: t.betrag_cents,
+      kategorieId: t.kategorie_id,
+    }));
+
   return {
     payments: paymentsOut,
     receipts: receiptsOut,
@@ -327,5 +364,6 @@ export function computeReconcile({
     splits: splitsOut,
     missingReceipts,
     missingIncoming,
+    excluded,
   };
 }

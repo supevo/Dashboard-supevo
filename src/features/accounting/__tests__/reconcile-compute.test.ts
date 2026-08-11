@@ -11,6 +11,7 @@ function tx(
   gegen: string,
   betrag_cents: number,
   zweck = '',
+  kategorie_id: string | null = null,
 ): ReconcileInputRows['txRows'][number] {
   return {
     id,
@@ -21,6 +22,7 @@ function tx(
     re_id: null,
     beleg_id: null,
     beleg_nicht_noetig: false,
+    kategorie_id,
   };
 }
 function receipt(
@@ -239,6 +241,28 @@ describe('computeReconcile – Randfälle & falsche/knifflige Angaben', () => {
     expect(res.combos[0]!.invoices).toHaveLength(2);
     expect(res.splits).toHaveLength(1);
     expect(res.splits[0]!.payments).toHaveLength(2);
+  });
+});
+
+describe('computeReconcile – ausgeklammerte Kategorien', () => {
+  it('nimmt Buchungen ausgeklammerter Kategorien komplett aus dem Abgleich', () => {
+    const input = base({
+      txRows: [
+        // Privatentnahme – ausgeklammert.
+        tx('t1', '2026-03-05', 'Inhaber', -50000, 'Privat', 'privatentnahme'),
+        // Normale Ausgabe – bleibt im Abgleich.
+        tx('t2', '2026-03-06', 'ACME GmbH', -11900, '', 'wareneinkauf'),
+      ],
+      receiptRows: [receipt('r2', '2026-03-05', 'ACME GmbH', 11900, 'ausgabe')],
+      excludedCategories: ['privatentnahme'],
+    });
+    const res = computeReconcile(input);
+    // t1 taucht NICHT als "Beleg fehlt" auf, sondern in excluded.
+    expect(res.missingReceipts.some((m) => m.txId === 't1')).toBe(false);
+    expect(res.excluded.map((e) => e.txId)).toEqual(['t1']);
+    // t2 wird ganz normal zugeordnet.
+    expect(res.receipts).toHaveLength(1);
+    expect(res.receipts[0]!.match.rightId).toBe('t2');
   });
 });
 
