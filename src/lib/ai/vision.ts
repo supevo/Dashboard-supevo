@@ -177,8 +177,12 @@ export function isReadableReceiptMime(mime: string): boolean {
 }
 
 function visionModel(): string {
-  // Standard-Vision-Modell fürs Beleg-Auslesen. Per AI_VISION_MODEL überschreibbar.
-  return process.env.AI_VISION_MODEL?.trim() || 'gpt-5.4';
+  // Standard-Vision-Modell fürs Beleg-Auslesen. Bewusst das Mini-Modell:
+  // Belege/Auszüge auslesen ist ein Massen-Job (jede PDF-Seite kostet als Bild
+  // viele Tokens), und gpt-5.4-mini läuft im großen Tages-Kontingent (2,5 Mio
+  // Tokens) statt im knappen Premium-Kontingent (250k). Per AI_VISION_MODEL
+  // überschreibbar.
+  return process.env.AI_VISION_MODEL?.trim() || 'gpt-5.4-mini';
 }
 
 /** GPT-5- und o-Serie sind Reasoning-Modelle (nehmen reasoning/verbosity). */
