@@ -4,6 +4,7 @@ import {
   classifyByMonth,
   type PeriodClass,
   type OpenBooking,
+  type OpenReceipt,
   type ReceiptSuggestion,
 } from '@/features/accounting/reconcile-queries';
 import { formatEuroCents } from '@/lib/money';
@@ -181,6 +182,71 @@ function MissingBookingsSection({
   );
 }
 
+/** Table of documents (invoices/receipts) that have NO matching bank booking:
+ *  "Ausgangsrechnungen ohne Zahlungseingang" / "Eingangsrechnungen ohne
+ *  Zahlung". Columns: Datum, Händler, Rechnungsnr., Betrag. */
+function UnpaidReceiptsSection({
+  title,
+  description,
+  accent,
+  rows,
+}: {
+  title: string;
+  description: string;
+  accent: 'emerald' | 'red';
+  rows: { s: OpenReceipt; period: PeriodClass }[];
+}) {
+  if (rows.length === 0) return null;
+  const border =
+    accent === 'emerald' ? 'border-emerald-500/30' : 'border-red-500/30';
+  const head =
+    accent === 'emerald'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : 'text-red-600 dark:text-red-400';
+  return (
+    <section className="space-y-2">
+      <h2 className={`text-sm font-semibold ${head}`}>
+        {title} <span className="text-muted-foreground">({rows.length})</span>
+      </h2>
+      <p className="text-xs text-muted-foreground">{description}</p>
+      <div className={`overflow-x-auto rounded-lg border ${border}`}>
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Datum</th>
+              <th className="px-3 py-2 font-medium">Händler / Kunde</th>
+              <th className="px-3 py-2 font-medium">Rechnungsnr.</th>
+              <th className="px-3 py-2 text-right font-medium">Betrag</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ s: r, period }) => (
+              <tr key={r.receiptId} className="border-t">
+                <td className="whitespace-nowrap px-3 py-2">
+                  {r.datum ?? '—'}
+                  <PeriodBadge period={period} />
+                </td>
+                <td
+                  className="max-w-[20rem] truncate px-3 py-2"
+                  title={r.haendler ?? ''}
+                >
+                  {r.haendler ?? '—'}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {r.rechnungsnummer ?? '—'}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
+                  {r.bruttoCents != null ? formatEuroCents(r.bruttoCents) : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Abgleich tab: run the reconcile engine (auto-applies confident matches) and
  * confirm the remaining suggestions. The month picker limits the view to the
@@ -248,6 +314,10 @@ export async function ReconcilePanel({
   const excluded = inView(all.excluded).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
+  // Belege ohne passende Zahlung. Ausgangsrechnungen (Einnahme) verstecken wir
+  // im Ausgaben-Filter, Eingangsrechnungen (Ausgabe) im Einnahmen-Filter.
+  const unpaidOutgoing = wantOut ? [] : inView(all.unpaidOutgoing);
+  const unpaidIncoming = wantIn ? [] : inView(all.unpaidIncoming);
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -312,6 +382,28 @@ export async function ReconcilePanel({
       zuordnung: 'ZUORDNUNG FEHLT',
       score: '—',
       grund: 'Keine passende Rechnung/Beleg gefunden',
+    })),
+    ...unpaidOutgoing.map(({ s: r }) => ({
+      art: 'Einnahme' as const,
+      datum: r.datum ?? '',
+      beschreibung: r.haendler ?? '',
+      betrag: r.bruttoCents != null ? euro(r.bruttoCents) : '',
+      zuordnung: `AUSGANGSRECHNUNG OHNE ZAHLUNGSEINGANG${
+        r.rechnungsnummer ? ` · Nr. ${r.rechnungsnummer}` : ''
+      }`,
+      score: '—',
+      grund: 'Gestellte Rechnung noch nicht bezahlt – kein Bankeingang gefunden',
+    })),
+    ...unpaidIncoming.map(({ s: r }) => ({
+      art: 'Ausgabe' as const,
+      datum: r.datum ?? '',
+      beschreibung: r.haendler ?? '',
+      betrag: r.bruttoCents != null ? euro(r.bruttoCents) : '',
+      zuordnung: `EINGANGSRECHNUNG OHNE ZAHLUNG${
+        r.rechnungsnummer ? ` · Nr. ${r.rechnungsnummer}` : ''
+      }`,
+      score: '—',
+      grund: 'Lieferantenrechnung noch nicht bezahlt – keine Zahlung gefunden',
     })),
     // Ausgeklammerte Kategorien – separat am Ende, mit Steuerberater-Hinweis.
     ...excluded.map(({ s: e }) => ({
@@ -632,6 +724,20 @@ export async function ReconcilePanel({
         peerLabel="Zahler"
         amountPositive
         withToggle={false}
+      />
+
+      <UnpaidReceiptsSection
+        title="📤 Ausgangsrechnungen ohne Zahlungseingang"
+        description="Von dir gestellte Rechnungen / Einnahme-Belege, zu denen der Abgleich noch keinen passenden Bankeingang gefunden hat – vermutlich noch offen (nicht bezahlt)."
+        accent="emerald"
+        rows={unpaidOutgoing}
+      />
+
+      <UnpaidReceiptsSection
+        title="📥 Eingangsrechnungen ohne Zahlung"
+        description="Lieferantenrechnungen / Ausgabe-Belege, zu denen keine passende Bankzahlung gefunden wurde – vermutlich noch nicht bezahlt."
+        accent="red"
+        rows={unpaidIncoming}
       />
     </div>
   );
