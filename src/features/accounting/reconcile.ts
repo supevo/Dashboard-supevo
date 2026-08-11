@@ -34,6 +34,8 @@ export interface ReceiptLite {
   datum: string | null;
   haendler: string | null;
   bruttoCents: number | null;
+  /** Von der KI ausgelesene Rechnungs-/Belegnummer (falls vorhanden). */
+  rechnungsnummer?: string | null;
 }
 
 export interface Match {
@@ -136,12 +138,16 @@ function scorePaymentInvoice(
 
   s = Math.min(1, s);
   if (s < minScore) return null;
+  // Automatisch nur übernehmen, wenn außer dem Betrag ein weiteres Signal passt
+  // (Rechnungsnummer im Zweck ODER klar gleicher Kunde). Sonst nur Vorschlag –
+  // gegen zufällig gleiche Beträge verschiedener Rechnungen.
+  const corroborated = numberInPurpose(inv.number, tx.zweck) || sim > 0.5;
   return {
     leftId: tx.id,
     rightId: inv.id,
     score: Math.round(s * 100) / 100,
     reason: reasons.join(', '),
-    auto: s >= AUTO_THRESHOLD,
+    auto: s >= AUTO_THRESHOLD && corroborated,
     dist,
   };
 }
@@ -196,13 +202,13 @@ function scoreReceiptTx(
 
   const diff = Math.abs(outCents - rec.bruttoCents);
   if (diff === 0) {
-    s += 0.55;
+    s += 0.5;
     reasons.push('Betrag exakt');
   } else if (diff <= 2) {
-    s += 0.45;
+    s += 0.4;
     reasons.push('Betrag ~gerundet');
   } else if (diff <= rec.bruttoCents * 0.02) {
-    s += 0.3;
+    s += 0.28;
     reasons.push('Betrag nahe');
   } else {
     return null; // amount must be close for receipts
@@ -216,13 +222,13 @@ function scoreReceiptTx(
     // recurring same-amount booking from an earlier month can't be picked.
     if (dist > 60) return null;
     if (dist <= 3) {
-      s += 0.3;
+      s += 0.25;
       reasons.push('Datum ±3 Tage');
     } else if (dist <= 14) {
-      s += 0.2;
+      s += 0.15;
       reasons.push('Datum ±14 Tage');
     } else if (dist <= 45) {
-      s += 0.1;
+      s += 0.08;
       reasons.push('Datum ±45 Tage');
     } else {
       s += 0.03;
@@ -230,20 +236,33 @@ function scoreReceiptTx(
     }
   }
 
+  // Starkes Zusatzsignal: die Rechnungs-/Belegnummer taucht im Verwendungszweck
+  // der Bankbuchung auf.
+  const numberMatch = numberInPurpose(rec.rechnungsnummer ?? null, tx.zweck);
+  if (numberMatch) {
+    s += 0.4;
+    reasons.push('Rechnungsnr. im Zweck');
+  }
+
   const sim = nameSimilarity(tx.gegen, rec.haendler);
   if (sim > 0.3) {
-    s += 0.1 * sim;
+    s += 0.15 * sim;
     reasons.push('Händler ähnlich');
   }
 
   s = Math.min(1, s);
   if (s < minScore) return null;
+  // Automatisch nur übernehmen, wenn außer Betrag/Datum ein weiteres Signal
+  // passt (Rechnungsnr. ODER klar gleicher Händler). Sonst nur Vorschlag –
+  // damit zufällig gleiche Beträge verschiedener Belege nicht falsch verbucht
+  // werden (häufigste Fehlzuordnung).
+  const corroborated = numberMatch || sim > 0.5;
   return {
     leftId: rec.id,
     rightId: tx.id,
     score: Math.round(s * 100) / 100,
     reason: reasons.join(', '),
-    auto: s >= AUTO_THRESHOLD,
+    auto: s >= AUTO_THRESHOLD && corroborated,
     dist,
   };
 }

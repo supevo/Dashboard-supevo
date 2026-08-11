@@ -217,11 +217,18 @@ export async function getReconcileSuggestions(
 
   const { data: receiptRows } = await supabase
     .from('bookkeeping_receipts')
-    .select('id, haendler, beleg_datum, brutto_cents, kind')
+    .select('id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer')
     .eq('billing_entity_id', billingEntityId)
     .in('kind', ['ausgabe', 'einnahme'])
     .not('brutto_cents', 'is', null)
     .limit(4000);
+
+  // Vom Nutzer abgelehnte Vorschläge (Tabelle fehlt evtl. → leer, kein Crash).
+  const { data: dismissRows } = await supabase
+    .from('bookkeeping_reconcile_dismissals')
+    .select('a_id, b_id')
+    .eq('billing_entity_id', billingEntityId)
+    .limit(20000);
 
   return computeReconcile({
     txRows: txns ?? [],
@@ -229,6 +236,7 @@ export async function getReconcileSuggestions(
     invoiceRows: invoiceRows ?? [],
     clientName,
     receiptRows: receiptRows ?? [],
+    dismissed: dismissRows ?? [],
     minScore,
   });
 }

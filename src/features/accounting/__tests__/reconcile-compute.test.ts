@@ -29,8 +29,9 @@ function receipt(
   haendler: string,
   brutto_cents: number | null,
   kind: 'einnahme' | 'ausgabe',
+  rechnungsnummer: string | null = null,
 ): ReconcileInputRows['receiptRows'][number] {
-  return { id, haendler, beleg_datum, brutto_cents, kind };
+  return { id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer };
 }
 function base(
   over: Partial<ReconcileInputRows> = {},
@@ -238,6 +239,56 @@ describe('computeReconcile – Randfälle & falsche/knifflige Angaben', () => {
     expect(res.combos[0]!.invoices).toHaveLength(2);
     expect(res.splits).toHaveLength(1);
     expect(res.splits[0]!.payments).toHaveLength(2);
+  });
+});
+
+describe('computeReconcile – Fehlzuordnungen vermeiden (mehr Signale)', () => {
+  it('gleicher Betrag+Datum aber anderer Händler → nur Vorschlag, NICHT automatisch', () => {
+    const input = base({
+      txRows: [tx('t1', '2026-03-05', 'Ganz Anderer Laden GmbH', -11900)],
+      receiptRows: [receipt('r1', '2026-03-04', 'ACME GmbH', 11900, 'ausgabe')],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(1);
+    // Ohne zweites Signal (Nr./Händler) darf es nicht auto-übernommen werden.
+    expect(res.receipts[0]!.match.auto).toBe(false);
+  });
+
+  it('Rechnungsnummer im Verwendungszweck → sichere (automatische) Zuordnung', () => {
+    const input = base({
+      txRows: [tx('t1', '2026-03-05', 'Unbekannt', -11900, 'Zahlung RE-77 danke')],
+      receiptRows: [
+        receipt('r1', '2026-03-04', 'ACME GmbH', 11900, 'ausgabe', 'RE-77'),
+      ],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(1);
+    expect(res.receipts[0]!.match.auto).toBe(true);
+  });
+
+  it('bei zwei gleich hohen Buchungen gewinnt die mit passendem Händler', () => {
+    const input = base({
+      txRows: [
+        tx('t1', '2026-03-11', 'ACME GmbH', -5000),
+        tx('t2', '2026-03-11', 'Fremd GmbH', -5000),
+      ],
+      receiptRows: [receipt('r1', '2026-03-10', 'ACME GmbH', 5000, 'ausgabe')],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(1);
+    expect(res.receipts[0]!.txGegen).toBe('ACME GmbH');
+  });
+
+  it('abgelehnte Vorschläge kommen nicht wieder', () => {
+    const input = base({
+      txRows: [tx('t1', '2026-03-05', 'ACME GmbH', -11900)],
+      receiptRows: [receipt('r1', '2026-03-04', 'ACME GmbH', 11900, 'ausgabe')],
+      dismissed: [{ a_id: 'r1', b_id: 't1' }],
+    });
+    const res = computeReconcile(input);
+    expect(res.receipts).toHaveLength(0);
+    // Buchung bleibt offen (taucht als "Beleg fehlt" auf).
+    expect(res.missingReceipts).toHaveLength(1);
   });
 });
 

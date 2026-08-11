@@ -2822,6 +2822,30 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bookkeeping_reconcile_dismissals: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          a_id: string;
+          b_id: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          a_id: string;
+          b_id: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_reconcile_dismissals']['Insert']
+        >;
+        Relationships: [];
+      };
       bookkeeping_accounts: {
         Row: {
           id: string;

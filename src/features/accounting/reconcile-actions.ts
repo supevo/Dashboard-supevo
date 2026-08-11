@@ -312,6 +312,150 @@ export async function applySplitMatchAction(input: {
   return successResult('Teilzahlungen zugeordnet.');
 }
 
+/** Persists rejected suggestion pairs so they are not proposed again. */
+async function insertDismissals(
+  supabase: Supabase,
+  params: {
+    orgId: string;
+    entityId: string;
+    userId: string;
+    pairs: { a: string; b: string }[];
+  },
+): Promise<boolean> {
+  const rows = params.pairs.map((p) => ({
+    organization_id: params.orgId,
+    billing_entity_id: params.entityId,
+    a_id: p.a,
+    b_id: p.b,
+    created_by: params.userId,
+  }));
+  const { error } = await supabase
+    .from('bookkeeping_reconcile_dismissals')
+    .upsert(rows, {
+      onConflict: 'billing_entity_id,a_id,b_id',
+      ignoreDuplicates: true,
+    });
+  return !error;
+}
+
+/** Org + entity of a transaction, after authorizing the caller for that org. */
+async function authorizeTx(
+  supabase: Supabase,
+  transactionId: string,
+): Promise<{ orgId: string; entityId: string; userId: string } | null> {
+  const { data: tx } = await supabase
+    .from('bookkeeping_transactions')
+    .select('organization_id, billing_entity_id')
+    .eq('id', transactionId)
+    .maybeSingle();
+  if (!tx) return null;
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: tx.organization_id });
+  return {
+    orgId: tx.organization_id,
+    entityId: tx.billing_entity_id,
+    userId: user.id,
+  };
+}
+
+/** Rejects a payment↔invoice suggestion. */
+export async function dismissPaymentMatchAction(input: {
+  transactionId: string;
+  invoiceId: string;
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.transactionId).success ||
+    !z.string().uuid().safeParse(input.invoiceId).success
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const ctx = await authorizeTx(supabase, input.transactionId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  const ok = await insertDismissals(supabase, {
+    ...ctx,
+    pairs: [{ a: input.transactionId, b: input.invoiceId }],
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Vorschlag abgelehnt.');
+}
+
+/** Rejects a receipt↔transaction suggestion. */
+export async function dismissReceiptMatchAction(input: {
+  receiptId: string;
+  transactionId: string;
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.receiptId).success ||
+    !z.string().uuid().safeParse(input.transactionId).success
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const ctx = await authorizeTx(supabase, input.transactionId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  const ok = await insertDismissals(supabase, {
+    ...ctx,
+    pairs: [{ a: input.receiptId, b: input.transactionId }],
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Vorschlag abgelehnt.');
+}
+
+/** Rejects a Sammelzahlung suggestion (payment ↔ several invoices). */
+export async function dismissComboMatchAction(input: {
+  transactionId: string;
+  invoiceIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.transactionId).success ||
+    !Array.isArray(input.invoiceIds) ||
+    input.invoiceIds.length < 1 ||
+    input.invoiceIds.length > 8 ||
+    !input.invoiceIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const ctx = await authorizeTx(supabase, input.transactionId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  const ok = await insertDismissals(supabase, {
+    ...ctx,
+    pairs: input.invoiceIds.map((inv) => ({ a: input.transactionId, b: inv })),
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Vorschlag abgelehnt.');
+}
+
+/** Rejects a Teilzahlung suggestion (invoice ↔ several payments). */
+export async function dismissSplitMatchAction(input: {
+  invoiceId: string;
+  transactionIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.invoiceId).success ||
+    !Array.isArray(input.transactionIds) ||
+    input.transactionIds.length < 1 ||
+    input.transactionIds.length > 12 ||
+    !input.transactionIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const ctx = await authorizeTx(supabase, input.transactionIds[0]!);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  const ok = await insertDismissals(supabase, {
+    ...ctx,
+    pairs: input.transactionIds.map((t) => ({ a: input.invoiceId, b: t })),
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Vorschlag abgelehnt.');
+}
+
 /** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */
 function inScope(
   datum: string,
