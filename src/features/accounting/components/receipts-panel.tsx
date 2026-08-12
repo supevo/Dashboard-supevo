@@ -94,6 +94,15 @@ export async function ReceiptsPanel({
     receiptCounts(active.entity.id),
     listImportLogs(active.entity.id),
   ]);
+  // Gesamtzahl der Belege in der aktuellen Art (unabhängig vom Monat), damit die
+  // Liste „X von Y" zeigt und der Monatsfilter nicht als Fehler wirkt.
+  const totalForKind =
+    kindFilter === 'einnahme'
+      ? counts.einnahme
+      : kindFilter === 'ausgabe'
+        ? counts.ausgabe
+        : counts.einnahme + counts.ausgabe;
+  const monthActive = month >= 1 && month <= 12;
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
@@ -180,17 +189,27 @@ export async function ReceiptsPanel({
       )}
 
       {receipts.length === 0 ? (
-        <EmptyState
-          icon="📥"
-          title="Noch keine Belege importiert"
-          description="Verbinde die OneDrive-Ordner im Tab „Firmen“ und ziehe deine Belege oben herein."
-        />
+        totalForKind > 0 ? (
+          <EmptyState
+            icon="🗓️"
+            title="Keine Belege in diesem Monat"
+            description={`Es sind ${totalForKind} Belege vorhanden, aber keiner im gewählten Monat. Wähle oben einen anderen Monat oder „Alle“.`}
+          />
+        ) : (
+          <EmptyState
+            icon="📥"
+            title="Noch keine Belege importiert"
+            description="Verbinde die OneDrive-Ordner im Tab „Firmen“ und ziehe deine Belege oben herein."
+          />
+        )
       ) : (
         <div className="rounded-lg border">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
             <h3 className="text-sm font-semibold">Belegarchiv</h3>
             <span className="text-xs text-muted-foreground">
-              {receipts.length} Dateien
+              {monthActive && receipts.length < totalForKind
+                ? `${receipts.length} von ${totalForKind} Dateien (Monat gefiltert)`
+                : `${receipts.length} Dateien`}
               {receipts.filter((r) => r.extract_failed_at).length > 0 && (
                 <>
                   {' · '}

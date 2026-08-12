@@ -27,9 +27,12 @@ export async function listReceipts(
   if (period.year && period.month && period.month >= 1 && period.month <= 12) {
     const mm = String(period.month).padStart(2, '0');
     const last = new Date(period.year, period.month, 0).getDate();
-    q = q
-      .gte('beleg_datum', `${period.year}-${mm}-01`)
-      .lte('beleg_datum', `${period.year}-${mm}-${last}`);
+    // Belege des Monats – ABER noch nicht ausgelesene/fehlgeschlagene Belege
+    // (beleg_datum IS NULL) bleiben immer sichtbar, sonst verschwinden genau
+    // die Belege, die man noch prüfen/auslesen muss, aus der Liste.
+    q = q.or(
+      `and(beleg_datum.gte.${period.year}-${mm}-01,beleg_datum.lte.${period.year}-${mm}-${last}),beleg_datum.is.null`,
+    );
   }
   const { data } = await q
     .order('beleg_datum', { ascending: false, nullsFirst: false })
