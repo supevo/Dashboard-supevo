@@ -135,7 +135,9 @@ export async function uploadReceiptAction(
           kategorie_id: kategorieId,
           konfidenz: ext.konfidenz == null ? null : Math.round(ext.konfidenz * 100),
           erkannt: ext as unknown as Record<string, unknown>,
-          status: 'zugeordnet',
+          // Status bleibt 'offen' (DB-Default): ausgelesen heißt nur „erkannt".
+          // „zugeordnet" wird ein Beleg erst beim Abgleich (linkReceipt) – sonst
+          // sähe ein frisch hochgeladener Beleg fälschlich schon verbucht aus.
         }
       : {}),
   });
