@@ -19,6 +19,7 @@ import {
 } from '@/features/accounting/components/kind-filter';
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
 import { ReceiptFieldsEdit } from '@/features/accounting/components/receipt-fields-edit';
+import { duplicateReceiptIds } from '@/features/accounting/receipt-duplicates';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 function quelleLabel(source: string, konfidenz: number | null): string {
@@ -103,6 +104,9 @@ export async function ReceiptsPanel({
         ? counts.ausgabe
         : counts.einnahme + counts.ausgabe;
   const monthActive = month >= 1 && month <= 12;
+  // Inhaltliche Dubletten (gleiche Rechnungsnr. bzw. Betrag+Datum+Händler) in der
+  // aktuellen Liste markieren – nur ein Hinweis, nie automatisch löschen.
+  const dupIds = duplicateReceiptIds(receipts);
   const nowYear = new Date().getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2, nowYear - 3];
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
@@ -219,6 +223,14 @@ export async function ReceiptsPanel({
                   </span>
                   {' (nochmal „Belege mit KI auslesen“ wiederholt sie)'}
                 </>
+              )}
+              {dupIds.size > 0 && (
+                <>
+                  {' · '}
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {dupIds.size} mögliche Dublette{dupIds.size === 1 ? '' : 'n'}
+                  </span>
+                </>
               )}{' '}
               · Aufbewahrung 10 Jahre (GoBD)
             </span>
@@ -249,6 +261,14 @@ export async function ReceiptsPanel({
                   </td>
                   <td className="max-w-[18rem] truncate px-3 py-2" title={r.file_name}>
                     {r.file_name}
+                    {dupIds.has(r.id) && (
+                      <span
+                        className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                        title="Gleiche Rechnungsnr. oder Betrag+Datum+Händler wie ein anderer Beleg – bitte prüfen, ob doppelt."
+                      >
+                        ⚠ mögliche Dublette
+                      </span>
+                    )}
                   </td>
                   <ReceiptFieldsEdit
                     receiptId={r.id}
