@@ -4,8 +4,15 @@ import { isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { aiSelfTest } from '@/lib/ai/complete';
+import { getAiUsageSummary } from '@/lib/ai/usage';
 import { listOneDriveUploadErrors } from '@/features/onedrive/queries';
 import { formatBerlinDateTime } from '@/lib/time';
+
+/** Große Zahlen kurz: 12.345 → "12.345", 1.234.567 → "1,23 Mio.". */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2).replace('.', ',')} Mio.`;
+  return n.toLocaleString('de-DE');
+}
 
 /**
  * Verifies that SUPABASE_SERVICE_ROLE_KEY is really the service/secret key.
@@ -47,7 +54,7 @@ async function checkSchema(): Promise<SchemaCheck[]> {
   const checks: SchemaCheck[] = [];
 
   const table = async (
-    name: 'xp_events' | 'achievements' | 'user_counters',
+    name: 'xp_events' | 'achievements' | 'user_counters' | 'ai_usage_events',
     hint: string,
   ) => {
     const { error } = await service.from(name).select('*', { head: true, count: 'exact' }).limit(1);
@@ -65,6 +72,7 @@ async function checkSchema(): Promise<SchemaCheck[]> {
   await table('xp_events', 'Migration 0047');
   await table('achievements', 'Migration 0048');
   await table('user_counters', 'Migration 0049/0050');
+  await table('ai_usage_events', 'Migration 0123');
   await column('memberships', 'joined_company_at', 'Migration 0051');
   await column('work_preferences', 'level', 'Migration 0021/0046');
 
@@ -94,6 +102,7 @@ export default async function DiagnosticsPage() {
   const { data: dbView, error } = await supabase.rpc('whoami');
   const serviceKey = await checkServiceKey();
   const ai = await aiSelfTest();
+  const aiUsage = await getAiUsageSummary(supabase, orgId);
   const schema = await checkSchema();
   const schemaOk = schema.every((c) => c.ok);
   const oneDriveErrors = isSuperAdmin(user)
@@ -179,6 +188,88 @@ export default async function DiagnosticsPage() {
             KI-Schlüssel (<code>GEMINI_API_KEY</code>) fehlt/ist ungültig, das
             Modell (<code>AI_MODEL</code>) ist nicht verfügbar, oder ein Kontingent
             ist erschöpft.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🤖 KI-Nutzung (Beleg-Auslesen)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!aiUsage.available ? (
+            <p className="text-sm text-muted-foreground">
+              Noch keine Nutzungsdaten – oder Migration 0123
+              (<code>ai_usage_events</code>) ist in Supabase noch nicht
+              eingespielt.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Heute
+                </p>
+                {aiUsage.today.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Heute noch keine KI-Auslesung.
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {aiUsage.today.map((s) => (
+                      <li
+                        key={s.model}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span>
+                          <code>{s.model}</code>{' '}
+                          <span className="text-muted-foreground">
+                            · {s.calls} Aufrufe
+                          </span>
+                        </span>
+                        <span className="font-medium">
+                          {formatTokens(s.tokens)} Tokens
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Letzte 30 Tage
+                </p>
+                {aiUsage.last30.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Keine KI-Auslesung in den letzten 30 Tagen.
+                  </p>
+                ) : (
+                  <ul className="space-y-1 text-sm">
+                    {aiUsage.last30.map((s) => (
+                      <li
+                        key={s.model}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span>
+                          <code>{s.model}</code>{' '}
+                          <span className="text-muted-foreground">
+                            · {s.calls} Aufrufe
+                          </span>
+                        </span>
+                        <span className="font-medium">
+                          {formatTokens(s.tokens)} Tokens
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Zählt die von dieser App verbrauchten Tokens beim Beleg-/Auszug-
+            Auslesen. Referenz-Tageskontingente bei OpenAI: ~250.000 Tokens für
+            die großen Modelle (u. a. <code>gpt-5.4</code>), ~2,5 Mio. für die
+            Mini-Modelle (u. a. <code>gpt-5.4-mini</code>).
           </p>
         </CardContent>
       </Card>

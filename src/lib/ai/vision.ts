@@ -256,10 +256,18 @@ function systemPrompt(ctx: ReceiptExtractionContext): string {
  * Extracts a single receipt from its bytes. `mime` decides image vs PDF input.
  * Returns null on any failure (caller falls back). Never throws.
  */
+/** Token usage of one KI call (for the cost/quota view). */
+export interface AiCallUsage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export async function extractReceipt(
   bytes: Buffer,
   mime: string,
   ctx: ReceiptExtractionContext,
+  onUsage?: (u: AiCallUsage) => void,
 ): Promise<ReceiptExtraction | null> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -319,7 +327,15 @@ export async function extractReceipt(
       output_text?: string;
       status?: string;
       incomplete_details?: { reason?: string };
+      usage?: { input_tokens?: number; output_tokens?: number };
     };
+    if (onUsage && res.usage) {
+      onUsage({
+        model,
+        inputTokens: res.usage.input_tokens ?? 0,
+        outputTokens: res.usage.output_tokens ?? 0,
+      });
+    }
     const text = res.output_text;
     if (!text) {
       // Kein Text → sagen WARUM (z. B. Budget aufgebraucht, Content-Filter),
