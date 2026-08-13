@@ -456,6 +456,67 @@ export async function dismissSplitMatchAction(input: {
   return successResult('Vorschlag abgelehnt.');
 }
 
+/**
+ * Bulk-applies ALL suggestions of the current scope above a "safe" score bar
+ * (≥ 0.7). The auto-run only applies corroborated ≥ 0.85 matches; this covers
+ * the reviewed 70–85 % band and high-but-uncorroborated matches in one click,
+ * while leaving genuinely weak (< 70 %) ones for manual decision. Respects
+ * dismissals/exclusions (the engine already filters those out).
+ */
+const BULK_SAFE_THRESHOLD = 0.7;
+
+export async function applyAllConfidentAction(
+  billingEntityId: string,
+  scope: { year?: number; month?: number } = {},
+): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(billingEntityId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const orgId = await authorizeEntity(supabase, billingEntityId);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+
+  const all = await getReconcileSuggestions(billingEntityId);
+  const safe = (s: number) => s >= BULK_SAFE_THRESHOLD;
+
+  let applied = 0;
+  for (const p of all.payments) {
+    if (!inScope(p.txDatum, scope) || !safe(p.match.score)) continue;
+    if (await linkPayment(supabase, p.match.leftId, p.match.rightId)) applied += 1;
+  }
+  for (const r of all.receipts) {
+    if (!inScope(r.txDatum, scope) || !safe(r.match.score)) continue;
+    if (await linkReceipt(supabase, r.match.leftId, r.match.rightId)) applied += 1;
+  }
+  for (const c of all.combos) {
+    if (!inScope(c.txDatum, scope) || !safe(c.match.score)) continue;
+    const ok = await linkCombo(supabase, {
+      txId: c.match.txId,
+      orgId,
+      entityId: billingEntityId,
+      invoiceIds: c.match.invoiceIds,
+    });
+    if (ok) applied += 1;
+  }
+  for (const s of all.splits) {
+    if (!inScope(s.txDatum, scope) || !safe(s.match.score)) continue;
+    const ok = await linkSplit(supabase, {
+      invoiceId: s.match.invoiceId,
+      orgId,
+      entityId: billingEntityId,
+      transactions: s.payments.map((t) => ({ id: t.id, betrag_cents: t.betragCents })),
+    });
+    if (ok) applied += 1;
+  }
+
+  revalidatePath('/app/finance');
+  return successResult(
+    applied > 0
+      ? `${applied} sichere Vorschläge übernommen.`
+      : 'Keine sicheren Vorschläge (ab 70 %) zum Übernehmen – bitte einzeln prüfen.',
+  );
+}
+
 /** True if an ISO date (YYYY-MM-DD) falls in the given year/month. */
 function inScope(
   datum: string,

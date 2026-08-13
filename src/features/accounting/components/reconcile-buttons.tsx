@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   runReconcileAction,
+  applyAllConfidentAction,
   applyPaymentMatchAction,
   applyReceiptMatchAction,
   applyComboMatchAction,
@@ -101,6 +102,60 @@ export function RerunReconcileButton({
     >
       {busy ? 'Prüfe erneut …' : '🔁 Erneut abgleichen'}
     </Button>
+  );
+}
+
+/**
+ * Übernimmt in einem Schwung ALLE sicheren Vorschläge (ab 70 %) des aktuellen
+ * Zeitraums – statt jeden einzeln zu bestätigen. Mit Rückfrage, weil es viele
+ * Buchungen auf einmal verbucht.
+ */
+export function ApplyAllButton({
+  billingEntityId,
+  year,
+  month,
+}: {
+  billingEntityId: string;
+  year: number;
+  month: number;
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function run() {
+    if (
+      !window.confirm(
+        'Alle sicheren Vorschläge (ab 70 %) des aktuellen Zeitraums übernehmen?\n\nEinzelne unsichere Vorschläge bleiben zum manuellen Prüfen bestehen.',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setMsg(null);
+    const res = await applyAllConfidentAction(billingEntityId, {
+      year,
+      month: month >= 1 && month <= 12 ? month : undefined,
+    });
+    setBusy(false);
+    setMsg('message' in res ? (res.message ?? '') : '');
+    if (res.status === 'success') router.refresh();
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={run}
+        disabled={busy}
+        title="Übernimmt alle Vorschläge ab 70 % Sicherheit auf einmal"
+      >
+        {busy ? 'Übernehme …' : '✅ Alle sicheren übernehmen'}
+      </Button>
+      {msg && <Alert className="py-1 text-xs">{msg}</Alert>}
+    </div>
   );
 }
 
