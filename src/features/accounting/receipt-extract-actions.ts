@@ -11,7 +11,9 @@ import {
   resolveReceiptMime,
   isReadableReceiptMime,
   type ReceiptExtractionContext,
+  type AiCallUsage,
 } from '@/lib/ai/vision';
+import { recordAiUsage } from '@/lib/ai/usage';
 import { KATEGORIEN } from '@/features/accounting/categories';
 import type { Database } from '@/lib/database.types';
 import { de } from '@/lib/i18n/de';
@@ -115,7 +117,17 @@ export async function extractReceiptAction(receiptId: string): Promise<ActionRes
   }
 
   const ctx = await buildContext(supabase, receipt.billing_entity_id);
-  const ext = await extractReceipt(file.bytes, mime, ctx);
+  let usage: AiCallUsage | null = null;
+  const ext = await extractReceipt(file.bytes, mime, ctx, (u) => {
+    usage = u;
+  });
+  if (usage) {
+    await recordAiUsage(supabase, {
+      orgId: receipt.organization_id,
+      purpose: 'receipt',
+      usage,
+    });
+  }
   const update = toReceiptUpdate(ext);
   if (!update) return errorResult('Beleg konnte nicht ausgelesen werden.');
 
@@ -237,7 +249,17 @@ export async function extractOpenReceiptsAction(
       await markFailed(supabase, r.id);
       return;
     }
-    const ext = await extractReceipt(file.bytes, mime, ctx);
+    let usage: AiCallUsage | null = null;
+    const ext = await extractReceipt(file.bytes, mime, ctx, (u) => {
+      usage = u;
+    });
+    if (usage) {
+      await recordAiUsage(supabase, {
+        orgId: r.organization_id,
+        purpose: 'receipt',
+        usage,
+      });
+    }
     const update = toReceiptUpdate(ext);
     if (!update) {
       failExtract += 1;

@@ -12,7 +12,9 @@ import {
   resolveReceiptMime,
   isReadableReceiptMime,
   type ReceiptExtraction,
+  type AiCallUsage,
 } from '@/lib/ai/vision';
+import { recordAiUsage } from '@/lib/ai/usage';
 import { KATEGORIEN } from '@/features/accounting/categories';
 import { de } from '@/lib/i18n/de';
 import {
@@ -95,12 +97,23 @@ export async function uploadReceiptAction(
   // Read first (best-effort) so we can file it by the real receipt date.
   let ext: ReceiptExtraction | null = null;
   if (isReceiptVisionEnabled() && isReadableReceiptMime(mime)) {
-    ext = await extractReceipt(bytes, mime, {
-      firmaName: entity.company_name || entity.name || null,
-      firmaUstId: entity.vat_id ?? null,
-      firmaIban: entity.iban ?? null,
-      kategorien: KAT_CONTEXT,
-    });
+    let usage: AiCallUsage | null = null;
+    ext = await extractReceipt(
+      bytes,
+      mime,
+      {
+        firmaName: entity.company_name || entity.name || null,
+        firmaUstId: entity.vat_id ?? null,
+        firmaIban: entity.iban ?? null,
+        kategorien: KAT_CONTEXT,
+      },
+      (u) => {
+        usage = u;
+      },
+    );
+    if (usage) {
+      await recordAiUsage(supabase, { orgId, purpose: 'receipt', usage });
+    }
   }
 
   // Ensure <root>/<Jahr>/<Monat> and upload there (fall back to root on failure).

@@ -1159,6 +1159,28 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['ai_briefings']['Insert']>;
         Relationships: [];
       };
+      ai_usage_events: {
+        Row: {
+          id: string;
+          organization_id: string;
+          model: string;
+          purpose: string;
+          input_tokens: number;
+          output_tokens: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          model: string;
+          purpose: string;
+          input_tokens?: number;
+          output_tokens?: number;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['ai_usage_events']['Insert']>;
+        Relationships: [];
+      };
       employee_skills: {
         Row: {
           id: string;
