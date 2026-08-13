@@ -25,6 +25,7 @@ import {
 import {
   RunReconcileButton,
   RerunReconcileButton,
+  ApplyAllButton,
   ApplyMatchButton,
   ApplyComboButton,
   ApplySplitButton,
@@ -455,6 +456,11 @@ export async function ReconcilePanel({
             )}
           />
           <RunReconcileButton
+            billingEntityId={active.entity.id}
+            year={year}
+            month={month}
+          />
+          <ApplyAllButton
             billingEntityId={active.entity.id}
             year={year}
             month={month}
