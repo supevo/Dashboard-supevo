@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { listAccountingCompanies } from '@/features/accounting/queries';
 import { getMonthClose } from '@/features/accounting/month-close-queries';
+import { getBookingExportRows } from '@/features/accounting/export-queries';
+import { ExportBookingsButton } from '@/features/accounting/components/export-bookings-button';
 import { formatEuroCents } from '@/lib/money';
 import { EmptyState } from '@/components/ui/empty-state';
 import {
@@ -104,7 +106,10 @@ export async function MonthClosePanel({
   }));
 
   const sel = Math.min(12, Math.max(1, month));
-  const mc = await getMonthClose(active.entity.id, year, sel);
+  const [mc, exportRows] = await Promise.all([
+    getMonthClose(active.entity.id, year, sel),
+    getBookingExportRows(active.entity.id, year, sel),
+  ]);
 
   const firmaBase = `${basePath}&firma=${active.entity.id}`;
   const nowYear = new Date().getFullYear();
@@ -125,7 +130,16 @@ export async function MonthClosePanel({
           activeId={active.entity.id}
           basePath={basePath}
         />
-        <YearSwitcher year={year} years={years} basePath={firmaBase} />
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportBookingsButton
+            rows={exportRows}
+            fileName={`buchungen-${active.entity.name}-${MONTHS_LONG[sel - 1]}-${year}.csv`.replace(
+              /\s+/g,
+              '_',
+            )}
+          />
+          <YearSwitcher year={year} years={years} basePath={firmaBase} />
+        </div>
       </div>
 
       {/* Month grid */}
