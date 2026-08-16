@@ -23,6 +23,8 @@ export interface ModuleDef {
   key: string;
   label: string;
   description: string;
+  /** Emoji-Icon (im Stil der Dashboard-Icons) oder null. */
+  icon: string | null;
   /** Kategoriename für die Gruppierung (null = ohne Kategorie). */
   category: string | null;
   categoryPosition: number;
@@ -36,6 +38,7 @@ export interface ModuleRow {
   key: string;
   label: string;
   description: string | null;
+  icon?: string | null;
   category_name?: string | null;
   category_position?: number | null;
   pricing_kind: string;
@@ -69,6 +72,7 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     key: r.key,
     label: r.label,
     description: r.description ?? '',
+    icon: r.icon ?? null,
     category: r.category_name ?? null,
     categoryPosition: r.category_position ?? 0,
     position: r.position,

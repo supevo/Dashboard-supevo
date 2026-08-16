@@ -133,6 +133,7 @@ export async function upsertModuleAction(
     max_qty: intOf(formData.get('maxQty'), 99),
     stage: pricingKind === 'stage' ? (intOf(formData.get('stage'), 1) === 2 ? 2 : 1) : null,
     capture_budget: formData.get('captureBudget') === 'on',
+    icon: String(formData.get('icon') ?? '').trim() || null,
     position: intOf(formData.get('position'), 0),
     active: formData.get('active') === 'on',
   };

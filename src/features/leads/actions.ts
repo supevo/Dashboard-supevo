@@ -247,6 +247,53 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
   });
 }
 
+/** Updates a lead's core fields (edit on the board). RLS-scoped via count. */
+export async function updateLeadAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const id = String(formData.get('id') ?? '');
+  if (!z.string().uuid().safeParse(id).success) return errorResult(de.errors.VALIDATION);
+  const parsed = createSchema.safeParse({
+    contactName: formData.get('contactName'),
+    company: formData.get('company') ?? '',
+    email: formData.get('email') ?? '',
+    phone: formData.get('phone') ?? '',
+    source: formData.get('source') ?? '',
+    note: formData.get('note') ?? '',
+    value: formData.get('value') ?? '',
+  });
+  if (!parsed.success) {
+    return errorResult(parsed.error.issues[0]?.message ?? de.errors.VALIDATION);
+  }
+  const d = parsed.data;
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('leads')
+    .update(
+      {
+        contact_name: d.contactName,
+        company: d.company || null,
+        email: d.email || null,
+        phone: d.phone || null,
+        source: d.source || null,
+        note: d.note || null,
+        estimated_value_cents: parseEuroToCents(d.value ?? ''),
+      },
+      { count: 'exact' },
+    )
+    .eq('id', id);
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath('/app/leads');
+  return successResult('Lead aktualisiert.');
+}
+
 /** Moves a lead to another status column (drag & drop on the board). */
 export async function moveLeadAction(
   leadId: string,

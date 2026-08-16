@@ -12,6 +12,7 @@ import {
   convertLeadToClientAction,
 } from '@/features/leads/actions';
 import { LEAD_STATUSES, type Lead, type LeadStatus } from '@/features/leads/types';
+import { EditLeadButton } from '@/features/leads/components/edit-lead-button';
 
 const COL_ACCENT: Record<LeadStatus, string> = {
   new: 'border-t-sky-400',
@@ -157,14 +158,17 @@ function LeadCard({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label={de.leads.delete}
-          className="text-muted-foreground hover:text-destructive"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-1.5">
+          <EditLeadButton lead={lead} />
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={de.leads.delete}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
       {(lead.email || lead.phone) && (
