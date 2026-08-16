@@ -57,7 +57,7 @@ describe('moduleMonthlyCents', () => {
         { id: 'google_ads', enabled: true, budgetCents: 500000 },
         ctx,
       ),
-    ).toBe(14900);
+    ).toBe(24500);
   });
 });
 
