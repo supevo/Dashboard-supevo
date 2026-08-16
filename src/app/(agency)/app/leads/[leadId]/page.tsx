@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getLeadOffer } from '@/features/leads/queries';
 import { MembershipConfigurator } from '@/features/memberships/components/membership-configurator';
+import { LeadConvertButton } from '@/features/leads/components/lead-convert-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,19 @@ export default async function LeadOfferPage({
         priceContext={offer.priceContext}
         pending={null}
       />
+
+      <div className="rounded-lg border bg-muted/30 p-4">
+        <p className="mb-2 text-sm font-medium">Lead gewonnen?</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Übernimmt den Lead als Kunden und legt die Mitgliedschaft aus dem
+          aktuellen Paket an. Bitte vorher speichern, damit das Paket übernommen
+          wird.
+        </p>
+        <LeadConvertButton
+          leadId={leadId}
+          convertedClientCompanyId={offer.convertedClientCompanyId}
+        />
+      </div>
     </div>
   );
 }

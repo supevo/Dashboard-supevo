@@ -1695,6 +1695,7 @@ export interface Database {
           estimated_value_cents: number | null;
           modules: unknown;
           offer_name: string | null;
+          converted_client_company_id: string | null;
           status: 'new' | 'contacted' | 'offer' | 'won' | 'lost';
           assigned_to: string | null;
           created_by: string | null;
@@ -1713,6 +1714,7 @@ export interface Database {
           estimated_value_cents?: number | null;
           modules?: unknown;
           offer_name?: string | null;
+          converted_client_company_id?: string | null;
           status?: 'new' | 'contacted' | 'offer' | 'won' | 'lost';
           assigned_to?: string | null;
           created_by?: string | null;
