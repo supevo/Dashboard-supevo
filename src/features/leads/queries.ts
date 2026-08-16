@@ -22,6 +22,8 @@ export interface LeadOfferView {
   selections: ModuleSelection[];
   priceContext: PriceContext;
   estimatedValueCents: number | null;
+  /** Set once the lead has been converted into a client. */
+  convertedClientCompanyId: string | null;
 }
 
 /** Loads one lead's Angebots-Baukasten (RLS-scoped to agency staff). */
@@ -29,7 +31,9 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
   const supabase = await createSupabaseServerClient();
   const { data: lead } = await supabase
     .from('leads')
-    .select('id, organization_id, contact_name, company, modules, offer_name, estimated_value_cents')
+    .select(
+      'id, organization_id, contact_name, company, modules, offer_name, estimated_value_cents, converted_client_company_id',
+    )
     .eq('id', leadId)
     .maybeSingle();
   if (!lead) return null;
@@ -59,6 +63,7 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
     selections: normalizeSelections(lead.modules),
     priceContext,
     estimatedValueCents: lead.estimated_value_cents,
+    convertedClientCompanyId: lead.converted_client_company_id,
   };
 }
 

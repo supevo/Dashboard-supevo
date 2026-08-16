@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
-import { requireUser } from '@/lib/authz/authorize';
+import { requireUser, authorize } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { de } from '@/lib/i18n/de';
 import {
@@ -164,6 +164,85 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);
   return successResult('Angebot gespeichert.');
+}
+
+/**
+ * Wandelt einen gewonnenen Lead in einen Kunden um: legt ein Kundenunternehmen
+ * an und erstellt daraus eine Mitgliedschaft aus dem Angebots-Baukasten. Ohne
+ * supevo-Stage-Modul gilt der Kunde als Legacy (sieht später die Module im
+ * Portal). Idempotent: ist der Lead schon umgewandelt, wird nur der bestehende
+ * Kunde zurückgegeben.
+ */
+export async function convertLeadToClientAction(leadId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(leadId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+
+  const supabase = await createSupabaseServerClient();
+  const { data: lead } = await supabase
+    .from('leads')
+    .select(
+      'id, organization_id, contact_name, company, email, note, modules, offer_name, estimated_value_cents, converted_client_company_id',
+    )
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) return errorResult(de.errors.FORBIDDEN);
+
+  authorize(user, { type: 'clientCompany.create', orgId: lead.organization_id });
+
+  // Schon umgewandelt → bestehenden Kunden zurückgeben (keine Doppel-Anlage).
+  if (lead.converted_client_company_id) {
+    return successResult('Lead ist bereits ein Kunde.', {
+      id: lead.converted_client_company_id,
+    });
+  }
+
+  const selections = normalizeSelections(lead.modules);
+  const hasSupevo = selections.some(
+    (s) => s.enabled && (s.id === 'supevo_stage1' || s.id === 'supevo_stage2'),
+  );
+  const isLegacy = !hasSupevo; // kleine/Web-Pakete → Legacy (sehen Module im Portal)
+  const stage = selections.some((s) => s.enabled && s.id === 'supevo_stage2') ? 2 : 1;
+
+  const service = createSupabaseServiceClient();
+  const { data: company, error: cErr } = await service
+    .from('client_companies')
+    .insert({
+      organization_id: lead.organization_id,
+      name: lead.company || lead.contact_name,
+      contact_email: lead.email || null,
+      notes: lead.note || null,
+      is_legacy: isLegacy,
+      created_by: user.id,
+    })
+    .select('id')
+    .single();
+  if (cErr || !company) {
+    return errorResult('Kunde konnte nicht angelegt werden (Name evtl. schon vergeben).');
+  }
+
+  const { error: mErr } = await service.from('client_memberships').insert({
+    organization_id: lead.organization_id,
+    client_company_id: company.id,
+    modules: selections as unknown,
+    custom_net_cents: lead.estimated_value_cents ?? 0,
+    custom_name: lead.offer_name || 'Individuell',
+    stage,
+  });
+  if (mErr) return errorResult('Mitgliedschaft konnte nicht angelegt werden.');
+
+  await service
+    .from('leads')
+    .update({ status: 'won', converted_client_company_id: company.id })
+    .eq('id', leadId);
+
+  revalidatePath('/app/leads');
+  revalidatePath(`/app/leads/${leadId}`);
+  revalidatePath('/app/clients');
+  return successResult('Lead als Kunde übernommen – Mitgliedschaft angelegt.', {
+    id: company.id,
+  });
 }
 
 /** Deletes a lead. */
