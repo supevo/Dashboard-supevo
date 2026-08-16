@@ -249,28 +249,16 @@ function ModuleRow({
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <span className="flex items-start gap-2">
-          <span
-            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
-              state.enabled
-                ? 'border-emerald-500 bg-emerald-500 text-white'
-                : 'border-muted-foreground/40 text-transparent'
-            }`}
-            aria-hidden
-          >
-            ✓
+        <span>
+          <span className="text-sm font-medium">
+            {def.icon && <span className="mr-1.5">{def.icon}</span>}
+            {def.label}
           </span>
-          <span>
-            <span className="text-sm font-medium">
-              {def.icon && <span className="mr-1.5">{def.icon}</span>}
-              {def.label}
+          {def.description && (
+            <span className="block text-xs text-muted-foreground">
+              {def.description}
             </span>
-            {def.description && (
-              <span className="block text-xs text-muted-foreground">
-                {def.description}
-              </span>
-            )}
-          </span>
+          )}
         </span>
         <span className="whitespace-nowrap text-sm font-semibold">
           {state.enabled ? formatEuroCents(lineCents) : '—'}
