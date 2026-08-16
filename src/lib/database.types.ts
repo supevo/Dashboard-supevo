@@ -1217,6 +1217,12 @@ export interface Database {
           max_qty: number;
           stage: number | null;
           capture_budget: boolean;
+          budget_via_options: boolean;
+          keyword_cents: number;
+          keyword_default: number;
+          addon_label: string | null;
+          addon_cents: number;
+          addon_required: boolean;
           icon: string | null;
           position: number;
           active: boolean;
@@ -1238,6 +1244,12 @@ export interface Database {
           max_qty?: number;
           stage?: number | null;
           capture_budget?: boolean;
+          budget_via_options?: boolean;
+          keyword_cents?: number;
+          keyword_default?: number;
+          addon_label?: string | null;
+          addon_cents?: number;
+          addon_required?: boolean;
           icon?: string | null;
           position?: number;
           active?: boolean;
