@@ -24,6 +24,12 @@ const web: ModuleDef = {
   position: 2,
   pricing: { kind: 'flat', netCents: 34000 },
   captureBudget: false,
+  budgetViaOptions: false,
+  keywordCents: 0,
+  keywordDefault: 0,
+  addonLabel: null,
+  addonCents: 0,
+  addonRequired: false,
 };
 const seo: ModuleDef = {
   key: 'seo',
@@ -42,6 +48,12 @@ const seo: ModuleDef = {
     maxQty: 30,
   },
   captureBudget: false,
+  budgetViaOptions: false,
+  keywordCents: 0,
+  keywordDefault: 0,
+  addonLabel: null,
+  addonCents: 0,
+  addonRequired: false,
 };
 const stage1: ModuleDef = {
   key: 'supevo_stage1',
@@ -53,6 +65,12 @@ const stage1: ModuleDef = {
   position: 0,
   pricing: { kind: 'stage', stage: 1 },
   captureBudget: false,
+  budgetViaOptions: false,
+  keywordCents: 0,
+  keywordDefault: 0,
+  addonLabel: null,
+  addonCents: 0,
+  addonRequired: false,
 };
 const ads: ModuleDef = {
   key: 'google_ads',
@@ -64,6 +82,12 @@ const ads: ModuleDef = {
   position: 5,
   pricing: { kind: 'flat', netCents: 24500 },
   captureBudget: true,
+  budgetViaOptions: false,
+  keywordCents: 0,
+  keywordDefault: 0,
+  addonLabel: null,
+  addonCents: 0,
+  addonRequired: false,
 };
 
 describe('moduleMonthlyCents', () => {
@@ -90,6 +114,39 @@ describe('moduleMonthlyCents', () => {
     expect(
       moduleMonthlyCents({ ...ads }, { id: 'google_ads', enabled: true, budgetCents: 500000 }, ctx),
     ).toBe(24500);
+  });
+
+  it('Keyword-Skalierung: Pauschale + Keywords × Preis', () => {
+    const adsKw: ModuleDef = { ...ads, keywordCents: 1500, keywordDefault: 10 };
+    // 245 € + 10 Keywords × 15 € = 245 + 150 = 395 €
+    expect(moduleMonthlyCents(adsKw, { id: 'google_ads', enabled: true }, ctx)).toBe(24500 + 15000);
+    // eigene Keyword-Zahl
+    expect(
+      moduleMonthlyCents(adsKw, { id: 'google_ads', enabled: true, keywords: 20 }, ctx),
+    ).toBe(24500 + 30000);
+  });
+
+  it('Pflicht-Add-on (Google Business) ist immer enthalten', () => {
+    const adsAddon: ModuleDef = {
+      ...ads,
+      addonLabel: 'Google Business',
+      addonCents: 9900,
+      addonRequired: true,
+    };
+    expect(moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true }, ctx)).toBe(24500 + 9900);
+  });
+
+  it('optionales Add-on nur wenn gewählt', () => {
+    const adsAddon: ModuleDef = {
+      ...ads,
+      addonLabel: 'Google Business',
+      addonCents: 9900,
+      addonRequired: false,
+    };
+    expect(moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true }, ctx)).toBe(24500);
+    expect(
+      moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true, addonOn: true }, ctx),
+    ).toBe(24500 + 9900);
   });
 });
 

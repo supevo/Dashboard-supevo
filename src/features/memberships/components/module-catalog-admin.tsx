@@ -316,6 +316,45 @@ function ModuleForm({
         <input name="position" type="number" defaultValue={m?.position ?? 0} className={inputCls} />
       </Field>
 
+      {/* Zusatz-Optionen (v. a. für Google Ads) */}
+      <div className="sm:col-span-2 mt-1 space-y-3 rounded-lg border border-dashed p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Zusatz-Optionen (optional)
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="budgetViaOptions" defaultChecked={m?.budgetViaOptions ?? false} />
+          Budget-Zahlweise anbieten (über uns / direkt an Google)
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Preis pro Keyword (€, 0 = aus)">
+            <input
+              name="keywordEuros"
+              defaultValue={m && m.keywordCents ? (m.keywordCents / 100).toFixed(2).replace('.', ',') : ''}
+              className={inputCls}
+              placeholder="z. B. 15"
+            />
+          </Field>
+          <Field label="Keywords Standardanzahl">
+            <input name="keywordDefault" type="number" defaultValue={m?.keywordDefault ?? 0} className={inputCls} />
+          </Field>
+          <Field label="Add-on Bezeichnung">
+            <input name="addonLabel" defaultValue={m?.addonLabel ?? ''} className={inputCls} placeholder="z. B. Google Business" />
+          </Field>
+          <Field label="Add-on Preis (€)">
+            <input
+              name="addonEuros"
+              defaultValue={m && m.addonCents ? (m.addonCents / 100).toFixed(2).replace('.', ',') : ''}
+              className={inputCls}
+              placeholder="z. B. 99"
+            />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="addonRequired" defaultChecked={m?.addonRequired ?? false} />
+          Add-on ist Pflicht / Must-Have (immer enthalten)
+        </label>
+      </div>
+
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="captureBudget" defaultChecked={m?.captureBudget ?? false} />
         Werbebudget erfassen (fließt nicht in den Preis)

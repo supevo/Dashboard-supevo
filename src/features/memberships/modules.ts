@@ -31,6 +31,16 @@ export interface ModuleDef {
   position: number;
   pricing: ModulePricing;
   captureBudget: boolean;
+  /** Zahlweise-Auswahl anzeigen (über uns / direkt an Google). */
+  budgetViaOptions: boolean;
+  /** Preis pro Keyword in Cent (0 = keine Keyword-Skalierung). */
+  keywordCents: number;
+  keywordDefault: number;
+  /** Optionales Add-on (z. B. „Google Business"). */
+  addonLabel: string | null;
+  addonCents: number;
+  /** Add-on ist Pflicht (Must-Have) → immer enthalten, nicht abwählbar. */
+  addonRequired: boolean;
 }
 
 /** DB-Zeile (membership_modules) → ModuleDef. */
@@ -49,6 +59,12 @@ export interface ModuleRow {
   max_qty: number;
   stage: number | null;
   capture_budget: boolean;
+  budget_via_options?: boolean | null;
+  keyword_cents?: number | null;
+  keyword_default?: number | null;
+  addon_label?: string | null;
+  addon_cents?: number | null;
+  addon_required?: boolean | null;
   position: number;
 }
 
@@ -78,6 +94,12 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     position: r.position,
     pricing,
     captureBudget: r.capture_budget,
+    budgetViaOptions: r.budget_via_options ?? false,
+    keywordCents: r.keyword_cents ?? 0,
+    keywordDefault: r.keyword_default ?? 0,
+    addonLabel: r.addon_label ?? null,
+    addonCents: r.addon_cents ?? 0,
+    addonRequired: r.addon_required ?? false,
   };
 }
 
@@ -87,6 +109,12 @@ export interface ModuleSelection {
   enabled: boolean;
   qty?: number;
   budgetCents?: number;
+  /** Zahlweise des Werbebudgets. */
+  budgetVia?: 'us' | 'google';
+  /** Anzahl geplanter Keywords (skaliert den Preis). */
+  keywords?: number;
+  /** Optionales Add-on gewählt (bei Pflicht-Add-on immer aktiv). */
+  addonOn?: boolean;
 }
 
 /** Stage-Preise aus den Billing-Settings, für stage-Module. */
@@ -109,9 +137,25 @@ export function moduleMonthlyCents(
 ): number {
   if (!sel.enabled) return 0;
   const p = def.pricing;
-  if (p.kind === 'flat') return p.netCents;
-  if (p.kind === 'per_unit') return p.netCents * clampQty(def, sel.qty);
-  return p.stage === 2 ? ctx.stage2NetCents : ctx.stage1NetCents;
+  let cents =
+    p.kind === 'flat'
+      ? p.netCents
+      : p.kind === 'per_unit'
+        ? p.netCents * clampQty(def, sel.qty)
+        : p.stage === 2
+          ? ctx.stage2NetCents
+          : ctx.stage1NetCents;
+
+  // Keyword-Skalierung: Preis pro geplantem Keyword.
+  if (def.keywordCents > 0) {
+    const kw = Math.max(0, Math.round(sel.keywords ?? def.keywordDefault));
+    cents += def.keywordCents * kw;
+  }
+  // Add-on (z. B. Google Business): Pflicht → immer, sonst nur wenn gewählt.
+  if (def.addonCents > 0 && (def.addonRequired || sel.addonOn)) {
+    cents += def.addonCents;
+  }
+  return cents;
 }
 
 /** Gesamter Netto-Monatspreis aller aktiven Module. */
@@ -174,17 +218,20 @@ export function normalizeSelections(raw: unknown): ModuleSelection[] {
     const id = (r as { id?: unknown }).id;
     if (typeof id !== 'string' || seen.has(id)) continue;
     seen.add(id);
+    const rec = r as Record<string, unknown>;
+    const num = (k: string) =>
+      typeof rec[k] === 'number' ? (rec[k] as number) : undefined;
     out.push({
       id,
-      enabled: (r as { enabled?: unknown }).enabled !== false,
-      qty:
-        typeof (r as { qty?: unknown }).qty === 'number'
-          ? (r as { qty: number }).qty
+      enabled: rec.enabled !== false,
+      qty: num('qty'),
+      budgetCents: num('budgetCents'),
+      keywords: num('keywords'),
+      budgetVia:
+        rec.budgetVia === 'us' || rec.budgetVia === 'google'
+          ? (rec.budgetVia as 'us' | 'google')
           : undefined,
-      budgetCents:
-        typeof (r as { budgetCents?: unknown }).budgetCents === 'number'
-          ? (r as { budgetCents: number }).budgetCents
-          : undefined,
+      addonOn: typeof rec.addonOn === 'boolean' ? (rec.addonOn as boolean) : undefined,
     });
   }
   return out;

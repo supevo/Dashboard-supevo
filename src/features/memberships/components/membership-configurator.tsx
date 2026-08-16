@@ -20,7 +20,14 @@ import {
 } from '@/features/memberships/configurator-actions';
 import { saveLeadOfferAction } from '@/features/leads/actions';
 
-type SelState = { enabled: boolean; qty: number; budgetCents: number };
+type SelState = {
+  enabled: boolean;
+  qty: number;
+  budgetCents: number;
+  budgetVia: 'us' | 'google';
+  keywords: number;
+  addonOn: boolean;
+};
 type SelMap = Record<string, SelState>;
 
 function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
@@ -32,6 +39,9 @@ function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
       enabled: found?.enabled ?? false,
       qty: found?.qty ?? defaultQty,
       budgetCents: found?.budgetCents ?? 0,
+      budgetVia: found?.budgetVia ?? 'us',
+      keywords: found?.keywords ?? def.keywordDefault,
+      addonOn: found?.addonOn ?? def.addonRequired,
     };
   }
   return map;
@@ -42,6 +52,9 @@ function toSelections(modules: ModuleDef[], map: SelMap): ModuleSelection[] {
     enabled: map[def.key]?.enabled ?? false,
     qty: map[def.key]?.qty,
     budgetCents: map[def.key]?.budgetCents,
+    budgetVia: map[def.key]?.budgetVia,
+    keywords: map[def.key]?.keywords,
+    addonOn: def.addonRequired ? true : map[def.key]?.addonOn,
   }));
 }
 
@@ -87,6 +100,15 @@ export function MembershipConfigurator({
       ...m,
       [key]: { ...m[key]!, budgetCents: Math.max(0, Math.round(euros * 100)) },
     }));
+  }
+  function setKeywords(key: string, n: number) {
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, keywords: Math.max(0, n) } }));
+  }
+  function setBudgetVia(key: string, via: 'us' | 'google') {
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, budgetVia: via } }));
+  }
+  function setAddon(key: string, on: boolean) {
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, addonOn: on } }));
   }
 
   async function save() {
@@ -168,12 +190,21 @@ export function MembershipConfigurator({
                 readOnly={readOnly}
                 lineCents={moduleMonthlyCents(
                   def,
-                  { id: def.key, enabled: map[def.key]!.enabled, qty: map[def.key]!.qty },
+                  {
+                    id: def.key,
+                    enabled: map[def.key]!.enabled,
+                    qty: map[def.key]!.qty,
+                    keywords: map[def.key]!.keywords,
+                    addonOn: map[def.key]!.addonOn,
+                  },
                   priceContext,
                 )}
                 onToggle={(en) => toggle(def.key, en)}
                 onQty={(q) => setQty(def.key, q)}
                 onBudget={(e) => setBudget(def.key, e)}
+                onKeywords={(n) => setKeywords(def.key, n)}
+                onBudgetVia={(v) => setBudgetVia(def.key, v)}
+                onAddon={(on) => setAddon(def.key, on)}
               />
             ))}
           </div>
@@ -219,6 +250,9 @@ function ModuleRow({
   onToggle,
   onQty,
   onBudget,
+  onKeywords,
+  onBudgetVia,
+  onAddon,
 }: {
   def: ModuleDef;
   state: SelState;
@@ -227,8 +261,17 @@ function ModuleRow({
   onToggle: (enabled: boolean) => void;
   onQty: (qty: number) => void;
   onBudget: (euros: number) => void;
+  onKeywords: (n: number) => void;
+  onBudgetVia: (via: 'us' | 'google') => void;
+  onAddon: (on: boolean) => void;
 }) {
   const perUnit = def.pricing.kind === 'per_unit';
+  const hasExtras =
+    perUnit ||
+    def.captureBudget ||
+    def.budgetViaOptions ||
+    def.keywordCents > 0 ||
+    !!def.addonLabel;
   return (
     <div
       role="button"
@@ -265,12 +308,76 @@ function ModuleRow({
         </span>
       </div>
 
-      {state.enabled && (perUnit || def.captureBudget) && (
+      {state.enabled && hasExtras && (
         <div
           className="mt-2 flex flex-wrap items-center gap-4 pl-7"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
         >
+          {def.keywordCents > 0 && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-xs text-muted-foreground">Keywords:</span>
+              <button
+                type="button"
+                onClick={() => onKeywords(state.keywords - 1)}
+                disabled={readOnly}
+                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
+              >
+                −
+              </button>
+              <span className="w-8 text-center font-medium">{state.keywords}</span>
+              <button
+                type="button"
+                onClick={() => onKeywords(state.keywords + 1)}
+                disabled={readOnly}
+                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
+              >
+                +
+              </button>
+              <span className="text-xs text-muted-foreground">
+                (+{formatEuroCents(def.keywordCents)}/Keyword)
+              </span>
+            </div>
+          )}
+
+          {def.budgetViaOptions && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-xs text-muted-foreground">Werbebudget zahlt:</span>
+              <select
+                value={state.budgetVia}
+                disabled={readOnly}
+                onChange={(e) => onBudgetVia(e.target.value as 'us' | 'google')}
+                className="rounded-md border bg-background px-2 py-1 text-sm disabled:opacity-70"
+              >
+                <option value="google">direkt an Google</option>
+                <option value="us">über uns</option>
+              </select>
+            </label>
+          )}
+
+          {def.addonLabel &&
+            def.addonCents > 0 &&
+            (def.addonRequired ? (
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                inkl. {def.addonLabel} (+{formatEuroCents(def.addonCents)}) · Must-Have
+              </span>
+            ) : (
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={state.addonOn}
+                  disabled={readOnly}
+                  onChange={(e) => onAddon(e.target.checked)}
+                />
+                <span>
+                  {def.addonLabel}{' '}
+                  <span className="text-xs text-muted-foreground">
+                    (+{formatEuroCents(def.addonCents)})
+                  </span>
+                </span>
+              </label>
+            ))}
+
           {perUnit && def.pricing.kind === 'per_unit' && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-xs text-muted-foreground">
