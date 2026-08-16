@@ -23,6 +23,8 @@ export interface ModuleDef {
   key: string;
   label: string;
   description: string;
+  /** Checkliste „Was ist enthalten" (im Frontend max. 5 Punkte). */
+  features: string[];
   /** Emoji-Icon (im Stil der Dashboard-Icons) oder null. */
   icon: string | null;
   /** Kategoriename für die Gruppierung (null = ohne Kategorie). */
@@ -48,6 +50,7 @@ export interface ModuleRow {
   key: string;
   label: string;
   description: string | null;
+  features?: string[] | null;
   icon?: string | null;
   category_name?: string | null;
   category_position?: number | null;
@@ -87,6 +90,7 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     key: r.key,
     label: r.label,
     description: r.description ?? '',
+    features: Array.isArray(r.features) ? r.features : [],
     icon: r.icon ?? null,
     category: r.category_name ?? null,
     categoryPosition: r.category_position ?? 0,

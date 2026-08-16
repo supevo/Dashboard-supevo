@@ -84,7 +84,17 @@ export function MembershipConfigurator({
     () => totalMonthlyCents(modules, selections, priceContext),
     [modules, selections, priceContext],
   );
-  const groups = useMemo(() => groupByCategory(modules), [modules]);
+  const anySelected = selections.some((s) => s.enabled);
+  const stageModules = useMemo(
+    () => modules.filter((d) => d.pricing.kind === 'stage'),
+    [modules],
+  );
+  const restGroups = useMemo(
+    () => groupByCategory(modules.filter((d) => d.pricing.kind !== 'stage')),
+    [modules],
+  );
+  const anyStageSelected = stageModules.some((d) => map[d.key]?.enabled);
+  const hasRest = restGroups.length > 0;
 
   function toggle(key: string, enabled: boolean) {
     setMap((m) => {
@@ -145,16 +155,64 @@ export function MembershipConfigurator({
     );
   }
 
+  const renderModule = (def: ModuleDef) => (
+    <ModuleRow
+      key={def.key}
+      def={def}
+      state={map[def.key]!}
+      readOnly={readOnly}
+      lineCents={moduleMonthlyCents(
+        def,
+        {
+          id: def.key,
+          enabled: map[def.key]!.enabled,
+          qty: map[def.key]!.qty,
+          keywords: map[def.key]!.keywords,
+        },
+        priceContext,
+      )}
+      addon={(() => {
+        if (!def.addonModuleKey) return null;
+        const am = modules.find((d) => d.key === def.addonModuleKey);
+        if (!am) return null;
+        return {
+          label: `${am.icon ? `${am.icon} ` : ''}${am.label}`,
+          cents: moduleMonthlyCents(
+            am,
+            { id: am.key, enabled: true, keywords: map[am.key]?.keywords },
+            priceContext,
+          ),
+          enabled: map[am.key]?.enabled ?? false,
+          onToggle: (on: boolean) => toggle(am.key, on),
+        };
+      })()}
+      onToggle={(en) => toggle(def.key, en)}
+      onQty={(q) => setQty(def.key, q)}
+      onBudget={(e) => setBudget(def.key, e)}
+      onKeywords={(n) => setKeywords(def.key, n)}
+      onBudgetVia={(v) => setBudgetVia(def.key, v)}
+    />
+  );
+
   return (
-    <div className="space-y-5">
-      {/* Live-Preis (grün) */}
-      <div className="rounded-lg border bg-emerald-500/5 p-4">
-        <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
-        <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-          {formatEuroCents(total)}
-        </p>
-        <p className="text-xs text-muted-foreground">zzgl. MwSt.</p>
-      </div>
+    <div className="space-y-6">
+      {/* Preis erst nach der ersten Auswahl – vorher einladender Einstieg. */}
+      {anySelected ? (
+        <div className="rounded-lg border bg-emerald-500/5 p-4">
+          <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
+          <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
+            {formatEuroCents(total)}
+          </p>
+          <p className="text-xs text-muted-foreground">zzgl. MwSt.</p>
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-2xl font-bold">Ihr individuelles Marketingpaket</h2>
+          <p className="mt-1 text-muted-foreground">
+            Wählen wir gemeinsam die Bausteine aus, die für Ihr Ziel sinnvoll sind.
+          </p>
+        </div>
+      )}
 
       {pending && (
         <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -175,56 +233,49 @@ export function MembershipConfigurator({
         </Alert>
       )}
 
-      {/* Module nach Kategorie */}
-      <div className="space-y-5">
-        {groups.map((g) => (
-          <div key={g.category ?? '—'} className="space-y-2">
-            {g.category && (
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {g.category}
-              </h3>
-            )}
-            {g.modules.map((def) => (
-              <ModuleRow
-                key={def.key}
-                def={def}
-                state={map[def.key]!}
-                readOnly={readOnly}
-                lineCents={moduleMonthlyCents(
-                  def,
-                  {
-                    id: def.key,
-                    enabled: map[def.key]!.enabled,
-                    qty: map[def.key]!.qty,
-                    keywords: map[def.key]!.keywords,
-                  },
-                  priceContext,
-                )}
-                addon={(() => {
-                  if (!def.addonModuleKey) return null;
-                  const am = modules.find((d) => d.key === def.addonModuleKey);
-                  if (!am) return null;
-                  return {
-                    label: `${am.icon ? `${am.icon} ` : ''}${am.label}`,
-                    cents: moduleMonthlyCents(
-                      am,
-                      { id: am.key, enabled: true, keywords: map[am.key]?.keywords },
-                      priceContext,
-                    ),
-                    enabled: map[am.key]?.enabled ?? false,
-                    onToggle: (on: boolean) => toggle(am.key, on),
-                  };
-                })()}
-                onToggle={(en) => toggle(def.key, en)}
-                onQty={(q) => setQty(def.key, q)}
-                onBudget={(e) => setBudget(def.key, e)}
-                onKeywords={(n) => setKeywords(def.key, n)}
-                onBudgetVia={(v) => setBudgetVia(def.key, v)}
-              />
-            ))}
+      {anyStageSelected && (
+        <Alert className="text-xs">
+          ✅ Komplettbetreuung gewählt – einzelne Module sind bereits über die
+          Mitgliedschaft abgedeckt.
+        </Alert>
+      )}
+
+      {/* Komplettbetreuung (supevo-Mitgliedschaften) */}
+      {stageModules.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="text-sm font-semibold">Komplettbetreuung</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {stageModules.map(renderModule)}
           </div>
-        ))}
-      </div>
+        </section>
+      )}
+
+      {stageModules.length > 0 && hasRest && (
+        <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          oder
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      )}
+
+      {/* Individuelles Marketingpaket (einzelne Bausteine) */}
+      {hasRest && (
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold">Individuelles Marketingpaket</h3>
+          {restGroups.map((g) => (
+            <div key={g.category ?? '—'} className="space-y-2">
+              {g.category && (
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {g.category}
+                </h4>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {g.modules.map(renderModule)}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       {readOnly ? (
         <p className="text-xs text-muted-foreground">
@@ -328,6 +379,17 @@ function ModuleRow({
           {state.enabled ? formatEuroCents(lineCents) : '—'}
         </span>
       </div>
+
+      {def.features.length > 0 && (
+        <ul className="mt-2 space-y-1">
+          {def.features.slice(0, 5).map((f, i) => (
+            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <span className="mt-0.5 text-emerald-600 dark:text-emerald-400">✓</span>
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {state.enabled && hasExtras && (
         <div

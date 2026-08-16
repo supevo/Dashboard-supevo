@@ -270,6 +270,16 @@ function ModuleForm({
         <input name="description" defaultValue={m?.description} className={inputCls} />
       </Field>
 
+      <Field label="Checkliste – was ist enthalten? (eine Zeile pro Punkt, max. 5 im Frontend)" full>
+        <textarea
+          name="features"
+          rows={4}
+          defaultValue={(m?.features ?? []).join('\n')}
+          className={inputCls}
+          placeholder={'z. B.\nIndividuelles Design\nFür Handy optimiert\nSEO-Grundlagen'}
+        />
+      </Field>
+
       <Field label="Preis-Typ">
         <select
           name="pricingKind"
