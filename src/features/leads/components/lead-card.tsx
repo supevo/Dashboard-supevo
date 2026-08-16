@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -82,6 +83,13 @@ export function LeadCard({ lead }: { lead: Lead }) {
           ))}
         </select>
       </form>
+
+      <Link
+        href={`/app/leads/${lead.id}`}
+        className="mt-2 block rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-center text-xs font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+      >
+        🚀 Paket / Termin
+      </Link>
     </div>
   );
 }
