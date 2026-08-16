@@ -38,6 +38,8 @@ create policy bookkeeping_category_rules_write on public.bookkeeping_category_ru
     public.is_org_admin(organization_id) or public.is_super_admin()
   );
 
+drop trigger if exists bookkeeping_category_rules_set_updated_at
+  on public.bookkeeping_category_rules;
 create trigger bookkeeping_category_rules_set_updated_at
   before update on public.bookkeeping_category_rules
   for each row execute function public.set_updated_at();
