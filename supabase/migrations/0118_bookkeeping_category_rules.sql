@@ -25,10 +25,12 @@ create index if not exists bookkeeping_category_rules_entity_idx
 
 alter table public.bookkeeping_category_rules enable row level security;
 
+drop policy if exists bookkeeping_category_rules_select on public.bookkeeping_category_rules;
 create policy bookkeeping_category_rules_select on public.bookkeeping_category_rules
   for select using (
     public.is_org_admin(organization_id) or public.is_super_admin()
   );
+drop policy if exists bookkeeping_category_rules_write on public.bookkeeping_category_rules;
 create policy bookkeeping_category_rules_write on public.bookkeeping_category_rules
   for all using (
     public.is_org_admin(organization_id) or public.is_super_admin()

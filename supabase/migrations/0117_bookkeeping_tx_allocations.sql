@@ -27,10 +27,12 @@ create index if not exists bookkeeping_tx_allocations_entity_idx
 
 alter table public.bookkeeping_tx_allocations enable row level security;
 
+drop policy if exists bookkeeping_tx_allocations_select on public.bookkeeping_tx_allocations;
 create policy bookkeeping_tx_allocations_select on public.bookkeeping_tx_allocations
   for select using (
     public.is_org_admin(organization_id) or public.is_super_admin()
   );
+drop policy if exists bookkeeping_tx_allocations_write on public.bookkeeping_tx_allocations;
 create policy bookkeeping_tx_allocations_write on public.bookkeeping_tx_allocations
   for all using (
     public.is_org_admin(organization_id) or public.is_super_admin()
