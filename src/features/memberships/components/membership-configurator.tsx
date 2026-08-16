@@ -231,19 +231,35 @@ function ModuleRow({
   const perUnit = def.pricing.kind === 'per_unit';
   return (
     <div
-      className={`rounded-lg border p-3 ${
-        state.enabled ? 'border-emerald-500/40 bg-emerald-500/5' : ''
+      role="button"
+      aria-pressed={state.enabled}
+      tabIndex={readOnly ? -1 : 0}
+      onClick={() => !readOnly && onToggle(!state.enabled)}
+      onKeyDown={(e) => {
+        if (readOnly) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggle(!state.enabled);
+        }
+      }}
+      className={`rounded-lg border p-3 transition ${readOnly ? '' : 'cursor-pointer hover:border-emerald-500/40'} ${
+        state.enabled
+          ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500/40'
+          : 'border-border'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
-        <label className="flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={state.enabled}
-            disabled={readOnly}
-            onChange={(e) => onToggle(e.target.checked)}
-            className="mt-1"
-          />
+        <span className="flex items-start gap-2">
+          <span
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] ${
+              state.enabled
+                ? 'border-emerald-500 bg-emerald-500 text-white'
+                : 'border-muted-foreground/40 text-transparent'
+            }`}
+            aria-hidden
+          >
+            ✓
+          </span>
           <span>
             <span className="text-sm font-medium">
               {def.icon && <span className="mr-1.5">{def.icon}</span>}
@@ -255,14 +271,18 @@ function ModuleRow({
               </span>
             )}
           </span>
-        </label>
+        </span>
         <span className="whitespace-nowrap text-sm font-semibold">
           {state.enabled ? formatEuroCents(lineCents) : '—'}
         </span>
       </div>
 
       {state.enabled && (perUnit || def.captureBudget) && (
-        <div className="mt-2 flex flex-wrap items-center gap-4 pl-6">
+        <div
+          className="mt-2 flex flex-wrap items-center gap-4 pl-7"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
           {perUnit && def.pricing.kind === 'per_unit' && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-xs text-muted-foreground">
