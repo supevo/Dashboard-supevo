@@ -149,24 +149,12 @@ export function MembershipConfigurator({
       )}
 
       {/* Live-Preis (grün) */}
-      <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border bg-emerald-500/5 p-4">
-        <div>
-          <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
-          <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
-            {formatEuroCents(total)}
-          </p>
-          <p className="text-xs text-muted-foreground">zzgl. MwSt.</p>
-        </div>
-        <div className="min-w-[12rem]">
-          <label className="text-xs text-muted-foreground">Name der Mitgliedschaft</label>
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={readOnly}
-            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-70"
-            placeholder="Individuell"
-          />
-        </div>
+      <div className="rounded-lg border bg-emerald-500/5 p-4">
+        <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
+        <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+          {formatEuroCents(total)}
+        </p>
+        <p className="text-xs text-muted-foreground">zzgl. MwSt.</p>
       </div>
 
       {pending && (
