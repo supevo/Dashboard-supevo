@@ -20,6 +20,7 @@ import {
 import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
+import { MembershipConfiguratorPanel } from '@/features/memberships/components/membership-configurator-panel';
 import { ClientBillingEntityForm } from '@/features/billing/components/client-billing-entity-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
 import { RequestsSection } from '@/features/requests/components/requests-section';
@@ -399,7 +400,20 @@ export default async function ClientDetailPage({
               <>
                 <Card>
                   <CardHeader>
-                    <CardTitle>Mitgliedschaft</CardTitle>
+                    <CardTitle>🧩 Mitgliedschafts-Baukasten</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Module wählen → Preis ergibt sich live. Erste Einrichtung
+                      gilt sofort, spätere Änderungen ab dem Folgemonat.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <MembershipConfiguratorPanel clientCompanyId={clientCompanyId} />
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Mitgliedschaft (Abrechnungsdetails)</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <MembershipForm

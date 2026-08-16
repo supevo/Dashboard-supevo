@@ -12,6 +12,7 @@ import {
   type BillingEntity,
 } from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
+import { promoteIfDue } from '@/features/memberships/configurator-queries';
 import type { Database } from '@/lib/database.types';
 
 type Membership = Database['public']['Tables']['client_memberships']['Row'];
@@ -142,9 +143,12 @@ export async function runDueInvoices(): Promise<CronResult> {
     .lte('next_invoice_date', today);
   if (!due || due.length === 0) return result;
 
-  for (const membership of due as Membership[]) {
+  for (const rawMembership of due as Membership[]) {
     result.processed += 1;
     try {
+      // Eine fällige, geplante Mitgliedschafts-Änderung zuerst aktiv schalten,
+      // damit die Rechnung schon den neuen Preis nutzt.
+      const membership = await promoteIfDue(service, rawMembership);
       // Each client bills from its assigned entity (else the org's default),
       // so the sender + invoice-number sequence come from that entity.
       const entity = await resolveClientEntity(
@@ -222,7 +226,7 @@ export async function runDueInvoices(): Promise<CronResult> {
     } catch (e) {
       result.errors += 1;
       logger.error('cron.membership.failed', {
-        membership: membership.id,
+        membership: rawMembership.id,
         error: (e as Error).message,
       });
     }
