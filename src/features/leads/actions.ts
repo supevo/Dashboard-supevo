@@ -245,6 +245,26 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
   });
 }
 
+/** Moves a lead to another status column (drag & drop on the board). */
+export async function moveLeadAction(
+  leadId: string,
+  status: 'new' | 'contacted' | 'offer' | 'won' | 'lost',
+): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(leadId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('leads')
+    .update({ status }, { count: 'exact' })
+    .eq('id', leadId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+  revalidatePath('/app/leads');
+  return successResult('Verschoben.');
+}
+
 /** Deletes a lead. */
 export async function deleteLeadAction(
   _prev: ActionResult,
