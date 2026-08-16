@@ -4,10 +4,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/database.types';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
+import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 import {
   normalizeSelections,
   totalMonthlyCents,
-  moduleLabel,
+  type ModuleDef,
   type ModuleSelection,
   type PriceContext,
 } from '@/features/memberships/modules';
@@ -33,6 +34,7 @@ export interface ConfiguratorView {
   pending: (PendingChange & { effectiveDate: string }) | null;
   priceContext: PriceContext;
   clientCanEdit: boolean;
+  modules: ModuleDef[];
 }
 
 function parsePending(m: Membership): (PendingChange & { effectiveDate: string }) | null {
@@ -116,6 +118,7 @@ export async function getMembershipConfigurator(
     const priceContext = client
       ? await priceContextFor(supabase, client.organization_id)
       : { stage1NetCents: 0, stage2NetCents: 0 };
+    const modules = client ? await getModuleCatalog(client.organization_id) : [];
     return {
       hasMembership: false,
       clientCompanyId,
@@ -123,11 +126,13 @@ export async function getMembershipConfigurator(
       pending: null,
       priceContext,
       clientCanEdit: false,
+      modules,
     };
   }
 
   const membership = await promoteIfDue(supabase, raw as Membership);
   const priceContext = await priceContextFor(supabase, membership.organization_id);
+  const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
 
   return {
@@ -137,13 +142,14 @@ export async function getMembershipConfigurator(
       selections: activeSelections,
       netCents:
         membership.custom_net_cents ??
-        totalMonthlyCents(activeSelections, priceContext),
+        totalMonthlyCents(modules, activeSelections, priceContext),
       name: membership.custom_name ?? 'Individuell',
       stage: membership.stage,
     },
     pending: parsePending(membership),
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
+    modules,
   };
 }
 
@@ -191,6 +197,7 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
     // keep zeros
   }
 
+  const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
   return {
     hasMembership: true,
@@ -199,13 +206,14 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
       selections: activeSelections,
       netCents:
         membership.custom_net_cents ??
-        totalMonthlyCents(activeSelections, priceContext),
+        totalMonthlyCents(modules, activeSelections, priceContext),
       name: membership.custom_name ?? 'Individuell',
       stage: membership.stage,
     },
     pending: parsePending(membership),
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
+    modules,
     isLegacy: company?.is_legacy ?? false,
     companyName: company?.name ?? null,
   };
@@ -220,11 +228,11 @@ export async function notifyRemovedModules(params: {
   orgId: string;
   clientCompanyId: string;
   companyName: string | null;
-  removedIds: string[];
+  removedLabels: string[];
   effectiveDate: string;
   actorId?: string;
 }): Promise<void> {
-  if (params.removedIds.length === 0) return;
+  if (params.removedLabels.length === 0) return;
   const service = createSupabaseServiceClient();
   const { data: admins } = await service
     .from('memberships')
@@ -237,7 +245,7 @@ export async function notifyRemovedModules(params: {
   ];
   if (recipients.length === 0) return;
 
-  const labels = params.removedIds.map(moduleLabel).join(', ');
+  const labels = params.removedLabels.join(', ');
   await createNotifications(
     recipients.map((recipientId) => ({
       organizationId: params.orgId,

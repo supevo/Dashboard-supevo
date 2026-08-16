@@ -1,8 +1,10 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 import {
   normalizeSelections,
+  type ModuleDef,
   type ModuleSelection,
   type PriceContext,
 } from '@/features/memberships/modules';
@@ -21,6 +23,7 @@ export interface LeadOfferView {
   offerName: string;
   selections: ModuleSelection[];
   priceContext: PriceContext;
+  modules: ModuleDef[];
   estimatedValueCents: number | null;
   /** Set once the lead has been converted into a client. */
   convertedClientCompanyId: string | null;
@@ -62,6 +65,7 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
     offerName: lead.offer_name ?? 'Individuell',
     selections: normalizeSelections(lead.modules),
     priceContext,
+    modules: await getModuleCatalog(lead.organization_id),
     estimatedValueCents: lead.estimated_value_cents,
     convertedClientCompanyId: lead.converted_client_company_id,
   };

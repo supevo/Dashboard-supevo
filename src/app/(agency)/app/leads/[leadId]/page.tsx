@@ -44,9 +44,9 @@ export default async function LeadOfferPage({
 
       <MembershipConfigurator
         mode="lead"
+        modules={offer.modules}
         leadId={leadId}
         initialSelections={offer.selections}
-        initialName={offer.offerName}
         priceContext={offer.priceContext}
         pending={null}
       />

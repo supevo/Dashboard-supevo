@@ -62,9 +62,9 @@ export default async function PortalMembershipPage() {
           {showModules && cfg ? (
             <MembershipConfigurator
               mode="portal"
+              modules={cfg.modules}
               readOnly={!cfg.clientCanEdit}
               initialSelections={cfg.active.selections}
-              initialName={cfg.active.name}
               priceContext={cfg.priceContext}
               pending={
                 cfg.pending

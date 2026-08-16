@@ -17,9 +17,11 @@ import {
   totalMonthlyCents,
   firstOfNextMonth,
   removedModuleIds,
+  moduleLabel,
   type PriceContext,
 } from '@/features/memberships/modules';
 import { notifyRemovedModules } from '@/features/memberships/configurator-queries';
+import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 
 const selectionSchema = z.object({
   id: z.string().min(1).max(64),
@@ -74,7 +76,8 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   authorize(user, { type: 'organization.update', orgId: client.organization_id });
 
   const ctx = await priceContext(supabase, client.organization_id);
-  const netCents = totalMonthlyCents(selections, ctx);
+  const catalog = await getModuleCatalog(client.organization_id);
+  const netCents = totalMonthlyCents(catalog, selections, ctx);
   const label = name?.trim() || 'Individuell';
 
   const { data: existing } = await supabase
@@ -136,7 +139,9 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
     orgId: client.organization_id,
     clientCompanyId,
     companyName: client.name,
-    removedIds: removedModuleIds(before, selections),
+    removedLabels: removedModuleIds(before, selections).map((id) =>
+      moduleLabel(catalog, id),
+    ),
     effectiveDate,
     actorId: user.id,
   });
@@ -229,7 +234,8 @@ export async function savePortalMembershipConfigAction(input: unknown): Promise<
     stage1NetCents: s?.stage1_net_cents ?? 0,
     stage2NetCents: s?.stage2_net_cents ?? 0,
   };
-  const netCents = totalMonthlyCents(selections, ctx);
+  const catalog = await getModuleCatalog(membership.organization_id);
+  const netCents = totalMonthlyCents(catalog, selections, ctx);
   const label = name?.trim() || 'Individuell';
   const effectiveDate = firstOfNextMonth();
   const before = normalizeSelections(membership.modules);
@@ -247,7 +253,9 @@ export async function savePortalMembershipConfigAction(input: unknown): Promise<
     orgId: membership.organization_id,
     clientCompanyId: membership.client_company_id,
     companyName: company.name,
-    removedIds: removedModuleIds(before, selections),
+    removedLabels: removedModuleIds(before, selections).map((id) =>
+      moduleLabel(catalog, id),
+    ),
     effectiveDate,
     actorId: user.id,
   });
