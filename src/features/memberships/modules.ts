@@ -80,7 +80,7 @@ export const MEMBERSHIP_MODULES: ModuleDef[] = [
     label: 'Google Ads Betreuung',
     description:
       'Betreuungspauschale. Das Werbebudget zahlt der Kunde direkt an Google (fließt nicht in den Mitgliedspreis).',
-    pricing: { kind: 'flat', netCents: 14900 }, // Platzhalter 149 €
+    pricing: { kind: 'flat', netCents: 24500 }, // 245 € netto
     captureBudget: true,
   },
 ];
