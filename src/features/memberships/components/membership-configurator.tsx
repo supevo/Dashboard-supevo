@@ -19,6 +19,7 @@ import {
   savePortalMembershipConfigAction,
   cancelPendingMembershipChangeAction,
 } from '@/features/memberships/configurator-actions';
+import { saveLeadOfferAction } from '@/features/leads/actions';
 
 type SelMap = Record<string, { enabled: boolean; qty: number; budgetCents: number }>;
 
@@ -48,6 +49,7 @@ function toSelections(map: SelMap): ModuleSelection[] {
 
 export function MembershipConfigurator({
   clientCompanyId,
+  leadId,
   initialSelections,
   initialName,
   priceContext,
@@ -56,12 +58,14 @@ export function MembershipConfigurator({
   readOnly = false,
 }: {
   clientCompanyId?: string;
+  /** Required when mode='lead' (saves the offer onto the lead). */
+  leadId?: string;
   initialSelections: ModuleSelection[];
   initialName: string;
   priceContext: PriceContext;
   pending: { netCents: number; effectiveDate: string; name: string } | null;
-  /** 'agency' saves via the agency action; 'portal' via the client action. */
-  mode?: 'agency' | 'portal';
+  /** 'agency'/'portal' write a membership; 'lead' writes an offer onto a lead. */
+  mode?: 'agency' | 'portal' | 'lead';
   /** Read-only: modules visible, but no editing/saving (legacy, not unlocked). */
   readOnly?: boolean;
 }) {
@@ -101,14 +105,16 @@ export function MembershipConfigurator({
     setMsg(null);
     const stage = map['supevo_stage2']?.enabled ? 2 : 1;
     const res =
-      mode === 'portal'
-        ? await savePortalMembershipConfigAction({ name, stage, selections })
-        : await saveMembershipConfigAction({
-            clientCompanyId,
-            name,
-            stage,
-            selections,
-          });
+      mode === 'lead'
+        ? await saveLeadOfferAction({ leadId, name, selections })
+        : mode === 'portal'
+          ? await savePortalMembershipConfigAction({ name, stage, selections })
+          : await saveMembershipConfigAction({
+              clientCompanyId,
+              name,
+              stage,
+              selections,
+            });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
     if (res.status === 'success') router.refresh();
@@ -220,9 +226,11 @@ export function MembershipConfigurator({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {mode === 'portal'
-              ? 'Änderungen gelten immer ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'
-              : 'Erste Einrichtung wird sofort aktiv. Spätere Änderungen gelten immer erst ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'}
+            {mode === 'lead'
+              ? 'Angebot für den Termin – wird am Lead gespeichert (inkl. Preis). Wird der Lead später Kunde, kann daraus die Mitgliedschaft entstehen.'
+              : mode === 'portal'
+                ? 'Änderungen gelten immer ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'
+                : 'Erste Einrichtung wird sofort aktiv. Spätere Änderungen gelten immer erst ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'}
           </p>
         </>
       )}
