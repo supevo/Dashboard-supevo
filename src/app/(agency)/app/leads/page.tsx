@@ -25,7 +25,15 @@ export default async function LeadsPage() {
           <h1 className="text-2xl font-bold">{de.leads.title}</h1>
           <p className="text-sm text-muted-foreground">{de.leads.subtitle}</p>
         </div>
-        <NewLeadButton />
+        <div className="flex items-center gap-2">
+          <a
+            href="/app/pakete"
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            🧩 Module &amp; Preise
+          </a>
+          <NewLeadButton />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3 text-sm">

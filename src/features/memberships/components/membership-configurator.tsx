@@ -6,10 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { formatEuroCents } from '@/lib/money';
 import {
-  MEMBERSHIP_MODULES,
-  MEMBERSHIP_PRESETS,
   moduleMonthlyCents,
   totalMonthlyCents,
+  groupByCategory,
   type ModuleDef,
   type ModuleSelection,
   type PriceContext,
@@ -21,15 +20,15 @@ import {
 } from '@/features/memberships/configurator-actions';
 import { saveLeadOfferAction } from '@/features/leads/actions';
 
-type SelMap = Record<string, { enabled: boolean; qty: number; budgetCents: number }>;
+type SelState = { enabled: boolean; qty: number; budgetCents: number };
+type SelMap = Record<string, SelState>;
 
-function toMap(selections: ModuleSelection[]): SelMap {
+function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
   const map: SelMap = {};
-  for (const def of MEMBERSHIP_MODULES) {
-    const found = selections.find((s) => s.id === def.id);
-    const defaultQty =
-      def.pricing.kind === 'per_unit' ? def.pricing.defaultQty : 1;
-    map[def.id] = {
+  for (const def of modules) {
+    const found = selections.find((s) => s.id === def.key);
+    const defaultQty = def.pricing.kind === 'per_unit' ? def.pricing.defaultQty : 1;
+    map[def.key] = {
       enabled: found?.enabled ?? false,
       qty: found?.qty ?? defaultQty,
       budgetCents: found?.budgetCents ?? 0,
@@ -37,66 +36,56 @@ function toMap(selections: ModuleSelection[]): SelMap {
   }
   return map;
 }
-
-function toSelections(map: SelMap): ModuleSelection[] {
-  return MEMBERSHIP_MODULES.map((def) => ({
-    id: def.id,
-    enabled: map[def.id]!.enabled,
-    qty: map[def.id]!.qty,
-    budgetCents: map[def.id]!.budgetCents,
+function toSelections(modules: ModuleDef[], map: SelMap): ModuleSelection[] {
+  return modules.map((def) => ({
+    id: def.key,
+    enabled: map[def.key]?.enabled ?? false,
+    qty: map[def.key]?.qty,
+    budgetCents: map[def.key]?.budgetCents,
   }));
 }
 
 export function MembershipConfigurator({
+  modules,
   clientCompanyId,
   leadId,
   initialSelections,
-  initialName,
   priceContext,
   pending,
   mode = 'agency',
   readOnly = false,
 }: {
+  modules: ModuleDef[];
   clientCompanyId?: string;
-  /** Required when mode='lead' (saves the offer onto the lead). */
   leadId?: string;
   initialSelections: ModuleSelection[];
-  initialName: string;
   priceContext: PriceContext;
   pending: { netCents: number; effectiveDate: string; name: string } | null;
-  /** 'agency'/'portal' write a membership; 'lead' writes an offer onto a lead. */
   mode?: 'agency' | 'portal' | 'lead';
-  /** Read-only: modules visible, but no editing/saving (legacy, not unlocked). */
   readOnly?: boolean;
 }) {
   const router = useRouter();
-  const [map, setMap] = useState<SelMap>(() => toMap(initialSelections));
-  const [name, setName] = useState(initialName || 'Individuell');
+  const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const selections = useMemo(() => toSelections(map), [map]);
+  const selections = useMemo(() => toSelections(modules, map), [modules, map]);
   const total = useMemo(
-    () => totalMonthlyCents(selections, priceContext),
-    [selections, priceContext],
+    () => totalMonthlyCents(modules, selections, priceContext),
+    [modules, selections, priceContext],
   );
+  const groups = useMemo(() => groupByCategory(modules), [modules]);
 
-  function applyPreset(id: string) {
-    const preset = MEMBERSHIP_PRESETS.find((p) => p.id === id);
-    if (!preset) return;
-    setMap(toMap(preset.selections));
-    setName(preset.label);
+  function toggle(key: string, enabled: boolean) {
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, enabled } }));
   }
-  function toggle(id: string, enabled: boolean) {
-    setMap((m) => ({ ...m, [id]: { ...m[id]!, enabled } }));
+  function setQty(key: string, qty: number) {
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, qty: Math.max(0, qty) } }));
   }
-  function setQty(id: string, qty: number) {
-    setMap((m) => ({ ...m, [id]: { ...m[id]!, qty: Math.max(0, qty) } }));
-  }
-  function setBudget(id: string, euros: number) {
+  function setBudget(key: string, euros: number) {
     setMap((m) => ({
       ...m,
-      [id]: { ...m[id]!, budgetCents: Math.max(0, Math.round(euros * 100)) },
+      [key]: { ...m[key]!, budgetCents: Math.max(0, Math.round(euros * 100)) },
     }));
   }
 
@@ -106,15 +95,10 @@ export function MembershipConfigurator({
     const stage = map['supevo_stage2']?.enabled ? 2 : 1;
     const res =
       mode === 'lead'
-        ? await saveLeadOfferAction({ leadId, name, selections })
+        ? await saveLeadOfferAction({ leadId, selections })
         : mode === 'portal'
-          ? await savePortalMembershipConfigAction({ name, stage, selections })
-          : await saveMembershipConfigAction({
-              clientCompanyId,
-              name,
-              stage,
-              selections,
-            });
+          ? await savePortalMembershipConfigAction({ stage, selections })
+          : await saveMembershipConfigAction({ clientCompanyId, stage, selections });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
     if (res.status === 'success') router.refresh();
@@ -128,26 +112,17 @@ export function MembershipConfigurator({
     router.refresh();
   }
 
+  if (modules.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Noch keine Module angelegt. Lege sie im Backend unter „Pakete &amp;
+        Module“ an.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      {/* Presets (nur im Bearbeiten-Modus) */}
-      {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">Vorlage:</span>
-          {MEMBERSHIP_PRESETS.map((p) => (
-            <Button
-              key={p.id}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => applyPreset(p.id)}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
-      )}
-
       {/* Live-Preis (grün) */}
       <div className="rounded-lg border bg-emerald-500/5 p-4">
         <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
@@ -161,7 +136,7 @@ export function MembershipConfigurator({
         <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span>
             📅 Geplante Änderung: <strong>{formatEuroCents(pending.netCents)}</strong>{' '}
-            netto ab {pending.effectiveDate} ({pending.name}).
+            netto ab {pending.effectiveDate}.
           </span>
           {mode === 'agency' && (
             <button
@@ -176,22 +151,32 @@ export function MembershipConfigurator({
         </Alert>
       )}
 
-      {/* Module */}
-      <div className="space-y-2">
-        {MEMBERSHIP_MODULES.map((def) => (
-          <ModuleRow
-            key={def.id}
-            def={def}
-            state={map[def.id]!}
-            readOnly={readOnly}
-            lineCents={moduleMonthlyCents(
-              { id: def.id, enabled: map[def.id]!.enabled, qty: map[def.id]!.qty },
-              priceContext,
+      {/* Module nach Kategorie */}
+      <div className="space-y-5">
+        {groups.map((g) => (
+          <div key={g.category ?? '—'} className="space-y-2">
+            {g.category && (
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {g.category}
+              </h3>
             )}
-            onToggle={(en) => toggle(def.id, en)}
-            onQty={(q) => setQty(def.id, q)}
-            onBudget={(e) => setBudget(def.id, e)}
-          />
+            {g.modules.map((def) => (
+              <ModuleRow
+                key={def.key}
+                def={def}
+                state={map[def.key]!}
+                readOnly={readOnly}
+                lineCents={moduleMonthlyCents(
+                  def,
+                  { id: def.key, enabled: map[def.key]!.enabled, qty: map[def.key]!.qty },
+                  priceContext,
+                )}
+                onToggle={(en) => toggle(def.key, en)}
+                onQty={(q) => setQty(def.key, q)}
+                onBudget={(e) => setBudget(def.key, e)}
+              />
+            ))}
+          </div>
         ))}
       </div>
 
@@ -236,7 +221,7 @@ function ModuleRow({
   onBudget,
 }: {
   def: ModuleDef;
-  state: { enabled: boolean; qty: number; budgetCents: number };
+  state: SelState;
   lineCents: number;
   readOnly: boolean;
   onToggle: (enabled: boolean) => void;
@@ -261,9 +246,11 @@ function ModuleRow({
           />
           <span>
             <span className="text-sm font-medium">{def.label}</span>
-            <span className="block text-xs text-muted-foreground">
-              {def.description}
-            </span>
+            {def.description && (
+              <span className="block text-xs text-muted-foreground">
+                {def.description}
+              </span>
+            )}
           </span>
         </label>
         <span className="whitespace-nowrap text-sm font-semibold">

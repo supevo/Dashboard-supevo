@@ -12,6 +12,7 @@ import {
   totalMonthlyCents,
   type PriceContext,
 } from '@/features/memberships/modules';
+import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 import {
   type ActionResult,
   errorResult,
@@ -145,7 +146,8 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
     stage1NetCents: s?.stage1_net_cents ?? 0,
     stage2NetCents: s?.stage2_net_cents ?? 0,
   };
-  const netCents = totalMonthlyCents(selections, ctx);
+  const catalog = await getModuleCatalog(lead.organization_id);
+  const netCents = totalMonthlyCents(catalog, selections, ctx);
 
   const { error, count } = await supabase
     .from('leads')

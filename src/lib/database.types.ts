@@ -1181,6 +1181,70 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['ai_usage_events']['Insert']>;
         Relationships: [];
       };
+      membership_module_categories: {
+        Row: {
+          id: string;
+          organization_id: string;
+          name: string;
+          position: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          name: string;
+          position?: number;
+        };
+        Update: Partial<
+          Database['public']['Tables']['membership_module_categories']['Insert']
+        >;
+        Relationships: [];
+      };
+      membership_modules: {
+        Row: {
+          id: string;
+          organization_id: string;
+          category_id: string | null;
+          key: string;
+          label: string;
+          description: string;
+          pricing_kind: 'flat' | 'per_unit' | 'stage';
+          net_cents: number;
+          unit_label: string | null;
+          default_qty: number;
+          min_qty: number;
+          max_qty: number;
+          stage: number | null;
+          capture_budget: boolean;
+          position: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          category_id?: string | null;
+          key: string;
+          label: string;
+          description?: string;
+          pricing_kind?: 'flat' | 'per_unit' | 'stage';
+          net_cents?: number;
+          unit_label?: string | null;
+          default_qty?: number;
+          min_qty?: number;
+          max_qty?: number;
+          stage?: number | null;
+          capture_budget?: boolean;
+          position?: number;
+          active?: boolean;
+        };
+        Update: Partial<
+          Database['public']['Tables']['membership_modules']['Insert']
+        >;
+        Relationships: [];
+      };
       employee_skills: {
         Row: {
           id: string;

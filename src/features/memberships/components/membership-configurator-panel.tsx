@@ -22,9 +22,9 @@ export async function MembershipConfiguratorPanel({
   return (
     <div className="space-y-4">
       <MembershipConfigurator
+        modules={view.modules}
         clientCompanyId={clientCompanyId}
         initialSelections={view.active.selections}
-        initialName={view.active.name}
         priceContext={view.priceContext}
         pending={
           view.pending
