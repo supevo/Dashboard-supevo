@@ -123,6 +123,11 @@ export async function upsertModuleAction(
     category_id: (formData.get('categoryId') as string) || null,
     label,
     description: String(formData.get('description') ?? '').trim(),
+    features: String(formData.get('features') ?? '')
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 12),
     pricing_kind: pricingKind,
     net_cents: pricingKind === 'stage' ? 0 : euroToCents(formData.get('netEuros')),
     unit_label: pricingKind === 'per_unit'

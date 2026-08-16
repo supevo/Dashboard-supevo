@@ -1209,6 +1209,7 @@ export interface Database {
           key: string;
           label: string;
           description: string;
+          features: string[];
           pricing_kind: 'flat' | 'per_unit' | 'stage';
           net_cents: number;
           unit_label: string | null;
@@ -1237,6 +1238,7 @@ export interface Database {
           key: string;
           label: string;
           description?: string;
+          features?: string[];
           pricing_kind?: 'flat' | 'per_unit' | 'stage';
           net_cents?: number;
           unit_label?: string | null;
