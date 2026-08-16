@@ -227,7 +227,7 @@ export function MembershipConfigurator({
           </div>
           <p className="text-xs text-muted-foreground">
             {mode === 'lead'
-              ? 'Angebot für den Termin – wird am Lead gespeichert (inkl. Preis). Wird der Lead später Kunde, kann daraus die Mitgliedschaft entstehen.'
+              ? 'Ihr individuell zusammengestelltes Paket. Alle Preise verstehen sich netto zzgl. MwSt.'
               : mode === 'portal'
                 ? 'Änderungen gelten immer ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'
                 : 'Erste Einrichtung wird sofort aktiv. Spätere Änderungen gelten immer erst ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'}

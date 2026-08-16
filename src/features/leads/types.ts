@@ -18,5 +18,7 @@ export interface Lead {
   note: string | null;
   estimatedValueCents: number | null;
   status: LeadStatus;
+  /** Set once the lead has been converted into a client. */
+  convertedClientCompanyId?: string | null;
   createdAt: string;
 }
