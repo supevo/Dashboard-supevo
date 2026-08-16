@@ -3002,6 +3002,10 @@ export interface Database {
           billing_city: string | null;
           billing_country: string;
           billing_vat_id: string | null;
+          modules: unknown;
+          pending_modules: unknown;
+          pending_effective_date: string | null;
+          client_can_edit: boolean;
           created_at: string;
           updated_at: string;
         };
