@@ -4,6 +4,8 @@ import {
   totalMonthlyCents,
   normalizeSelections,
   firstOfNextMonth,
+  removedModuleIds,
+  moduleLabel,
   MEMBERSHIP_PRESETS,
   type PriceContext,
 } from '@/features/memberships/modules';
@@ -100,6 +102,44 @@ describe('normalizeSelections', () => {
   it('nicht-Array → leer', () => {
     expect(normalizeSelections(null)).toEqual([]);
     expect(normalizeSelections({})).toEqual([]);
+  });
+});
+
+describe('removedModuleIds', () => {
+  it('erkennt abgewählte Module', () => {
+    const before = [
+      { id: 'web_paket', enabled: true },
+      { id: 'seo_beitraege', enabled: true },
+    ];
+    const after = [
+      { id: 'web_paket', enabled: true },
+      { id: 'seo_beitraege', enabled: false },
+    ];
+    expect(removedModuleIds(before, after)).toEqual(['seo_beitraege']);
+  });
+  it('kein Fehlalarm, wenn nichts entfernt', () => {
+    const same = [{ id: 'web_paket', enabled: true }];
+    expect(removedModuleIds(same, same)).toEqual([]);
+  });
+  it('neu hinzugefügte Module zählen nicht als entfernt', () => {
+    expect(
+      removedModuleIds(
+        [{ id: 'web_paket', enabled: true }],
+        [
+          { id: 'web_paket', enabled: true },
+          { id: 'wartung', enabled: true },
+        ],
+      ),
+    ).toEqual([]);
+  });
+});
+
+describe('moduleLabel', () => {
+  it('gibt Label zurück', () => {
+    expect(moduleLabel('web_paket')).toBe('Web-Paket');
+  });
+  it('fällt auf id zurück', () => {
+    expect(moduleLabel('unbekannt')).toBe('unbekannt');
   });
 });
 

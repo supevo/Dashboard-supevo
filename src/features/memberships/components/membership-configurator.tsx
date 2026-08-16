@@ -16,6 +16,7 @@ import {
 } from '@/features/memberships/modules';
 import {
   saveMembershipConfigAction,
+  savePortalMembershipConfigAction,
   cancelPendingMembershipChangeAction,
 } from '@/features/memberships/configurator-actions';
 
@@ -51,12 +52,18 @@ export function MembershipConfigurator({
   initialName,
   priceContext,
   pending,
+  mode = 'agency',
+  readOnly = false,
 }: {
-  clientCompanyId: string;
+  clientCompanyId?: string;
   initialSelections: ModuleSelection[];
   initialName: string;
   priceContext: PriceContext;
   pending: { netCents: number; effectiveDate: string; name: string } | null;
+  /** 'agency' saves via the agency action; 'portal' via the client action. */
+  mode?: 'agency' | 'portal';
+  /** Read-only: modules visible, but no editing/saving (legacy, not unlocked). */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [map, setMap] = useState<SelMap>(() => toMap(initialSelections));
@@ -93,18 +100,22 @@ export function MembershipConfigurator({
     setBusy(true);
     setMsg(null);
     const stage = map['supevo_stage2']?.enabled ? 2 : 1;
-    const res = await saveMembershipConfigAction({
-      clientCompanyId,
-      name,
-      stage,
-      selections,
-    });
+    const res =
+      mode === 'portal'
+        ? await savePortalMembershipConfigAction({ name, stage, selections })
+        : await saveMembershipConfigAction({
+            clientCompanyId,
+            name,
+            stage,
+            selections,
+          });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
     if (res.status === 'success') router.refresh();
   }
 
   async function cancelPending() {
+    if (!clientCompanyId) return;
     setBusy(true);
     await cancelPendingMembershipChangeAction(clientCompanyId);
     setBusy(false);
@@ -113,21 +124,23 @@ export function MembershipConfigurator({
 
   return (
     <div className="space-y-5">
-      {/* Presets */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Vorlage:</span>
-        {MEMBERSHIP_PRESETS.map((p) => (
-          <Button
-            key={p.id}
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => applyPreset(p.id)}
-          >
-            {p.label}
-          </Button>
-        ))}
-      </div>
+      {/* Presets (nur im Bearbeiten-Modus) */}
+      {!readOnly && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Vorlage:</span>
+          {MEMBERSHIP_PRESETS.map((p) => (
+            <Button
+              key={p.id}
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => applyPreset(p.id)}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {/* Live-Preis (grün) */}
       <div className="flex flex-wrap items-end justify-between gap-3 rounded-lg border bg-emerald-500/5 p-4">
@@ -143,7 +156,8 @@ export function MembershipConfigurator({
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+            disabled={readOnly}
+            className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-70"
             placeholder="Individuell"
           />
         </div>
@@ -155,14 +169,16 @@ export function MembershipConfigurator({
             📅 Geplante Änderung: <strong>{formatEuroCents(pending.netCents)}</strong>{' '}
             netto ab {pending.effectiveDate} ({pending.name}).
           </span>
-          <button
-            type="button"
-            onClick={cancelPending}
-            disabled={busy}
-            className="text-muted-foreground underline hover:text-rose-600 disabled:opacity-50"
-          >
-            verwerfen
-          </button>
+          {mode === 'agency' && (
+            <button
+              type="button"
+              onClick={cancelPending}
+              disabled={busy}
+              className="text-muted-foreground underline hover:text-rose-600 disabled:opacity-50"
+            >
+              verwerfen
+            </button>
+          )}
         </Alert>
       )}
 
@@ -173,6 +189,7 @@ export function MembershipConfigurator({
             key={def.id}
             def={def}
             state={map[def.id]!}
+            readOnly={readOnly}
             lineCents={moduleMonthlyCents(
               { id: def.id, enabled: map[def.id]!.enabled, qty: map[def.id]!.qty },
               priceContext,
@@ -184,21 +201,31 @@ export function MembershipConfigurator({
         ))}
       </div>
 
-      <div className="flex items-center gap-3">
-        <Button type="button" onClick={save} disabled={busy}>
-          {busy ? 'Speichere …' : 'Speichern'}
-        </Button>
-        {msg && (
-          <Alert className={`py-1 text-xs ${msg.ok ? '' : 'text-destructive'}`}>
-            {msg.text}
-          </Alert>
-        )}
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Erste Einrichtung wird sofort aktiv. Spätere Änderungen gelten immer erst
-        ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen
-        laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.
-      </p>
+      {readOnly ? (
+        <p className="text-xs text-muted-foreground">
+          Dies ist Ihr aktuelles Paket. Zum Anpassen wenden Sie sich bitte an
+          supevo – sobald wir die Selbstbedienung freischalten, können Sie die
+          Module hier selbst ändern.
+        </p>
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <Button type="button" onClick={save} disabled={busy}>
+              {busy ? 'Speichere …' : 'Speichern'}
+            </Button>
+            {msg && (
+              <Alert className={`py-1 text-xs ${msg.ok ? '' : 'text-destructive'}`}>
+                {msg.text}
+              </Alert>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {mode === 'portal'
+              ? 'Änderungen gelten immer ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'
+              : 'Erste Einrichtung wird sofort aktiv. Spätere Änderungen gelten immer erst ab dem Folgemonat. Ein abgewähltes Modul bedeutet: die enthaltenen laufenden Maßnahmen werden ab dann nicht mehr weitergeführt.'}
+          </p>
+        </>
+      )}
     </div>
   );
 }
@@ -207,6 +234,7 @@ function ModuleRow({
   def,
   state,
   lineCents,
+  readOnly,
   onToggle,
   onQty,
   onBudget,
@@ -214,6 +242,7 @@ function ModuleRow({
   def: ModuleDef;
   state: { enabled: boolean; qty: number; budgetCents: number };
   lineCents: number;
+  readOnly: boolean;
   onToggle: (enabled: boolean) => void;
   onQty: (qty: number) => void;
   onBudget: (euros: number) => void;
@@ -230,6 +259,7 @@ function ModuleRow({
           <input
             type="checkbox"
             checked={state.enabled}
+            disabled={readOnly}
             onChange={(e) => onToggle(e.target.checked)}
             className="mt-1"
           />
@@ -255,7 +285,8 @@ function ModuleRow({
               <button
                 type="button"
                 onClick={() => onQty(state.qty - 1)}
-                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted"
+                disabled={readOnly}
+                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
               >
                 −
               </button>
@@ -263,7 +294,8 @@ function ModuleRow({
               <button
                 type="button"
                 onClick={() => onQty(state.qty + 1)}
-                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted"
+                disabled={readOnly}
+                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
               >
                 +
               </button>
@@ -277,9 +309,10 @@ function ModuleRow({
               <input
                 type="number"
                 min={0}
+                disabled={readOnly}
                 value={state.budgetCents ? state.budgetCents / 100 : ''}
                 onChange={(e) => onBudget(Number(e.target.value) || 0)}
-                className="w-24 rounded-md border bg-background px-2 py-1 text-sm"
+                className="w-24 rounded-md border bg-background px-2 py-1 text-sm disabled:opacity-70"
                 placeholder="0"
               />
             </label>

@@ -87,6 +87,24 @@ export const MEMBERSHIP_MODULES: ModuleDef[] = [
 
 const MODULE_BY_ID = new Map(MEMBERSHIP_MODULES.map((m) => [m.id, m]));
 
+/** Human label for a module id (falls back to the id if unknown). */
+export function moduleLabel(id: string): string {
+  return MODULE_BY_ID.get(id)?.label ?? id;
+}
+
+/** Module ids that were enabled in `before` but are no longer enabled in `after`. */
+export function removedModuleIds(
+  before: ModuleSelection[],
+  after: ModuleSelection[],
+): string[] {
+  const afterEnabled = new Set(
+    after.filter((s) => s.enabled).map((s) => s.id),
+  );
+  return before
+    .filter((s) => s.enabled && !afterEnabled.has(s.id))
+    .map((s) => s.id);
+}
+
 /** Aktive Auswahl eines Moduls in einer Mitgliedschaft. */
 export interface ModuleSelection {
   id: string;
