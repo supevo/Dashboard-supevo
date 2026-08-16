@@ -1223,6 +1223,7 @@ export interface Database {
           addon_label: string | null;
           addon_cents: number;
           addon_required: boolean;
+          addon_module_key: string | null;
           icon: string | null;
           position: number;
           active: boolean;
@@ -1250,6 +1251,7 @@ export interface Database {
           addon_label?: string | null;
           addon_cents?: number;
           addon_required?: boolean;
+          addon_module_key?: string | null;
           icon?: string | null;
           position?: number;
           active?: boolean;

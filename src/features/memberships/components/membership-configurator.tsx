@@ -26,7 +26,6 @@ type SelState = {
   budgetCents: number;
   budgetVia: 'us' | 'google';
   keywords: number;
-  addonOn: boolean;
 };
 type SelMap = Record<string, SelState>;
 
@@ -41,7 +40,6 @@ function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
       budgetCents: found?.budgetCents ?? 0,
       budgetVia: found?.budgetVia ?? 'us',
       keywords: found?.keywords ?? def.keywordDefault,
-      addonOn: found?.addonOn ?? def.addonRequired,
     };
   }
   return map;
@@ -54,7 +52,6 @@ function toSelections(modules: ModuleDef[], map: SelMap): ModuleSelection[] {
     budgetCents: map[def.key]?.budgetCents,
     budgetVia: map[def.key]?.budgetVia,
     keywords: map[def.key]?.keywords,
-    addonOn: def.addonRequired ? true : map[def.key]?.addonOn,
   }));
 }
 
@@ -90,7 +87,15 @@ export function MembershipConfigurator({
   const groups = useMemo(() => groupByCategory(modules), [modules]);
 
   function toggle(key: string, enabled: boolean) {
-    setMap((m) => ({ ...m, [key]: { ...m[key]!, enabled } }));
+    setMap((m) => {
+      const next = { ...m, [key]: { ...m[key]!, enabled } };
+      // Pflicht-Add-on beim Aktivieren automatisch mit aktivieren.
+      const def = modules.find((d) => d.key === key);
+      if (enabled && def?.addonRequired && def.addonModuleKey && next[def.addonModuleKey]) {
+        next[def.addonModuleKey] = { ...next[def.addonModuleKey]!, enabled: true };
+      }
+      return next;
+    });
   }
   function setQty(key: string, qty: number) {
     setMap((m) => ({ ...m, [key]: { ...m[key]!, qty: Math.max(0, qty) } }));
@@ -106,9 +111,6 @@ export function MembershipConfigurator({
   }
   function setBudgetVia(key: string, via: 'us' | 'google') {
     setMap((m) => ({ ...m, [key]: { ...m[key]!, budgetVia: via } }));
-  }
-  function setAddon(key: string, on: boolean) {
-    setMap((m) => ({ ...m, [key]: { ...m[key]!, addonOn: on } }));
   }
 
   async function save() {
@@ -195,16 +197,29 @@ export function MembershipConfigurator({
                     enabled: map[def.key]!.enabled,
                     qty: map[def.key]!.qty,
                     keywords: map[def.key]!.keywords,
-                    addonOn: map[def.key]!.addonOn,
                   },
                   priceContext,
                 )}
+                addon={(() => {
+                  if (!def.addonModuleKey) return null;
+                  const am = modules.find((d) => d.key === def.addonModuleKey);
+                  if (!am) return null;
+                  return {
+                    label: `${am.icon ? `${am.icon} ` : ''}${am.label}`,
+                    cents: moduleMonthlyCents(
+                      am,
+                      { id: am.key, enabled: true, keywords: map[am.key]?.keywords },
+                      priceContext,
+                    ),
+                    enabled: map[am.key]?.enabled ?? false,
+                    onToggle: (on: boolean) => toggle(am.key, on),
+                  };
+                })()}
                 onToggle={(en) => toggle(def.key, en)}
                 onQty={(q) => setQty(def.key, q)}
                 onBudget={(e) => setBudget(def.key, e)}
                 onKeywords={(n) => setKeywords(def.key, n)}
                 onBudgetVia={(v) => setBudgetVia(def.key, v)}
-                onAddon={(on) => setAddon(def.key, on)}
               />
             ))}
           </div>
@@ -247,23 +262,29 @@ function ModuleRow({
   state,
   lineCents,
   readOnly,
+  addon,
   onToggle,
   onQty,
   onBudget,
   onKeywords,
   onBudgetVia,
-  onAddon,
 }: {
   def: ModuleDef;
   state: SelState;
   lineCents: number;
   readOnly: boolean;
+  /** Verknüpftes Add-on-Modul (falls konfiguriert). */
+  addon: {
+    label: string;
+    cents: number;
+    enabled: boolean;
+    onToggle: (on: boolean) => void;
+  } | null;
   onToggle: (enabled: boolean) => void;
   onQty: (qty: number) => void;
   onBudget: (euros: number) => void;
   onKeywords: (n: number) => void;
   onBudgetVia: (via: 'us' | 'google') => void;
-  onAddon: (on: boolean) => void;
 }) {
   const perUnit = def.pricing.kind === 'per_unit';
   const hasExtras =
@@ -271,7 +292,7 @@ function ModuleRow({
     def.captureBudget ||
     def.budgetViaOptions ||
     def.keywordCents > 0 ||
-    !!def.addonLabel;
+    !!addon;
   return (
     <div
       role="button"
@@ -355,24 +376,23 @@ function ModuleRow({
             </label>
           )}
 
-          {def.addonLabel &&
-            def.addonCents > 0 &&
+          {addon &&
             (def.addonRequired ? (
               <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                inkl. {def.addonLabel} (+{formatEuroCents(def.addonCents)}) · Must-Have
+                inkl. {addon.label} (+{formatEuroCents(addon.cents)}) · Must-Have
               </span>
             ) : (
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={state.addonOn}
+                  checked={addon.enabled}
                   disabled={readOnly}
-                  onChange={(e) => onAddon(e.target.checked)}
+                  onChange={(e) => addon.onToggle(e.target.checked)}
                 />
                 <span>
-                  {def.addonLabel}{' '}
+                  {addon.label}{' '}
                   <span className="text-xs text-muted-foreground">
-                    (+{formatEuroCents(def.addonCents)})
+                    (+{formatEuroCents(addon.cents)})
                   </span>
                 </span>
               </label>
