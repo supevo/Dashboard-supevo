@@ -7,6 +7,7 @@ interface JoinedRow {
   key: string;
   label: string;
   description: string | null;
+  icon: string | null;
   pricing_kind: string;
   net_cents: number;
   unit_label: string | null;
@@ -25,6 +26,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
       key: r.key,
       label: r.label,
       description: r.description,
+      icon: r.icon,
       category_name: r.membership_module_categories?.name ?? null,
       category_position: r.membership_module_categories?.position ?? 0,
       pricing_kind: r.pricing_kind,
@@ -41,7 +43,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
 }
 
 const SELECT =
-  'key, label, description, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, position, membership_module_categories(name, position)';
+  'key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, position, membership_module_categories(name, position)';
 
 /**
  * Active module catalog of an org (for the configurator). Uses the service
@@ -77,6 +79,7 @@ export interface AdminModule {
   maxQty: number;
   stage: number | null;
   captureBudget: boolean;
+  icon: string | null;
   position: number;
   active: boolean;
 }
@@ -97,7 +100,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
     supabase
       .from('membership_modules')
       .select(
-        'id, category_id, key, label, description, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, position, active',
+        'id, category_id, key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, position, active',
       )
       .eq('organization_id', orgId)
       .order('position', { ascending: true }),
@@ -122,6 +125,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
       maxQty: m.max_qty,
       stage: m.stage,
       captureBudget: m.capture_budget,
+      icon: m.icon,
       position: m.position,
       active: m.active,
     })),

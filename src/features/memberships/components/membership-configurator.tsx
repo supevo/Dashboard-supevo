@@ -245,7 +245,10 @@ function ModuleRow({
             className="mt-1"
           />
           <span>
-            <span className="text-sm font-medium">{def.label}</span>
+            <span className="text-sm font-medium">
+              {def.icon && <span className="mr-1.5">{def.icon}</span>}
+              {def.label}
+            </span>
             {def.description && (
               <span className="block text-xs text-muted-foreground">
                 {def.description}

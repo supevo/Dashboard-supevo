@@ -142,7 +142,10 @@ export function ModuleCatalogAdmin({
                 <div key={m.id} className="rounded-lg border">
                   <div className="flex flex-wrap items-center justify-between gap-2 p-3">
                     <div>
-                      <span className="text-sm font-medium">{m.label}</span>
+                      <span className="text-sm font-medium">
+                        {m.icon ? `${m.icon} ` : ''}
+                        {m.label}
+                      </span>
                       {!m.active && (
                         <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px]">
                           inaktiv
@@ -208,6 +211,7 @@ function ModuleForm({
   onSubmit: (fd: FormData) => void;
 }) {
   const [kind, setKind] = useState<'flat' | 'per_unit' | 'stage'>(m?.pricingKind ?? 'flat');
+  const [icon, setIcon] = useState(m?.icon ?? '');
   return (
     <form action={onSubmit} className="grid gap-3 sm:grid-cols-2">
       {m ? (
@@ -218,6 +222,30 @@ function ModuleForm({
 
       <Field label="Bezeichnung">
         <input name="label" required defaultValue={m?.label} className={inputCls} />
+      </Field>
+
+      <Field label="Icon">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <input
+            name="icon"
+            value={icon}
+            onChange={(e) => setIcon(e.target.value.slice(0, 4))}
+            className="w-16 rounded-md border bg-background px-2 py-1.5 text-center text-lg"
+            placeholder="🌐"
+          />
+          {ICON_SUGGESTIONS.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => setIcon(e)}
+              className={`rounded border px-1.5 py-1 text-lg hover:bg-muted ${
+                icon === e ? 'border-primary bg-primary/10' : ''
+              }`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
       </Field>
       <Field label="Kategorie">
         <select name="categoryId" defaultValue={m?.categoryId ?? ''} className={inputCls}>
@@ -307,6 +335,11 @@ function ModuleForm({
 }
 
 const inputCls = 'mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm';
+
+const ICON_SUGGESTIONS = [
+  '🌐', '🛠️', '📝', '🎯', '⭐', '📈', '📣', '💻', '📊', '🚀', '🎨', '🔧',
+  '🖥️', '📧', '🛒', '📱', '✍️', '🔍',
+];
 
 function Field({
   label,

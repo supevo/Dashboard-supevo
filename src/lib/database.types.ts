@@ -1217,6 +1217,7 @@ export interface Database {
           max_qty: number;
           stage: number | null;
           capture_budget: boolean;
+          icon: string | null;
           position: number;
           active: boolean;
           created_at: string;
@@ -1237,6 +1238,7 @@ export interface Database {
           max_qty?: number;
           stage?: number | null;
           capture_budget?: boolean;
+          icon?: string | null;
           position?: number;
           active?: boolean;
         };
