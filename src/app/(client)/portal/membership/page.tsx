@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getPortalMembership } from '@/features/billing/portal';
 import { PortalMembership } from '@/features/billing/components/portal-membership';
+import { getPortalMembershipConfigurator } from '@/features/memberships/configurator-queries';
+import { MembershipConfigurator } from '@/features/memberships/components/membership-configurator';
 import { getClientDocuments, type DocLink } from '@/features/documents/queries';
 import { de } from '@/lib/i18n/de';
 
@@ -35,10 +37,13 @@ function DocList({ items, empty }: { items: DocLink[]; empty: string }) {
 
 export default async function PortalMembershipPage() {
   await requireClientPage();
-  const [membershipView, docs] = await Promise.all([
+  const [cfg, membershipView, docs] = await Promise.all([
+    getPortalMembershipConfigurator(),
     getPortalMembership(),
     getClientDocuments(),
   ]);
+  // Legacy-Kunden sehen den Modul-Baukasten; supevo-Kunden die klassische Sicht.
+  const showModules = cfg?.isLegacy ?? false;
 
   return (
     <div className="space-y-6">
@@ -54,7 +59,24 @@ export default async function PortalMembershipPage() {
           <CardTitle>{de.nav.membership}</CardTitle>
         </CardHeader>
         <CardContent>
-          {membershipView ? (
+          {showModules && cfg ? (
+            <MembershipConfigurator
+              mode="portal"
+              readOnly={!cfg.clientCanEdit}
+              initialSelections={cfg.active.selections}
+              initialName={cfg.active.name}
+              priceContext={cfg.priceContext}
+              pending={
+                cfg.pending
+                  ? {
+                      netCents: cfg.pending.netCents,
+                      effectiveDate: cfg.pending.effectiveDate,
+                      name: cfg.pending.name,
+                    }
+                  : null
+              }
+            />
+          ) : membershipView ? (
             <PortalMembership view={membershipView} />
           ) : (
             <p className="text-sm text-muted-foreground">

@@ -2,9 +2,12 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { Database } from '@/lib/database.types';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { createNotifications } from '@/features/notifications/create';
 import {
   normalizeSelections,
   totalMonthlyCents,
+  moduleLabel,
   type ModuleSelection,
   type PriceContext,
 } from '@/features/memberships/modules';
@@ -142,4 +145,109 @@ export async function getMembershipConfigurator(
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
   };
+}
+
+export interface PortalConfiguratorView extends ConfiguratorView {
+  isLegacy: boolean;
+  companyName: string | null;
+}
+
+/**
+ * Portal view of the signed-in client's own membership configurator. RLS scopes
+ * the membership to the caller. Only meaningful for LEGACY clients (they see the
+ * modules); supevo clients keep the classic membership view elsewhere.
+ */
+export async function getPortalMembershipConfigurator(): Promise<PortalConfiguratorView | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data: raw } = await supabase
+    .from('client_memberships')
+    .select('*')
+    .limit(1)
+    .maybeSingle();
+  if (!raw) return null;
+
+  const membership = await promoteIfDue(supabase, raw as Membership);
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('name, is_legacy')
+    .eq('id', membership.client_company_id)
+    .maybeSingle();
+
+  // Stage prices via service client (clients may not read billing_settings).
+  let priceContext: PriceContext = { stage1NetCents: 0, stage2NetCents: 0 };
+  try {
+    const { data: s } = await createSupabaseServiceClient()
+      .from('billing_settings')
+      .select('stage1_net_cents, stage2_net_cents')
+      .eq('organization_id', membership.organization_id)
+      .maybeSingle();
+    if (s) {
+      priceContext = {
+        stage1NetCents: s.stage1_net_cents,
+        stage2NetCents: s.stage2_net_cents,
+      };
+    }
+  } catch {
+    // keep zeros
+  }
+
+  const activeSelections = normalizeSelections(membership.modules);
+  return {
+    hasMembership: true,
+    clientCompanyId: membership.client_company_id,
+    active: {
+      selections: activeSelections,
+      netCents:
+        membership.custom_net_cents ??
+        totalMonthlyCents(activeSelections, priceContext),
+      name: membership.custom_name ?? 'Individuell',
+      stage: membership.stage,
+    },
+    pending: parsePending(membership),
+    priceContext,
+    clientCanEdit: membership.client_can_edit ?? false,
+    isLegacy: company?.is_legacy ?? false,
+    companyName: company?.name ?? null,
+  };
+}
+
+/**
+ * Phase 3: informs the agency team that modules were deselected, so the running
+ * measures for those modules can be ended. A hard auto-stop needs a module↔task
+ * link (not modelled yet); this reliably surfaces the change instead.
+ */
+export async function notifyRemovedModules(params: {
+  orgId: string;
+  clientCompanyId: string;
+  companyName: string | null;
+  removedIds: string[];
+  effectiveDate: string;
+  actorId?: string;
+}): Promise<void> {
+  if (params.removedIds.length === 0) return;
+  const service = createSupabaseServiceClient();
+  const { data: admins } = await service
+    .from('memberships')
+    .select('user_id')
+    .eq('organization_id', params.orgId)
+    .in('role', ['agency_admin', 'super_admin'])
+    .eq('status', 'active');
+  const recipients = [
+    ...new Set((admins ?? []).map((a) => a.user_id).filter((x): x is string => !!x)),
+  ];
+  if (recipients.length === 0) return;
+
+  const labels = params.removedIds.map(moduleLabel).join(', ');
+  await createNotifications(
+    recipients.map((recipientId) => ({
+      organizationId: params.orgId,
+      recipientId,
+      type: 'onboarding' as const,
+      title: `Module abgewählt${params.companyName ? ` – ${params.companyName}` : ''}`,
+      body: `Ab ${params.effectiveDate}: ${labels}. Laufende Maßnahmen bitte beenden.`,
+      entityType: 'client_memberships',
+      entityId: params.clientCompanyId,
+    })),
+    params.actorId,
+  );
 }
