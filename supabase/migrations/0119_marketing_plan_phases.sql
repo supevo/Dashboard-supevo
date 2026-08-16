@@ -47,6 +47,7 @@ create index if not exists marketing_plan_items_phase_idx
 -- --- RLS: Org-Admins Vollzugriff (Service-Client umgeht RLS ohnehin) ------
 alter table public.marketing_plan_phases enable row level security;
 
+drop policy if exists marketing_plan_phases_admin_all on public.marketing_plan_phases;
 create policy marketing_plan_phases_admin_all on public.marketing_plan_phases
   for all
   using (
