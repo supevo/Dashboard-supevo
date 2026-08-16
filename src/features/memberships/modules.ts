@@ -36,10 +36,10 @@ export interface ModuleDef {
   /** Preis pro Keyword in Cent (0 = keine Keyword-Skalierung). */
   keywordCents: number;
   keywordDefault: number;
-  /** Optionales Add-on (z. B. „Google Business"). */
-  addonLabel: string | null;
-  addonCents: number;
-  /** Add-on ist Pflicht (Must-Have) → immer enthalten, nicht abwählbar. */
+  /** Key eines ANDEREN Moduls, das als Add-on dieses Moduls dient (dessen
+   *  eigener Preis zählt, sobald es aktiviert wird). */
+  addonModuleKey: string | null;
+  /** Add-on ist Pflicht (Must-Have) → beim Aktivieren automatisch mit aktiv. */
   addonRequired: boolean;
 }
 
@@ -62,8 +62,7 @@ export interface ModuleRow {
   budget_via_options?: boolean | null;
   keyword_cents?: number | null;
   keyword_default?: number | null;
-  addon_label?: string | null;
-  addon_cents?: number | null;
+  addon_module_key?: string | null;
   addon_required?: boolean | null;
   position: number;
 }
@@ -97,8 +96,7 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     budgetViaOptions: r.budget_via_options ?? false,
     keywordCents: r.keyword_cents ?? 0,
     keywordDefault: r.keyword_default ?? 0,
-    addonLabel: r.addon_label ?? null,
-    addonCents: r.addon_cents ?? 0,
+    addonModuleKey: r.addon_module_key ?? null,
     addonRequired: r.addon_required ?? false,
   };
 }
@@ -113,8 +111,6 @@ export interface ModuleSelection {
   budgetVia?: 'us' | 'google';
   /** Anzahl geplanter Keywords (skaliert den Preis). */
   keywords?: number;
-  /** Optionales Add-on gewählt (bei Pflicht-Add-on immer aktiv). */
-  addonOn?: boolean;
 }
 
 /** Stage-Preise aus den Billing-Settings, für stage-Module. */
@@ -151,10 +147,8 @@ export function moduleMonthlyCents(
     const kw = Math.max(0, Math.round(sel.keywords ?? def.keywordDefault));
     cents += def.keywordCents * kw;
   }
-  // Add-on (z. B. Google Business): Pflicht → immer, sonst nur wenn gewählt.
-  if (def.addonCents > 0 && (def.addonRequired || sel.addonOn)) {
-    cents += def.addonCents;
-  }
+  // Add-ons sind eigene Module (addonModuleKey) – ihr Preis zählt über ihr
+  // eigenes enabled, nicht hier.
   return cents;
 }
 
@@ -231,7 +225,6 @@ export function normalizeSelections(raw: unknown): ModuleSelection[] {
         rec.budgetVia === 'us' || rec.budgetVia === 'google'
           ? (rec.budgetVia as 'us' | 'google')
           : undefined,
-      addonOn: typeof rec.addonOn === 'boolean' ? (rec.addonOn as boolean) : undefined,
     });
   }
   return out;

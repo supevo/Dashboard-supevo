@@ -19,8 +19,7 @@ interface JoinedRow {
   budget_via_options: boolean;
   keyword_cents: number;
   keyword_default: number;
-  addon_label: string | null;
-  addon_cents: number;
+  addon_module_key: string | null;
   addon_required: boolean;
   position: number;
   membership_module_categories: { name: string; position: number } | null;
@@ -46,8 +45,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
       budget_via_options: r.budget_via_options,
       keyword_cents: r.keyword_cents,
       keyword_default: r.keyword_default,
-      addon_label: r.addon_label,
-      addon_cents: r.addon_cents,
+      addon_module_key: r.addon_module_key,
       addon_required: r.addon_required,
       position: r.position,
     }),
@@ -55,7 +53,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
 }
 
 const SELECT =
-  'key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_label, addon_cents, addon_required, position, membership_module_categories(name, position)';
+  'key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, membership_module_categories(name, position)';
 
 /**
  * Active module catalog of an org (for the configurator). Uses the service
@@ -94,8 +92,7 @@ export interface AdminModule {
   budgetViaOptions: boolean;
   keywordCents: number;
   keywordDefault: number;
-  addonLabel: string | null;
-  addonCents: number;
+  addonModuleKey: string | null;
   addonRequired: boolean;
   icon: string | null;
   position: number;
@@ -118,7 +115,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
     supabase
       .from('membership_modules')
       .select(
-        'id, category_id, key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_label, addon_cents, addon_required, position, active',
+        'id, category_id, key, label, description, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, active',
       )
       .eq('organization_id', orgId)
       .order('position', { ascending: true }),
@@ -146,8 +143,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
       budgetViaOptions: m.budget_via_options,
       keywordCents: m.keyword_cents,
       keywordDefault: m.keyword_default,
-      addonLabel: m.addon_label,
-      addonCents: m.addon_cents,
+      addonModuleKey: m.addon_module_key,
       addonRequired: m.addon_required,
       icon: m.icon,
       position: m.position,

@@ -27,8 +27,7 @@ const web: ModuleDef = {
   budgetViaOptions: false,
   keywordCents: 0,
   keywordDefault: 0,
-  addonLabel: null,
-  addonCents: 0,
+  addonModuleKey: null,
   addonRequired: false,
 };
 const seo: ModuleDef = {
@@ -51,8 +50,7 @@ const seo: ModuleDef = {
   budgetViaOptions: false,
   keywordCents: 0,
   keywordDefault: 0,
-  addonLabel: null,
-  addonCents: 0,
+  addonModuleKey: null,
   addonRequired: false,
 };
 const stage1: ModuleDef = {
@@ -68,8 +66,7 @@ const stage1: ModuleDef = {
   budgetViaOptions: false,
   keywordCents: 0,
   keywordDefault: 0,
-  addonLabel: null,
-  addonCents: 0,
+  addonModuleKey: null,
   addonRequired: false,
 };
 const ads: ModuleDef = {
@@ -85,8 +82,7 @@ const ads: ModuleDef = {
   budgetViaOptions: false,
   keywordCents: 0,
   keywordDefault: 0,
-  addonLabel: null,
-  addonCents: 0,
+  addonModuleKey: null,
   addonRequired: false,
 };
 
@@ -126,26 +122,25 @@ describe('moduleMonthlyCents', () => {
     ).toBe(24500 + 30000);
   });
 
-  it('Pflicht-Add-on (Google Business) ist immer enthalten', () => {
-    const adsAddon: ModuleDef = {
+  it('Add-on ist ein eigenes Modul – zählt über sein eigenes enabled, nicht hier', () => {
+    const adsWithAddon: ModuleDef = {
       ...ads,
-      addonLabel: 'Google Business',
-      addonCents: 9900,
+      addonModuleKey: 'google_business',
       addonRequired: true,
     };
-    expect(moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true }, ctx)).toBe(24500 + 9900);
-  });
-
-  it('optionales Add-on nur wenn gewählt', () => {
-    const adsAddon: ModuleDef = {
-      ...ads,
-      addonLabel: 'Google Business',
-      addonCents: 9900,
-      addonRequired: false,
-    };
-    expect(moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true }, ctx)).toBe(24500);
+    // Der Ads-Preis selbst ändert sich durch die Add-on-Referenz nicht.
+    expect(moduleMonthlyCents(adsWithAddon, { id: 'google_ads', enabled: true }, ctx)).toBe(24500);
+    // Der Add-on-Preis kommt über das referenzierte Modul selbst.
+    const gb: ModuleDef = { ...web, key: 'google_business', pricing: { kind: 'flat', netCents: 9900 } };
     expect(
-      moduleMonthlyCents(adsAddon, { id: 'google_ads', enabled: true, addonOn: true }, ctx),
+      totalMonthlyCents(
+        [adsWithAddon, gb],
+        [
+          { id: 'google_ads', enabled: true },
+          { id: 'google_business', enabled: true },
+        ],
+        ctx,
+      ),
     ).toBe(24500 + 9900);
   });
 });

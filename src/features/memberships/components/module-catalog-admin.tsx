@@ -125,7 +125,12 @@ export function ModuleCatalogAdmin({
 
         {adding && (
           <div className="rounded-lg border p-4">
-            <ModuleForm orgId={orgId} categories={catalog.categories} onSubmit={submitModule} />
+            <ModuleForm
+              orgId={orgId}
+              categories={catalog.categories}
+              modules={catalog.modules}
+              onSubmit={submitModule}
+            />
           </div>
         )}
 
@@ -185,6 +190,7 @@ export function ModuleCatalogAdmin({
                       <ModuleForm
                         orgId={orgId}
                         categories={catalog.categories}
+                        modules={catalog.modules}
                         module={m}
                         onSubmit={submitModule}
                       />
@@ -202,11 +208,13 @@ export function ModuleCatalogAdmin({
 function ModuleForm({
   orgId,
   categories,
+  modules,
   module: m,
   onSubmit,
 }: {
   orgId: string;
   categories: AdminCategory[];
+  modules: AdminModule[];
   module?: AdminModule;
   onSubmit: (fd: FormData) => void;
 }) {
@@ -337,21 +345,23 @@ function ModuleForm({
           <Field label="Keywords Standardanzahl">
             <input name="keywordDefault" type="number" defaultValue={m?.keywordDefault ?? 0} className={inputCls} />
           </Field>
-          <Field label="Add-on Bezeichnung">
-            <input name="addonLabel" defaultValue={m?.addonLabel ?? ''} className={inputCls} placeholder="z. B. Google Business" />
-          </Field>
-          <Field label="Add-on Preis (€)">
-            <input
-              name="addonEuros"
-              defaultValue={m && m.addonCents ? (m.addonCents / 100).toFixed(2).replace('.', ',') : ''}
-              className={inputCls}
-              placeholder="z. B. 99"
-            />
+          <Field label="Add-on-Modul (aus bestehenden)">
+            <select name="addonModuleKey" defaultValue={m?.addonModuleKey ?? ''} className={inputCls}>
+              <option value="">— kein Add-on —</option>
+              {modules
+                .filter((mod) => mod.key !== m?.key)
+                .map((mod) => (
+                  <option key={mod.id} value={mod.key}>
+                    {mod.icon ? `${mod.icon} ` : ''}
+                    {mod.label}
+                  </option>
+                ))}
+            </select>
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="addonRequired" defaultChecked={m?.addonRequired ?? false} />
-          Add-on ist Pflicht / Must-Have (immer enthalten)
+          Add-on ist Pflicht / Must-Have (wird beim Aktivieren automatisch mit gewählt)
         </label>
       </div>
 
