@@ -49,6 +49,7 @@ export default async function LeadOfferPage({
         initialSelections={offer.selections}
         priceContext={offer.priceContext}
         promotions={offer.promotions}
+        initialRedeemed={offer.redeemedPromotions}
         pending={null}
       />
     </div>

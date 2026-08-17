@@ -108,11 +108,14 @@ const offerSelectionSchema = z.object({
   enabled: z.boolean(),
   qty: z.number().int().min(0).max(1000).optional(),
   budgetCents: z.number().int().min(0).max(100_000_00).optional(),
+  budgetVia: z.enum(['us', 'google']).optional(),
+  keywords: z.number().int().min(0).max(1000).optional(),
 });
 const saveOfferSchema = z.object({
   leadId: z.string().uuid(),
   name: z.string().trim().max(120).optional(),
   selections: z.array(offerSelectionSchema).max(50),
+  redeemedPromotions: z.array(z.string().min(1).max(64)).max(50).optional(),
 });
 
 /**
@@ -125,6 +128,7 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
   const { leadId, name } = parsed.data;
   const selections = normalizeSelections(parsed.data.selections);
+  const redeemedPromotions = [...new Set(parsed.data.redeemedPromotions ?? [])];
 
   const user = await requireUser();
   if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
@@ -154,6 +158,7 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
     .update(
       {
         modules: selections as unknown,
+        redeemed_promotions: redeemedPromotions as unknown,
         offer_name: name?.trim() || 'Individuell',
         estimated_value_cents: netCents,
       },
