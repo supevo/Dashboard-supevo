@@ -31,6 +31,22 @@ export function ExpressBoard({
 
   const hasTickets = status.available > 0;
 
+  // Konten ohne freigeschaltete Express-Tickets sehen keinen Express-Kasten –
+  // nur das normale Board (konsistent mit dem Header-Badge, das sich ausblendet).
+  if (status.perMonth <= 0) {
+    return (
+      <KanbanBoard
+        projectId={projectId}
+        board={board}
+        members={[]}
+        canManage={false}
+        reorderOnly
+        allowColumnMove
+        basePath="/portal/projects"
+      />
+    );
+  }
+
   function redeem(taskId: string) {
     setError(null);
     setDone(null);
@@ -57,46 +73,39 @@ export function ExpressBoard({
           <div>
             <div className="text-sm font-semibold">Express-Ticket</div>
             <div className="text-xs text-muted-foreground">
-              {status.perMonth > 0 ? (
-                <>
-                  {status.available}/{status.perMonth} in diesem Monat verfügbar
-                </>
-              ) : (
-                <>Für dieses Konto sind keine Express-Tickets freigeschaltet.</>
-              )}
+              {status.available}/{status.perMonth} in diesem Monat verfügbar
             </div>
           </div>
         </div>
-        {status.perMonth > 0 &&
-          (picking ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setPicking(false)}
-              disabled={pending}
-            >
-              Abbrechen
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                setError(null);
-                setDone(null);
-                setPicking(true);
-              }}
-              disabled={!hasTickets || pending}
-              title={
-                hasTickets
-                  ? 'Aufgabe vorziehen'
-                  : 'Diesen Monat aufgebraucht – setzt sich am 1. zurück.'
-              }
-            >
-              Einlösen
-            </Button>
-          ))}
+        {picking ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setPicking(false)}
+            disabled={pending}
+          >
+            Abbrechen
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setError(null);
+              setDone(null);
+              setPicking(true);
+            }}
+            disabled={!hasTickets || pending}
+            title={
+              hasTickets
+                ? 'Aufgabe vorziehen'
+                : 'Diesen Monat aufgebraucht – setzt sich am 1. zurück.'
+            }
+          >
+            Einlösen
+          </Button>
+        )}
       </div>
 
       {error && <Alert variant="destructive">{error}</Alert>}
