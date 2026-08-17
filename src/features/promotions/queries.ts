@@ -2,17 +2,23 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 
+export type DiscountKind = 'none' | 'fixed' | 'percent';
+
 export interface Promotion {
   id: string;
   title: string;
   conditions: string;
   icon: string | null;
   validUntil: string | null;
+  /** Einlösbarer Gutschein-Wert: fester Betrag (Cent) oder Prozent-Rabatt. */
+  discountKind: DiscountKind;
+  discountValue: number;
   position: number;
   active: boolean;
 }
 
-const SELECT = 'id, title, conditions, icon, valid_until, position, active';
+const SELECT =
+  'id, title, conditions, icon, valid_until, discount_kind, discount_value, position, active';
 
 interface Row {
   id: string;
@@ -20,6 +26,8 @@ interface Row {
   conditions: string | null;
   icon: string | null;
   valid_until: string | null;
+  discount_kind: DiscountKind | null;
+  discount_value: number | null;
   position: number;
   active: boolean;
 }
@@ -31,6 +39,8 @@ function mapRow(r: Row): Promotion {
     conditions: r.conditions ?? '',
     icon: r.icon,
     validUntil: r.valid_until,
+    discountKind: r.discount_kind ?? 'none',
+    discountValue: r.discount_value ?? 0,
     position: r.position,
     active: r.active,
   };

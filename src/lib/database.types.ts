@@ -1271,6 +1271,8 @@ export interface Database {
           conditions: string;
           icon: string | null;
           valid_until: string | null;
+          discount_kind: 'none' | 'fixed' | 'percent';
+          discount_value: number;
           position: number;
           active: boolean;
           created_at: string;
@@ -1283,6 +1285,8 @@ export interface Database {
           conditions?: string;
           icon?: string | null;
           valid_until?: string | null;
+          discount_kind?: 'none' | 'fixed' | 'percent';
+          discount_value?: number;
           position?: number;
           active?: boolean;
         };

@@ -3,11 +3,20 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { idleResult } from '@/lib/action-result';
+import { formatEuroCents } from '@/lib/money';
 import {
   upsertPromotionAction,
   deletePromotionAction,
 } from '@/features/promotions/actions';
 import type { Promotion } from '@/features/promotions/queries';
+
+function discountLabel(p: Promotion): string | null {
+  if (p.discountKind === 'fixed' && p.discountValue > 0)
+    return `${formatEuroCents(p.discountValue)} Rabatt`;
+  if (p.discountKind === 'percent' && p.discountValue > 0)
+    return `${p.discountValue} % Rabatt`;
+  return null;
+}
 
 export function PromotionsAdmin({
   orgId,
@@ -81,6 +90,11 @@ export function PromotionsAdmin({
                     {p.conditions}
                   </p>
                 )}
+                {discountLabel(p) && (
+                  <p className="mt-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                    🎟️ {discountLabel(p)} · einlösbar
+                  </p>
+                )}
                 {p.validUntil && (
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     gültig bis {p.validUntil}
@@ -130,6 +144,9 @@ function PromotionForm({
   onSubmit: (fd: FormData) => void;
 }) {
   const [icon, setIcon] = useState(p?.icon ?? '');
+  const [discountKind, setDiscountKind] = useState<'none' | 'fixed' | 'percent'>(
+    p?.discountKind ?? 'none',
+  );
   return (
     <form action={onSubmit} className="grid gap-3 sm:grid-cols-2">
       {p ? (
@@ -190,6 +207,38 @@ function PromotionForm({
           placeholder="z. B. Bei Abschluss einer Google-Ads-Betreuung. Budget wird über die ersten 3 Monate verrechnet."
         />
       </Field>
+
+      <Field label="Gutschein-Rabatt">
+        <select
+          name="discountKind"
+          value={discountKind}
+          onChange={(e) => setDiscountKind(e.target.value as typeof discountKind)}
+          className={inputCls}
+        >
+          <option value="none">Kein Wert (nur Hinweis)</option>
+          <option value="fixed">Fester Betrag (€)</option>
+          <option value="percent">Prozent-Rabatt (%)</option>
+        </select>
+      </Field>
+      {discountKind !== 'none' ? (
+        <Field label={discountKind === 'fixed' ? 'Betrag (€ netto)' : 'Rabatt (%)'}>
+          <input
+            key={discountKind}
+            name="discountValue"
+            defaultValue={
+              p && p.discountKind === discountKind
+                ? discountKind === 'fixed'
+                  ? (p.discountValue / 100).toFixed(2).replace('.', ',')
+                  : String(p.discountValue)
+                : ''
+            }
+            className={inputCls}
+            placeholder={discountKind === 'fixed' ? 'z. B. 100' : 'z. B. 10'}
+          />
+        </Field>
+      ) : (
+        <div className="hidden sm:block" />
+      )}
 
       <Field label="Reihenfolge">
         <input
