@@ -27,12 +27,20 @@ export default async function PaketePage() {
             sofort, ohne Deploy.
           </p>
         </div>
-        <Link
-          href="/app/leads"
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Zu den Leads
-        </Link>
+        <div className="flex items-center gap-3 text-sm">
+          <Link
+            href="/app/promotions"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            🎁 Promotions
+          </Link>
+          <Link
+            href="/app/leads"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            ← Zu den Leads
+          </Link>
+        </div>
       </div>
 
       <ModuleCatalogAdmin orgId={orgId} catalog={catalog} />
