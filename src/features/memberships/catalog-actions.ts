@@ -46,6 +46,10 @@ function euroToCents(v: FormDataEntryValue | null): number {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : 0;
 }
 function intOf(v: FormDataEntryValue | null, fallback: number): number {
+  // Wichtig: Number(null) und Number('') sind 0 (nicht NaN) – ohne diese
+  // Prüfung würde ein fehlendes/leeres Feld fälschlich 0 statt fallback liefern
+  // (das hat u. a. max_qty auf 0 gesetzt und den Preis auf 0 geklemmt).
+  if (v === null || String(v).trim() === '') return fallback;
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(n) : fallback;
 }
@@ -119,6 +123,19 @@ export async function upsertModuleAction(
     ? (formData.get('pricingKind') as 'flat' | 'per_unit' | 'stage')
     : 'flat';
 
+  // Mengengrenzen für Pro-Einheit-Module absichern, damit maxQty niemals den
+  // Preis auf 0 klemmt (maxQty >= defaultQty >= 1, minQty innerhalb [0, maxQty]).
+  const rawDefaultQty = intOf(formData.get('defaultQty'), 1);
+  const rawMinQty = intOf(formData.get('minQty'), 0);
+  const rawMaxQty = intOf(formData.get('maxQty'), 99);
+  const defaultQty = pricingKind === 'per_unit' ? Math.max(1, rawDefaultQty) : rawDefaultQty;
+  const maxQty =
+    pricingKind === 'per_unit'
+      ? Math.max(rawMaxQty, defaultQty, rawMinQty, 1)
+      : rawMaxQty;
+  const minQty =
+    pricingKind === 'per_unit' ? Math.min(Math.max(0, rawMinQty), maxQty) : rawMinQty;
+
   const fields = {
     category_id: (formData.get('categoryId') as string) || null,
     label,
@@ -133,9 +150,9 @@ export async function upsertModuleAction(
     unit_label: pricingKind === 'per_unit'
       ? String(formData.get('unitLabel') ?? '').trim() || 'Einheiten'
       : null,
-    default_qty: intOf(formData.get('defaultQty'), 1),
-    min_qty: intOf(formData.get('minQty'), 0),
-    max_qty: intOf(formData.get('maxQty'), 99),
+    default_qty: defaultQty,
+    min_qty: minQty,
+    max_qty: maxQty,
     stage: pricingKind === 'stage' ? (intOf(formData.get('stage'), 1) === 2 ? 2 : 1) : null,
     capture_budget: formData.get('captureBudget') === 'on',
     budget_via_options: formData.get('budgetViaOptions') === 'on',

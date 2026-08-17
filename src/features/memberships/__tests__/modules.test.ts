@@ -104,6 +104,25 @@ describe('moduleMonthlyCents', () => {
     expect(moduleMonthlyCents(seo, { id: 'seo', enabled: true, qty: -5 }, ctx)).toBe(0);
     expect(moduleMonthlyCents(seo, { id: 'seo', enabled: true, qty: 999 }, ctx)).toBe(8000 * 30);
   });
+  it('kaputte maxQty=0 klemmt den Preis NICHT auf 0', () => {
+    // Reproduziert den Bug: 125 €/Einheit, aber max_qty=0 (aus Fixpreis→
+    // Pro-Einheit-Umstellung). Ohne Fix wäre der Preis dauerhaft 0.
+    const broken: ModuleDef = {
+      ...seo,
+      pricing: {
+        kind: 'per_unit',
+        netCents: 12500,
+        unitLabel: 'Landingpages',
+        defaultQty: 0,
+        minQty: 0,
+        maxQty: 0,
+      },
+    };
+    // aktiv ohne explizite Menge → mindestens 1 Einheit
+    expect(moduleMonthlyCents(broken, { id: 'seo', enabled: true }, ctx)).toBe(12500);
+    // Menge erhöhen wirkt wieder
+    expect(moduleMonthlyCents(broken, { id: 'seo', enabled: true, qty: 3 }, ctx)).toBe(37500);
+  });
   it('stage nutzt den Kontextpreis', () => {
     expect(moduleMonthlyCents(stage1, { id: 'supevo_stage1', enabled: true }, ctx)).toBe(99000);
   });
