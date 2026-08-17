@@ -235,8 +235,8 @@ export function MembershipConfigurator({
 
   return (
     <div className="space-y-6">
-      {/* Aktuelle Aktionen (Promotions) – prominent über dem Baukasten. */}
-      {promotions.length > 0 && (
+      {/* Aktuelle Aktionen (Promotions/Gutscheine) – nur im Lead-Angebot. */}
+      {mode === 'lead' && promotions.length > 0 && (
         <div className="space-y-2">
           {promotions.map((p) => {
             const redeemable = hasDiscount(p);

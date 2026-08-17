@@ -66,7 +66,6 @@ export default async function PortalMembershipPage() {
               readOnly={!cfg.clientCanEdit}
               initialSelections={cfg.active.selections}
               priceContext={cfg.priceContext}
-              promotions={cfg.promotions}
               pending={
                 cfg.pending
                   ? {
