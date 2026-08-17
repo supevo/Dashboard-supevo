@@ -26,6 +26,7 @@ export interface LeadOfferView {
   priceContext: PriceContext;
   modules: ModuleDef[];
   promotions: Promotion[];
+  redeemedPromotions: string[];
   estimatedValueCents: number | null;
   /** Set once the lead has been converted into a client. */
   convertedClientCompanyId: string | null;
@@ -37,7 +38,7 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, modules, offer_name, estimated_value_cents, converted_client_company_id',
+      'id, organization_id, contact_name, company, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id',
     )
     .eq('id', leadId)
     .maybeSingle();
@@ -69,6 +70,11 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
     priceContext,
     modules: await getModuleCatalog(lead.organization_id),
     promotions: await getActivePromotions(lead.organization_id),
+    redeemedPromotions: Array.isArray(lead.redeemed_promotions)
+      ? (lead.redeemed_promotions as unknown[]).filter(
+          (x): x is string => typeof x === 'string',
+        )
+      : [],
     estimatedValueCents: lead.estimated_value_cents,
     convertedClientCompanyId: lead.converted_client_company_id,
   };

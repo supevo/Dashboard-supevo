@@ -1808,6 +1808,7 @@ export interface Database {
           note: string | null;
           estimated_value_cents: number | null;
           modules: unknown;
+          redeemed_promotions: unknown;
           offer_name: string | null;
           converted_client_company_id: string | null;
           status: 'new' | 'contacted' | 'offer' | 'won' | 'lost';
@@ -1827,6 +1828,7 @@ export interface Database {
           note?: string | null;
           estimated_value_cents?: number | null;
           modules?: unknown;
+          redeemed_promotions?: unknown;
           offer_name?: string | null;
           converted_client_company_id?: string | null;
           status?: 'new' | 'contacted' | 'offer' | 'won' | 'lost';

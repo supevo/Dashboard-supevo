@@ -75,6 +75,7 @@ export function MembershipConfigurator({
   priceContext,
   pending,
   promotions = [],
+  initialRedeemed = [],
   mode = 'agency',
   readOnly = false,
 }: {
@@ -85,6 +86,7 @@ export function MembershipConfigurator({
   priceContext: PriceContext;
   pending: { netCents: number; effectiveDate: string; name: string } | null;
   promotions?: PromoBanner[];
+  initialRedeemed?: string[];
   mode?: 'agency' | 'portal' | 'lead';
   readOnly?: boolean;
 }) {
@@ -92,7 +94,9 @@ export function MembershipConfigurator({
   const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [redeemed, setRedeemed] = useState<Set<string>>(() => new Set());
+  const [redeemed, setRedeemed] = useState<Set<string>>(
+    () => new Set(initialRedeemed),
+  );
 
   const selections = useMemo(() => toSelections(modules, map), [modules, map]);
   const total = useMemo(
@@ -168,7 +172,11 @@ export function MembershipConfigurator({
     const stage = map['supevo_stage2']?.enabled ? 2 : 1;
     const res =
       mode === 'lead'
-        ? await saveLeadOfferAction({ leadId, selections })
+        ? await saveLeadOfferAction({
+            leadId,
+            selections,
+            redeemedPromotions: [...redeemed],
+          })
         : mode === 'portal'
           ? await savePortalMembershipConfigAction({ stage, selections })
           : await saveMembershipConfigAction({ clientCompanyId, stage, selections });
