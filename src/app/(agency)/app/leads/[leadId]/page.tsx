@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getLeadOffer } from '@/features/leads/queries';
 import { MembershipConfigurator } from '@/features/memberships/components/membership-configurator';
+import { LeadConvertPanel } from '@/features/leads/components/lead-convert-panel';
+import { isAiEnabled } from '@/lib/ai/complete';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +53,12 @@ export default async function LeadOfferPage({
         promotions={offer.promotions}
         initialRedeemed={offer.redeemedPromotions}
         pending={null}
+      />
+
+      <LeadConvertPanel
+        leadId={leadId}
+        convertedClientCompanyId={offer.convertedClientCompanyId}
+        aiEnabled={isAiEnabled()}
       />
     </div>
   );

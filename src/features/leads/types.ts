@@ -16,6 +16,10 @@ export interface Lead {
   phone: string | null;
   source: string | null;
   note: string | null;
+  industry: string | null;
+  goals: string | null;
+  targetGroup: string | null;
+  website: string | null;
   estimatedValueCents: number | null;
   status: LeadStatus;
   /** Set once the lead has been converted into a client. */

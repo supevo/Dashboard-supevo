@@ -73,6 +73,37 @@ export function EditLeadButton({ lead }: { lead: Lead }) {
               <Label htmlFor="e-value">{de.leads.value}</Label>
               <Input id="e-value" name="value" defaultValue={euro} placeholder="z. B. 2500" />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="e-industry">Branche</Label>
+              <Input
+                id="e-industry"
+                name="industry"
+                defaultValue={lead.industry ?? ''}
+                placeholder="z. B. Zahnarztpraxis"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="e-website">Website / Ist-Zustand</Label>
+              <Input
+                id="e-website"
+                name="website"
+                defaultValue={lead.website ?? ''}
+                placeholder="z. B. muster-praxis.de"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="e-goals">Ziele / Vorhaben</Label>
+            <Textarea id="e-goals" name="goals" rows={2} defaultValue={lead.goals ?? ''} />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="e-target">Zielgruppe</Label>
+            <Textarea
+              id="e-target"
+              name="targetGroup"
+              rows={2}
+              defaultValue={lead.targetGroup ?? ''}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="e-note">{de.leads.note}</Label>

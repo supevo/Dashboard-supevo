@@ -1806,6 +1806,10 @@ export interface Database {
           phone: string | null;
           source: string | null;
           note: string | null;
+          industry: string | null;
+          goals: string | null;
+          target_group: string | null;
+          website: string | null;
           estimated_value_cents: number | null;
           modules: unknown;
           redeemed_promotions: unknown;
@@ -1826,6 +1830,10 @@ export interface Database {
           phone?: string | null;
           source?: string | null;
           note?: string | null;
+          industry?: string | null;
+          goals?: string | null;
+          target_group?: string | null;
+          website?: string | null;
           estimated_value_cents?: number | null;
           modules?: unknown;
           redeemed_promotions?: unknown;
