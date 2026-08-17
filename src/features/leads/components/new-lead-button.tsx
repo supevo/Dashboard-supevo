@@ -66,6 +66,32 @@ export function NewLeadButton() {
               <Label htmlFor="l-value">{de.leads.value}</Label>
               <Input id="l-value" name="value" placeholder="z. B. 2500" />
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="l-industry">Branche</Label>
+              <Input id="l-industry" name="industry" placeholder="z. B. Zahnarztpraxis" />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="l-website">Website / Ist-Zustand</Label>
+              <Input id="l-website" name="website" placeholder="z. B. muster-praxis.de" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="l-goals">Ziele / Vorhaben</Label>
+            <Textarea
+              id="l-goals"
+              name="goals"
+              rows={2}
+              placeholder="Was möchte der Kunde erreichen? (mehr Anfragen, Relaunch, lokale Sichtbarkeit …)"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="l-target">Zielgruppe</Label>
+            <Textarea
+              id="l-target"
+              name="targetGroup"
+              rows={2}
+              placeholder="Wen soll der Kunde ansprechen? (Region, B2B/B2C, Alter …)"
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="l-note">{de.leads.note}</Label>

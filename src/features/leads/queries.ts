@@ -86,7 +86,7 @@ export async function listLeads(): Promise<Lead[]> {
   const { data } = await supabase
     .from('leads')
     .select(
-      'id, contact_name, company, email, phone, source, note, estimated_value_cents, status, converted_client_company_id, created_at',
+      'id, contact_name, company, email, phone, source, note, industry, goals, target_group, website, estimated_value_cents, status, converted_client_company_id, created_at',
     )
     .order('created_at', { ascending: false })
     .limit(500);
@@ -98,6 +98,10 @@ export async function listLeads(): Promise<Lead[]> {
     phone: l.phone,
     source: l.source,
     note: l.note,
+    industry: l.industry,
+    goals: l.goals,
+    targetGroup: l.target_group,
+    website: l.website,
     estimatedValueCents: l.estimated_value_cents,
     status: l.status,
     convertedClientCompanyId: l.converted_client_company_id,

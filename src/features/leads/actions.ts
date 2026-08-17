@@ -1,23 +1,115 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { can } from '@/lib/authz/policies';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { de } from '@/lib/i18n/de';
 import {
   normalizeSelections,
   totalMonthlyCents,
+  type ModuleDef,
+  type ModuleSelection,
   type PriceContext,
 } from '@/features/memberships/modules';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import { generateProjectTasks } from '@/features/leads/generate-tasks';
 import {
   type ActionResult,
   errorResult,
   successResult,
 } from '@/lib/action-result';
+
+type Service = ReturnType<typeof createSupabaseServiceClient>;
+
+interface LeadForConvert {
+  id: string;
+  organization_id: string;
+  contact_name: string;
+  company: string | null;
+  email: string | null;
+  note: string | null;
+  modules: unknown;
+  offer_name: string | null;
+  estimated_value_cents: number | null;
+  converted_client_company_id: string | null;
+}
+
+/** Menschlich lesbare Modulzeilen (inkl. Keywords/Budget) für die KI. */
+function moduleLinesFor(
+  catalog: ModuleDef[],
+  selections: ModuleSelection[],
+): string[] {
+  const byKey = new Map(catalog.map((d) => [d.key, d]));
+  const lines: string[] = [];
+  for (const s of selections) {
+    if (!s.enabled) continue;
+    const def = byKey.get(s.id);
+    if (!def) continue;
+    const extras: string[] = [];
+    if (def.pricing.kind === 'per_unit' && s.qty) {
+      extras.push(`${s.qty} ${def.pricing.unitLabel}`);
+    }
+    if (def.keywordCents > 0) {
+      extras.push(`${s.keywords ?? def.keywordDefault} Keywords`);
+    }
+    if (def.captureBudget && s.budgetCents) {
+      extras.push(`Werbebudget ${Math.round(s.budgetCents / 100)} €/Monat`);
+    }
+    lines.push(def.label + (extras.length ? ` (${extras.join(', ')})` : ''));
+  }
+  return lines;
+}
+
+/**
+ * Legt (idempotent) Kundenunternehmen + Mitgliedschaft aus einem Lead an.
+ * Gibt die client_company_id zurück oder eine Fehlermeldung.
+ */
+async function ensureClientForLead(
+  service: Service,
+  lead: LeadForConvert,
+  userId: string,
+): Promise<{ id: string } | { error: string }> {
+  if (lead.converted_client_company_id) {
+    return { id: lead.converted_client_company_id };
+  }
+  const selections = normalizeSelections(lead.modules);
+  const hasSupevo = selections.some(
+    (s) => s.enabled && (s.id === 'supevo_stage1' || s.id === 'supevo_stage2'),
+  );
+  const stage = selections.some((s) => s.enabled && s.id === 'supevo_stage2') ? 2 : 1;
+
+  const { data: company, error: cErr } = await service
+    .from('client_companies')
+    .insert({
+      organization_id: lead.organization_id,
+      name: lead.company || lead.contact_name,
+      contact_email: lead.email || null,
+      notes: lead.note || null,
+      is_legacy: !hasSupevo,
+      created_by: userId,
+    })
+    .select('id')
+    .single();
+  if (cErr || !company) {
+    return { error: 'Kunde konnte nicht angelegt werden (Name evtl. schon vergeben).' };
+  }
+
+  const { error: mErr } = await service.from('client_memberships').insert({
+    organization_id: lead.organization_id,
+    client_company_id: company.id,
+    modules: selections as unknown,
+    custom_net_cents: lead.estimated_value_cents ?? 0,
+    custom_name: lead.offer_name || 'Individuell',
+    stage,
+  });
+  if (mErr) return { error: 'Mitgliedschaft konnte nicht angelegt werden.' };
+  return { id: company.id };
+}
 
 const createSchema = z.object({
   contactName: z.string().trim().min(1, 'Bitte einen Namen angeben.').max(200),
@@ -26,8 +118,22 @@ const createSchema = z.object({
   phone: z.string().max(60).optional().or(z.literal('')),
   source: z.string().max(120).optional().or(z.literal('')),
   note: z.string().max(4000).optional().or(z.literal('')),
+  industry: z.string().max(200).optional().or(z.literal('')),
+  goals: z.string().max(4000).optional().or(z.literal('')),
+  targetGroup: z.string().max(2000).optional().or(z.literal('')),
+  website: z.string().max(300).optional().or(z.literal('')),
   value: z.string().max(20).optional().or(z.literal('')),
 });
+
+/** Reads the Lead-Kontextfelder aus einem FormData (create + update teilen sie). */
+function contextFieldsFrom(fd: FormData) {
+  return {
+    industry: fd.get('industry') ?? '',
+    goals: fd.get('goals') ?? '',
+    targetGroup: fd.get('targetGroup') ?? '',
+    website: fd.get('website') ?? '',
+  };
+}
 
 function parseEuroToCents(v: string): number | null {
   if (!v.trim()) return null;
@@ -47,6 +153,7 @@ export async function createLeadAction(
     phone: formData.get('phone') ?? '',
     source: formData.get('source') ?? '',
     note: formData.get('note') ?? '',
+    ...contextFieldsFrom(formData),
     value: formData.get('value') ?? '',
   });
   if (!parsed.success) {
@@ -68,6 +175,10 @@ export async function createLeadAction(
     phone: d.phone || null,
     source: d.source || null,
     note: d.note || null,
+    industry: d.industry || null,
+    goals: d.goals || null,
+    target_group: d.targetGroup || null,
+    website: d.website || null,
     estimated_value_cents: parseEuroToCents(d.value ?? ''),
     created_by: user.id,
   });
@@ -205,50 +316,170 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
     });
   }
 
-  const selections = normalizeSelections(lead.modules);
-  const hasSupevo = selections.some(
-    (s) => s.enabled && (s.id === 'supevo_stage1' || s.id === 'supevo_stage2'),
-  );
-  const isLegacy = !hasSupevo; // kleine/Web-Pakete → Legacy (sehen Module im Portal)
-  const stage = selections.some((s) => s.enabled && s.id === 'supevo_stage2') ? 2 : 1;
-
   const service = createSupabaseServiceClient();
-  const { data: company, error: cErr } = await service
-    .from('client_companies')
-    .insert({
-      organization_id: lead.organization_id,
-      name: lead.company || lead.contact_name,
-      contact_email: lead.email || null,
-      notes: lead.note || null,
-      is_legacy: isLegacy,
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
-  if (cErr || !company) {
-    return errorResult('Kunde konnte nicht angelegt werden (Name evtl. schon vergeben).');
-  }
-
-  const { error: mErr } = await service.from('client_memberships').insert({
-    organization_id: lead.organization_id,
-    client_company_id: company.id,
-    modules: selections as unknown,
-    custom_net_cents: lead.estimated_value_cents ?? 0,
-    custom_name: lead.offer_name || 'Individuell',
-    stage,
-  });
-  if (mErr) return errorResult('Mitgliedschaft konnte nicht angelegt werden.');
+  const res = await ensureClientForLead(service, lead as LeadForConvert, user.id);
+  if ('error' in res) return errorResult(res.error);
 
   await service
     .from('leads')
-    .update({ status: 'won', converted_client_company_id: company.id })
+    .update({ status: 'won', converted_client_company_id: res.id })
     .eq('id', leadId);
 
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);
   revalidatePath('/app/clients');
   return successResult('Lead als Kunde übernommen – Mitgliedschaft angelegt.', {
-    id: company.id,
+    id: res.id,
+  });
+}
+
+/**
+ * Schritt 1 der Projekt-Umwandlung: KI-Aufgabenvorschläge für den Lead erzeugen
+ * (legt noch NICHTS an – nur Vorschau). Nutzt Module + Kontextfelder des Leads.
+ */
+export async function generateLeadTasksAction(leadId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(leadId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: lead } = await supabase
+    .from('leads')
+    .select(
+      'id, organization_id, contact_name, company, note, industry, goals, target_group, website, modules, offer_name',
+    )
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) return errorResult(de.errors.FORBIDDEN);
+
+  const catalog = await getModuleCatalog(lead.organization_id);
+  const selections = normalizeSelections(lead.modules);
+  const moduleLines = moduleLinesFor(catalog, selections);
+
+  const tasks = await generateProjectTasks({
+    company: lead.company || lead.contact_name,
+    industry: lead.industry,
+    goals: lead.goals,
+    targetGroup: lead.target_group,
+    website: lead.website,
+    note: lead.note,
+    moduleLines,
+  });
+
+  const projectName = lead.offer_name && lead.offer_name !== 'Individuell'
+    ? `${lead.company || lead.contact_name} – ${lead.offer_name}`
+    : `${lead.company || lead.contact_name} – Onboarding`;
+
+  return successResult(
+    tasks.length > 0 ? 'Vorschläge erstellt.' : 'Keine KI-Vorschläge (KI evtl. nicht aktiv).',
+    { tasks, projectName },
+  );
+}
+
+const convertProjectSchema = z.object({
+  leadId: z.string().uuid(),
+  projectName: z.string().trim().min(1, 'Bitte einen Projektnamen angeben.').max(200),
+  tasks: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1).max(200),
+        description: z.string().max(2000).optional().or(z.literal('')),
+        priority: z.enum(['low', 'medium', 'high']).optional(),
+      }),
+    )
+    .max(30),
+});
+
+/**
+ * Schritt 2: Lead → Kunde + Projekt + (geprüfte) Aufgaben in einem Rutsch.
+ * Legt Kunde/Mitgliedschaft an (falls noch nicht), erstellt ein Projekt und
+ * füllt dessen Warteschlange mit den bestätigten Aufgaben.
+ */
+export async function convertLeadToProjectAction(input: unknown): Promise<ActionResult> {
+  const parsed = convertProjectSchema.safeParse(input);
+  if (!parsed.success) {
+    return errorResult(parsed.error.issues[0]?.message ?? de.errors.VALIDATION);
+  }
+  const { leadId, projectName, tasks } = parsed.data;
+
+  const user = await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { data: lead } = await supabase
+    .from('leads')
+    .select(
+      'id, organization_id, contact_name, company, email, note, modules, offer_name, estimated_value_cents, converted_client_company_id',
+    )
+    .eq('id', leadId)
+    .maybeSingle();
+  if (!lead) return errorResult(de.errors.FORBIDDEN);
+
+  const orgId = lead.organization_id;
+  authorize(user, { type: 'clientCompany.create', orgId });
+  if (!can(user, { type: 'project.create', orgId })) {
+    return errorResult('Nur Projektleitung oder Admins dürfen Projekte anlegen.');
+  }
+
+  const service = createSupabaseServiceClient();
+  const client = await ensureClientForLead(service, lead as LeadForConvert, user.id);
+  if ('error' in client) return errorResult(client.error);
+
+  // Projekt anlegen (Trigger create_default_board erzeugt Board + Spalten).
+  const projectId = randomUUID();
+  const { error: pErr } = await service.from('projects').insert({
+    id: projectId,
+    organization_id: orgId,
+    client_company_id: client.id,
+    name: projectName,
+    status: 'active',
+    lead_user_id: user.id,
+    created_by: user.id,
+  });
+  if (pErr) return errorResult('Projekt konnte nicht angelegt werden.');
+
+  // Warteschlange-Spalte des frisch erzeugten Boards finden (Trigger legt sie an).
+  const { data: boards } = await service
+    .from('boards')
+    .select('id')
+    .eq('project_id', projectId);
+  const boardIds = (boards ?? []).map((b) => b.id);
+  const { data: column } = boardIds.length
+    ? await service
+        .from('board_columns')
+        .select('id, board_id')
+        .in('board_id', boardIds)
+        .eq('column_key', 'queue')
+        .maybeSingle()
+    : { data: null };
+
+  if (column && tasks.length > 0) {
+    const rows = tasks.map((t, i) => ({
+      organization_id: orgId,
+      project_id: projectId,
+      board_id: column.board_id,
+      column_id: column.id,
+      title: t.title,
+      description: t.description ? t.description : null,
+      priority: t.priority ?? 'medium',
+      is_internal: true,
+      position: (i + 1) * 1000,
+      created_by: user.id,
+    }));
+    await service.from('tasks').insert(rows);
+  }
+
+  await service
+    .from('leads')
+    .update({ status: 'won', converted_client_company_id: client.id })
+    .eq('id', leadId);
+
+  revalidatePath('/app/leads');
+  revalidatePath(`/app/leads/${leadId}`);
+  revalidatePath('/app/clients');
+  return successResult('Projekt mit Aufgaben angelegt.', {
+    clientCompanyId: client.id,
+    projectId,
   });
 }
 
@@ -266,6 +497,7 @@ export async function updateLeadAction(
     phone: formData.get('phone') ?? '',
     source: formData.get('source') ?? '',
     note: formData.get('note') ?? '',
+    ...contextFieldsFrom(formData),
     value: formData.get('value') ?? '',
   });
   if (!parsed.success) {
@@ -287,6 +519,10 @@ export async function updateLeadAction(
         phone: d.phone || null,
         source: d.source || null,
         note: d.note || null,
+        industry: d.industry || null,
+        goals: d.goals || null,
+        target_group: d.targetGroup || null,
+        website: d.website || null,
         estimated_value_cents: parseEuroToCents(d.value ?? ''),
       },
       { count: 'exact' },
