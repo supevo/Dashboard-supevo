@@ -29,6 +29,14 @@ type SelState = {
 };
 type SelMap = Record<string, SelState>;
 
+/** Aktuelle Aktion (Promotion), die über dem Baukasten angezeigt wird. */
+export type PromoBanner = {
+  id: string;
+  title: string;
+  conditions: string;
+  icon: string | null;
+};
+
 function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
   const map: SelMap = {};
   for (const def of modules) {
@@ -63,6 +71,7 @@ export function MembershipConfigurator({
   initialSelections,
   priceContext,
   pending,
+  promotions = [],
   mode = 'agency',
   readOnly = false,
 }: {
@@ -72,6 +81,7 @@ export function MembershipConfigurator({
   initialSelections: ModuleSelection[];
   priceContext: PriceContext;
   pending: { netCents: number; effectiveDate: string; name: string } | null;
+  promotions?: PromoBanner[];
   mode?: 'agency' | 'portal' | 'lead';
   readOnly?: boolean;
 }) {
@@ -197,6 +207,32 @@ export function MembershipConfigurator({
 
   return (
     <div className="space-y-6">
+      {/* Aktuelle Aktionen (Promotions) – prominent über dem Baukasten. */}
+      {promotions.length > 0 && (
+        <div className="space-y-2">
+          {promotions.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3"
+            >
+              <span className="text-lg leading-none" aria-hidden>
+                {p.icon || '🎁'}
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                  {p.title}
+                </div>
+                {p.conditions && (
+                  <div className="mt-0.5 whitespace-pre-line text-xs text-muted-foreground">
+                    {p.conditions}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Preis erst nach der ersten Auswahl – vorher einladender Einstieg. */}
       {anySelected ? (
         <div className="rounded-lg border bg-emerald-500/5 p-4">

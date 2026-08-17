@@ -26,6 +26,7 @@ export async function MembershipConfiguratorPanel({
         clientCompanyId={clientCompanyId}
         initialSelections={view.active.selections}
         priceContext={view.priceContext}
+        promotions={view.promotions}
         pending={
           view.pending
             ? {
