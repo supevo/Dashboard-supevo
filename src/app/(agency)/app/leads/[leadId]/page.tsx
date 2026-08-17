@@ -28,12 +28,18 @@ export default async function LeadOfferPage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 py-4">
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <Link
           href="/app/leads"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
           ← Zurück
+        </Link>
+        <Link
+          href={`/app/leads/${leadId}/vertrag`}
+          className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+        >
+          📄 Vertrag
         </Link>
       </div>
 

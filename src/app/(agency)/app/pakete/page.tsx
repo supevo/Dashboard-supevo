@@ -35,6 +35,12 @@ export default async function PaketePage() {
             🎁 Promotions
           </Link>
           <Link
+            href="/app/vertrag"
+            className="text-muted-foreground hover:text-foreground"
+          >
+            📄 Vertragstext
+          </Link>
+          <Link
             href="/app/leads"
             className="text-muted-foreground hover:text-foreground"
           >
