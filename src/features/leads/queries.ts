@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import { getActivePromotions, type Promotion } from '@/features/promotions/queries';
 import {
   normalizeSelections,
   type ModuleDef,
@@ -24,6 +25,7 @@ export interface LeadOfferView {
   selections: ModuleSelection[];
   priceContext: PriceContext;
   modules: ModuleDef[];
+  promotions: Promotion[];
   estimatedValueCents: number | null;
   /** Set once the lead has been converted into a client. */
   convertedClientCompanyId: string | null;
@@ -66,6 +68,7 @@ export async function getLeadOffer(leadId: string): Promise<LeadOfferView | null
     selections: normalizeSelections(lead.modules),
     priceContext,
     modules: await getModuleCatalog(lead.organization_id),
+    promotions: await getActivePromotions(lead.organization_id),
     estimatedValueCents: lead.estimated_value_cents,
     convertedClientCompanyId: lead.converted_client_company_id,
   };

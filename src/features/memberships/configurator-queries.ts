@@ -5,6 +5,7 @@ import type { Database } from '@/lib/database.types';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import { getActivePromotions, type Promotion } from '@/features/promotions/queries';
 import {
   normalizeSelections,
   totalMonthlyCents,
@@ -35,6 +36,7 @@ export interface ConfiguratorView {
   priceContext: PriceContext;
   clientCanEdit: boolean;
   modules: ModuleDef[];
+  promotions: Promotion[];
 }
 
 function parsePending(m: Membership): (PendingChange & { effectiveDate: string }) | null {
@@ -119,6 +121,7 @@ export async function getMembershipConfigurator(
       ? await priceContextFor(supabase, client.organization_id)
       : { stage1NetCents: 0, stage2NetCents: 0 };
     const modules = client ? await getModuleCatalog(client.organization_id) : [];
+    const promotions = client ? await getActivePromotions(client.organization_id) : [];
     return {
       hasMembership: false,
       clientCompanyId,
@@ -127,12 +130,14 @@ export async function getMembershipConfigurator(
       priceContext,
       clientCanEdit: false,
       modules,
+      promotions,
     };
   }
 
   const membership = await promoteIfDue(supabase, raw as Membership);
   const priceContext = await priceContextFor(supabase, membership.organization_id);
   const modules = await getModuleCatalog(membership.organization_id);
+  const promotions = await getActivePromotions(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
 
   return {
@@ -150,6 +155,7 @@ export async function getMembershipConfigurator(
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
+    promotions,
   };
 }
 
@@ -198,6 +204,7 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
   }
 
   const modules = await getModuleCatalog(membership.organization_id);
+  const promotions = await getActivePromotions(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
   return {
     hasMembership: true,
@@ -214,6 +221,7 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
+    promotions,
     isLegacy: company?.is_legacy ?? false,
     companyName: company?.name ?? null,
   };
