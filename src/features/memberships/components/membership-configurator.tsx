@@ -19,7 +19,7 @@ import {
   cancelPendingMembershipChangeAction,
 } from '@/features/memberships/configurator-actions';
 import { saveLeadOfferAction } from '@/features/leads/actions';
-import { promoDiscountCents, hasDiscount } from '@/features/promotions/discount';
+import { promoDiscountCents } from '@/features/promotions/discount';
 
 type SelState = {
   enabled: boolean;
@@ -239,7 +239,6 @@ export function MembershipConfigurator({
       {mode === 'lead' && promotions.length > 0 && (
         <div className="space-y-2">
           {promotions.map((p) => {
-            const redeemable = hasDiscount(p);
             const isRedeemed = redeemed.has(p.id);
             return (
               <div
@@ -265,7 +264,7 @@ export function MembershipConfigurator({
                     )}
                   </div>
                 </div>
-                {redeemable && !readOnly && (
+                {!readOnly && (
                   <button
                     type="button"
                     onClick={() => toggleRedeem(p.id)}
