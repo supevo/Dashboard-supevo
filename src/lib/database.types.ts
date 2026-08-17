@@ -1263,6 +1263,21 @@ export interface Database {
         >;
         Relationships: [];
       };
+      contract_settings: {
+        Row: {
+          organization_id: string;
+          terms: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          terms?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['contract_settings']['Insert']
+        >;
+        Relationships: [];
+      };
       promotions: {
         Row: {
           id: string;

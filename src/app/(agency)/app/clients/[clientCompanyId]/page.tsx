@@ -399,12 +399,20 @@ export default async function ClientDetailPage({
             content: (
               <>
                 <Card>
-                  <CardHeader>
-                    <CardTitle>🧩 Mitgliedschafts-Baukasten</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Module wählen → Preis ergibt sich live. Erste Einrichtung
-                      gilt sofort, spätere Änderungen ab dem Folgemonat.
-                    </p>
+                  <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                    <div>
+                      <CardTitle>🧩 Mitgliedschafts-Baukasten</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Module wählen → Preis ergibt sich live. Erste Einrichtung
+                        gilt sofort, spätere Änderungen ab dem Folgemonat.
+                      </p>
+                    </div>
+                    <Link
+                      href={`/app/clients/${clientCompanyId}/vertrag`}
+                      className="shrink-0 rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+                    >
+                      📄 Vertrag
+                    </Link>
                   </CardHeader>
                   <CardContent>
                     <MembershipConfiguratorPanel clientCompanyId={clientCompanyId} />
