@@ -19,6 +19,7 @@ import {
   cancelPendingMembershipChangeAction,
 } from '@/features/memberships/configurator-actions';
 import { saveLeadOfferAction } from '@/features/leads/actions';
+import { promoDiscountCents, hasDiscount } from '@/features/promotions/discount';
 
 type SelState = {
   enabled: boolean;
@@ -35,6 +36,8 @@ export type PromoBanner = {
   title: string;
   conditions: string;
   icon: string | null;
+  discountKind: 'none' | 'fixed' | 'percent';
+  discountValue: number;
 };
 
 function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
@@ -89,12 +92,29 @@ export function MembershipConfigurator({
   const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [redeemed, setRedeemed] = useState<Set<string>>(() => new Set());
 
   const selections = useMemo(() => toSelections(modules, map), [modules, map]);
   const total = useMemo(
     () => totalMonthlyCents(modules, selections, priceContext),
     [modules, selections, priceContext],
   );
+  // Erfasstes Werbebudget aktiver Module (fließt NICHT in den Paketpreis, wird
+  // aber oben transparent als „+ X Werbebudget" ausgewiesen).
+  const budgetCents = useMemo(
+    () =>
+      modules.reduce((sum, d) => {
+        const s = map[d.key];
+        return d.captureBudget && s?.enabled ? sum + (s.budgetCents || 0) : sum;
+      }, 0),
+    [modules, map],
+  );
+  // Eingelöste Gutscheine mindern den Paketpreis (Werbebudget bleibt außen vor).
+  const discountCents = useMemo(
+    () => promoDiscountCents(total, promotions, redeemed),
+    [total, promotions, redeemed],
+  );
+  const netAfterDiscount = Math.max(0, total - discountCents);
   const anySelected = selections.some((s) => s.enabled);
   const stageModules = useMemo(
     () => modules.filter((d) => d.pricing.kind === 'stage'),
@@ -132,6 +152,14 @@ export function MembershipConfigurator({
   }
   function setBudgetVia(key: string, via: 'us' | 'google') {
     setMap((m) => ({ ...m, [key]: { ...m[key]!, budgetVia: via } }));
+  }
+  function toggleRedeem(id: string) {
+    setRedeemed((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function save() {
@@ -210,26 +238,49 @@ export function MembershipConfigurator({
       {/* Aktuelle Aktionen (Promotions) – prominent über dem Baukasten. */}
       {promotions.length > 0 && (
         <div className="space-y-2">
-          {promotions.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-start gap-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3"
-            >
-              <span className="text-lg leading-none" aria-hidden>
-                {p.icon || '🎁'}
-              </span>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                  {p.title}
-                </div>
-                {p.conditions && (
-                  <div className="mt-0.5 whitespace-pre-line text-xs text-muted-foreground">
-                    {p.conditions}
+          {promotions.map((p) => {
+            const redeemable = hasDiscount(p);
+            const isRedeemed = redeemed.has(p.id);
+            return (
+              <div
+                key={p.id}
+                className={`flex items-start justify-between gap-3 rounded-lg border p-3 ${
+                  isRedeemed
+                    ? 'border-emerald-500 bg-emerald-500/15 ring-1 ring-emerald-500/40'
+                    : 'border-emerald-500/40 bg-emerald-500/10'
+                }`}
+              >
+                <div className="flex items-start gap-2.5">
+                  <span className="text-lg leading-none" aria-hidden>
+                    {p.icon || '🎁'}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                      {p.title}
+                    </div>
+                    {p.conditions && (
+                      <div className="mt-0.5 whitespace-pre-line text-xs text-muted-foreground">
+                        {p.conditions}
+                      </div>
+                    )}
                   </div>
+                </div>
+                {redeemable && !readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => toggleRedeem(p.id)}
+                    className={`shrink-0 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
+                      isRedeemed
+                        ? 'border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'border-emerald-500/50 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300'
+                    }`}
+                  >
+                    {isRedeemed ? '✓ Eingelöst' : 'Einlösen'}
+                  </button>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -238,9 +289,24 @@ export function MembershipConfigurator({
         <div className="rounded-lg border bg-emerald-500/5 p-4">
           <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
           <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
-            {formatEuroCents(total)}
+            {formatEuroCents(netAfterDiscount)}
+            {budgetCents > 0 && (
+              <span className="text-lg font-semibold text-foreground/70">
+                {' + '}
+                {formatEuroCents(budgetCents)} Werbebudget
+              </span>
+            )}
           </p>
-          <p className="text-xs text-muted-foreground">zzgl. MwSt.</p>
+          {discountCents > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Paketpreis {formatEuroCents(total)} · Gutschein −
+              {formatEuroCents(discountCents)}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            zzgl. MwSt.
+            {budgetCents > 0 && ' · Werbebudget wird separat abgerechnet.'}
+          </p>
         </div>
       ) : (
         <div>

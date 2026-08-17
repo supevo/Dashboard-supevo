@@ -27,6 +27,12 @@ function intOf(v: FormDataEntryValue | null, fallback: number): number {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(n) : fallback;
 }
+function euroToCents(v: FormDataEntryValue | null): number {
+  const n = Number(
+    String(v ?? '').replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, ''),
+  );
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : 0;
+}
 
 const REVALIDATE = '/app/promotions';
 
@@ -40,11 +46,26 @@ export async function upsertPromotionAction(
   if (!title) return errorResult('Bitte einen Titel angeben.');
 
   const validUntilRaw = String(formData.get('validUntil') ?? '').trim();
+
+  const discountKind = (['none', 'fixed', 'percent'] as const).includes(
+    formData.get('discountKind') as 'none' | 'fixed' | 'percent',
+  )
+    ? (formData.get('discountKind') as 'none' | 'fixed' | 'percent')
+    : 'none';
+  const discountValue =
+    discountKind === 'fixed'
+      ? euroToCents(formData.get('discountValue'))
+      : discountKind === 'percent'
+        ? Math.min(100, Math.max(0, intOf(formData.get('discountValue'), 0)))
+        : 0;
+
   const fields = {
     title,
     conditions: String(formData.get('conditions') ?? '').trim(),
     icon: String(formData.get('icon') ?? '').trim() || null,
     valid_until: validUntilRaw || null,
+    discount_kind: discountKind,
+    discount_value: discountValue,
     position: intOf(formData.get('position'), 0),
     active: formData.get('active') === 'on',
   };
