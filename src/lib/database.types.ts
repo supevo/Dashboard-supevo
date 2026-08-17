@@ -1263,6 +1263,34 @@ export interface Database {
         >;
         Relationships: [];
       };
+      promotions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          title: string;
+          conditions: string;
+          icon: string | null;
+          valid_until: string | null;
+          position: number;
+          active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          title: string;
+          conditions?: string;
+          icon?: string | null;
+          valid_until?: string | null;
+          position?: number;
+          active?: boolean;
+        };
+        Update: Partial<
+          Database['public']['Tables']['promotions']['Insert']
+        >;
+        Relationships: [];
+      };
       employee_skills: {
         Row: {
           id: string;

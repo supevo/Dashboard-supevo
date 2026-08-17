@@ -33,7 +33,8 @@ function toMap(modules: ModuleDef[], selections: ModuleSelection[]): SelMap {
   const map: SelMap = {};
   for (const def of modules) {
     const found = selections.find((s) => s.id === def.key);
-    const defaultQty = def.pricing.kind === 'per_unit' ? def.pricing.defaultQty : 1;
+    const defaultQty =
+      def.pricing.kind === 'per_unit' ? Math.max(1, def.pricing.defaultQty) : 1;
     map[def.key] = {
       enabled: found?.enabled ?? false,
       qty: found?.qty ?? defaultQty,

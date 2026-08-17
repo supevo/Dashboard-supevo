@@ -125,8 +125,17 @@ export interface PriceContext {
 
 function clampQty(def: ModuleDef, qty: number | undefined): number {
   if (def.pricing.kind !== 'per_unit') return 1;
-  const q = Number.isFinite(qty) ? Math.round(qty as number) : def.pricing.defaultQty;
-  return Math.min(def.pricing.maxQty, Math.max(def.pricing.minQty, q));
+  // Obergrenze absichern: fehlerhafte Katalogdaten (maxQty = 0, z. B. nach
+  // einer Fixpreis→Pro-Einheit-Umstellung) dürfen den Preis nicht dauerhaft
+  // auf 0 klemmen. Die Untergrenze (minQty) bleibt erhalten.
+  const upper =
+    def.pricing.maxQty >= 1
+      ? def.pricing.maxQty
+      : Math.max(99, def.pricing.defaultQty, def.pricing.minQty);
+  const lower = Math.min(Math.max(0, def.pricing.minQty), upper);
+  const fallback = Math.min(Math.max(1, def.pricing.defaultQty), upper);
+  const q = Number.isFinite(qty) ? Math.round(qty as number) : fallback;
+  return Math.min(upper, Math.max(lower, q));
 }
 
 /** Netto-Monatspreis EINES Moduls (0, wenn nicht aktiv). */

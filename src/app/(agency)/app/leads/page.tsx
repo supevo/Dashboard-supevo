@@ -32,6 +32,12 @@ export default async function LeadsPage() {
           >
             🧩 Module &amp; Preise
           </a>
+          <a
+            href="/app/promotions"
+            className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+          >
+            🎁 Promotions
+          </a>
           <NewLeadButton />
         </div>
       </div>
