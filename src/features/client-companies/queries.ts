@@ -29,7 +29,7 @@ export async function listClientCompanies(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('client_companies')
-    .select('id, name, contact_email, notes, is_active, created_at')
+    .select('id, name, contact_email, notes, is_active, is_legacy, created_at')
     .eq('organization_id', orgId)
     .is('deleted_at', null)
     .order('name', { ascending: true });
@@ -47,7 +47,7 @@ export async function listClientCompanies(
     accountManagerId: null,
     secondaryAccountManagerId: null,
     isActive: c.is_active,
-    isLegacy: false,
+    isLegacy: c.is_legacy,
     billPrintProducts: false,
     attentionFactor: 1,
     createdAt: c.created_at,

@@ -7,18 +7,15 @@ import { getClientHealthMap } from '@/features/clients/health';
 import { ClientHealthDot } from '@/features/clients/components/health-dot';
 import { listProjects } from '@/features/projects/queries';
 import { ProjectCover } from '@/features/projects/components/project-cover';
-import { getLegacyClientPackages } from '@/features/legacy/queries';
-import { LEGACY_PACKAGE_INFO } from '@/features/legacy/packages';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientsPage() {
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
-  const [companies, healthMap, projects, legacyPackages] = await Promise.all([
+  const [companies, healthMap, projects] = await Promise.all([
     listClientCompanies(orgId),
     getClientHealthMap(orgId),
     listProjects(orgId),
-    getLegacyClientPackages(orgId),
   ]);
 
   // Cover per client = its primary (oldest) board's cover. listProjects is
@@ -28,10 +25,10 @@ export default async function ClientsPage() {
     primaryProject.set(p.clientCompanyId, { id: p.id, name: p.name });
   }
 
-  // Legacy clients (Bestandskunden mit Paket) get their own compact section
-  // below the regular clients – as in the former projects gallery.
-  const normalCompanies = companies.filter((c) => !legacyPackages.has(c.id));
-  const legacyCompanies = companies.filter((c) => legacyPackages.has(c.id));
+  // Legacy clients (Bestandskunden) get their own compact section below the
+  // regular clients. Sie laufen über den Modul-Baukasten + Custompreis.
+  const normalCompanies = companies.filter((c) => !c.isLegacy);
+  const legacyCompanies = companies.filter((c) => c.isLegacy);
 
   return (
     <div className="space-y-6">
@@ -127,7 +124,6 @@ export default async function ClientsPage() {
               <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
                 {legacyCompanies.map((c) => {
                   const cover = primaryProject.get(c.id);
-                  const pkg = legacyPackages.get(c.id);
                   return (
                     <Link
                       key={c.id}
@@ -155,7 +151,7 @@ export default async function ClientsPage() {
                           {/* Legacy clients are not on the fair-share traffic light. */}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">
-                          {pkg ? LEGACY_PACKAGE_INFO[pkg].label : 'Legacy'}
+                          Legacy
                         </p>
                       </div>
                     </Link>

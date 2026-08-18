@@ -62,8 +62,6 @@ import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
-import { getLegacySettings } from '@/features/legacy/queries';
-import { LegacySettingsForm } from '@/features/legacy/components/legacy-settings-form';
 import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
 import { ClientPagesManager } from '@/features/client-pages/components/client-pages-manager';
 import { listClientPages, listClientTaskOptions } from '@/features/client-pages/queries';
@@ -103,7 +101,6 @@ export default async function ClientDetailPage({
     marketingPlan,
     marketingReports,
     onboarding,
-    legacySettings,
     contacts,
     membership,
     billingEntity,
@@ -124,7 +121,6 @@ export default async function ClientDetailPage({
     getPlan(clientCompanyId),
     listMarketingReports(clientCompanyId),
     getOnboarding(clientCompanyId, orgId),
-    isAdmin ? getLegacySettings(clientCompanyId) : Promise.resolve(null),
     listClientContacts(orgId, clientCompanyId),
     isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
     isAdmin
@@ -455,24 +451,6 @@ export default async function ClientDetailPage({
                     <InvoicesSection
                       clientCompanyId={clientCompanyId}
                       invoices={invoices}
-                    />
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>🏛️ Legacy-Kunde &amp; Paket</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Bestandskunde mit Website-/Betreuungspaket. Preis frei
-                      überschreibbar (Rabatte); Werbebudget nur bei Performance.
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <LegacySettingsForm
-                      orgId={orgId}
-                      clientCompanyId={clientCompanyId}
-                      isLegacy={company.isLegacy}
-                      settings={legacySettings}
                     />
                   </CardContent>
                 </Card>
