@@ -31,11 +31,14 @@ export function DocumentSlot({
   kind,
   label,
   current,
+  oneDriveStartPath = 'ONE STEP/Kunden',
 }: {
   clientCompanyId: string;
   kind: DocKind;
   label: string;
   current: ClientDocument | null;
+  /** OneDrive-Startordner für die Auswahl. */
+  oneDriveStartPath?: string;
 }) {
   const router = useRouter();
   const [browsing, setBrowsing] = useState(false);
@@ -132,7 +135,7 @@ export function DocumentSlot({
       {msg && <p className="mt-2 text-xs text-muted-foreground">{msg}</p>}
 
       <Modal open={browsing} onClose={() => setBrowsing(false)} title={`${label}: aus OneDrive wählen`}>
-        <OneDriveBrowser onPick={pickOneDrive} />
+        <OneDriveBrowser onPick={pickOneDrive} startPath={oneDriveStartPath} />
       </Modal>
     </div>
   );
