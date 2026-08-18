@@ -54,17 +54,37 @@ export async function BillingPanel({ orgId }: { orgId: string }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Erzeugt eine SEPA-Datei (pain.008) mit allen offenen
-            Lastschrift-Rechnungen zum Import in dein Bank-Programm. Voraussetzung:
-            Firmenname, IBAN und Gläubiger-ID sind hinterlegt und die betreffenden
-            Kunden haben ein SEPA-Mandat.
+            Erzeugt je Rechnungssteller eine SEPA-Datei (pain.008) mit dessen
+            offenen Lastschrift-Rechnungen – jede Firma zieht nur ihre eigenen
+            Kunden mit ihrer eigenen Gläubiger-ID ein. Voraussetzung: Firmenname,
+            IBAN und Gläubiger-ID sind hinterlegt und die Kunden haben ein Mandat.
           </p>
-          <a
-            href="/api/billing/sepa"
-            className={buttonVariants({ variant: 'outline' })}
-          >
-            SEPA-Datei erzeugen
-          </a>
+          <div className="flex flex-col gap-2">
+            {entities.map((entity) => {
+              const ready = Boolean(entity.iban && entity.creditor_id);
+              return (
+                <div key={entity.id} className="flex items-center gap-3">
+                  {ready ? (
+                    <a
+                      href={`/api/billing/sepa?entity=${entity.id}`}
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    >
+                      SEPA-Datei: {entity.company_name || entity.name}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">
+                      {entity.company_name || entity.name} – IBAN/Gläubiger-ID fehlt
+                    </span>
+                  )}
+                  {entity.is_default && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                      Standard (inkl. Kunden ohne Firma)
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>
