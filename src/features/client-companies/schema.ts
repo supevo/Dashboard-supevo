@@ -9,6 +9,9 @@ export const createClientCompanySchema = z.object({
     .optional()
     .or(z.literal('')),
   notes: z.string().max(2000).optional().or(z.literal('')),
+  // supevo (Stage 1/2) oder legacy (Modul-Baukasten). Steuert is_legacy und die
+  // Mitgliedschafts-Ansicht im Wizard/Portal.
+  customerType: z.enum(['supevo', 'legacy']).optional(),
 });
 export type CreateClientCompanyInput = z.infer<
   typeof createClientCompanySchema
