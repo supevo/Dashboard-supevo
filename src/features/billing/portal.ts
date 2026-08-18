@@ -38,8 +38,8 @@ export async function getPortalMembership(): Promise<PortalMembershipView | null
     .maybeSingle();
   if (!membership) return null;
 
-  let stage1Name = 'Mitgliedschaft';
-  let stage2Name = 'Mitgliedschaft Pro';
+  let stage1Name = 'supevo Mitgliedschaft Stage 1';
+  let stage2Name = 'supevo Mitgliedschaft Stage 2';
   let stage1Cents = 0;
   let stage2Cents = 0;
   let stage1Benefits: string[] = [];
