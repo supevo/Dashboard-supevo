@@ -123,6 +123,23 @@ describe('moduleMonthlyCents', () => {
     // Menge erhöhen wirkt wieder
     expect(moduleMonthlyCents(broken, { id: 'seo', enabled: true, qty: 3 }, ctx)).toBe(37500);
   });
+  it('maxQty=1 bei Pro-Einheit kappt den Preis NICHT (frei skalierbar)', () => {
+    // Google-Ads-Landingpage-Fall: 125 €/Einheit, max_qty=1. Ein Limit von 1
+    // ergibt bei „pro Einheit" keinen Sinn und darf die Menge nicht sperren.
+    const lp: ModuleDef = {
+      ...seo,
+      pricing: {
+        kind: 'per_unit',
+        netCents: 12500,
+        unitLabel: 'Landingpages',
+        defaultQty: 1,
+        minQty: 1,
+        maxQty: 1,
+      },
+    };
+    expect(moduleMonthlyCents(lp, { id: 'seo', enabled: true, qty: 1 }, ctx)).toBe(12500);
+    expect(moduleMonthlyCents(lp, { id: 'seo', enabled: true, qty: 3 }, ctx)).toBe(37500);
+  });
   it('stage nutzt den Kontextpreis', () => {
     expect(moduleMonthlyCents(stage1, { id: 'supevo_stage1', enabled: true }, ctx)).toBe(99000);
   });

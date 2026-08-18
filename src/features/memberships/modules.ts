@@ -125,11 +125,12 @@ export interface PriceContext {
 
 function clampQty(def: ModuleDef, qty: number | undefined): number {
   if (def.pricing.kind !== 'per_unit') return 1;
-  // Obergrenze absichern: fehlerhafte Katalogdaten (maxQty = 0, z. B. nach
-  // einer Fixpreis→Pro-Einheit-Umstellung) dürfen den Preis nicht dauerhaft
-  // auf 0 klemmen. Die Untergrenze (minQty) bleibt erhalten.
+  // Obergrenze absichern: Ein Pro-Einheit-Modul mit maxQty ≤ 1 ergibt keinen
+  // Sinn (dafür gäbe es Fixpreis) – so ein Wert darf die Menge nicht kappen und
+  // den Preis „einfrieren". Nur ein echtes Limit (> 1) begrenzt. Die Untergrenze
+  // (minQty) bleibt erhalten.
   const upper =
-    def.pricing.maxQty >= 1
+    def.pricing.maxQty > 1
       ? def.pricing.maxQty
       : Math.max(99, def.pricing.defaultQty, def.pricing.minQty);
   const lower = Math.min(Math.max(0, def.pricing.minQty), upper);

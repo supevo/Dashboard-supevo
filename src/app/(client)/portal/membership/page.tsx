@@ -78,23 +78,24 @@ export default async function PortalMembershipPage() {
               }
             />
           ) : cfg ? (
-            <div className="space-y-4">
-              {membershipView && <PortalMembership view={membershipView} />}
-              <PortalStageSwitch
-                currentStage={cfg.active.stage}
-                stage1Cents={cfg.priceContext.stage1NetCents}
-                stage2Cents={cfg.priceContext.stage2NetCents}
-                pending={
-                  cfg.pending
-                    ? {
-                        stage: cfg.pending.stage,
-                        effectiveDate: cfg.pending.effectiveDate,
-                        netCents: cfg.pending.netCents,
-                      }
-                    : null
-                }
-              />
-            </div>
+            <PortalStageSwitch
+              currentStage={cfg.active.stage}
+              stage1Name={membershipView?.stage1Name ?? 'supevo Mitgliedschaft Stage 1'}
+              stage2Name={membershipView?.stage2Name ?? 'supevo Mitgliedschaft Stage 2'}
+              stage1Cents={cfg.priceContext.stage1NetCents}
+              stage2Cents={cfg.priceContext.stage2NetCents}
+              stage1Benefits={membershipView?.stage1Benefits ?? []}
+              stage2Benefits={membershipView?.stage2Benefits ?? []}
+              pending={
+                cfg.pending
+                  ? {
+                      stage: cfg.pending.stage,
+                      effectiveDate: cfg.pending.effectiveDate,
+                      netCents: cfg.pending.netCents,
+                    }
+                  : null
+              }
+            />
           ) : membershipView ? (
             <PortalMembership view={membershipView} />
           ) : (

@@ -160,7 +160,8 @@ export function MembershipConfigurator({
     const def = modules.find((d) => d.key === key);
     let q = Math.round(qty);
     if (def?.pricing.kind === 'per_unit') {
-      const upper = def.pricing.maxQty >= 1 ? def.pricing.maxQty : 99;
+      // maxQty ≤ 1 bei Pro-Einheit = kein echtes Limit → frei wählbar.
+      const upper = def.pricing.maxQty > 1 ? def.pricing.maxQty : 99;
       const lower = Math.max(0, Math.min(def.pricing.minQty, upper));
       q = Math.min(upper, Math.max(lower, q));
     } else {
@@ -602,7 +603,7 @@ function ModuleRow({
             ))}
 
           {perUnit && def.pricing.kind === 'per_unit' && (() => {
-            const upper = def.pricing.maxQty >= 1 ? def.pricing.maxQty : 99;
+            const upper = def.pricing.maxQty > 1 ? def.pricing.maxQty : 99;
             const lower = Math.max(0, Math.min(def.pricing.minQty, upper));
             return (
               <div className="flex items-center gap-2 text-sm">
