@@ -137,8 +137,17 @@ export function MembershipConfigurator({
   function toggle(key: string, enabled: boolean) {
     setMap((m) => {
       const next = { ...m, [key]: { ...m[key]!, enabled } };
-      // Pflicht-Add-on beim Aktivieren automatisch mit aktivieren.
       const def = modules.find((d) => d.key === key);
+      // Stufen sind exklusiv: „Stage 1 oder Stage 2". Aktiviert man eine Stufe,
+      // werden alle anderen Stufen automatisch abgewählt.
+      if (enabled && def?.pricing.kind === 'stage') {
+        for (const d of modules) {
+          if (d.pricing.kind === 'stage' && d.key !== key && next[d.key]?.enabled) {
+            next[d.key] = { ...next[d.key]!, enabled: false };
+          }
+        }
+      }
+      // Pflicht-Add-on beim Aktivieren automatisch mit aktivieren.
       if (enabled && def?.addonRequired && def.addonModuleKey && next[def.addonModuleKey]) {
         next[def.addonModuleKey] = { ...next[def.addonModuleKey]!, enabled: true };
       }
@@ -183,7 +192,15 @@ export function MembershipConfigurator({
   async function save() {
     setBusy(true);
     setMsg(null);
-    const stage = map['supevo_stage2']?.enabled ? 2 : 1;
+    // Stufe aus dem tatsächlich aktivierten Stage-Modul ableiten (statt hart am
+    // Key zu hängen); Fallback 1, wenn keine Stufe gewählt ist.
+    const enabledStage = modules.find(
+      (d) => d.pricing.kind === 'stage' && map[d.key]?.enabled,
+    );
+    const stage: 1 | 2 =
+      enabledStage && enabledStage.pricing.kind === 'stage'
+        ? enabledStage.pricing.stage
+        : 1;
     const res =
       mode === 'lead'
         ? await saveLeadOfferAction({

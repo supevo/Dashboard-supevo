@@ -18,6 +18,7 @@ import {
   firstOfNextMonth,
   removedModuleIds,
   moduleLabel,
+  type ModuleDef,
   type PriceContext,
 } from '@/features/memberships/modules';
 import { notifyRemovedModules } from '@/features/memberships/configurator-queries';
@@ -80,6 +81,18 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   const netCents = totalMonthlyCents(catalog, selections, ctx);
   const label = name?.trim() || 'Individuell';
 
+  // Reine supevo-Stufe (nur Stage-Module aktiv) → als „echte" Mitgliedschaft
+  // speichern: KEIN custom_name/custom_net_cents, damit Name (supevo
+  // Mitgliedschaft Stage 1/2) und Preis aus den Billing-Settings kommen und der
+  // Kunde nicht fälschlich als „individueller Preis" markiert wird. Nur einzelne
+  // Module (Legacy) sind ein individuelles Paket.
+  const enabledDefs = selections
+    .filter((s) => s.enabled)
+    .map((s) => catalog.find((d) => d.key === s.id))
+    .filter((d): d is ModuleDef => !!d);
+  const isPureStage =
+    enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
+
   const { data: existing } = await supabase
     .from('client_memberships')
     .select('id, modules')
@@ -93,8 +106,8 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   if (activeIsEmpty) {
     const payload = {
       modules: selections as unknown,
-      custom_net_cents: netCents,
-      custom_name: label,
+      custom_net_cents: isPureStage ? null : netCents,
+      custom_name: isPureStage ? name?.trim() || null : label,
       stage,
       pending_modules: null,
       pending_effective_date: null,
