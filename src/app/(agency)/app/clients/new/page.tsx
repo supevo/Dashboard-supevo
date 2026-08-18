@@ -6,10 +6,12 @@ import { WizardSteps } from '@/features/onboarding/components/wizard-steps';
 import { ClientWizardStep1 } from '@/features/client-companies/components/client-wizard-step1';
 import { getClientCompany } from '@/features/client-companies/queries';
 import { getClientMembership } from '@/features/billing/membership';
-import { getBillingEntityForClient } from '@/features/billing/queries';
-import { MembershipForm } from '@/features/billing/components/membership-form';
+import { MembershipConfiguratorPanel } from '@/features/memberships/components/membership-configurator-panel';
+import { MembershipBillingForm } from '@/features/billing/components/membership-billing-form';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
+
+export const dynamic = 'force-dynamic';
 
 export default async function NewClientWizardPage({
   searchParams,
@@ -21,11 +23,11 @@ export default async function NewClientWizardPage({
   const step = Number(sp.step ?? '1');
   const clientId = sp.client ?? '';
 
-  // Steps 2 and 3 require a created client.
-  if ((step === 2 || step === 3) && !clientId) redirect('/app/clients/new?step=1');
+  // Steps 2–4 require a created client.
+  if (step >= 2 && !clientId) redirect('/app/clients/new?step=1');
 
   const company = clientId ? await getClientCompany(orgId, clientId) : null;
-  if ((step === 2 || step === 3) && !company) notFound();
+  if (step >= 2 && !company) notFound();
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -43,7 +45,8 @@ export default async function NewClientWizardPage({
           <CardHeader>
             <CardTitle>1. Kundendaten</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Lege den Kunden an. Danach folgen Mitgliedschaft und Vertrag.
+              Lege den Kunden an. Danach folgen Mitgliedschaft, Adresse/SEPA und
+              der Vertrag.
             </p>
           </CardHeader>
           <CardContent>
@@ -53,17 +56,41 @@ export default async function NewClientWizardPage({
       )}
 
       {step === 2 && company && (
-        <Step2 orgId={orgId} clientId={clientId} clientName={company.name} />
+        <Card>
+          <CardHeader>
+            <CardTitle>2. Mitgliedschaft — {company.name}</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Stelle das Paket im Baukasten zusammen: supevo Stage 1/2 oder
+              einzelne Module. Der Preis ergibt sich live; ein Sonderpreis lässt
+              sich über die Module bzw. den Baukasten abbilden.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <MembershipConfiguratorPanel clientCompanyId={clientId} />
+            <div className="flex justify-end border-t pt-3">
+              <Link
+                href={`/app/clients/new?step=3&client=${clientId}`}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                Weiter zu Adresse & SEPA →
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {step === 3 && company && (
         <Step3 orgId={orgId} clientId={clientId} clientName={company.name} />
       )}
+
+      {step === 4 && company && (
+        <Step4 orgId={orgId} clientId={clientId} clientName={company.name} />
+      )}
     </div>
   );
 }
 
-async function Step2({
+async function Step3({
   orgId,
   clientId,
   clientName,
@@ -72,30 +99,26 @@ async function Step2({
   clientId: string;
   clientName: string;
 }) {
-  const [membership, settings] = await Promise.all([
-    getClientMembership(clientId),
-    getBillingEntityForClient(orgId, clientId),
-  ]);
+  const membership = await getClientMembership(clientId);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>2. Mitgliedschaft / Preis — {clientName}</CardTitle>
+        <CardTitle>3. Adresse & SEPA — {clientName}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Wähle das Paket oder trage einen Sonderpreis ein und erfasse die
-          Rechnungsadresse. Speichere und gehe dann weiter zum Vertrag.
+          Erfasse Abrechnung, Rechnungsadresse und das SEPA-Mandat. Das Paket
+          selbst hast du in Schritt 2 im Baukasten festgelegt.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <MembershipForm
+        <MembershipBillingForm
           orgId={orgId}
           clientCompanyId={clientId}
           membership={membership}
-          settings={settings}
         />
         <div className="flex justify-end border-t pt-3">
           <Link
-            href={`/app/clients/new?step=3&client=${clientId}`}
+            href={`/app/clients/new?step=4&client=${clientId}`}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Weiter zum Vertrag →
@@ -106,7 +129,7 @@ async function Step2({
   );
 }
 
-async function Step3({
+async function Step4({
   orgId,
   clientId,
   clientName,
@@ -120,7 +143,7 @@ async function Step3({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>3. Vertrag & Onboarding — {clientName}</CardTitle>
+        <CardTitle>4. Vertrag & Onboarding — {clientName}</CardTitle>
         <p className="text-sm text-muted-foreground">
           Wähle die Bestandteile, generiere den Vertrag aus der Mitgliedschaft,
           bereite das SEPA-Mandat vor und starte das Onboarding.
