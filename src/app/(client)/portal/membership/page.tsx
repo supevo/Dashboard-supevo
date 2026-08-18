@@ -4,6 +4,7 @@ import { getPortalMembership } from '@/features/billing/portal';
 import { PortalMembership } from '@/features/billing/components/portal-membership';
 import { getPortalMembershipConfigurator } from '@/features/memberships/configurator-queries';
 import { MembershipConfigurator } from '@/features/memberships/components/membership-configurator';
+import { PortalStageSwitch } from '@/features/memberships/components/portal-stage-switch';
 import { getClientDocuments, type DocLink } from '@/features/documents/queries';
 import { de } from '@/lib/i18n/de';
 
@@ -76,6 +77,24 @@ export default async function PortalMembershipPage() {
                   : null
               }
             />
+          ) : cfg ? (
+            <div className="space-y-4">
+              {membershipView && <PortalMembership view={membershipView} />}
+              <PortalStageSwitch
+                currentStage={cfg.active.stage}
+                stage1Cents={cfg.priceContext.stage1NetCents}
+                stage2Cents={cfg.priceContext.stage2NetCents}
+                pending={
+                  cfg.pending
+                    ? {
+                        stage: cfg.pending.stage,
+                        effectiveDate: cfg.pending.effectiveDate,
+                        netCents: cfg.pending.netCents,
+                      }
+                    : null
+                }
+              />
+            </div>
           ) : membershipView ? (
             <PortalMembership view={membershipView} />
           ) : (

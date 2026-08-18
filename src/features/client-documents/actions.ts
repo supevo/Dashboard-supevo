@@ -6,7 +6,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { FILES_BUCKET, SIGNED_URL_TTL_SECONDS } from '@/lib/files/storage';
-import { listFolder, getDownloadUrl } from '@/lib/onedrive/graph';
+import { listFolder, getDownloadUrl, resolveFolderByPath } from '@/lib/onedrive/graph';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -186,6 +186,23 @@ export async function removeClientDocumentAction(
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult('Dokument entfernt.');
+}
+
+/**
+ * Löst einen OneDrive-Pfad (z. B. "ONE STEP/Kunden") in eine Ordner-ID auf, um
+ * den Browser direkt dort zu starten. Gibt null-Daten zurück, wenn nicht
+ * gefunden (dann startet der Browser im Root).
+ */
+export async function resolveOneDriveFolderAction(path: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+  const clean = String(path ?? '').trim();
+  if (!clean) return successResult('', { id: null, name: null });
+  const folder = await resolveFolderByPath(orgId, clean);
+  const name = clean.split('/').filter(Boolean).pop() ?? clean;
+  return successResult('', { id: folder?.id ?? null, name });
 }
 
 /** Listet einen OneDrive-Ordner (Root, wenn folderId leer) für die Auswahl. */

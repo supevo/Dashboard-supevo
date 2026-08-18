@@ -3,7 +3,10 @@
 import { useEffect, useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
-import { browseOneDriveAction } from '@/features/client-documents/actions';
+import {
+  browseOneDriveAction,
+  resolveOneDriveFolderAction,
+} from '@/features/client-documents/actions';
 
 type Item = { id: string; name: string; isFolder: boolean; webUrl: string | null };
 type Crumb = { id: string | null; name: string; webUrl: string | null };
@@ -19,11 +22,38 @@ export type OneDrivePick = {
  * Einfacher OneDrive-Browser: durch Ordner navigieren und entweder den aktuellen
  * Ordner oder eine einzelne Datei auswählen.
  */
-export function OneDriveBrowser({ onPick }: { onPick: (p: OneDrivePick) => void }) {
+export function OneDriveBrowser({
+  onPick,
+  startPath,
+}: {
+  onPick: (p: OneDrivePick) => void;
+  /** Optionaler Startordner (z. B. "ONE STEP/Kunden"); sonst OneDrive-Root. */
+  startPath?: string;
+}) {
   const [stack, setStack] = useState<Crumb[]>([{ id: null, name: 'OneDrive', webUrl: null }]);
   const [items, setItems] = useState<Item[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  // Startordner einmalig auflösen und als Einstiegspunkt setzen.
+  useEffect(() => {
+    if (!startPath) return;
+    let cancelled = false;
+    (async () => {
+      const res = await resolveOneDriveFolderAction(startPath);
+      if (cancelled) return;
+      if (res.status === 'success' && res.data?.id) {
+        setStack([
+          { id: null, name: 'OneDrive', webUrl: null },
+          { id: res.data.id as string, name: (res.data.name as string) ?? startPath, webUrl: null },
+        ]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startPath]);
 
   const current = stack[stack.length - 1]!;
 

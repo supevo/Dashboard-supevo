@@ -225,9 +225,10 @@ export function OnboardingSetup({
               )}
             </div>
             {!templateName && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Ohne hinterlegtes PDF unterschreibt der Kunde nur eine
-                Auftragsbestätigung.
+              <p className="text-xs text-muted-foreground">
+                Noch kein Vertrag hinterlegt. Generiere ihn aus der
+                Mitgliedschaft oder lade ein PDF hoch – der Kunde liest und
+                unterschreibt ihn dann online.
               </p>
             )}
           </DropZone>
