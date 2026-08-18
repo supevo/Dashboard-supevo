@@ -18,10 +18,13 @@ export function ExpressBoard({
   projectId,
   board,
   status,
+  readOnly = false,
 }: {
   projectId: string;
   board: BoardView;
   status: ExpressStatus;
+  /** Legacy-Kunden: Board nur ansehen – kein Verschieben, kein Express. */
+  readOnly?: boolean;
 }) {
   const router = useRouter();
   const [picking, setPicking] = useState(false);
@@ -31,17 +34,17 @@ export function ExpressBoard({
 
   const hasTickets = status.available > 0;
 
-  // Konten ohne freigeschaltete Express-Tickets sehen keinen Express-Kasten –
-  // nur das normale Board (konsistent mit dem Header-Badge, das sich ausblendet).
-  if (status.perMonth <= 0) {
+  // Read-only (Legacy) oder Konten ohne freigeschaltete Express-Tickets sehen
+  // nur das normale Board – bei readOnly ohne jegliches Verschieben.
+  if (readOnly || status.perMonth <= 0) {
     return (
       <KanbanBoard
         projectId={projectId}
         board={board}
         members={[]}
         canManage={false}
-        reorderOnly
-        allowColumnMove
+        reorderOnly={!readOnly}
+        allowColumnMove={!readOnly}
         basePath="/portal/projects"
       />
     );

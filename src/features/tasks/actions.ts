@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { hasAgencyAccess } from '@/features/auth/access';
 import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
 import { awardTaskXp } from '@/features/gamification/xp';
@@ -302,6 +303,19 @@ const createClientTaskSchema = z.object({
  * client because RLS reserves task inserts for agency staff. Access is verified
  * in-code first (the RLS-scoped read only returns projects the user may see).
  */
+/** True, wenn das Kundenunternehmen ein Legacy-/Bestandskunde ist. */
+async function clientCompanyIsLegacy(
+  clientCompanyId: string | null | undefined,
+): Promise<boolean> {
+  if (!clientCompanyId) return false;
+  const { data } = await createSupabaseServiceClient()
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  return data?.is_legacy ?? false;
+}
+
 export async function createClientTaskAction(
   _prev: ActionResult,
   formData: FormData,
@@ -322,10 +336,15 @@ export async function createClientTaskAction(
   const supabase = await createSupabaseServerClient();
   const { data: project } = await supabase
     .from('projects')
-    .select('id, organization_id')
+    .select('id, organization_id, client_company_id')
     .eq('id', projectId)
     .maybeSingle();
   if (!project) return errorResult(de.errors.FORBIDDEN);
+
+  // Legacy-/Bestandskunden dürfen im Portal keine Aufgaben hinzufügen.
+  if (!hasAgencyAccess(user) && (await clientCompanyIsLegacy(project.client_company_id))) {
+    return errorResult('Als Bestandskunde können Sie keine Aufgaben hinzufügen.');
+  }
 
   const service = createSupabaseServiceClient();
 
@@ -519,6 +538,27 @@ export async function moveTaskAction(
 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
+
+  // Legacy-/Bestandskunden dürfen im Portal keine Aufgaben verschieben. Für
+  // Agentur-Mitarbeiter gilt die Sperre nicht.
+  if (!hasAgencyAccess(user)) {
+    const service = createSupabaseServiceClient();
+    const { data: t } = await service
+      .from('tasks')
+      .select('project_id')
+      .eq('id', taskId)
+      .maybeSingle();
+    const { data: p } = t?.project_id
+      ? await service
+          .from('projects')
+          .select('client_company_id')
+          .eq('id', t.project_id)
+          .maybeSingle()
+      : { data: null };
+    if (await clientCompanyIsLegacy(p?.client_company_id)) {
+      return errorResult('Als Bestandskunde können Sie Aufgaben nicht verschieben.');
+    }
+  }
 
   const { error } = await supabase.rpc('move_task', {
     p_task_id: taskId,
