@@ -17,6 +17,7 @@ export interface DriveItem {
   isFolder: boolean;
   size: number | null;
   childCount: number | null;
+  webUrl: string | null;
 }
 
 /**
@@ -169,6 +170,7 @@ function mapItem(raw: Record<string, unknown>): DriveItem {
     isFolder: Boolean(folder),
     size: typeof raw.size === 'number' ? raw.size : null,
     childCount: folder?.childCount ?? null,
+    webUrl: typeof raw.webUrl === 'string' ? raw.webUrl : null,
   };
 }
 
@@ -234,7 +236,7 @@ export async function listFolder(
     ? `/me/drive/items/${encodeURIComponent(folderId)}/children`
     : '/me/drive/root/children';
   const res = await fetch(
-    `${GRAPH}${path}?$select=id,name,folder,size&$top=200`,
+    `${GRAPH}${path}?$select=id,name,folder,size,webUrl&$top=200`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!res.ok) {

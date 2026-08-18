@@ -10,6 +10,8 @@ import { MembershipConfiguratorPanel } from '@/features/memberships/components/m
 import { MembershipBillingForm } from '@/features/billing/components/membership-billing-form';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
+import { getClientDocuments } from '@/features/client-documents/queries';
+import { DocumentSlot } from '@/features/client-documents/components/document-slot';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,7 +101,11 @@ async function Step3({
   clientId: string;
   clientName: string;
 }) {
-  const membership = await getClientMembership(clientId);
+  const [membership, docs] = await Promise.all([
+    getClientMembership(clientId),
+    getClientDocuments(clientId),
+  ]);
+  const sepaDoc = docs.find((d) => d.kind === 'sepa_mandate') ?? null;
 
   return (
     <Card>
@@ -115,6 +121,12 @@ async function Step3({
           orgId={orgId}
           clientCompanyId={clientId}
           membership={membership}
+        />
+        <DocumentSlot
+          clientCompanyId={clientId}
+          kind="sepa_mandate"
+          label="Unterschriebenes SEPA-Mandat"
+          current={sepaDoc}
         />
         <div className="flex justify-end border-t pt-3">
           <Link
@@ -138,19 +150,29 @@ async function Step4({
   clientId: string;
   clientName: string;
 }) {
-  const onboarding = await getOnboarding(clientId, orgId);
+  const [onboarding, docs] = await Promise.all([
+    getOnboarding(clientId, orgId),
+    getClientDocuments(clientId),
+  ]);
+  const contractDoc = docs.find((d) => d.kind === 'contract') ?? null;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>4. Vertrag & Onboarding — {clientName}</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Wähle die Bestandteile, generiere den Vertrag aus der Mitgliedschaft,
-          bereite das SEPA-Mandat vor und starte das Onboarding.
+          Generiere den Vertrag aus der Mitgliedschaft, hinterlege den
+          unterschriebenen Vertrag und starte das Onboarding.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <OnboardingSetup clientCompanyId={clientId} status={onboarding} />
+        <DocumentSlot
+          clientCompanyId={clientId}
+          kind="contract"
+          label="Unterschriebener Vertrag"
+          current={contractDoc}
+        />
         <div className="flex justify-end border-t pt-3">
           <Link
             href={`/app/clients/${clientId}`}
