@@ -142,3 +142,80 @@ export async function upsertMembershipAction(
   revalidatePath(`/app/clients/${d.clientCompanyId}`);
   return successResult('Mitgliedschaft gespeichert.');
 }
+
+const billingSchema = z.object({
+  orgId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  interval_months: z.coerce.number().int().refine((v) => [1, 3, 12].includes(v)),
+  billing_day: z.coerce.number().int().min(1).max(28),
+  payment_method: z.enum(['sepa', 'transfer']),
+  status: z.enum(['active', 'paused', 'canceled']),
+  start_date: z.string().min(1),
+  auto_send: z.coerce.boolean(),
+  mandate_reference: optStr,
+  mandate_date: optStr,
+  debtor_iban: optStr,
+  debtor_bic: optStr,
+  billing_name: optStr,
+  billing_address_line1: optStr,
+  billing_address_line2: optStr,
+  billing_postal_code: optStr,
+  billing_city: optStr,
+  billing_country: optStr,
+  billing_vat_id: optStr,
+});
+
+/**
+ * Speichert NUR Abrechnung + Rechnungsadresse + SEPA-Mandat (Wizard-Schritt 3).
+ * Rührt Paket/Stage/Custompreis/Module NICHT an – die kommen aus dem Baukasten
+ * (Schritt 2). Setzt voraus, dass die Mitgliedschaft bereits existiert.
+ */
+export async function saveMembershipBillingAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = billingSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const d = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: d.orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase
+    .from('client_memberships')
+    .select('id')
+    .eq('client_company_id', d.clientCompanyId)
+    .maybeSingle();
+  if (!existing) {
+    return errorResult('Bitte zuerst die Mitgliedschaft (Schritt 2) speichern.');
+  }
+
+  const { error } = await supabase
+    .from('client_memberships')
+    .update({
+      interval_months: d.interval_months,
+      billing_day: d.billing_day,
+      payment_method: d.payment_method,
+      status: d.status,
+      start_date: d.start_date,
+      next_invoice_date: nextBillingDate(d.billing_day),
+      auto_send: d.auto_send,
+      mandate_reference: d.mandate_reference || null,
+      mandate_date: d.mandate_date || null,
+      debtor_iban: d.debtor_iban || null,
+      debtor_bic: d.debtor_bic || null,
+      billing_name: d.billing_name || null,
+      billing_address_line1: d.billing_address_line1 || null,
+      billing_address_line2: d.billing_address_line2 || null,
+      billing_postal_code: d.billing_postal_code || null,
+      billing_city: d.billing_city || null,
+      billing_country: d.billing_country || 'Deutschland',
+      billing_vat_id: d.billing_vat_id || null,
+    })
+    .eq('id', existing.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath(`/app/clients/${d.clientCompanyId}`);
+  return successResult('Abrechnung & SEPA gespeichert.');
+}

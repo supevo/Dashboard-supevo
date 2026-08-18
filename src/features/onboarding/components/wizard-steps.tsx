@@ -2,8 +2,9 @@ import { cn } from '@/lib/utils';
 
 const STEPS = [
   { n: 1, label: 'Kundendaten' },
-  { n: 2, label: 'Mitgliedschaft / Preis' },
-  { n: 3, label: 'Vertrag & Onboarding' },
+  { n: 2, label: 'Mitgliedschaft' },
+  { n: 3, label: 'Adresse & SEPA' },
+  { n: 4, label: 'Vertrag & Onboarding' },
 ];
 
 /** Progress header for the guided "Neuer Kunde" wizard. */
