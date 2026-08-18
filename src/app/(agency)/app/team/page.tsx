@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
+import { isSuperAdmin } from '@/lib/authz/policies';
 import { listOrgMembers } from '@/features/memberships/queries';
 import { listOpenInvitations } from '@/features/invitations/queries';
 import { listClientCompanies } from '@/features/client-companies/queries';
@@ -9,7 +10,8 @@ import { InvitationRow } from '@/features/invitations/components/invitation-row'
 import { de } from '@/lib/i18n/de';
 
 export default async function TeamPage() {
-  const { orgId } = await requireOrgAdminPage();
+  const { user, orgId } = await requireOrgAdminPage();
+  const canPurge = isSuperAdmin(user);
   const [members, invitations, companies] = await Promise.all([
     listOrgMembers(orgId),
     listOpenInvitations(orgId),
@@ -41,7 +43,12 @@ export default async function TeamPage() {
               <table className="w-full text-sm">
                 <tbody>
                   {members.map((m) => (
-                    <MemberRow key={m.membershipId} orgId={orgId} member={m} />
+                    <MemberRow
+                      key={m.membershipId}
+                      orgId={orgId}
+                      member={m}
+                      canPurge={canPurge}
+                    />
                   ))}
                 </tbody>
               </table>

@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { isOrgAdmin, can } from '@/lib/authz/policies';
+import { isOrgAdmin, isSuperAdmin, can } from '@/lib/authz/policies';
+import { PurgeClientButton } from '@/features/admin/components/purge-client-button';
 import {
   getClientCompany,
   listClientContacts,
@@ -469,6 +470,25 @@ export default async function ClientDetailPage({
                     />
                   </CardContent>
                 </Card>
+
+                {isSuperAdmin(user) && (
+                  <Card className="border-destructive/40">
+                    <CardHeader>
+                      <CardTitle>⚠️ Gefahrenzone</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Kunden endgültig löschen (inkl. Projekte, Aufgaben,
+                        Rechnungen, Zeiten). Nur per Master-Passwort. Vor allem
+                        zum Aufräumen von Testdaten vor dem Live-Betrieb.
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <PurgeClientButton
+                        clientCompanyId={clientCompanyId}
+                        clientName={company.name}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
               </>
             ),
           } satisfies DrawerSection,

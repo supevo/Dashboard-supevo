@@ -3235,6 +3235,14 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      purge_client_company: {
+        Args: { p_client: string };
+        Returns: undefined;
+      };
+      purge_org_member: {
+        Args: { p_user: string; p_org: string };
+        Returns: undefined;
+      };
       chat_unread_counts: {
         Args: Record<string, never>;
         Returns: { channel_id: string; unread: number }[];
