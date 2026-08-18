@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getProject } from '@/features/projects/queries';
 import { getBoardView } from '@/features/tasks/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
@@ -24,12 +25,20 @@ export default async function PortalProjectPage({
   const project = await getProject(projectId);
   if (!project) notFound();
 
-  const [board, approvals, expressStatus, recurring] = await Promise.all([
+  const supabase = await createSupabaseServerClient();
+  const [board, approvals, expressStatus, recurring, companyRow] = await Promise.all([
     getBoardView(projectId),
     listProjectApprovals(projectId),
     getExpressStatus(project.clientCompanyId),
     listClientRecurringTasks(projectId),
+    supabase
+      .from('client_companies')
+      .select('is_legacy')
+      .eq('id', project.clientCompanyId)
+      .maybeSingle(),
   ]);
+  // Legacy-Kunden: Board nur ansehen – keine Aufgaben verschieben/hinzufügen.
+  const isLegacy = companyRow.data?.is_legacy ?? false;
 
   // Flatten client-visible tasks (RLS already removed internal ones).
   const tasks = (board?.columns ?? []).flatMap((col) =>
@@ -67,7 +76,7 @@ export default async function PortalProjectPage({
           <CardTitle>{de.portal.tasks}</CardTitle>
           <div className="flex gap-2">
             <SubmitRequestForm projectId={projectId} />
-            <AddClientTask projectId={projectId} />
+            {!isLegacy && <AddClientTask projectId={projectId} />}
           </div>
         </CardHeader>
         <CardContent>
@@ -79,13 +88,16 @@ export default async function PortalProjectPage({
             </div>
           ) : (
             <>
-              <p className="mb-3 text-sm text-muted-foreground">
-                {de.portal.reorderHint}
-              </p>
+              {!isLegacy && (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  {de.portal.reorderHint}
+                </p>
+              )}
               <ExpressBoard
                 projectId={projectId}
                 board={board}
                 status={expressStatus}
+                readOnly={isLegacy}
               />
             </>
           )}
