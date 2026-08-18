@@ -34,7 +34,17 @@ export const SKILL_GROUPS: SkillGroup[] = [
   },
   {
     title: 'Persönliche Kompetenzen',
-    skills: ['Teamfähigkeit', 'Konfliktfähigkeit'],
+    skills: [
+      'Teamfähigkeit',
+      'Konfliktfähigkeit',
+      'Kommunikationsstärke',
+      'Kreativität',
+      'Eigenverantwortung',
+      'Zuverlässigkeit & Termintreue',
+      'Kundenorientierung',
+      'Lernbereitschaft',
+      'Sorgfalt & Detailgenauigkeit',
+    ],
   },
 ];
 
@@ -112,5 +122,33 @@ export const SKILL_EXAMPLES: Record<string, SkillExample> = {
   Konfliktfähigkeit: {
     low: 'Ich bleibe in schwierigen Situationen ruhig und gehe auf andere zu, um Lösungen zu finden.',
     high: 'Ich übernehme aktiv Verantwortung in Konfliktsituationen, moderiere Gespräche und versuche zu nachhaltigen Lösungen zu kommen.',
+  },
+  Kommunikationsstärke: {
+    low: 'Ich stimme mich verständlich mit Team und Kunden ab, wenn es die Situation erfordert.',
+    high: 'Ich kommuniziere sicher und überzeugend – auch in Präsentationen und schwierigen Kundengesprächen.',
+  },
+  Kreativität: {
+    low: 'Ich entwickle Ideen, wenn mir eine grobe Richtung vorgegeben wird.',
+    high: 'Ich entwickle eigenständig originelle Konzepte und neue kreative Ansätze für Kunden.',
+  },
+  Eigenverantwortung: {
+    low: 'Ich erledige zugewiesene Aufgaben zuverlässig nach Absprache.',
+    high: 'Ich treibe meine Themen eigenständig voran, priorisiere selbst und übernehme Verantwortung für Ergebnisse.',
+  },
+  'Zuverlässigkeit & Termintreue': {
+    low: 'Ich halte Absprachen ein und melde mich, wenn etwas nicht klappt.',
+    high: 'Ich liefere konstant termingerecht und plane Puffer für Unvorhergesehenes von selbst ein.',
+  },
+  Kundenorientierung: {
+    low: 'Ich beantworte Kundenanliegen freundlich und korrekt.',
+    high: 'Ich denke mich in Kundenziele hinein und schlage proaktiv passende Lösungen vor.',
+  },
+  Lernbereitschaft: {
+    low: 'Ich arbeite mich in neue Themen ein, wenn es nötig ist.',
+    high: 'Ich eigne mir neue Tools und Trends aktiv und schnell an und gebe Wissen im Team weiter.',
+  },
+  'Sorgfalt & Detailgenauigkeit': {
+    low: 'Ich arbeite ordentlich und prüfe meine Ergebnisse grob.',
+    high: 'Ich liefere durchgängig fehlerfreie, konsistente Arbeit und achte auch auf feine Details.',
   },
 };
