@@ -8,6 +8,7 @@ import { Alert } from '@/components/ui/alert';
 import {
   generateLeadTasksAction,
   convertLeadToProjectAction,
+  convertLeadToClientAction,
 } from '@/features/leads/actions';
 
 type Draft = { title: string; description: string; priority: 'low' | 'medium' | 'high' };
@@ -32,6 +33,20 @@ export function LeadConvertPanel({
   const [tasks, setTasks] = useState<Draft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+
+  function startOnboarding() {
+    setError(null);
+    start(async () => {
+      const res = await convertLeadToClientAction(leadId);
+      if (res.status !== 'success') {
+        setError('message' in res ? res.message : 'Fehlgeschlagen.');
+        return;
+      }
+      const id = res.data?.id as string | undefined;
+      if (id) router.push(`/app/clients/new?step=2&client=${id}`);
+      else router.refresh();
+    });
+  }
 
   function generate() {
     setError(null);
@@ -97,27 +112,46 @@ export function LeadConvertPanel({
 
   if (step === 'idle') {
     return (
-      <div className="rounded-lg border p-4">
-        <h3 className="text-sm font-semibold">In Projekt umwandeln</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Legt aus dem Lead Kunde, Mitgliedschaft und ein Projekt an. Die KI
-          schlägt anhand der Module und des Kontexts passende Aufgaben vor – du
-          prüfst sie vor dem Anlegen.
-        </p>
-        {!aiEnabled && (
-          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-            Hinweis: Es ist keine KI konfiguriert – du bekommst eine leere Liste
-            und kannst die Aufgaben selbst eintragen.
+      <div className="space-y-4 rounded-lg border p-4">
+        <div>
+          <h3 className="text-sm font-semibold">Lead abschließen</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Übernimm den Lead als Kunde. Das Paket aus dem Angebot wird
+            übernommen.
           </p>
-        )}
-        {error && (
-          <Alert variant="destructive" className="mt-3 text-xs">
-            {error}
-          </Alert>
-        )}
-        <Button type="button" onClick={generate} disabled={pending} className="mt-3">
-          {pending ? 'KI denkt nach …' : '🤖 Kunde + Projekt + KI-Aufgaben'}
-        </Button>
+        </div>
+
+        {error && <Alert variant="destructive" className="text-xs">{error}</Alert>}
+
+        {/* Primär: sauberer Onboarding-Eingang */}
+        <div className="rounded-md border border-emerald-500/40 bg-emerald-500/5 p-3">
+          <div className="text-sm font-medium">🚀 Onboarding starten</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Legt Kunde + Mitgliedschaft aus dem Paket an und öffnet den
+            Onboarding-Wizard (Mitgliedschaft prüfen, Adresse & SEPA, Vertrag).
+          </p>
+          <Button type="button" onClick={startOnboarding} disabled={pending} className="mt-2">
+            {pending ? 'Lege an …' : '🚀 Onboarding starten'}
+          </Button>
+        </div>
+
+        {/* Sekundär: direkt Projekt + KI-Aufgaben */}
+        <div className="rounded-md border p-3">
+          <div className="text-sm font-medium">🤖 Projekt + KI-Aufgaben</div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Alternativ direkt ein Projekt anlegen: die KI schlägt anhand Module &
+            Kontext passende Aufgaben vor, die du vor dem Anlegen prüfst.
+          </p>
+          {!aiEnabled && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              Keine KI konfiguriert – du bekommst eine leere Liste zum selbst
+              Befüllen.
+            </p>
+          )}
+          <Button type="button" variant="outline" onClick={generate} disabled={pending} className="mt-2">
+            {pending ? 'KI denkt nach …' : '🤖 Projekt + KI-Aufgaben'}
+          </Button>
+        </div>
       </div>
     );
   }
