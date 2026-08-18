@@ -1,13 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser, primaryAgencyOrgId } from '@/features/auth/session';
 import { generatePain008, type SepaDebit } from '@/features/billing/sepa';
 
 /**
- * Generates a SEPA Core direct-debit file (pain.008) for all open SEPA
- * invoices of the caller's organization and returns it as a download.
+ * Generates a SEPA Core direct-debit file (pain.008) for the open SEPA invoices
+ * of EXACTLY ONE billing entity (Rechnungssteller) and returns it as a download.
+ *
+ * Wichtig für Mehr-Firmen-Setups: Jede Firma zieht nur ihre eigenen Kunden mit
+ * ihrer eigenen Gläubiger-ID/IBAN ein. Die Firma wird über ?entity=<id> gewählt;
+ * ohne Angabe die Standard-Firma. Rechnungen ohne zugeordnete Firma laufen unter
+ * der Standard-Firma mit (Altbestand/kein Rechnungssteller gesetzt).
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   const orgId = primaryAgencyOrgId(user);
@@ -15,26 +20,44 @@ export async function GET() {
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: settings } = await supabase
-    .from('billing_settings')
-    .select('company_name, iban, bic, creditor_id')
-    .eq('organization_id', orgId)
-    .maybeSingle();
-  if (!settings?.company_name || !settings.iban || !settings.creditor_id) {
+  // Gewählte Firma (Rechnungssteller) auflösen – explizit oder Standard.
+  const entityParam = request.nextUrl.searchParams.get('entity');
+  const entityQuery = supabase
+    .from('billing_entities')
+    .select('id, company_name, iban, bic, creditor_id, is_default')
+    .eq('organization_id', orgId);
+  const { data: entity } = entityParam
+    ? await entityQuery.eq('id', entityParam).maybeSingle()
+    : await entityQuery.eq('is_default', true).maybeSingle();
+
+  if (!entity) {
+    return new NextResponse('Rechnungssteller nicht gefunden.', { status: 404 });
+  }
+  if (!entity.company_name || !entity.iban || !entity.creditor_id) {
     return new NextResponse(
-      'Bitte zuerst Firmenname, IBAN und Gläubiger-ID unter „Firma & Rechnung" hinterlegen.',
+      `Bitte zuerst Firmenname, IBAN und Gläubiger-ID für „${entity.company_name ?? 'diesen Rechnungssteller'}" hinterlegen.`,
       { status: 400 },
     );
   }
+  // Nach dem Guard gesicherte Werte festhalten (Narrowing übersteht das await nicht).
+  const creditorName = entity.company_name;
+  const creditorIban = entity.iban;
+  const creditorIdValue = entity.creditor_id;
+  const creditorBic = entity.bic;
 
-  // Open SEPA invoices (finalized/sent, not paid).
-  const { data: invoices } = await supabase
+  // Offene SEPA-Rechnungen (finalisiert/versendet, nicht bezahlt) NUR dieser
+  // Firma. Die Standard-Firma zieht zusätzlich Rechnungen ohne zugeordnete Firma.
+  let query = supabase
     .from('invoices')
-    .select('id, invoice_number, gross_cents, membership_id, status, paid_at, payment_method')
+    .select('id, invoice_number, gross_cents, membership_id, status, paid_at, payment_method, billing_entity_id')
     .eq('organization_id', orgId)
     .eq('payment_method', 'sepa')
     .in('status', ['finalized', 'sent'])
     .is('paid_at', null);
+  query = entity.is_default
+    ? query.or(`billing_entity_id.eq.${entity.id},billing_entity_id.is.null`)
+    : query.eq('billing_entity_id', entity.id);
+  const { data: invoices } = await query;
 
   const membershipIds = [
     ...new Set((invoices ?? []).map((i) => i.membership_id).filter(Boolean)),
@@ -86,16 +109,20 @@ export async function GET() {
   collDate.setDate(collDate.getDate() + 3);
   const xml = generatePain008({
     creditor: {
-      name: settings.company_name,
-      iban: settings.iban,
-      bic: settings.bic,
-      creditorId: settings.creditor_id,
+      name: creditorName,
+      iban: creditorIban,
+      bic: creditorBic,
+      creditorId: creditorIdValue,
     },
     debits,
     requestedCollectionDate: collDate.toISOString().slice(0, 10),
   });
 
-  const filename = `SEPA-Lastschrift-${new Date().toISOString().slice(0, 10)}.xml`;
+  const slug = (entity.company_name ?? 'Firma')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+  const filename = `SEPA-${slug}-${new Date().toISOString().slice(0, 10)}.xml`;
   return new NextResponse(xml, {
     status: 200,
     headers: {
