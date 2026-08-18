@@ -1263,6 +1263,38 @@ export interface Database {
         >;
         Relationships: [];
       };
+      client_documents: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          kind: 'sepa_mandate' | 'contract';
+          source: 'upload' | 'onedrive_folder' | 'onedrive_file';
+          file_path: string | null;
+          onedrive_item_id: string | null;
+          web_url: string | null;
+          name: string;
+          created_at: string;
+          updated_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          kind: 'sepa_mandate' | 'contract';
+          source: 'upload' | 'onedrive_folder' | 'onedrive_file';
+          file_path?: string | null;
+          onedrive_item_id?: string | null;
+          web_url?: string | null;
+          name: string;
+          created_by?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['client_documents']['Insert']
+        >;
+        Relationships: [];
+      };
       contract_settings: {
         Row: {
           organization_id: string;
