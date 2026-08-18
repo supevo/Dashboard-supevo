@@ -44,7 +44,7 @@
     },
     {
       "path": "/api/cron/auto-clockout",
-      "schedule": "0 22 * * *"
+      "schedule": "0 * * * *"
     }
   ]
 }
