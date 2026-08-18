@@ -143,7 +143,18 @@ export function MembershipConfigurator({
     });
   }
   function setQty(key: string, qty: number) {
-    setMap((m) => ({ ...m, [key]: { ...m[key]!, qty: Math.max(0, qty) } }));
+    // Menge an die echten Modulgrenzen klemmen, damit die angezeigte Zahl
+    // immer der berechneten (bepreisten) Menge entspricht.
+    const def = modules.find((d) => d.key === key);
+    let q = Math.round(qty);
+    if (def?.pricing.kind === 'per_unit') {
+      const upper = def.pricing.maxQty >= 1 ? def.pricing.maxQty : 99;
+      const lower = Math.max(0, Math.min(def.pricing.minQty, upper));
+      q = Math.min(upper, Math.max(lower, q));
+    } else {
+      q = Math.max(0, q);
+    }
+    setMap((m) => ({ ...m, [key]: { ...m[key]!, qty: q } }));
   }
   function setBudget(key: string, euros: number) {
     setMap((m) => ({
@@ -570,30 +581,37 @@ function ModuleRow({
               </label>
             ))}
 
-          {perUnit && def.pricing.kind === 'per_unit' && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-xs text-muted-foreground">
-                {def.pricing.unitLabel}:
-              </span>
-              <button
-                type="button"
-                onClick={() => onQty(state.qty - 1)}
-                disabled={readOnly}
-                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
-              >
-                −
-              </button>
-              <span className="w-8 text-center font-medium">{state.qty}</span>
-              <button
-                type="button"
-                onClick={() => onQty(state.qty + 1)}
-                disabled={readOnly}
-                className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
-              >
-                +
-              </button>
-            </div>
-          )}
+          {perUnit && def.pricing.kind === 'per_unit' && (() => {
+            const upper = def.pricing.maxQty >= 1 ? def.pricing.maxQty : 99;
+            const lower = Math.max(0, Math.min(def.pricing.minQty, upper));
+            return (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-xs text-muted-foreground">
+                  {def.pricing.unitLabel}:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onQty(state.qty - 1)}
+                  disabled={readOnly || state.qty <= lower}
+                  className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center font-medium">{state.qty}</span>
+                <button
+                  type="button"
+                  onClick={() => onQty(state.qty + 1)}
+                  disabled={readOnly || state.qty >= upper}
+                  className="h-6 w-6 rounded border text-muted-foreground hover:bg-muted disabled:opacity-40"
+                >
+                  +
+                </button>
+                {state.qty >= upper && (
+                  <span className="text-xs text-muted-foreground">(max. {upper})</span>
+                )}
+              </div>
+            );
+          })()}
           {def.captureBudget && (
             <label className="flex items-center gap-2 text-sm">
               <span className="text-xs text-muted-foreground">
