@@ -264,6 +264,71 @@ export async function savePortalMembershipConfigAction(input: unknown): Promise<
   return successResult(`Änderung gespeichert – gültig ab ${effectiveDate}.`);
 }
 
+/**
+ * Portal-Selbstbedienung für supevo-Kunden: Wechsel zwischen Stage 1 und 2.
+ * Gilt ab dem Folgemonat. Nur für NICHT-Legacy-Mitgliedschaften; Legacy-Kunden
+ * ändern stattdessen ihre Module über savePortalMembershipConfigAction.
+ */
+export async function savePortalStageAction(input: unknown): Promise<ActionResult> {
+  const parsed = z
+    .object({ stage: z.coerce.number().int().min(1).max(2) })
+    .safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const stage = parsed.data.stage as 1 | 2;
+
+  const user = await getCurrentUser();
+  if (!user) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: membership } = await supabase
+    .from('client_memberships')
+    .select('id, client_company_id, organization_id, stage')
+    .limit(1)
+    .maybeSingle();
+  if (!membership) return errorResult(de.errors.FORBIDDEN);
+
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', membership.client_company_id)
+    .maybeSingle();
+  if (company?.is_legacy) {
+    return errorResult('Der Stufenwechsel ist nur für supevo-Mitgliedschaften möglich.');
+  }
+
+  const service = createSupabaseServiceClient();
+  const { data: s } = await service
+    .from('billing_settings')
+    .select('stage1_net_cents, stage2_net_cents')
+    .eq('organization_id', membership.organization_id)
+    .maybeSingle();
+  const ctx: PriceContext = {
+    stage1NetCents: s?.stage1_net_cents ?? 0,
+    stage2NetCents: s?.stage2_net_cents ?? 0,
+  };
+  const catalog = await getModuleCatalog(membership.organization_id);
+  const selections = normalizeSelections([{ id: `supevo_stage${stage}`, enabled: true }]);
+  const netCents = totalMonthlyCents(catalog, selections, ctx);
+  const effectiveDate = firstOfNextMonth();
+
+  const { error } = await service
+    .from('client_memberships')
+    .update({
+      pending_modules: {
+        selections,
+        netCents,
+        name: `supevo Stage ${stage}`,
+        stage,
+      } as unknown,
+      pending_effective_date: effectiveDate,
+    })
+    .eq('id', membership.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/portal/membership');
+  return successResult(`Wechsel auf Stage ${stage} geplant – gültig ab ${effectiveDate}.`);
+}
+
 /** Discards a scheduled (pending) change without touching the active config. */
 export async function cancelPendingMembershipChangeAction(
   clientCompanyId: string,
