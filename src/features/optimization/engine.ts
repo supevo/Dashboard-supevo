@@ -80,7 +80,7 @@ export async function runWorkloadOptimization(
   const doneCols = new Set((columns ?? []).filter((c) => c.column_key === 'done').map((c) => c.id));
   const { data: taskRows } = await service
     .from('tasks')
-    .select('id, title, column_id')
+    .select('id, title, column_id, project_id')
     .eq('organization_id', orgId)
     .eq('is_archived', false)
     .is('deleted_at', null)
@@ -88,6 +88,39 @@ export async function runWorkloadOptimization(
   const openTasks = (taskRows ?? []).filter((t) => !doneCols.has(t.column_id));
   const openTaskIds = new Set(openTasks.map((t) => t.id));
   const titleById = new Map(openTasks.map((t) => [t.id, t.title] as const));
+
+  // Ansprechpartner (Account-Manager) je Aufgabe ermitteln: Projekt → Kunde →
+  // Haupt-/Neben-Ansprechpartner. Sie kennen den Kunden und werden bevorzugt.
+  const projectIds = [...new Set(openTasks.map((t) => t.project_id).filter(Boolean))];
+  const { data: projRows } = projectIds.length
+    ? await service.from('projects').select('id, client_company_id').in('id', projectIds)
+    : { data: [] as { id: string; client_company_id: string | null }[] };
+  const clientByProject = new Map(
+    (projRows ?? []).map((p) => [p.id, p.client_company_id] as const),
+  );
+  const clientIds = [
+    ...new Set((projRows ?? []).map((p) => p.client_company_id).filter(Boolean)),
+  ] as string[];
+  const { data: clientRows } = clientIds.length
+    ? await service
+        .from('client_companies')
+        .select('id, account_manager_id, secondary_account_manager_id')
+        .in('id', clientIds)
+    : { data: [] as { id: string; account_manager_id: string | null; secondary_account_manager_id: string | null }[] };
+  const amsByClient = new Map<string, Set<string>>(
+    (clientRows ?? []).map((c) => [
+      c.id,
+      new Set(
+        [c.account_manager_id, c.secondary_account_manager_id].filter(
+          (x): x is string => !!x,
+        ),
+      ),
+    ]),
+  );
+  const amsForProject = (projectId: string | null): Set<string> => {
+    const cid = projectId ? clientByProject.get(projectId) : null;
+    return (cid && amsByClient.get(cid)) || new Set<string>();
+  };
 
   // Assignees of open tasks.
   const { data: assignRows } = openTaskIds.size
@@ -123,6 +156,28 @@ export async function runWorkloadOptimization(
     return pool[0] ?? null;
   };
 
+  /**
+   * Wie pickBest, bevorzugt aber die Ansprechpartner des Kunden (prefer) –
+   * sofern sie nicht deutlich überlastet sind (load ≤ minLoad + BALANCE_GAP),
+   * damit der Ausgleich erhalten bleibt.
+   */
+  const pickBestFor = (prefer: Set<string>, exclude: Set<string> = new Set()): Cand | null => {
+    const pool = cands().filter((c) => !c.absent && !exclude.has(c.id));
+    if (pool.length === 0) return null;
+    if (prefer.size > 0) {
+      const minLoad = Math.min(...pool.map((c) => c.load));
+      const amPool = pool.filter(
+        (c) => prefer.has(c.id) && c.load <= minLoad + BALANCE_GAP,
+      );
+      if (amPool.length > 0) {
+        amPool.sort((a, b) => a.load - b.load || b.competence - a.competence);
+        return amPool[0] ?? null;
+      }
+    }
+    pool.sort((a, b) => a.load - b.load || b.competence - a.competence);
+    return pool[0] ?? null;
+  };
+
   const newAssignments: { taskId: string; userId: string }[] = [];
 
   // 1) Assign unassigned open tasks.
@@ -130,7 +185,7 @@ export async function runWorkloadOptimization(
     if (changes.length >= MAX_MOVES) break;
     const cur = assigneesByTask.get(t.id) ?? [];
     if (cur.length > 0) continue;
-    const pick = pickBest();
+    const pick = pickBestFor(amsForProject(t.project_id));
     if (!pick) break;
     await service.from('task_assignees').insert({ task_id: t.id, user_id: pick.id, organization_id: orgId });
     load.set(pick.id, (load.get(pick.id) ?? 0) + 1);

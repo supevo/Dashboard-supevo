@@ -22,6 +22,8 @@ interface Candidate {
   prefs: { name: string; level: number }[];
   openTasks: number;
   absent: boolean;
+  /** Ansprechpartner beim Kunden dieses Projekts: kennt den Kunden. */
+  manager: 'primary' | 'secondary' | null;
 }
 
 function extractJson(raw: string): string {
@@ -33,7 +35,12 @@ function extractJson(raw: string): string {
   return s !== -1 && e > s ? t.slice(s, e + 1) : t;
 }
 
-/** Simple fallback score when AI is unavailable: likes + skill, minus load. */
+/**
+ * Simple fallback score when AI is unavailable: likes + skill, minus load, plus
+ * a bonus für Ansprechpartner des Kunden (kennen den Kunden → bevorzugt, sofern
+ * grundsätzlich geeignet – der Bonus tippt knappe Fälle, überschreibt aber keine
+ * großen Fähigkeitsunterschiede).
+ */
 function heuristicPick(candidates: Candidate[]): Candidate | null {
   const available = candidates.filter((c) => !c.absent);
   const pool = available.length > 0 ? available : candidates;
@@ -42,7 +49,8 @@ function heuristicPick(candidates: Candidate[]): Candidate | null {
   for (const c of pool) {
     const skill = c.skills.reduce((n, s) => n + s.level, 0);
     const pref = c.prefs.reduce((n, p) => n + p.level, 0) * 1.5;
-    const score = skill + pref - c.openTasks * 2;
+    const managerBonus = c.manager === 'primary' ? 6 : c.manager === 'secondary' ? 3 : 0;
+    const score = skill + pref + managerBonus - c.openTasks * 2;
     if (score > bestScore) {
       bestScore = score;
       best = c;
@@ -78,6 +86,23 @@ export async function autoAssignTaskAction(
     .eq('id', taskId)
     .maybeSingle();
   if (!task) return errorResult(de.errors.NOT_FOUND);
+
+  // Ansprechpartner des Kunden ermitteln (Projekt → Kunde → Account-Manager),
+  // damit sie bei der Zuweisung bevorzugt werden.
+  const { data: proj } = await supabase
+    .from('projects')
+    .select('client_company_id')
+    .eq('id', task.project_id)
+    .maybeSingle();
+  const { data: clientCompany } = proj?.client_company_id
+    ? await supabase
+        .from('client_companies')
+        .select('account_manager_id, secondary_account_manager_id')
+        .eq('id', proj.client_company_id)
+        .maybeSingle()
+    : { data: null };
+  const primaryAmId = clientCompany?.account_manager_id ?? null;
+  const secondaryAmId = clientCompany?.secondary_account_manager_id ?? null;
 
   const { data: members } = await supabase
     .from('project_members')
@@ -149,6 +174,8 @@ export async function autoAssignTaskAction(
       .map((p) => ({ name: p.name, level: p.level })),
     openTasks: loadByUser.get(id) ?? 0,
     absent: absenceMap.has(id),
+    manager:
+      id === primaryAmId ? 'primary' : id === secondaryAmId ? 'secondary' : null,
   }));
 
   let chosenId: string | null = null;
@@ -162,11 +189,19 @@ export async function autoAssignTaskAction(
       const pr = c.prefs.length
         ? c.prefs.map((p) => `${p.name} ${p.level}/10`).join(', ')
         : 'keine';
-      return `- id=${c.userId} | ${c.name} | Faehigkeiten: ${sk} | Lieblingsarbeit: ${pr} | offene Aufgaben: ${c.openTasks}${c.absent ? ' | ABWESEND' : ''}`;
+      const amTag =
+        c.manager === 'primary'
+          ? ' | HAUPTANSPRECHPARTNER des Kunden'
+          : c.manager === 'secondary'
+            ? ' | NEBENANSPRECHPARTNER des Kunden'
+            : '';
+      return `- id=${c.userId} | ${c.name} | Faehigkeiten (inkl. Soft Skills): ${sk} | Lieblingsarbeit: ${pr} | offene Aufgaben: ${c.openTasks}${amTag}${c.absent ? ' | ABWESEND' : ''}`;
     });
     const result = await completeText({
       system: `Du verteilst Aufgaben in einer Marketing-Agentur. Waehle die EINE beste Person fuer die Aufgabe.
-Beruecksichtige: passende Faehigkeiten (Level), Lieblingsarbeit (Vorlieben) und aktuelle Auslastung (weniger offene Aufgaben ist besser). ABWESENDE Personen NICHT waehlen, ausser es gibt keine Alternative.
+Beruecksichtige: passende Faehigkeiten UND Soft Skills (Level), Lieblingsarbeit (Vorlieben) und aktuelle Auslastung (weniger offene Aufgaben ist besser).
+Ansprechpartner des Kunden (Haupt- vor Neben-) kennen den Kunden und sind bei ungefaehr gleicher Eignung zu BEVORZUGEN; eine deutlich besser passende andere Person darf aber trotzdem gewinnen.
+ABWESENDE Personen NICHT waehlen, ausser es gibt keine Alternative.
 Antworte AUSSCHLIESSLICH mit JSON: {"userId":"<id>","reason":"kurze Begruendung auf Deutsch"}`,
       prompt: `Aufgabe: ${task.title}\n${task.description ? `Beschreibung: ${task.description}\n` : ''}\nKandidaten:\n${lines.join('\n')}`,
       maxTokens: 300,
