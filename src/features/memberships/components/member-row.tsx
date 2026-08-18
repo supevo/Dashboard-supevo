@@ -15,14 +15,18 @@ import { de } from '@/lib/i18n/de';
 import { Select } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { SubmitButton } from '@/components/ui/submit-button';
+import { PurgeMemberButton } from '@/features/admin/components/purge-member-button';
 import type { OrgMember } from '@/features/memberships/queries';
 
 export function MemberRow({
   orgId,
   member,
+  canPurge = false,
 }: {
   orgId: string;
   member: OrgMember;
+  /** Super-Admin: Mitarbeiter endgültig aus der Org entfernen (Master-Passwort). */
+  canPurge?: boolean;
 }) {
   const [roleState, roleAction] = useActionState(changeRoleAction, idleResult);
   const [statusState, statusAction] = useActionState(
@@ -105,18 +109,27 @@ export function MemberRow({
       </td>
       <td className="py-2 text-right">
         {!member.isSelf && (
-          <form action={statusAction}>
-            <input type="hidden" name="orgId" value={orgId} />
-            <input type="hidden" name="targetUserId" value={member.userId} />
-            <SubmitButton
-              variant={member.status === 'suspended' ? 'outline' : 'destructive'}
-              size="sm"
-            >
-              {member.status === 'suspended'
-                ? de.team.reactivate
-                : de.team.deactivate}
-            </SubmitButton>
-          </form>
+          <div className="flex items-center justify-end gap-2">
+            <form action={statusAction}>
+              <input type="hidden" name="orgId" value={orgId} />
+              <input type="hidden" name="targetUserId" value={member.userId} />
+              <SubmitButton
+                variant={member.status === 'suspended' ? 'outline' : 'destructive'}
+                size="sm"
+              >
+                {member.status === 'suspended'
+                  ? de.team.reactivate
+                  : de.team.deactivate}
+              </SubmitButton>
+            </form>
+            {canPurge && (
+              <PurgeMemberButton
+                userId={member.userId}
+                orgId={orgId}
+                memberName={member.fullName ?? member.email ?? 'Mitarbeiter'}
+              />
+            )}
+          </div>
         )}
       </td>
     </tr>
