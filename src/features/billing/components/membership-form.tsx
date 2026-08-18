@@ -42,8 +42,8 @@ export function MembershipForm({
     if (state.status === 'success') router.refresh();
   }, [state, router]);
 
-  const stage1Name = settings?.stage1_name ?? 'Stage 1';
-  const stage2Name = settings?.stage2_name ?? 'Stage 2';
+  const stage1Name = settings?.stage1_name ?? 'supevo Mitgliedschaft Stage 1';
+  const stage2Name = settings?.stage2_name ?? 'supevo Mitgliedschaft Stage 2';
   const stage1Price = formatEuroCents(settings?.stage1_net_cents ?? 0);
   const stage2Price = formatEuroCents(settings?.stage2_net_cents ?? 0);
 

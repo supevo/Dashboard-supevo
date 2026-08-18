@@ -203,14 +203,14 @@ export function BillingEntityForm({
 
       <SectionTitle>Pakete (Stage-Preise, netto/Monat)</SectionTitle>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field name="stage1_name" label="Stage 1 – Name" defaultValue={entity?.stage1_name ?? 'Mitgliedschaft'} />
+        <Field name="stage1_name" label="Stage 1 – Name" defaultValue={entity?.stage1_name ?? 'supevo Mitgliedschaft Stage 1'} />
         <Field
           name="stage1_price"
           label="Stage 1 – Preis (€ netto)"
           defaultValue={centsToInput(entity?.stage1_net_cents)}
           placeholder="4750"
         />
-        <Field name="stage2_name" label="Stage 2 – Name" defaultValue={entity?.stage2_name ?? 'Mitgliedschaft Pro'} />
+        <Field name="stage2_name" label="Stage 2 – Name" defaultValue={entity?.stage2_name ?? 'supevo Mitgliedschaft Stage 2'} />
         <Field
           name="stage2_price"
           label="Stage 2 – Preis (€ netto)"

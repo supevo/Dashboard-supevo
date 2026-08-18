@@ -62,13 +62,16 @@ export default async function NewClientWizardPage({
           <CardHeader>
             <CardTitle>2. Mitgliedschaft — {company.name}</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Stelle das Paket im Baukasten zusammen: supevo Stage 1/2 oder
-              einzelne Module. Der Preis ergibt sich live; ein Sonderpreis lässt
-              sich über die Module bzw. den Baukasten abbilden.
+              {company.isLegacy
+                ? 'Legacy-Kunde: Module aus dem Baukasten wählen, Preis ergibt sich live.'
+                : 'supevo-Kunde: Stage 1 oder Stage 2 wählen.'}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <MembershipConfiguratorPanel clientCompanyId={clientId} />
+            <MembershipConfiguratorPanel
+              clientCompanyId={clientId}
+              show={company.isLegacy ? 'modules' : 'stages'}
+            />
             <div className="flex justify-end border-t pt-3">
               <Link
                 href={`/app/clients/new?step=3&client=${clientId}`}

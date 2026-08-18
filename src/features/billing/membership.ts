@@ -37,6 +37,6 @@ export function membershipLabel(
 ): string {
   if (!membership) return '—';
   if (membership.custom_name) return membership.custom_name;
-  if (membership.stage === 2) return settings?.stage2_name ?? 'Stage 2';
-  return settings?.stage1_name ?? 'Stage 1';
+  if (membership.stage === 2) return settings?.stage2_name ?? 'supevo Mitgliedschaft Stage 2';
+  return settings?.stage1_name ?? 'supevo Mitgliedschaft Stage 1';
 }

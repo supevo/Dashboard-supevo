@@ -47,6 +47,31 @@ export function ClientWizardStep1({ orgId }: { orgId: string }) {
         <Label htmlFor="notes">{de.clients.notes}</Label>
         <Textarea id="notes" name="notes" />
       </div>
+
+      <fieldset className="space-y-2">
+        <Label>Kundentyp</Label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/5">
+            <input type="radio" name="customerType" value="supevo" defaultChecked className="mt-0.5" />
+            <span>
+              <span className="font-medium">supevo</span>
+              <span className="block text-xs text-muted-foreground">
+                Komplettbetreuung – Stage 1 oder Stage 2.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/5">
+            <input type="radio" name="customerType" value="legacy" className="mt-0.5" />
+            <span>
+              <span className="font-medium">Legacy / Bestandskunde</span>
+              <span className="block text-xs text-muted-foreground">
+                Einzelne Module aus dem Baukasten + Custompreis.
+              </span>
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
       <p className="text-xs text-muted-foreground">
         Die Rechnungsadresse des Kunden erfasst du im nächsten Schritt bei der
         Mitgliedschaft – daraus entsteht später der Vertrag.

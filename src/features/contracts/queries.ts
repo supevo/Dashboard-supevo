@@ -107,12 +107,22 @@ function buildLines(
   const byKey = new Map(catalog.map((d) => [d.key, d]));
   const lines: ContractLine[] = [];
   let budgetCents = 0;
-  for (const s of selections) {
-    if (!s.enabled) continue;
-    const def = byKey.get(s.id);
-    if (!def) continue;
+  // Positionen in Katalog-Reihenfolge (position): die Grundbasis (z. B.
+  // „supevo Smart" / Stage) mit niedrigster Position steht so ganz oben.
+  const active = selections
+    .filter((s) => s.enabled)
+    .map((s) => ({ s, def: byKey.get(s.id) }))
+    .filter((x): x is { s: typeof x.s; def: ModuleDef } => !!x.def)
+    .sort(
+      (a, b) =>
+        (a.def.pricing.kind === 'stage' ? -1 : 0) -
+          (b.def.pricing.kind === 'stage' ? -1 : 0) ||
+        a.def.position - b.def.position,
+    );
+  for (const { s, def } of active) {
     const detail: string[] = [];
-    if (def.pricing.kind === 'per_unit' && s.qty) {
+    // Menge nur zeigen, wenn wirklich mehrere Einheiten gemeint sind.
+    if (def.pricing.kind === 'per_unit' && s.qty && s.qty > 1) {
       detail.push(`${s.qty} ${def.pricing.unitLabel}`);
     }
     if (def.keywordCents > 0) {

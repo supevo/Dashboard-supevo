@@ -31,11 +31,13 @@ export async function createClientCompanyAction(
     name: formData.get('name'),
     contactEmail: formData.get('contactEmail') ?? '',
     notes: formData.get('notes') ?? '',
+    customerType: formData.get('customerType') ?? undefined,
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { orgId, name, contactEmail, notes } = parsed.data;
+  const { orgId, name, contactEmail, notes, customerType } = parsed.data;
+  const isLegacy = customerType === 'legacy';
 
   const user = await requireUser();
   // Any agency staff member may add a client. The insert runs via the service
@@ -50,6 +52,7 @@ export async function createClientCompanyAction(
       name,
       contact_email: contactEmail || null,
       notes: notes || null,
+      is_legacy: isLegacy,
       created_by: user.id,
     })
     .select('id')

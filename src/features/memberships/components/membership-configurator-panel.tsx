@@ -8,8 +8,10 @@ import { MembershipClientEditToggle } from '@/features/memberships/components/me
  */
 export async function MembershipConfiguratorPanel({
   clientCompanyId,
+  show = 'all',
 }: {
   clientCompanyId: string;
+  show?: 'all' | 'stages' | 'modules';
 }) {
   const view = await getMembershipConfigurator(clientCompanyId);
   if (!view) {
@@ -35,6 +37,7 @@ export async function MembershipConfiguratorPanel({
               }
             : null
         }
+        show={show}
       />
       <div className="border-t pt-4">
         <MembershipClientEditToggle

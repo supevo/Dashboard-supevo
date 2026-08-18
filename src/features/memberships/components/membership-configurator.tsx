@@ -78,6 +78,7 @@ export function MembershipConfigurator({
   initialRedeemed = [],
   mode = 'agency',
   readOnly = false,
+  show = 'all',
 }: {
   modules: ModuleDef[];
   clientCompanyId?: string;
@@ -89,6 +90,8 @@ export function MembershipConfigurator({
   initialRedeemed?: string[];
   mode?: 'agency' | 'portal' | 'lead';
   readOnly?: boolean;
+  /** 'stages' = nur supevo Stage 1/2, 'modules' = nur Baukasten-Module. */
+  show?: 'all' | 'stages' | 'modules';
 }) {
   const router = useRouter();
   const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
@@ -362,7 +365,7 @@ export function MembershipConfigurator({
       )}
 
       {/* Komplettbetreuung (supevo-Mitgliedschaften) */}
-      {stageModules.length > 0 && (
+      {show !== 'modules' && stageModules.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Komplettbetreuung</h3>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -371,7 +374,7 @@ export function MembershipConfigurator({
         </section>
       )}
 
-      {stageModules.length > 0 && hasRest && (
+      {show === 'all' && stageModules.length > 0 && hasRest && (
         <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <span className="h-px flex-1 bg-border" />
           oder
@@ -380,7 +383,7 @@ export function MembershipConfigurator({
       )}
 
       {/* Individuelles Marketingpaket (einzelne Bausteine) */}
-      {hasRest && (
+      {show !== 'stages' && hasRest && (
         <section className="space-y-4">
           <h3 className="text-sm font-semibold">Individuelles Marketingpaket</h3>
           {restGroups.map((g) => (
