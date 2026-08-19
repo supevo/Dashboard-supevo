@@ -880,6 +880,7 @@ export interface Database {
           is_active: boolean;
           is_legacy: boolean;
           bill_print_products: boolean;
+          invoice_recipient_email: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -901,6 +902,7 @@ export interface Database {
           is_active?: boolean;
           is_legacy?: boolean;
           bill_print_products?: boolean;
+          invoice_recipient_email?: string | null;
           created_by?: string | null;
         };
         Update: Partial<

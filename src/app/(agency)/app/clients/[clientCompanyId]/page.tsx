@@ -501,6 +501,7 @@ export default async function ClientDetailPage({
                     <InvoicesSection
                       clientCompanyId={clientCompanyId}
                       invoices={invoices}
+                      recipientEmail={company.invoiceRecipientEmail}
                     />
                   </CardContent>
                 </Card>
