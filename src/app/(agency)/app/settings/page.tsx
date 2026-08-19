@@ -12,6 +12,10 @@ import { getOneDriveStatus } from '@/features/onedrive/queries';
 import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
 import { ChoreAdmin } from '@/features/office-chores/components/chore-admin';
 import { listOrgChores } from '@/features/office-chores/queries';
+import { getOrgBranding } from '@/features/branding/queries';
+import { LogoSettings } from '@/features/branding/components/logo-settings';
+import { getBinCoverage } from '@/features/bins/queries';
+import { BinAdmin } from '@/features/bins/components/bin-admin';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage({
@@ -21,13 +25,16 @@ export default async function SettingsPage({
 }) {
   const { orgId } = await requireOrgAdminPage();
   // Independent → parallel. Org and OneDrive-Status don't depend on each other.
-  const [org, oneDriveStatus, chores, sp, cookieStore] = await Promise.all([
-    getOrganization(orgId),
-    getOneDriveStatus(orgId),
-    listOrgChores(orgId),
-    searchParams,
-    cookies(),
-  ]);
+  const [org, oneDriveStatus, chores, branding, binCoverage, sp, cookieStore] =
+    await Promise.all([
+      getOrganization(orgId),
+      getOneDriveStatus(orgId),
+      listOrgChores(orgId),
+      getOrgBranding(orgId),
+      getBinCoverage(orgId),
+      searchParams,
+      cookies(),
+    ]);
   if (!org) return null;
 
   const aiOn = isAiEnabled();
@@ -39,6 +46,19 @@ export default async function SettingsPage({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{de.settings.title}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🖼️ Logo</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Euer Logo für das Dashboard und für erzeugte Medien (Rechnungen,
+            Verträge). Dunkel für helle Hintergründe, hell für die Dark-Ansicht.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <LogoSettings logoDark={branding.logoDark} logoLight={branding.logoLight} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -110,6 +130,20 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent>
           <ChoreAdmin chores={chores} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🗑️ Mülltonnenservice</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Abfuhrtermine per ICS hochladen. „Rausstellen" (Vorabend) und
+            „Reinnehmen" (Abfuhrtag) werden beim Ausstempeln fair verteilt – für
+            erledigte Aufgaben gibt es XP.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <BinAdmin coverage={binCoverage} />
         </CardContent>
       </Card>
 

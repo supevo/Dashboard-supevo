@@ -16,6 +16,10 @@ import {
   assignClockOutChores,
   flagMissedChoresOnClockIn,
 } from '@/features/office-chores/queries';
+import {
+  assignClockOutBinTask,
+  flagMissedBinTasksOnClockIn,
+} from '@/features/bins/queries';
 import { startOfBerlinDayUtc, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import {
@@ -133,6 +137,11 @@ export async function clockInAction(
   } catch {
     /* optional */
   }
+  try {
+    await flagMissedBinTasksOnClockIn(user.id);
+  } catch {
+    /* optional */
+  }
 
   revalidatePath('/app/time');
   return successResult('Eingestempelt.');
@@ -183,6 +192,17 @@ export async function clockOutAction(): Promise<ActionResult> {
     });
   } catch {
     /* chore assignment is optional */
+  }
+
+  // Mülltonnenservice: eine fällige Tonnen-Aufgabe fair zuteilen (best-effort).
+  try {
+    await assignClockOutBinTask({
+      orgId: open.organization_id,
+      userId: user.id,
+      workSessionId: open.id,
+    });
+  } catch {
+    /* bin assignment is optional */
   }
 
   revalidatePath('/app/time');

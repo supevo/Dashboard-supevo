@@ -12,6 +12,7 @@ import {
   type BillingEntity,
 } from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
+import { getOrgBranding } from '@/features/branding/queries';
 import { promoteIfDue } from '@/features/memberships/configurator-queries';
 import type { Database } from '@/lib/database.types';
 
@@ -89,6 +90,7 @@ async function finalizeWithService(
       items: items ?? [],
       settings: entity,
       membership,
+      logoDark: (await getOrgBranding(orgId)).logoDark,
     });
   } catch (e) {
     logger.error('cron.pdf.failed', { error: (e as Error).message });

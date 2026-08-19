@@ -21,6 +21,7 @@ import {
   resolveInvoiceEntity,
 } from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
+import { getOrgBranding } from '@/features/branding/queries';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import type { Database } from '@/lib/database.types';
 
@@ -140,6 +141,7 @@ export async function finalizeInvoiceAction(
       items: items ?? [],
       settings: entity,
       membership,
+      logoDark: (await getOrgBranding(invoice.organization_id)).logoDark,
     });
   } catch (e) {
     logger.error('invoice.pdf.failed', { error: (e as Error).message });

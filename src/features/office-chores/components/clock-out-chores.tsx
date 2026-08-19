@@ -7,6 +7,11 @@ import {
   completeChoreAction,
 } from '@/features/office-chores/actions';
 import type { OpenChore } from '@/features/office-chores/queries';
+import {
+  getMyOpenBinTasksAction,
+  completeBinTaskAction,
+} from '@/features/bins/actions';
+import type { OpenBinTask } from '@/features/bins/queries';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -25,6 +30,7 @@ export function ClockOutChoresModal({
 }) {
   const router = useRouter();
   const [chores, setChores] = useState<OpenChore[] | null>(null);
+  const [bins, setBins] = useState<OpenBinTask[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
@@ -32,23 +38,25 @@ export function ClockOutChoresModal({
     if (!open) return;
     let active = true;
     getMyOpenChoresAction()
-      .then((list) => {
-        if (active) setChores(list);
-      })
-      .catch(() => {
-        if (active) setChores([]);
-      });
+      .then((list) => active && setChores(list))
+      .catch(() => active && setChores([]));
+    getMyOpenBinTasksAction()
+      .then((list) => active && setBins(list))
+      .catch(() => active && setBins([]));
     return () => {
       active = false;
     };
   }, [open]);
 
-  // Nothing assigned → don't get in the way.
-  useEffect(() => {
-    if (open && chores !== null && chores.length === 0) onClose();
-  }, [open, chores, onClose]);
+  const loaded = chores !== null && bins !== null;
+  const empty = (chores?.length ?? 0) === 0 && (bins?.length ?? 0) === 0;
 
-  if (!open || !chores || chores.length === 0) return null;
+  // Nichts zugeteilt → nicht im Weg stehen.
+  useEffect(() => {
+    if (open && loaded && empty) onClose();
+  }, [open, loaded, empty, onClose]);
+
+  if (!open || !loaded || empty) return null;
 
   function done(id: string) {
     setError(null);
@@ -58,10 +66,21 @@ export function ClockOutChoresModal({
         setError(res.message);
         return;
       }
-      const rest = (chores ?? []).filter((c) => c.id !== id);
-      setChores(rest);
+      setChores((prev) => (prev ?? []).filter((c) => c.id !== id));
       router.refresh();
-      if (rest.length === 0) onClose();
+    });
+  }
+
+  function doneBin(id: string) {
+    setError(null);
+    start(async () => {
+      const res = await completeBinTaskAction(id);
+      if (res.status === 'error') {
+        setError('message' in res ? (res.message ?? 'Fehler') : 'Fehler');
+        return;
+      }
+      setBins((prev) => (prev ?? []).filter((b) => b.id !== id));
+      router.refresh();
     });
   }
 
@@ -87,28 +106,60 @@ export function ClockOutChoresModal({
         </CardHeader>
         <CardContent className="space-y-3">
           {error && <Alert variant="destructive">{error}</Alert>}
-          <ul className="space-y-2">
-            {chores.map((c) => (
-              <li
-                key={c.id}
-                className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
-                  c.makeup ? 'border-amber-400/60 bg-amber-400/10' : ''
-                }`}
-              >
-                <span className="text-sm font-medium">
-                  {c.text}
-                  {c.makeup && (
-                    <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                      nachholen · keine XP
+          {(chores?.length ?? 0) > 0 && (
+            <ul className="space-y-2">
+              {chores!.map((c) => (
+                <li
+                  key={c.id}
+                  className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
+                    c.makeup ? 'border-amber-400/60 bg-amber-400/10' : ''
+                  }`}
+                >
+                  <span className="text-sm font-medium">
+                    {c.text}
+                    {c.makeup && (
+                      <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                        nachholen · keine XP
+                      </span>
+                    )}
+                  </span>
+                  <Button size="sm" disabled={pending} onClick={() => done(c.id)}>
+                    Erledigt ✓
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {(bins?.length ?? 0) > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                🗑️ Mülltonnen
+              </div>
+              <ul className="space-y-2">
+                {bins!.map((b) => (
+                  <li
+                    key={b.id}
+                    className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
+                      b.makeup ? 'border-amber-400/60 bg-amber-400/10' : ''
+                    }`}
+                  >
+                    <span className="text-sm font-medium">
+                      {b.label}
+                      {b.makeup && (
+                        <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                          nachholen · keine XP
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-                <Button size="sm" disabled={pending} onClick={() => done(c.id)}>
-                  Erledigt ✓
-                </Button>
-              </li>
-            ))}
-          </ul>
+                    <Button size="sm" disabled={pending} onClick={() => doneBin(b.id)}>
+                      Erledigt ✓
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="text-right">
             <button
               type="button"

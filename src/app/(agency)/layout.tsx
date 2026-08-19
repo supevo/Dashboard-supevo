@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { getOrgBranding } from '@/features/branding/queries';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
@@ -116,12 +117,14 @@ export default async function AgencyLayout({
   const navItems = buildNavItems(admin, isSuperAdmin(user));
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
   const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
+  const branding = orgId ? await getOrgBranding(orgId) : null;
 
   return (
     <AppShell
       navItems={navItems}
       menuItems={menuItems}
       areaLabel="Agenturbereich"
+      logo={branding ? { dark: branding.logoDark, light: branding.logoLight } : undefined}
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}

@@ -43,6 +43,8 @@ interface AppShellProps {
   /** When true, the header user menu hides on desktop (the right rail shows it),
    *  staying available on mobile where the rail is hidden. */
   userMenuInRail?: boolean;
+  /** Optionales Org-Logo (data-URIs) für den Header. */
+  logo?: { dark: string | null; light: string | null };
   children: React.ReactNode;
 }
 
@@ -64,13 +66,14 @@ export function AppShell({
   headerBadge,
   sidebarFooter,
   userMenuInRail = false,
+  logo,
   children,
 }: AppShellProps) {
   return (
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-6">
-          <Logo className="h-7" />
+          <Logo className="h-7" dark={logo?.dark} light={logo?.light} />
           <p className="mt-1 text-xs text-muted-foreground">{areaLabel}</p>
         </div>
         <SidebarNav items={navItems} />

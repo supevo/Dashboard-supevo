@@ -29,6 +29,8 @@ export async function renderInvoicePdf(params: {
   items: InvoiceItem[];
   settings: Settings;
   membership: Membership | null;
+  /** Dunkles Org-Logo als PNG/JPG-data-URI (SVG kann pdf-lib nicht einbetten). */
+  logoDark?: string | null;
 }): Promise<Uint8Array> {
   const { invoice, items, settings, membership } = params;
 
@@ -37,6 +39,24 @@ export async function renderInvoicePdf(params: {
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const { width, height } = page.getSize();
+
+  // Logo oben rechts (nur PNG/JPG). Fehler beim Einbetten ignorieren.
+  if (params.logoDark) {
+    try {
+      const m = params.logoDark.match(/^data:image\/(png|jpe?g);base64,(.+)$/);
+      if (m && m[2]) {
+        const bytes = Buffer.from(m[2], 'base64');
+        const img =
+          m[1] === 'png' ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
+        const scale = Math.min(150 / img.width, 45 / img.height, 1);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        page.drawImage(img, { x: 595.28 - 50 - w, y: 841.89 - 40 - h, width: w, height: h });
+      }
+    } catch {
+      /* Logo optional */
+    }
+  }
   const left = 50;
   const right = width - 50;
   const gray = rgb(0.4, 0.4, 0.4);

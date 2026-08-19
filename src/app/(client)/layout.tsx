@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { AppShell, type NavItem } from '@/components/layout/app-shell';
+import { getOrgBranding } from '@/features/branding/queries';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import {
   getCurrentUser,
@@ -57,6 +58,7 @@ export default async function ClientLayout({
 
   // Show the inquiries inbox only when the agency has enabled it for this client.
   const company = await getMyClientCompany();
+  const branding = company ? await getOrgBranding(company.organizationId) : null;
   const [inquiriesEnabled, hasPlan] = await Promise.all([
     company ? isInquiryInboxEnabled(company.clientCompanyId) : Promise.resolve(false),
     hasMyMarketingPlan(),
@@ -110,6 +112,7 @@ export default async function ClientLayout({
       menuItems={MENU_ITEMS}
       areaLabel="Kundenportal"
       area="portal"
+      logo={branding ? { dark: branding.logoDark, light: branding.logoLight } : undefined}
       userId={user.id}
       userName={user.fullName ?? user.email}
       hasAvatar={Boolean(profile?.avatar_url)}
