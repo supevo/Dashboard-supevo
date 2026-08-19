@@ -4,11 +4,40 @@ import {
   matchReceiptsToTransactions,
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
+  matchReceiptCombinations,
   computePartnerBalances,
   numberMatchStrength,
   AUTO_THRESHOLD,
   SUGGEST_THRESHOLD,
 } from '../reconcile';
+
+describe('matchReceiptCombinations', () => {
+  it('matches several Amazon receipts summing to one debit', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Amazon EU', bruttoCents: 1000 },
+      { id: 'r2', datum: '2024-03-05', haendler: 'Amazon EU', bruttoCents: 2000 },
+      { id: 'r3', datum: '2024-03-05', haendler: 'Amazon EU', bruttoCents: 4000 },
+    ];
+    const txs = [
+      { id: 't1', datum: '2024-03-06', gegen: 'AMAZON PAYMENTS', zweck: 'Bestellung', betragCents: -3000 },
+    ];
+    const combos = matchReceiptCombinations(receipts, txs);
+    expect(combos).toHaveLength(1);
+    expect(combos[0]!.receiptIds.sort()).toEqual(['r1', 'r2']);
+    expect(combos[0]!.totalCents).toBe(3000);
+  });
+
+  it('returns nothing when no receipt subset sums to the payment', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1000 },
+      { id: 'r2', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 2000 },
+    ];
+    const txs = [
+      { id: 't1', datum: '2024-03-06', gegen: 'Amazon', zweck: '', betragCents: -5000 },
+    ];
+    expect(matchReceiptCombinations(receipts, txs)).toHaveLength(0);
+  });
+});
 
 describe('computePartnerBalances', () => {
   it('groups round Google payments and invoices whose SUM matches', () => {

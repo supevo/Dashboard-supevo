@@ -3031,6 +3031,30 @@ export interface Database {
         >;
         Relationships: [];
       };
+      bookkeeping_tx_receipts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          billing_entity_id: string;
+          transaction_id: string;
+          receipt_id: string;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          billing_entity_id: string;
+          transaction_id: string;
+          receipt_id: string;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['bookkeeping_tx_receipts']['Insert']
+        >;
+        Relationships: [];
+      };
       bookkeeping_reconcile_dismissals: {
         Row: {
           id: string;

@@ -29,6 +29,7 @@ import {
   ApplyMatchButton,
   ApplyComboButton,
   ApplySplitButton,
+  ApplyReceiptComboButton,
 } from '@/features/accounting/components/reconcile-buttons';
 import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
 import { kategorieLabel } from '@/features/accounting/categories';
@@ -321,6 +322,8 @@ export async function ReconcilePanel({
   const payments = wantOut ? [] : inView(all.payments);
   const combos = wantOut ? [] : inView(all.combos);
   const splits = wantOut ? [] : inView(all.splits);
+  // Beleg-Sammlungen sind immer Ausgänge (mehrere Belege → eine Abbuchung).
+  const receiptCombos = wantIn ? [] : inView(all.receiptCombos);
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
@@ -335,6 +338,11 @@ export async function ReconcilePanel({
   // im Ausgaben-Filter, Eingangsrechnungen (Ausgabe) im Einnahmen-Filter.
   const unpaidOutgoing = wantOut ? [] : inView(all.unpaidOutgoing);
   const unpaidIncoming = wantIn ? [] : inView(all.unpaidIncoming);
+  const openCount =
+    missingReceipts.length +
+    missingIncoming.length +
+    unpaidOutgoing.length +
+    unpaidIncoming.length;
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -381,6 +389,17 @@ export async function ReconcilePanel({
       }`,
       score: `${Math.round(r.match.score * 100)} %`,
       grund: r.match.reason,
+    })),
+    ...receiptCombos.map(({ s: rc }) => ({
+      art: 'Ausgabe' as const,
+      datum: rc.txDatum,
+      beschreibung: rc.txGegen ?? '',
+      betrag: euro(rc.txBetragCents),
+      zuordnung: `${rc.receipts.length} Belege: ${rc.receipts
+        .map((x) => x.haendler ?? '—')
+        .join(', ')}`,
+      score: `${Math.round(rc.match.score * 100)} %`,
+      grund: rc.match.reason,
     })),
     ...missingReceipts.map(({ s: m }) => ({
       art: 'Ausgabe' as const,
@@ -492,6 +511,14 @@ export async function ReconcilePanel({
           können. Prüfe die Vorschläge vor dem Übernehmen genau.
         </p>
       )}
+
+      <div>
+        <h2 className="text-base font-semibold">Vorschläge zum Bestätigen</h2>
+        <p className="text-xs text-muted-foreground">
+          Zuordnungen, die der Abgleich gefunden hat – nichts wird automatisch
+          gebucht, erst mit „Übernehmen“.
+        </p>
+      </div>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">
@@ -668,6 +695,65 @@ export async function ReconcilePanel({
         </section>
       )}
 
+      {receiptCombos.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">
+            Beleg-Sammlungen{' '}
+            <span className="text-muted-foreground">({receiptCombos.length})</span>
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Eine Abbuchung deckt mehrere Belege ab (z. B. ein Amazon-PDF mit
+            mehreren Seiten) – die Summe der Belege ergibt den Zahlbetrag.
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Zahlung</th>
+                  <th className="px-3 py-2 font-medium">Belege</th>
+                  <th className="px-3 py-2 text-right font-medium">Summe</th>
+                  <th className="px-3 py-2 text-right font-medium">Score</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {receiptCombos.map(({ s: rc, period }) => (
+                  <tr key={rc.match.txId} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      {rc.txGegen ?? '—'} · {formatEuroCents(rc.txBetragCents)}
+                      <div className="text-xs text-muted-foreground">
+                        {rc.txDatum}
+                        <PeriodBadge period={period} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {rc.receipts.map((r) => (
+                        <div key={r.id} className="text-xs">
+                          {r.datum ?? '—'} · {r.haendler ?? '—'} ·{' '}
+                          {r.bruttoCents != null
+                            ? formatEuroCents(r.bruttoCents)
+                            : '—'}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {formatEuroCents(rc.match.totalCents)}
+                    </td>
+                    <td className="px-3 py-2 text-right">{pct(rc.match.score)}</td>
+                    <td className="px-3 py-2 text-right">
+                      <ApplyReceiptComboButton
+                        transactionId={rc.match.txId}
+                        receiptIds={rc.match.receiptIds}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">
           Belege ↔ Buchungen{' '}
@@ -728,39 +814,53 @@ export async function ReconcilePanel({
         )}
       </section>
 
-      <MissingBookingsSection
-        title="❓ Beleg fehlt"
-        description="Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den Beleg suchen und im Tab „Belege“ hochladen – danach „Erneut abgleichen“."
-        accent="rose"
-        rows={missingReceipts}
-        peerLabel="Empfänger"
-        amountPositive={false}
-        withToggle
-      />
+      {openCount > 0 && (
+        <details className="rounded-lg border bg-muted/20 open:pb-2">
+          <summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
+            Offene Posten & Hinweise{' '}
+            <span className="text-muted-foreground">({openCount})</span>
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              – nichts zu bestätigen, nur zur Übersicht (fehlende Belege,
+              unbezahlte Rechnungen …)
+            </span>
+          </summary>
+          <div className="space-y-6 px-3 pt-2">
+            <MissingBookingsSection
+              title="❓ Beleg fehlt"
+              description="Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den Beleg suchen und im Tab „Belege“ hochladen – danach „Vorschläge aktualisieren“."
+              accent="rose"
+              rows={missingReceipts}
+              peerLabel="Empfänger"
+              amountPositive={false}
+              withToggle
+            />
 
-      <MissingBookingsSection
-        title="❓ Eingänge ohne Zuordnung"
-        description="Zu diesen Zahlungseingängen gibt es weder eine offene Rechnung noch einen Einnahme-Beleg. Rechnung/Beleg ergänzen oder manuell zuordnen."
-        accent="amber"
-        rows={missingIncoming}
-        peerLabel="Zahler"
-        amountPositive
-        withToggle={false}
-      />
+            <MissingBookingsSection
+              title="❓ Eingänge ohne Zuordnung"
+              description="Zu diesen Zahlungseingängen gibt es weder eine offene Rechnung noch einen Einnahme-Beleg. Rechnung/Beleg ergänzen oder manuell zuordnen."
+              accent="amber"
+              rows={missingIncoming}
+              peerLabel="Zahler"
+              amountPositive
+              withToggle={false}
+            />
 
-      <UnpaidReceiptsSection
-        title="📤 Ausgangsrechnungen ohne Zahlungseingang"
-        description="Von dir gestellte Rechnungen / Einnahme-Belege, zu denen der Abgleich noch keinen passenden Bankeingang gefunden hat – vermutlich noch offen (nicht bezahlt)."
-        accent="emerald"
-        rows={unpaidOutgoing}
-      />
+            <UnpaidReceiptsSection
+              title="📤 Ausgangsrechnungen ohne Zahlungseingang"
+              description="Von dir gestellte Rechnungen / Einnahme-Belege, zu denen der Abgleich noch keinen passenden Bankeingang gefunden hat – vermutlich noch offen (nicht bezahlt)."
+              accent="emerald"
+              rows={unpaidOutgoing}
+            />
 
-      <UnpaidReceiptsSection
-        title="📥 Eingangsrechnungen ohne Zahlung"
-        description="Lieferantenrechnungen / Ausgabe-Belege, zu denen keine passende Bankzahlung gefunden wurde – vermutlich noch nicht bezahlt."
-        accent="red"
-        rows={unpaidIncoming}
-      />
+            <UnpaidReceiptsSection
+              title="📥 Eingangsrechnungen ohne Zahlung"
+              description="Lieferantenrechnungen / Ausgabe-Belege, zu denen keine passende Bankzahlung gefunden wurde – vermutlich noch nicht bezahlt."
+              accent="red"
+              rows={unpaidIncoming}
+            />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   type Match,
   type ComboMatch,
   type SplitMatch,
+  type ReceiptComboMatch,
   type PartnerBalance,
 } from '@/features/accounting/reconcile';
 import { computeReconcile } from '@/features/accounting/reconcile-compute';
@@ -46,6 +47,20 @@ export interface ComboSuggestion {
     number: string | null;
     kunde: string | null;
     grossCents: number;
+  }[];
+}
+
+/** One outgoing payment ↔ several receipts (Amazon-PDF mit mehreren Seiten). */
+export interface ReceiptComboSuggestion {
+  match: ReceiptComboMatch;
+  txDatum: string;
+  txGegen: string | null;
+  txBetragCents: number;
+  receipts: {
+    id: string;
+    haendler: string | null;
+    datum: string | null;
+    bruttoCents: number | null;
   }[];
 }
 
@@ -90,6 +105,8 @@ export interface ReconcileSuggestions {
   payments: PaymentSuggestion[];
   receipts: ReceiptSuggestion[];
   combos: ComboSuggestion[];
+  /** One outgoing payment ↔ several receipts (Amazon-Sammel-PDF). */
+  receiptCombos: ReceiptComboSuggestion[];
   /** One invoice total ↔ several partial payments (Teilzahlungen). */
   splits: SplitSuggestion[];
   /** Ausgaben (outgoing) without any matching receipt – a Beleg is missing. */
@@ -298,6 +315,13 @@ export async function getReconcileSuggestions(
     .eq('billing_entity_id', billingEntityId)
     .limit(20000);
 
+  // Beleg-Sammlungen (mehrere Belege je Zahlung). Tabelle fehlt evtl. → leer.
+  const { data: receiptLinkRows } = await supabase
+    .from('bookkeeping_tx_receipts')
+    .select('transaction_id, receipt_id')
+    .eq('billing_entity_id', billingEntityId)
+    .limit(20000);
+
   const { data: invoiceRows } = await supabase
     .from('invoices')
     .select(
@@ -350,6 +374,7 @@ export async function getReconcileSuggestions(
   return computeReconcile({
     txRows: txns ?? [],
     allocRows: allocRows ?? [],
+    receiptLinks: receiptLinkRows ?? [],
     invoiceRows: invoiceRows ?? [],
     paidInvoiceRows: paidInvoiceRows ?? [],
     clientName,

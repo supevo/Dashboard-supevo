@@ -728,6 +728,125 @@ export function matchReceiptsToTransactions(
   return greedy(candidates);
 }
 
+export interface ReceiptComboMatch {
+  txId: string;
+  receiptIds: string[];
+  score: number;
+  reason: string;
+  /** Betrags-MAGNITUDE der Zahlung (positiv). */
+  paymentCents: number;
+  totalCents: number;
+  auto: boolean;
+}
+
+/**
+ * Best subset (2..maxK) of Ausgabe-Belege whose brutto sums to the payment
+ * (exact/rounding). Same DFS shape as bestPaymentSubset.
+ */
+function bestReceiptSubset(
+  targetCents: number,
+  candidates: ReceiptLite[],
+  maxK = 6,
+): { ids: string[]; sum: number } | null {
+  const sorted = candidates
+    .filter(
+      (c): c is ReceiptLite & { bruttoCents: number } =>
+        c.bruttoCents != null && c.bruttoCents > 0 && c.bruttoCents <= targetCents,
+    )
+    .sort((a, b) => b.bruttoCents - a.bruttoCents)
+    .slice(0, 16);
+  const upper = targetCents + 2;
+
+  const found: { ids: string[]; sum: number; delta: number }[] = [];
+  const chosen: (ReceiptLite & { bruttoCents: number })[] = [];
+
+  function consider(): void {
+    if (chosen.length < 2) return;
+    const sum = chosen.reduce((s, c) => s + c.bruttoCents, 0);
+    if (comboAmountScore(sum, targetCents) <= 0) return;
+    found.push({
+      ids: chosen.map((c) => c.id),
+      sum,
+      delta: Math.abs(sum - targetCents),
+    });
+  }
+
+  function dfs(start: number, partial: number): void {
+    consider();
+    if (chosen.length >= maxK) return;
+    for (let i = start; i < sorted.length; i += 1) {
+      const next = partial + sorted[i]!.bruttoCents;
+      if (next > upper) continue;
+      chosen.push(sorted[i]!);
+      dfs(i + 1, next);
+      chosen.pop();
+    }
+  }
+
+  dfs(0, 0);
+  if (found.length === 0) return null;
+  found.sort((a, b) => a.delta - b.delta || a.ids.length - b.ids.length);
+  const best = found[0]!;
+  return { ids: best.ids, sum: best.sum };
+}
+
+/**
+ * Matches ONE outgoing payment to SEVERAL Ausgabe-Belege whose brutto together
+ * sum to it. Deckt den Amazon-Fall ab: ein PDF mit mehreren Rechnungs-Seiten,
+ * die zusammen dem abgebuchten Betrag entsprechen. Kandidaten je Zahlung sind
+ * Belege desselben Händlers (Name ~ oder im Zweck) in einem 60-Tage-Fenster.
+ * Greedy: jede Zahlung und jeder Beleg höchstens einmal. Nur Vorschlag.
+ */
+export function matchReceiptCombinations(
+  receipts: ReceiptLite[],
+  txs: TxLite[],
+): ReceiptComboMatch[] {
+  const results: ReceiptComboMatch[] = [];
+  const usedRec = new Set<string>();
+
+  const ordered = [...txs]
+    .filter((t) => t.betragCents < 0)
+    .sort((a, b) => Math.abs(b.betragCents) - Math.abs(a.betragCents));
+
+  for (const tx of ordered) {
+    const target = Math.abs(tx.betragCents);
+    const candidates = receipts.filter((r) => {
+      if (usedRec.has(r.id)) return false;
+      if (r.bruttoCents == null || r.bruttoCents <= 0 || r.bruttoCents > target) {
+        return false;
+      }
+      const byName =
+        nameSimilarity(tx.gegen, r.haendler) > 0.3 ||
+        nameInPurpose(r.haendler, tx.zweck);
+      const byNumber = numberInPurpose(r.rechnungsnummer ?? null, tx.zweck);
+      if (!byName && !byNumber) return false;
+      if (r.datum && daysBetween(tx.datum, r.datum) > 60) return false;
+      return true;
+    });
+    if (candidates.length < 2) continue;
+
+    const subset = bestReceiptSubset(target, candidates);
+    if (!subset) continue;
+    const score = comboAmountScore(subset.sum, target);
+    if (score <= 0) continue;
+
+    subset.ids.forEach((id) => usedRec.add(id));
+    results.push({
+      txId: tx.id,
+      receiptIds: subset.ids,
+      score,
+      reason:
+        subset.sum === target
+          ? `${subset.ids.length} Belege, Summe exakt`
+          : `${subset.ids.length} Belege, Summe passend`,
+      paymentCents: target,
+      totalCents: subset.sum,
+      auto: false,
+    });
+  }
+  return results;
+}
+
 // --- Saldo je Partner -------------------------------------------------------
 
 export interface PartnerBalanceItem {

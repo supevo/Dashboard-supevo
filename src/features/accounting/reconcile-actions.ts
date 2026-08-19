@@ -127,6 +127,46 @@ async function linkCombo(
 }
 
 /**
+ * Links SEVERAL receipts to ONE outgoing payment (Amazon-Sammel-PDF) via the
+ * bookkeeping_tx_receipts table. Sets the transaction's beleg_id to the first
+ * receipt (so it counts as „belegt") and marks every receipt as zugeordnet.
+ */
+async function linkReceiptCombo(
+  supabase: Supabase,
+  params: {
+    txId: string;
+    orgId: string;
+    entityId: string;
+    userId: string;
+    receiptIds: string[];
+  },
+): Promise<boolean> {
+  const rows = params.receiptIds.map((rid) => ({
+    organization_id: params.orgId,
+    billing_entity_id: params.entityId,
+    transaction_id: params.txId,
+    receipt_id: rid,
+    created_by: params.userId,
+  }));
+  const { error } = await supabase
+    .from('bookkeeping_tx_receipts')
+    .upsert(rows, {
+      onConflict: 'transaction_id,receipt_id',
+      ignoreDuplicates: true,
+    });
+  if (error) return false;
+  await supabase
+    .from('bookkeeping_transactions')
+    .update({ beleg_id: params.receiptIds[0], status: 'gebucht' })
+    .eq('id', params.txId);
+  await supabase
+    .from('bookkeeping_receipts')
+    .update({ status: 'zugeordnet' })
+    .in('id', params.receiptIds);
+  return true;
+}
+
+/**
  * Links SEVERAL payments to ONE invoice (Teilzahlungen) via the allocations
  * table – each payment allocates its full amount to the invoice. The invoice is
  * then covered by the sum of the allocations (reconcile hides it once fully
@@ -268,6 +308,42 @@ export async function applyComboMatchAction(input: {
   if (!ok) return errorResult(de.errors.INTERNAL);
   revalidatePath('/app/finance');
   return successResult('Sammelzahlung zugeordnet.');
+}
+
+/** Confirms one receipt-combo suggestion (one payment ↔ several receipts). */
+export async function applyReceiptComboAction(input: {
+  transactionId: string;
+  receiptIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.transactionId).success ||
+    !Array.isArray(input.receiptIds) ||
+    input.receiptIds.length < 2 ||
+    input.receiptIds.length > 12 ||
+    !input.receiptIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: tx } = await supabase
+    .from('bookkeeping_transactions')
+    .select('organization_id, billing_entity_id')
+    .eq('id', input.transactionId)
+    .maybeSingle();
+  if (!tx) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: tx.organization_id });
+
+  const ok = await linkReceiptCombo(supabase, {
+    txId: input.transactionId,
+    orgId: tx.organization_id,
+    entityId: tx.billing_entity_id,
+    userId: user.id,
+    receiptIds: input.receiptIds,
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Beleg-Sammlung zugeordnet.');
 }
 
 /** Confirms one split suggestion (several payments ↔ one invoice). */
@@ -430,6 +506,32 @@ export async function dismissComboMatchAction(input: {
   return successResult('Vorschlag abgelehnt.');
 }
 
+/** Rejects a receipt-combo suggestion (payment ↔ several receipts). */
+export async function dismissReceiptComboAction(input: {
+  transactionId: string;
+  receiptIds: string[];
+}): Promise<ActionResult> {
+  if (
+    !z.string().uuid().safeParse(input.transactionId).success ||
+    !Array.isArray(input.receiptIds) ||
+    input.receiptIds.length < 1 ||
+    input.receiptIds.length > 12 ||
+    !input.receiptIds.every((id) => z.string().uuid().safeParse(id).success)
+  ) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const ctx = await authorizeTx(supabase, input.transactionId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  const ok = await insertDismissals(supabase, {
+    ...ctx,
+    pairs: input.receiptIds.map((r) => ({ a: input.transactionId, b: r })),
+  });
+  if (!ok) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Vorschlag abgelehnt.');
+}
+
 /** Rejects a Teilzahlung suggestion (invoice ↔ several payments). */
 export async function dismissSplitMatchAction(input: {
   invoiceId: string;
@@ -478,6 +580,7 @@ export async function applyAllConfidentAction(
 
   const all = await getReconcileSuggestions(billingEntityId);
   const safe = (s: number) => s >= BULK_SAFE_THRESHOLD;
+  const userId = (await requireUser()).id;
 
   let applied = 0;
   for (const p of all.payments) {
@@ -505,6 +608,17 @@ export async function applyAllConfidentAction(
       orgId,
       entityId: billingEntityId,
       transactions: s.payments.map((t) => ({ id: t.id, betrag_cents: t.betragCents })),
+    });
+    if (ok) applied += 1;
+  }
+  for (const rc of all.receiptCombos) {
+    if (!inScope(rc.txDatum, scope) || !safe(rc.match.score)) continue;
+    const ok = await linkReceiptCombo(supabase, {
+      txId: rc.match.txId,
+      orgId,
+      entityId: billingEntityId,
+      userId,
+      receiptIds: rc.match.receiptIds,
     });
     if (ok) applied += 1;
   }
