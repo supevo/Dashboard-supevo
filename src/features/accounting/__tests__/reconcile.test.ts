@@ -116,6 +116,34 @@ describe('matchPaymentsToInvoices', () => {
     expect(matches[0]!.score).toBeGreaterThanOrEqual(AUTO_THRESHOLD);
   });
 
+  it('auto-matches via a learned counterparty IBAN even without a number in the purpose', () => {
+    const ibanClientId = new Map([['DE02120300000000202051', 'client-1']]);
+    const payments = [
+      { id: 't1', datum: '2024-03-10', gegen: 'ACME I.G.', zweck: 'Zahlung', betragCents: 119000, gegenIban: 'DE02120300000000202051' },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-2024-5', grossCents: 119000, issueDate: '2024-03-08', kunde: 'Ganz anderer Name', clientId: 'client-1' },
+    ];
+    const matches = matchPaymentsToInvoices(payments, invoices, undefined, ibanClientId);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 't1', rightId: 'i1' });
+    expect(matches[0]!.score).toBeGreaterThanOrEqual(AUTO_THRESHOLD);
+    expect(matches[0]!.auto).toBe(true);
+  });
+
+  it('does not use an IBAN mapped to a different client', () => {
+    const ibanClientId = new Map([['DE02120300000000202051', 'client-1']]);
+    const payments = [
+      { id: 't1', datum: '2024-03-10', gegen: 'Fremd XY', zweck: 'Zahlung', betragCents: 119000, gegenIban: 'DE02120300000000202051' },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-2024-5', grossCents: 119000, issueDate: '2024-03-08', kunde: 'Wildfremd', clientId: 'client-2' },
+    ];
+    const matches = matchPaymentsToInvoices(payments, invoices, undefined, ibanClientId);
+    // Only amount coincides → not auto (no corroboration).
+    expect(matches[0]?.auto ?? false).toBe(false);
+  });
+
   it('a partial debit is suggested but never auto-booked as fully paid', () => {
     const payments = [
       { id: 't1', datum: '2024-03-10', gegen: 'Kunde AG', zweck: 'Anzahlung RE-2024-5', betragCents: 50000 },

@@ -3091,6 +3091,7 @@ export interface Database {
           konto_id: string | null;
           datum: string;
           gegen: string | null;
+          gegen_iban: string | null;
           zweck: string | null;
           betrag_cents: number;
           kategorie_id: string | null;
@@ -3113,6 +3114,7 @@ export interface Database {
           konto_id?: string | null;
           datum: string;
           gegen?: string | null;
+          gegen_iban?: string | null;
           zweck?: string | null;
           betrag_cents: number;
           kategorie_id?: string | null;

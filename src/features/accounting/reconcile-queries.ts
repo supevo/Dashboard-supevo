@@ -204,6 +204,49 @@ export async function getReconcileDiagnostics(
 }
 
 /**
+ * Builds the learned „counterparty IBAN → client" map from bookkeeping rows that
+ * are already linked to an invoice (re_id) and carry a counterparty IBAN. Only
+ * IBANs that map to exactly one client are kept – ambiguous ones are dropped so
+ * they never drive a wrong automatic booking.
+ */
+async function getLearnedIbanClientMap(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  billingEntityId: string,
+  txns: { gegen_iban?: string | null; re_id: string | null }[],
+): Promise<Map<string, string>> {
+  const linked = txns.filter(
+    (t): t is { gegen_iban: string; re_id: string } =>
+      !!t.gegen_iban && !!t.re_id,
+  );
+  if (linked.length === 0) return new Map();
+
+  const reIds = [...new Set(linked.map((t) => t.re_id))];
+  const { data: invoices } = await supabase
+    .from('invoices')
+    .select('id, client_company_id')
+    .eq('billing_entity_id', billingEntityId)
+    .in('id', reIds);
+  const clientByInvoice = new Map(
+    (invoices ?? []).map((i) => [i.id, i.client_company_id] as const),
+  );
+
+  // Sammle je IBAN alle beobachteten Kunden; nur eindeutige IBANs übernehmen.
+  const clientsByIban = new Map<string, Set<string>>();
+  for (const t of linked) {
+    const client = clientByInvoice.get(t.re_id);
+    if (!client) continue;
+    const set = clientsByIban.get(t.gegen_iban) ?? new Set<string>();
+    set.add(client);
+    clientsByIban.set(t.gegen_iban, set);
+  }
+  const map = new Map<string, string>();
+  for (const [iban, clients] of clientsByIban) {
+    if (clients.size === 1) map.set(iban, [...clients][0]!);
+  }
+  return map;
+}
+
+/**
  * Fetches a company's rows and computes the reconcile suggestions.
  * `weak: true` (the "erneut abgleichen" pass) lowers the suggest bar to
  * WEAK_THRESHOLD so borderline candidates for still-open bookings resurface.
@@ -218,10 +261,19 @@ export async function getReconcileSuggestions(
   const { data: txns } = await supabase
     .from('bookkeeping_transactions')
     .select(
-      'id, datum, gegen, zweck, betrag_cents, re_id, beleg_id, beleg_nicht_noetig, kategorie_id',
+      'id, datum, gegen, gegen_iban, zweck, betrag_cents, re_id, beleg_id, beleg_nicht_noetig, kategorie_id',
     )
     .eq('billing_entity_id', billingEntityId)
     .limit(5000);
+
+  // Gelerntes Mapping „Gegen-IBAN → Kunde" aus früher bestätigten Zahlungen:
+  // Bankbuchungen, die bereits einer Rechnung zugeordnet sind (re_id) und eine
+  // Gegen-IBAN tragen. Nur eindeutige IBANs (genau ein Kunde) werden genutzt.
+  const ibanClientId = await getLearnedIbanClientMap(
+    supabase,
+    billingEntityId,
+    txns ?? [],
+  );
 
   const { data: profile } = await supabase
     .from('accounting_profiles')
@@ -279,6 +331,7 @@ export async function getReconcileSuggestions(
     receiptRows: receiptRows ?? [],
     dismissed: dismissRows ?? [],
     excludedCategories,
+    ibanClientId,
     minScore,
   });
 }

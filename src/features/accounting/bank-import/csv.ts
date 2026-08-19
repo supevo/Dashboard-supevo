@@ -4,6 +4,8 @@ import {
   germanAmountToCents,
   normalizeDate,
   cleanText,
+  normalizeIban,
+  extractIban,
 } from './types';
 
 /** Splits one delimited line into fields, honoring double-quoted values. */
@@ -49,6 +51,19 @@ const AMOUNT_KEYS = ['betrag', 'umsatz', 'betrag (eur)', 'betrag(eur)'];
 const SOLL_KEYS = ['soll'];
 const HABEN_KEYS = ['haben'];
 const SIGN_KEYS = ['soll/haben', 'soll/haben-kennzeichen', 's/h', 'haben/soll'];
+// IBAN of the counterparty. Avoid the own-account column ("iban auftragskonto").
+const IBAN_KEYS = [
+  'iban zahlungsbeteiligter',
+  'iban auftraggeber',
+  'iban empfaenger',
+  'iban empfänger',
+  'iban zahlungspflichtiger',
+  'kontonummer/iban',
+  'iban/bic',
+  'empfaenger iban',
+  'empfänger iban',
+  'auftraggeber iban',
+];
 
 function findIndex(headers: string[], keys: string[]): number {
   return headers.findIndex((h) => keys.includes(h));
@@ -100,6 +115,13 @@ export function parseBankCsv(text: string): ParseResult {
   const sollI = findIndex(headers, SOLL_KEYS);
   const habenI = findIndex(headers, HABEN_KEYS);
   const signI = findIndexIncludes(headers, SIGN_KEYS);
+  let ibanI = findIndexIncludes(headers, IBAN_KEYS);
+  // Generic "iban" column, but never the statement's own-account IBAN column.
+  if (ibanI < 0) {
+    ibanI = headers.findIndex(
+      (h) => h.includes('iban') && !h.includes('auftragskonto') && !h.includes('eigen'),
+    );
+  }
 
   const transactions: ParsedTransaction[] = [];
   for (let i = headerIdx + 1; i < rawLines.length; i += 1) {
@@ -126,11 +148,18 @@ export function parseBankCsv(text: string): ParseResult {
     }
     if (betragCents == null) continue;
 
+    const zweck = purposeI >= 0 ? cleanText(cols[purposeI]) : null;
+    const gegenIban =
+      (ibanI >= 0 ? normalizeIban(cols[ibanI]) : null) ??
+      // Fallback: an IBAN embedded in the purpose text.
+      extractIban(zweck);
+
     transactions.push({
       datum,
       gegen: nameI >= 0 ? cleanText(cols[nameI]) : null,
-      zweck: purposeI >= 0 ? cleanText(cols[purposeI]) : null,
+      zweck,
       betragCents,
+      gegenIban,
     });
   }
 
