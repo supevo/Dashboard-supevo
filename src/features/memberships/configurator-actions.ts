@@ -36,6 +36,9 @@ const saveSchema = z.object({
   name: z.string().trim().max(120).optional(),
   stage: z.union([z.literal(1), z.literal(2)]),
   selections: z.array(selectionSchema).max(50),
+  // Optionaler finaler Custom-Preis (netto, in Cent). Überschreibt den aus den
+  // Modulen berechneten Preis. Nur der Agentur-Baukasten (Neuer Kunde) sendet ihn.
+  customNetCents: z.number().int().min(0).max(100_000_00).nullish(),
 });
 
 async function priceContext(
@@ -62,8 +65,9 @@ async function priceContext(
 export async function saveMembershipConfigAction(input: unknown): Promise<ActionResult> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { clientCompanyId, name, stage } = parsed.data;
+  const { clientCompanyId, name, stage, customNetCents } = parsed.data;
   const selections = normalizeSelections(parsed.data.selections);
+  const hasCustom = typeof customNetCents === 'number';
 
   const supabase = await createSupabaseServerClient();
   const { data: client } = await supabase
@@ -106,8 +110,14 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   if (activeIsEmpty) {
     const payload = {
       modules: selections as unknown,
-      custom_net_cents: isPureStage ? null : netCents,
-      custom_name: isPureStage ? name?.trim() || null : label,
+      // Custom-Preis (falls gesetzt) überschreibt alles und macht die
+      // Mitgliedschaft bewusst zu einem Individualpreis.
+      custom_net_cents: hasCustom ? customNetCents : isPureStage ? null : netCents,
+      custom_name: hasCustom
+        ? name?.trim() || 'Individuell'
+        : isPureStage
+          ? name?.trim() || null
+          : label,
       stage,
       pending_modules: null,
       pending_effective_date: null,
@@ -138,7 +148,7 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
     .update({
       pending_modules: {
         selections,
-        netCents,
+        netCents: hasCustom ? customNetCents : netCents,
         name: label,
         stage,
       } as unknown,

@@ -79,6 +79,7 @@ export function MembershipConfigurator({
   mode = 'agency',
   readOnly = false,
   show = 'all',
+  taxRatePct = 19,
 }: {
   modules: ModuleDef[];
   clientCompanyId?: string;
@@ -92,6 +93,8 @@ export function MembershipConfigurator({
   readOnly?: boolean;
   /** 'stages' = nur supevo Stage 1/2, 'modules' = nur Baukasten-Module. */
   show?: 'all' | 'stages' | 'modules';
+  /** MwSt-Satz für die Brutto↔Netto-Umrechnung im Custom-Preis-Feld. */
+  taxRatePct?: number;
 }) {
   const router = useRouter();
   const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
@@ -100,6 +103,11 @@ export function MembershipConfigurator({
   const [redeemed, setRedeemed] = useState<Set<string>>(
     () => new Set(initialRedeemed),
   );
+  // Finaler Custom-Preis (nur Agentur-Baukasten): überschreibt den berechneten
+  // Preis. Eingabe wahlweise netto oder brutto; gespeichert wird immer netto.
+  const [customOn, setCustomOn] = useState(false);
+  const [customEuros, setCustomEuros] = useState('');
+  const [customBasis, setCustomBasis] = useState<'net' | 'gross'>('net');
 
   const selections = useMemo(() => toSelections(modules, map), [modules, map]);
   const total = useMemo(
@@ -122,6 +130,16 @@ export function MembershipConfigurator({
     [total, promotions, redeemed],
   );
   const netAfterDiscount = Math.max(0, total - discountCents);
+  // Finaler Custom-Preis in Netto-Cent (oder null, wenn nicht aktiv/ungültig).
+  const customNetCents = useMemo(() => {
+    if (mode !== 'agency' || !customOn) return null;
+    const euros = Number(customEuros.replace(',', '.'));
+    if (!Number.isFinite(euros) || euros < 0) return null;
+    const cents = Math.round(euros * 100);
+    return customBasis === 'gross'
+      ? Math.round(cents / (1 + taxRatePct / 100))
+      : cents;
+  }, [mode, customOn, customEuros, customBasis, taxRatePct]);
   const anySelected = selections.some((s) => s.enabled);
   const stageModules = useMemo(
     () => modules.filter((d) => d.pricing.kind === 'stage'),
@@ -211,7 +229,12 @@ export function MembershipConfigurator({
           })
         : mode === 'portal'
           ? await savePortalMembershipConfigAction({ stage, selections })
-          : await saveMembershipConfigAction({ clientCompanyId, stage, selections });
+          : await saveMembershipConfigAction({
+              clientCompanyId,
+              stage,
+              selections,
+              customNetCents,
+            });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
     if (res.status === 'success') router.refresh();
@@ -324,11 +347,16 @@ export function MembershipConfigurator({
       )}
 
       {/* Preis erst nach der ersten Auswahl – vorher einladender Einstieg. */}
-      {anySelected ? (
+      {anySelected || customNetCents != null ? (
         <div className="rounded-lg border bg-emerald-500/5 p-4">
           <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
           <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
-            {formatEuroCents(netAfterDiscount)}
+            {formatEuroCents(customNetCents ?? netAfterDiscount)}
+            {customNetCents != null && (
+              <span className="ml-2 align-middle text-xs font-medium text-muted-foreground">
+                Custom
+              </span>
+            )}
             {budgetCents > 0 && (
               <span className="text-lg font-semibold text-foreground/70">
                 {' + '}
@@ -417,6 +445,61 @@ export function MembershipConfigurator({
             </div>
           ))}
         </section>
+      )}
+
+      {/* Finaler Custom-Preis – nur im Agentur-Baukasten (Neuer Kunde), NICHT
+          im Lead- oder Portal-Bereich. Überschreibt den berechneten Preis. */}
+      {mode === 'agency' && !readOnly && (
+        <div className="space-y-2 rounded-lg border p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={customOn}
+              onChange={(e) => setCustomOn(e.target.checked)}
+            />
+            Finalen Custom-Preis festlegen
+          </label>
+          {customOn && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={customEuros}
+                  onChange={(e) => setCustomEuros(e.target.value)}
+                  placeholder="0,00"
+                  className="w-32 rounded-md border bg-background px-2 py-1 text-sm"
+                />
+                <span className="text-sm text-muted-foreground">€</span>
+                <select
+                  value={customBasis}
+                  onChange={(e) =>
+                    setCustomBasis(e.target.value as 'net' | 'gross')
+                  }
+                  className="rounded-md border bg-background px-2 py-1 text-sm"
+                >
+                  <option value="net">netto</option>
+                  <option value="gross">brutto ({taxRatePct}% MwSt.)</option>
+                </select>
+              </div>
+              {customNetCents != null ? (
+                <p className="text-xs text-muted-foreground">
+                  Wird gespeichert als{' '}
+                  <strong>{formatEuroCents(customNetCents)} netto</strong> ·{' '}
+                  {formatEuroCents(
+                    Math.round(customNetCents * (1 + taxRatePct / 100)),
+                  )}{' '}
+                  brutto. Überschreibt den berechneten Paketpreis.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Betrag eingeben (netto oder brutto). Werbebudget bleibt außen vor.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {readOnly ? (
