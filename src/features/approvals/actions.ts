@@ -6,6 +6,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { logActivity } from '@/lib/audit';
 import { createNotifications } from '@/features/notifications/create';
+import { sanitizeRichText } from '@/lib/sanitize';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -162,14 +163,65 @@ export async function decideApprovalAction(
     .eq('status', 'pending');
   if (error) return errorResult(de.errors.INTERNAL);
 
-  // Auto-move on approval (configurable target). Uses the service client so the
-  // move is not blocked by WIP limits – this is an intended workflow move.
+  const service = createSupabaseServiceClient();
+
+  // Entscheidung als SICHTBAREN (nicht-internen) Kommentar an der Aufgabe
+  // hinterlegen – Beweislast: Kunde sieht ihn im Portal, Agentur im Board, mit
+  // Autor (Kunden-Kontakt) und Zeitstempel. Body wird sicher als HTML gespeichert.
+  const decisionLabel =
+    decision === 'approved'
+      ? '✅ <strong>Freigabe erteilt.</strong>'
+      : decision === 'changes_requested'
+        ? '✏️ <strong>Änderungen angefordert.</strong>'
+        : '⛔ <strong>Freigabe abgelehnt.</strong>';
+  const escapedComment = (comment ?? '')
+    .replace(/[&<>"]/g, (c) =>
+      c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;',
+    )
+    .replace(/\n/g, '<br>');
+  const commentBody = sanitizeRichText(
+    decisionLabel + (escapedComment ? `<br>${escapedComment}` : ''),
+  );
+  await service.from('comments').insert({
+    organization_id: approval.organization_id,
+    project_id: approval.project_id,
+    task_id: approval.task_id,
+    author_id: user.id,
+    body: commentBody,
+    is_internal: false,
+  });
+
+  // Aufgabe verschieben (Service-Client → WIP-Limits blockieren den Workflow-Move
+  // nicht). Freigabe → Ziel-Spalte (i. d. R. „Fertig"). Ablehnung/Änderung →
+  // zurück in die Warteschlange, damit die Aufgabe nicht in „Überprüfung" hängt.
   if (decision === 'approved' && approval.target_column_id) {
-    const service = createSupabaseServiceClient();
     await service
       .from('tasks')
       .update({ column_id: approval.target_column_id })
       .eq('id', approval.task_id);
+  } else if (decision !== 'approved') {
+    const { data: board } = await service
+      .from('boards')
+      .select('id')
+      .eq('project_id', approval.project_id)
+      .order('position', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (board) {
+      const { data: queueCol } = await service
+        .from('board_columns')
+        .select('id')
+        .eq('board_id', board.id)
+        .eq('column_key', 'queue')
+        .limit(1)
+        .maybeSingle();
+      if (queueCol) {
+        await service
+          .from('tasks')
+          .update({ column_id: queueCol.id })
+          .eq('id', approval.task_id);
+      }
+    }
   }
 
   await createNotifications(
@@ -204,5 +256,8 @@ export async function decideApprovalAction(
 
   revalidatePath('/portal/approvals');
   revalidatePath(`/portal/projects/${approval.project_id}`);
+  revalidatePath(`/portal/projects/${approval.project_id}/tasks/${approval.task_id}`);
+  revalidatePath(`/app/projects/${approval.project_id}/tasks/${approval.task_id}`);
+  revalidatePath(`/app/projects/${approval.project_id}`);
   return successResult('Entscheidung gespeichert.');
 }
