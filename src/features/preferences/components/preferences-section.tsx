@@ -1,11 +1,17 @@
 import { HeartRating } from '@/features/preferences/components/heart-rating';
-import { SKILL_GROUPS, SKILL_CATALOG } from '@/features/skills/catalog';
+import {
+  SKILL_GROUPS,
+  SKILL_CATALOG,
+  SOFT_SKILL_GROUP,
+} from '@/features/skills/catalog';
 import { de } from '@/lib/i18n/de';
 import type { WorkPreference } from '@/features/preferences/queries';
 
 /**
- * Work-preference self-assessment: the same catalog as skills, but rated by how
- * much someone *likes* the work (1–10 hearts). Feeds smarter task assignment.
+ * Work-preference self-assessment: the fachlichen Skills, bewertet danach, wie
+ * gern man die Arbeit macht (1–10 Herzen). Feeds smarter task assignment.
+ * Soft Skills (persönliche Kompetenzen) gehören NICHT in die Lieblingsarbeit –
+ * die Gruppe wird hier bewusst ausgeblendet.
  */
 export function PreferencesSection({
   preferences,
@@ -19,7 +25,7 @@ export function PreferencesSection({
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">{de.preferences.hint}</p>
 
-      {SKILL_GROUPS.map((group) => (
+      {SKILL_GROUPS.filter((group) => group.title !== SOFT_SKILL_GROUP).map((group) => (
         <div key={group.title} className="space-y-1">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {group.title}
