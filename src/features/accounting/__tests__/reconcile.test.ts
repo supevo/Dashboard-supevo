@@ -4,10 +4,63 @@ import {
   matchReceiptsToTransactions,
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
+  computePartnerBalances,
   numberMatchStrength,
   AUTO_THRESHOLD,
   SUGGEST_THRESHOLD,
 } from '../reconcile';
+
+describe('computePartnerBalances', () => {
+  it('groups round Google payments and invoices whose SUM matches', () => {
+    const payments = [
+      { name: 'Google Ireland Ltd', cents: 50000 },
+      { name: 'GOOGLE ADS', cents: 50000 },
+      { name: 'Google Ireland Ltd', cents: 30000 },
+    ];
+    const docs = [
+      { name: 'Google', cents: 70000 },
+      { name: 'Google', cents: 59000 },
+    ];
+    const bal = computePartnerBalances(payments, docs, 'ausgabe');
+    expect(bal).toHaveLength(1);
+    expect(bal[0]).toMatchObject({
+      paymentsCount: 3,
+      paymentsSumCents: 130000,
+      docsCount: 2,
+      docsSumCents: 129000,
+      kind: 'match',
+    });
+  });
+
+  it('flags a likely missing invoice when payments exceed invoices', () => {
+    const payments = [
+      { name: 'Google Ireland Ltd', cents: 50000 },
+      { name: 'Google Ireland Ltd', cents: 50000 },
+    ];
+    const bal = computePartnerBalances(payments, [], 'ausgabe');
+    expect(bal).toHaveLength(1);
+    expect(bal[0]!.kind).toBe('missing_doc');
+    expect(bal[0]!.diffCents).toBe(100000);
+  });
+
+  it('flags a likely missing payment when invoices exceed payments', () => {
+    const docs = [
+      { name: 'Meta Platforms', cents: 20000 },
+      { name: 'Meta', cents: 25000 },
+    ];
+    const bal = computePartnerBalances([], docs, 'ausgabe');
+    expect(bal[0]!.kind).toBe('missing_payment');
+  });
+
+  it('ignores a lone matched-looking partner (single payment, no doc)', () => {
+    const bal = computePartnerBalances(
+      [{ name: 'Einmalig GmbH', cents: 5000 }],
+      [],
+      'ausgabe',
+    );
+    expect(bal).toHaveLength(0);
+  });
+});
 
 describe('numberMatchStrength', () => {
   it('strong when the full number (incl. letters) is in the purpose', () => {
