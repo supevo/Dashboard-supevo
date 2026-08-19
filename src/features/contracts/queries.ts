@@ -5,6 +5,7 @@ import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 import {
   moduleMonthlyCents,
   normalizeSelections,
+  groupByCategory,
   type ModuleDef,
   type ModuleSelection,
   type PriceContext,
@@ -107,17 +108,24 @@ function buildLines(
   const byKey = new Map(catalog.map((d) => [d.key, d]));
   const lines: ContractLine[] = [];
   let budgetCents = 0;
-  // Positionen in Katalog-Reihenfolge (position): die Grundbasis (z. B.
-  // „supevo Smart" / Stage) mit niedrigster Position steht so ganz oben.
+  // Reihenfolge EXAKT wie im Baukasten: zuerst die Stufen (Komplettbetreuung) in
+  // Katalog-Reihenfolge, danach die restlichen Module nach Kategorie gruppiert
+  // (categoryPosition → Kategorie → position) – identisch zu groupByCategory im
+  // Konfigurator, damit Vertrag und Auswahl gleich sortiert sind.
+  const stageDefs = catalog.filter((d) => d.pricing.kind === 'stage');
+  const restOrdered = groupByCategory(
+    catalog.filter((d) => d.pricing.kind !== 'stage'),
+  ).flatMap((g) => g.modules);
+  const orderIndex = new Map(
+    [...stageDefs, ...restOrdered].map((d, i) => [d.key, i] as const),
+  );
   const active = selections
     .filter((s) => s.enabled)
     .map((s) => ({ s, def: byKey.get(s.id) }))
     .filter((x): x is { s: typeof x.s; def: ModuleDef } => !!x.def)
     .sort(
       (a, b) =>
-        (a.def.pricing.kind === 'stage' ? -1 : 0) -
-          (b.def.pricing.kind === 'stage' ? -1 : 0) ||
-        a.def.position - b.def.position,
+        (orderIndex.get(a.def.key) ?? 0) - (orderIndex.get(b.def.key) ?? 0),
     );
   for (const { s, def } of active) {
     const detail: string[] = [];
