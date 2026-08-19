@@ -1,10 +1,33 @@
 import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
+import { berlinToday, berlinWeekday } from '@/lib/time';
+import type { NotificationType } from '@/lib/database.types';
+
+export type ChoreFrequency = 'daily' | 'weekly' | 'monthly';
+export type ChoreKind = 'personal' | 'shared';
+
+/** Periodenschlüssel je Häufigkeit (einmal je Tag/Woche/Monat). */
+export function chorePeriodKey(
+  frequency: string,
+  now: Date = new Date(),
+): string {
+  const today = berlinToday(now); // YYYY-MM-DD
+  if (frequency === 'monthly') return today.slice(0, 7); // YYYY-MM
+  if (frequency === 'weekly') {
+    const wd = berlinWeekday(now); // Mon=1 … Sun=7
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - (wd - 1)); // Montag der Woche
+    return `W${d.toISOString().slice(0, 10)}`;
+  }
+  return today; // daily
+}
 
 export interface OpenChore {
   /** assignment id */
   id: string;
   text: string;
+  /** true = nachzuholen (verpasst), gibt keine XP mehr. */
+  makeup: boolean;
 }
 
 export interface VerificationItem {
@@ -19,6 +42,8 @@ export interface AdminChore {
   id: string;
   text: string;
   active: boolean;
+  kind: ChoreKind;
+  frequency: ChoreFrequency;
 }
 
 type Service = ReturnType<typeof createSupabaseServiceClient>;
@@ -31,7 +56,7 @@ type Service = ReturnType<typeof createSupabaseServiceClient>;
  * no-op when the tables are missing (migration 0113 not applied) or there are no
  * active chores.
  */
-export async function assignClockOutChore(args: {
+export async function assignClockOutChores(args: {
   orgId: string;
   userId: string;
   workSessionId: string | null;
@@ -39,42 +64,20 @@ export async function assignClockOutChore(args: {
   const { orgId, userId, workSessionId } = args;
   const service = createSupabaseServiceClient();
 
-  // Don't stack chores: if one is still open for this user, leave it.
-  const { data: existing, error: exErr } = await service
-    .from('office_chore_assignments')
-    .select('id')
-    .eq('assignee_id', userId)
-    .eq('status', 'assigned')
-    .limit(1);
-  if (exErr) return; // table missing → feature not set up yet
-  if ((existing ?? []).length > 0) return;
-
   const { data: chores, error: chErr } = await service
     .from('office_chores')
-    .select('id')
+    .select('id, kind, frequency')
     .eq('organization_id', orgId)
     .eq('active', true);
-  if (chErr) return;
-  const choreIds = (chores ?? []).map((c) => (c as { id: string }).id);
-  if (choreIds.length === 0) return;
+  if (chErr) return; // table missing → feature not set up yet
+  const rows = (chores ?? []) as unknown as {
+    id: string;
+    kind: string | null;
+    frequency: string | null;
+  }[];
+  if (rows.length === 0) return;
 
-  // Fairness: pick the chore this user has had least often.
-  const { data: past } = await service
-    .from('office_chore_assignments')
-    .select('chore_id')
-    .eq('assignee_id', userId)
-    .in('chore_id', choreIds);
-  const count = new Map<string, number>();
-  for (const id of choreIds) count.set(id, 0);
-  for (const r of past ?? []) {
-    const cid = (r as { chore_id: string }).chore_id;
-    count.set(cid, (count.get(cid) ?? 0) + 1);
-  }
-  const min = Math.min(...choreIds.map((id) => count.get(id) ?? 0));
-  const leastUsed = choreIds.filter((id) => (count.get(id) ?? 0) === min);
-  const choreId = leastUsed[Math.floor(Math.random() * leastUsed.length)]!;
-
-  // Verifier: a random other active staff member (not the doer, not clients).
+  // Aktive Kolleg:innen als mögliche Prüfer (nicht der Erlediger, keine Kunden).
   const { data: members } = await service
     .from('memberships')
     .select('user_id, role, status')
@@ -87,31 +90,64 @@ export async function assignClockOutChore(args: {
         (m as { user_id: string }).user_id !== userId,
     )
     .map((m) => (m as { user_id: string }).user_id);
-  const verifierId = others.length
-    ? others[Math.floor(Math.random() * others.length)]!
-    : null;
+  const pickVerifier = () =>
+    others.length ? others[Math.floor(Math.random() * others.length)]! : null;
 
-  await service.from('office_chore_assignments').insert({
-    organization_id: orgId,
-    chore_id: choreId,
-    assignee_id: userId,
-    verifier_id: verifierId,
-    status: 'assigned',
-    work_session_id: workSessionId,
-  } as never);
+  for (const chore of rows) {
+    const frequency = chore.frequency ?? 'daily';
+    const kind = chore.kind ?? 'shared';
+    const period = chorePeriodKey(frequency);
+
+    if (kind === 'personal') {
+      // Jeder hat seine eigene Instanz je Periode – nur anlegen, wenn dieser
+      // Nutzer für diese Periode noch keine hat.
+      const { data: mine } = await service
+        .from('office_chore_assignments')
+        .select('id')
+        .eq('chore_id', chore.id)
+        .eq('assignee_id', userId)
+        .eq('period_key', period)
+        .limit(1);
+      if ((mine ?? []).length > 0) continue;
+    } else {
+      // Geteilt: einer je Periode – anlegen, wenn für diese Periode noch NIEMAND
+      // zugeteilt ist (wer zuerst ausstempelt, bekommt sie).
+      const { data: any } = await service
+        .from('office_chore_assignments')
+        .select('id')
+        .eq('chore_id', chore.id)
+        .eq('period_key', period)
+        .limit(1);
+      if ((any ?? []).length > 0) continue;
+    }
+
+    await service.from('office_chore_assignments').insert({
+      organization_id: orgId,
+      chore_id: chore.id,
+      assignee_id: userId,
+      verifier_id: pickVerifier(),
+      status: 'assigned',
+      period_key: period,
+      work_session_id: workSessionId,
+    } as never);
+  }
 }
 
-/** The current user's open (assigned, not yet done) chores. */
+/** The current user's open chores: still assigned + missed (to make up, no XP). */
 export async function listMyOpenChores(userId: string): Promise<OpenChore[]> {
   const service = createSupabaseServiceClient();
   const { data, error } = await service
     .from('office_chore_assignments')
-    .select('id, chore_id')
+    .select('id, chore_id, status')
     .eq('assignee_id', userId)
-    .eq('status', 'assigned')
+    .in('status', ['assigned', 'missed'])
     .order('created_at', { ascending: true });
   if (error) return [];
-  const rows = (data ?? []) as unknown as { id: string; chore_id: string }[];
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    chore_id: string;
+    status: string;
+  }[];
   if (rows.length === 0) return [];
   const { data: chores } = await service
     .from('office_chores')
@@ -123,7 +159,11 @@ export async function listMyOpenChores(userId: string): Promise<OpenChore[]> {
       c.text,
     ]),
   );
-  return rows.map((r) => ({ id: r.id, text: textById.get(r.chore_id) ?? '—' }));
+  return rows.map((r) => ({
+    id: r.id,
+    text: textById.get(r.chore_id) ?? '—',
+    makeup: r.status === 'missed',
+  }));
 }
 
 /** Chores waiting for the current user's double-check (status 'done'). */
@@ -176,7 +216,7 @@ export async function listOrgChores(orgId: string): Promise<AdminChore[]> {
   const service: Service = createSupabaseServiceClient();
   const { data, error } = await service
     .from('office_chores')
-    .select('id, text, active')
+    .select('id, text, active, kind, frequency')
     .eq('organization_id', orgId)
     .order('position', { ascending: true })
     .order('created_at', { ascending: true });
@@ -185,5 +225,76 @@ export async function listOrgChores(orgId: string): Promise<AdminChore[]> {
     id: string;
     text: string;
     active: boolean;
-  }[]).map((c) => ({ id: c.id, text: c.text, active: c.active }));
+    kind: string | null;
+    frequency: string | null;
+  }[]).map((c) => ({
+    id: c.id,
+    text: c.text,
+    active: c.active,
+    kind: (c.kind === 'personal' ? 'personal' : 'shared') as ChoreKind,
+    frequency: (['daily', 'weekly', 'monthly'].includes(c.frequency ?? '')
+      ? c.frequency
+      : 'daily') as ChoreFrequency,
+  }));
+}
+
+/**
+ * Beim Einstempeln: nicht erledigte Zuweisungen aus einer VERGANGENEN Periode
+ * als 'missed' markieren und den Nutzer benachrichtigen (keine XP, nachholen).
+ * Bereits gemeldete (missed) werden nicht erneut gemeldet. Best effort.
+ */
+export async function flagMissedChoresOnClockIn(
+  orgId: string,
+  userId: string,
+): Promise<void> {
+  const service = createSupabaseServiceClient();
+  const { data, error } = await service
+    .from('office_chore_assignments')
+    .select('id, chore_id, period_key')
+    .eq('assignee_id', userId)
+    .eq('status', 'assigned');
+  if (error) return;
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    chore_id: string;
+    period_key: string | null;
+  }[];
+  if (rows.length === 0) return;
+
+  const choreIds = [...new Set(rows.map((r) => r.chore_id))];
+  const { data: chores } = await service
+    .from('office_chores')
+    .select('id, text, frequency')
+    .in('id', choreIds);
+  const byId = new Map(
+    ((chores ?? []) as unknown as {
+      id: string;
+      text: string;
+      frequency: string | null;
+    }[]).map((c) => [c.id, c]),
+  );
+
+  const { createNotifications } = await import('@/features/notifications/create');
+  for (const r of rows) {
+    const chore = byId.get(r.chore_id);
+    if (!chore || !r.period_key) continue;
+    const current = chorePeriodKey(chore.frequency ?? 'daily');
+    if (r.period_key === current) continue; // Periode läuft noch – nicht verpasst.
+
+    await service
+      .from('office_chore_assignments')
+      .update({ status: 'missed' } as never)
+      .eq('id', r.id);
+    await createNotifications([
+      {
+        organizationId: orgId,
+        recipientId: userId,
+        type: 'chore' as NotificationType,
+        title: 'Ordnungsdienst nicht erledigt',
+        body: `„${chore.text}" wurde nicht gemacht – dafür gibt es keine XP. Bitte jetzt nachholen.`,
+        entityType: 'office_chore',
+        entityId: r.id,
+      },
+    ]);
+  }
 }

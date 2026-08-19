@@ -12,7 +12,10 @@ import {
   awardWorkdayXp,
   WORKDAY_MIN_NET_MINUTES,
 } from '@/features/gamification/work-xp';
-import { assignClockOutChore } from '@/features/office-chores/queries';
+import {
+  assignClockOutChores,
+  flagMissedChoresOnClockIn,
+} from '@/features/office-chores/queries';
 import { startOfBerlinDayUtc, berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import {
@@ -123,6 +126,14 @@ export async function clockInAction(
   // Only a genuine still-open session from TODAY can remain now.
   if (error) return errorResult('Es läuft bereits eine Arbeitszeitsitzung.');
 
+  // Ordnungsdienst: nicht erledigte Aufgaben aus einer vergangenen Periode als
+  // verpasst melden (keine XP, nachholen). Best-effort – blockiert nie.
+  try {
+    await flagMissedChoresOnClockIn(parsed.data.orgId, user.id);
+  } catch {
+    /* optional */
+  }
+
   revalidatePath('/app/time');
   return successResult('Eingestempelt.');
 }
@@ -162,10 +173,10 @@ export async function clockOutAction(): Promise<ActionResult> {
     /* XP is a bonus, not part of the core action */
   }
 
-  // Ordnungsdienst: assign a fair, random office chore for this clock-out.
-  // Best-effort – never blocks the clock-out (and a no-op until 0113 is applied).
+  // Ordnungsdienst: fällige Aufgaben (persönlich + geteilt) für diesen Ausstempel
+  // zuteilen. Best-effort – blockiert das Ausstempeln nie.
   try {
-    await assignClockOutChore({
+    await assignClockOutChores({
       orgId: open.organization_id,
       userId: user.id,
       workSessionId: open.id,
