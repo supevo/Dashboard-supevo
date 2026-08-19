@@ -32,11 +32,13 @@ export async function createClientCompanyAction(
     contactEmail: formData.get('contactEmail') ?? '',
     notes: formData.get('notes') ?? '',
     customerType: formData.get('customerType') ?? undefined,
+    billingEntityId: formData.get('billingEntityId') ?? '',
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { orgId, name, contactEmail, notes, customerType } = parsed.data;
+  const { orgId, name, contactEmail, notes, customerType, billingEntityId } =
+    parsed.data;
   const isLegacy = customerType === 'legacy';
 
   const user = await requireUser();
@@ -45,6 +47,21 @@ export async function createClientCompanyAction(
   authorize(user, { type: 'clientCompany.create', orgId });
 
   const service = createSupabaseServiceClient();
+
+  // Rechnungssteller nur setzen, wenn er zur selben Org gehört (Fremdzuordnung
+  // verhindern). Leer → Standard-Rechnungssteller greift bei der Abrechnung.
+  let entityId: string | null = null;
+  if (billingEntityId) {
+    const { data: entity } = await service
+      .from('billing_entities')
+      .select('id')
+      .eq('id', billingEntityId)
+      .eq('organization_id', orgId)
+      .maybeSingle();
+    if (!entity) return errorResult(de.errors.NOT_FOUND);
+    entityId = billingEntityId;
+  }
+
   const { data, error } = await service
     .from('client_companies')
     .insert({
@@ -53,6 +70,7 @@ export async function createClientCompanyAction(
       contact_email: contactEmail || null,
       notes: notes || null,
       is_legacy: isLegacy,
+      billing_entity_id: entityId,
       created_by: user.id,
     })
     .select('id')
