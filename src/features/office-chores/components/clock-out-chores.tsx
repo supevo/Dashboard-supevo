@@ -91,9 +91,18 @@ export function ClockOutChoresModal({
             {chores.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 rounded-md border p-3"
+                className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
+                  c.makeup ? 'border-amber-400/60 bg-amber-400/10' : ''
+                }`}
               >
-                <span className="text-sm font-medium">{c.text}</span>
+                <span className="text-sm font-medium">
+                  {c.text}
+                  {c.makeup && (
+                    <span className="ml-2 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                      nachholen · keine XP
+                    </span>
+                  )}
+                </span>
                 <Button size="sm" disabled={pending} onClick={() => done(c.id)}>
                   Erledigt ✓
                 </Button>

@@ -45,11 +45,26 @@ export async function completeChoreAction(
     verifier_id: string | null;
     status: string;
   } | null;
-  if (!row || row.assignee_id !== user.id || row.status !== 'assigned') {
+  if (
+    !row ||
+    row.assignee_id !== user.id ||
+    (row.status !== 'assigned' && row.status !== 'missed')
+  ) {
     return errorResult(de.errors.FORBIDDEN);
   }
 
   const now = new Date().toISOString();
+
+  // Nachholen einer verpassten Aufgabe: schließen OHNE XP, kein Gegencheck.
+  if (row.status === 'missed') {
+    await service
+      .from('office_chore_assignments')
+      .update({ status: 'verified', done_at: now, verified_at: now } as never)
+      .eq('id', row.id);
+    revalidatePath('/app/time');
+    return successResult('Nachgeholt – danke! (keine XP)');
+  }
+
   if (row.verifier_id) {
     await service
       .from('office_chore_assignments')
@@ -166,11 +181,20 @@ async function requireChoreAdmin(): Promise<
 }
 
 const textSchema = z.string().trim().min(2).max(200);
+const kindSchema = z.enum(['personal', 'shared']);
+const freqSchema = z.enum(['daily', 'weekly', 'monthly']);
 
 /** Admin adds a new checkpoint. */
-export async function createChoreAction(text: string): Promise<ActionResult> {
-  const parsed = textSchema.safeParse(text);
+export async function createChoreAction(input: {
+  text: string;
+  kind?: string;
+  frequency?: string;
+}): Promise<ActionResult> {
+  const parsed = textSchema.safeParse(input.text);
   if (!parsed.success) return errorResult('Bitte einen Text (2–200 Zeichen) angeben.');
+  const kind = kindSchema.safeParse(input.kind ?? 'shared');
+  const freq = freqSchema.safeParse(input.frequency ?? 'daily');
+  if (!kind.success || !freq.success) return errorResult(de.errors.VALIDATION);
   const auth = await requireChoreAdmin();
   if ('error' in auth) return errorResult(auth.error);
 
@@ -178,6 +202,8 @@ export async function createChoreAction(text: string): Promise<ActionResult> {
   const { error } = await service.from('office_chores').insert({
     organization_id: auth.orgId,
     text: parsed.data,
+    kind: kind.data,
+    frequency: freq.data,
     active: true,
     position: Date.now(),
   } as never);
@@ -187,24 +213,41 @@ export async function createChoreAction(text: string): Promise<ActionResult> {
   return successResult('Checkpunkt hinzugefügt.');
 }
 
-/** Admin edits a checkpoint's text and/or active flag. */
+/** Admin edits a checkpoint's text, active flag, kind and/or frequency. */
 export async function updateChoreAction(input: {
   id: string;
   text?: string;
   active?: boolean;
+  kind?: string;
+  frequency?: string;
 }): Promise<ActionResult> {
   const id = z.string().uuid().safeParse(input.id);
   if (!id.success) return errorResult(de.errors.VALIDATION);
   const auth = await requireChoreAdmin();
   if ('error' in auth) return errorResult(auth.error);
 
-  const patch: { text?: string; active?: boolean } = {};
+  const patch: {
+    text?: string;
+    active?: boolean;
+    kind?: string;
+    frequency?: string;
+  } = {};
   if (input.text !== undefined) {
     const t = textSchema.safeParse(input.text);
     if (!t.success) return errorResult('Bitte einen Text (2–200 Zeichen) angeben.');
     patch.text = t.data;
   }
   if (input.active !== undefined) patch.active = input.active;
+  if (input.kind !== undefined) {
+    const k = kindSchema.safeParse(input.kind);
+    if (!k.success) return errorResult(de.errors.VALIDATION);
+    patch.kind = k.data;
+  }
+  if (input.frequency !== undefined) {
+    const f = freqSchema.safeParse(input.frequency);
+    if (!f.success) return errorResult(de.errors.VALIDATION);
+    patch.frequency = f.data;
+  }
   if (Object.keys(patch).length === 0) return successResult('Nichts geändert.');
 
   const service = createSupabaseServiceClient();
