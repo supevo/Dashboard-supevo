@@ -219,29 +219,6 @@ export default async function ClientDetailPage({
             </Card>
           )}
 
-          {isAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle>👤 Verantwortliche Ansprechpartner</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Haupt- und stellvertretender Ansprechpartner. Werden dem Kunden
-                  im Portal angezeigt (Foto, Name, Direktkontakt).
-                </p>
-              </CardHeader>
-              <CardContent>
-                <AccountManagerForm
-                  clientCompanyId={clientCompanyId}
-                  currentManagerId={company.accountManagerId}
-                  currentSecondaryManagerId={company.secondaryAccountManagerId}
-                  staff={(teamMembers ?? []).map((m) => ({
-                    userId: m.userId,
-                    name: m.name,
-                  }))}
-                />
-              </CardContent>
-            </Card>
-          )}
-
           <Card>
             <CardHeader>
               <CardTitle>{de.satisfaction.agencyTitle}</CardTitle>
@@ -319,6 +296,29 @@ export default async function ClientDetailPage({
             </Card>
           )}
 
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>👤 Verantwortliche Ansprechpartner</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Haupt- und stellvertretender Ansprechpartner. Werden dem Kunden
+                  im Portal angezeigt (Foto, Name, Direktkontakt).
+                </p>
+              </CardHeader>
+              <CardContent>
+                <AccountManagerForm
+                  clientCompanyId={clientCompanyId}
+                  currentManagerId={company.accountManagerId}
+                  currentSecondaryManagerId={company.secondaryAccountManagerId}
+                  staff={(teamMembers ?? []).map((m) => ({
+                    userId: m.userId,
+                    name: m.name,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>{de.clients.inviteContact}</CardTitle>
@@ -352,6 +352,25 @@ export default async function ClientDetailPage({
               )}
             </CardContent>
           </Card>
+
+          {isSuperAdmin(user) && (
+            <Card className="border-destructive/40">
+              <CardHeader>
+                <CardTitle>⚠️ Gefahrenzone</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Kunden endgültig löschen (inkl. Projekte, Aufgaben, Rechnungen,
+                  Zeiten). Nur per Master-Passwort. Vor allem zum Aufräumen von
+                  Testdaten vor dem Live-Betrieb.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <PurgeClientButton
+                  clientCompanyId={clientCompanyId}
+                  clientName={company.name}
+                />
+              </CardContent>
+            </Card>
+          )}
         </>
       ),
     },
@@ -492,24 +511,6 @@ export default async function ClientDetailPage({
                   </CardContent>
                 </Card>
 
-                {isSuperAdmin(user) && (
-                  <Card className="border-destructive/40">
-                    <CardHeader>
-                      <CardTitle>⚠️ Gefahrenzone</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Kunden endgültig löschen (inkl. Projekte, Aufgaben,
-                        Rechnungen, Zeiten). Nur per Master-Passwort. Vor allem
-                        zum Aufräumen von Testdaten vor dem Live-Betrieb.
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <PurgeClientButton
-                        clientCompanyId={clientCompanyId}
-                        clientName={company.name}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
               </>
             ),
           } satisfies DrawerSection,
