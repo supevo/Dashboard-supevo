@@ -73,7 +73,7 @@ export function AppShell({
     <div className="flex min-h-screen">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card p-4 md:flex">
         <div className="mb-6">
-          <Logo className="h-7" dark={logo?.dark} light={logo?.light} />
+          <Logo className="h-[42px]" dark={logo?.dark} light={logo?.light} />
           <p className="mt-1 text-xs text-muted-foreground">{areaLabel}</p>
         </div>
         <SidebarNav items={navItems} />
