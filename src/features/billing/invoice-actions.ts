@@ -23,6 +23,9 @@ import {
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import { getOrgBranding } from '@/features/branding/queries';
 import { FILES_BUCKET } from '@/lib/files/storage';
+import { sendEmail } from '@/lib/email/send';
+import { renderEmail } from '@/lib/email/templates';
+import { formatEuroCents } from '@/lib/money';
 import type { Database } from '@/lib/database.types';
 
 const idSchema = z.object({ invoiceId: z.string().uuid() });
@@ -235,6 +238,128 @@ export async function voidInvoiceAction(
   return setInvoiceStatus(parsed.data.invoiceId, 'void');
 }
 
+/** Empfänger-E-Mails: der hinterlegte Rechnungsempfänger gewinnt, sonst die
+ *  allgemeine Kontakt-E-Mail + die Portal-Kontakte. */
+async function resolveInvoiceRecipients(
+  service: ReturnType<typeof createSupabaseServiceClient>,
+  clientCompanyId: string,
+): Promise<string[]> {
+  const { data: company } = await service
+    .from('client_companies')
+    .select('invoice_recipient_email, contact_email')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  const explicit = (company as { invoice_recipient_email?: string | null } | null)
+    ?.invoice_recipient_email;
+  if (explicit) return [explicit];
+  const emails = new Set<string>();
+  if (company?.contact_email) emails.add(company.contact_email);
+  const { data: contacts } = await service
+    .from('client_contacts')
+    .select('user_id')
+    .eq('client_company_id', clientCompanyId);
+  for (const c of contacts ?? []) {
+    const { data } = await service.auth.admin.getUserById(c.user_id);
+    if (data?.user?.email) emails.add(data.user.email);
+  }
+  return [...emails];
+}
+
+/** Speichert den Rechnungsempfänger (E-Mail) des Kunden. Leer = zurücksetzen. */
+export async function setInvoiceRecipientAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      clientCompanyId: z.string().uuid(),
+      email: z.string().trim().max(320).email().or(z.literal('')),
+    })
+    .safeParse({
+      clientCompanyId: formData.get('clientCompanyId'),
+      email: formData.get('email') ?? '',
+    });
+  if (!parsed.success) return errorResult('Bitte eine gültige E-Mail angeben.');
+
+  const supabase = await createSupabaseServerClient();
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('organization_id')
+    .eq('id', parsed.data.clientCompanyId)
+    .maybeSingle();
+  if (!company) return errorResult(de.errors.NOT_FOUND);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: company.organization_id });
+
+  const { error } = await supabase
+    .from('client_companies')
+    .update({ invoice_recipient_email: parsed.data.email || null } as never)
+    .eq('id', parsed.data.clientCompanyId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
+  return successResult('Rechnungsempfänger gespeichert.');
+}
+
+/** Sendet die (finalisierte) Rechnung als PDF an den Rechnungsempfänger. */
+export async function sendInvoiceAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = idSchema.safeParse({ invoiceId: formData.get('invoiceId') });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const loaded = await loadInvoiceForManage(parsed.data.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { supabase, invoice } = loaded;
+  if (invoice.status === 'draft' || !invoice.pdf_path) {
+    return errorResult('Bitte die Rechnung zuerst finalisieren.');
+  }
+
+  const service = createSupabaseServiceClient();
+  const recipients = await resolveInvoiceRecipients(service, invoice.client_company_id);
+  if (recipients.length === 0) {
+    return errorResult('Kein Rechnungsempfänger hinterlegt – bitte oben eine E-Mail eintragen.');
+  }
+
+  const { data: blob } = await service.storage.from(FILES_BUCKET).download(invoice.pdf_path);
+  if (!blob) return errorResult('Rechnungs-PDF nicht gefunden.');
+  const bytes = Buffer.from(await blob.arrayBuffer());
+
+  const number = invoice.invoice_number ?? '';
+  const { html, text } = renderEmail({
+    heading: `Ihre Rechnung ${number}`.trim(),
+    intro: 'anbei erhalten Sie Ihre Rechnung als PDF.',
+    bodyLines: [`Rechnungsbetrag: ${formatEuroCents(invoice.gross_cents)}`],
+    footer: 'Diese E-Mail wurde über das Supevo Dashboard versendet.',
+  });
+  const ok = await sendEmail({
+    to: recipients,
+    subject: `Ihre Rechnung ${number}`.trim(),
+    html,
+    text,
+    attachments: [
+      { filename: `Rechnung-${number || invoice.id}.pdf`, content: bytes },
+    ],
+  });
+  if (!ok) {
+    return errorResult('E-Mail konnte nicht versendet werden (ist der Mailversand konfiguriert?).');
+  }
+
+  await supabase
+    .from('invoices')
+    .update({ status: 'sent', sent_at: new Date().toISOString() })
+    .eq('id', invoice.id);
+  await logActivity({
+    actorId: loaded.user.id,
+    organizationId: invoice.organization_id,
+    action: 'update',
+    entityType: 'invoice',
+    entityId: invoice.id,
+    metadata: { event: 'sent', to: recipients },
+  });
+  revalidatePath(`/app/clients/${invoice.client_company_id}`);
+  return successResult(`Rechnung an ${recipients.join(', ')} gesendet.`);
+}
+
 /** Single dispatcher so one row form can drive several operations via `op`. */
 export async function invoiceOpAction(
   prev: ActionResult,
@@ -243,6 +368,8 @@ export async function invoiceOpAction(
   switch (formData.get('op')) {
     case 'finalize':
       return finalizeInvoiceAction(prev, formData);
+    case 'send':
+      return sendInvoiceAction(prev, formData);
     case 'sent':
       return markInvoiceSentAction(prev, formData);
     case 'paid':

@@ -16,6 +16,7 @@ export interface ClientCompany {
   isActive: boolean;
   isLegacy: boolean;
   billPrintProducts: boolean;
+  invoiceRecipientEmail: string | null;
   /** Fair-share weight for the health traffic light (default 1). */
   attentionFactor: number;
   createdAt: string;
@@ -49,6 +50,7 @@ export async function listClientCompanies(
     isActive: c.is_active,
     isLegacy: c.is_legacy,
     billPrintProducts: false,
+    invoiceRecipientEmail: null,
     attentionFactor: 1,
     createdAt: c.created_at,
   }));
@@ -85,6 +87,8 @@ export async function getClientCompany(
     isActive: data.is_active,
     isLegacy: data.is_legacy,
     billPrintProducts: data.bill_print_products,
+    invoiceRecipientEmail:
+      (data as { invoice_recipient_email?: string | null }).invoice_recipient_email ?? null,
     attentionFactor: Number(
       (data as { attention_factor?: number }).attention_factor ?? 1,
     ),
