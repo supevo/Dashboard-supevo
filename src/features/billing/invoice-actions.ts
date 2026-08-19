@@ -96,6 +96,50 @@ async function loadInvoiceForManage(invoiceId: string): Promise<LoadedInvoice> {
   return { ok: true, supabase, invoice, user };
 }
 
+/**
+ * Renders the invoice PDF and stores it at its canonical path (overwriting any
+ * prior version). Shared by finalize and „PDF neu generieren".
+ */
+async function renderAndStoreInvoicePdf(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  invoice: InvoiceRow,
+  entity: NonNullable<Awaited<ReturnType<typeof resolveInvoiceEntity>>>,
+): Promise<{ ok: true; path: string } | { ok: false; result: ActionResult }> {
+  const { data: items } = await supabase
+    .from('invoice_items')
+    .select('*')
+    .eq('invoice_id', invoice.id)
+    .order('position', { ascending: true });
+  const membership = await getClientMembership(invoice.client_company_id);
+
+  let pdfBytes: Uint8Array;
+  try {
+    pdfBytes = await renderInvoicePdf({
+      invoice,
+      items: items ?? [],
+      settings: entity,
+      membership,
+      logoDark: (await getOrgBranding(invoice.organization_id)).logoDark,
+    });
+  } catch (e) {
+    logger.error('invoice.pdf.failed', { error: (e as Error).message });
+    return { ok: false, result: errorResult('Das PDF konnte nicht erzeugt werden.') };
+  }
+
+  const path = `org/${invoice.organization_id}/invoices/${invoice.id}.pdf`;
+  const { error: upErr } = await createSupabaseServiceClient()
+    .storage.from(FILES_BUCKET)
+    .upload(path, Buffer.from(pdfBytes), {
+      contentType: 'application/pdf',
+      upsert: true,
+    });
+  if (upErr) {
+    logger.error('invoice.pdf.upload_failed', { error: upErr.message });
+    return { ok: false, result: errorResult('Das PDF konnte nicht gespeichert werden.') };
+  }
+  return { ok: true, path };
+}
+
 /** Finalizes a draft: assigns the number, renders + stores the PDF. */
 export async function finalizeInvoiceAction(
   _prev: ActionResult,
@@ -122,13 +166,6 @@ export async function finalizeInvoiceAction(
   if ('error' in numberResult) return errorResult(de.errors.INTERNAL);
 
   const today = new Date().toISOString().slice(0, 10);
-  const { data: items } = await supabase
-    .from('invoice_items')
-    .select('*')
-    .eq('invoice_id', invoice.id)
-    .order('position', { ascending: true });
-  const membership = await getClientMembership(invoice.client_company_id);
-
   const finalized = {
     ...invoice,
     invoice_number: numberResult.number,
@@ -137,31 +174,9 @@ export async function finalizeInvoiceAction(
     status: 'finalized' as const,
   };
 
-  let pdfBytes: Uint8Array;
-  try {
-    pdfBytes = await renderInvoicePdf({
-      invoice: finalized,
-      items: items ?? [],
-      settings: entity,
-      membership,
-      logoDark: (await getOrgBranding(invoice.organization_id)).logoDark,
-    });
-  } catch (e) {
-    logger.error('invoice.pdf.failed', { error: (e as Error).message });
-    return errorResult('Das PDF konnte nicht erzeugt werden.');
-  }
-
-  const path = `org/${invoice.organization_id}/invoices/${invoice.id}.pdf`;
-  const { error: upErr } = await createSupabaseServiceClient()
-    .storage.from(FILES_BUCKET)
-    .upload(path, Buffer.from(pdfBytes), {
-      contentType: 'application/pdf',
-      upsert: true,
-    });
-  if (upErr) {
-    logger.error('invoice.pdf.upload_failed', { error: upErr.message });
-    return errorResult('Das PDF konnte nicht gespeichert werden.');
-  }
+  const stored = await renderAndStoreInvoicePdf(supabase, finalized, entity);
+  if (!stored.ok) return stored.result;
+  const path = stored.path;
 
   const { error } = await supabase
     .from('invoices')
@@ -229,13 +244,119 @@ export async function markInvoicePaidAction(
   });
 }
 
+/**
+ * Storniert eine Rechnung. Ein Entwurf (ohne Nummer) wird einfach verworfen;
+ * eine nummerierte Rechnung bleibt als Beleg erhalten (Nummer + PDF), wird aber
+ * auf „void" gesetzt und der Grund/Zeitpunkt/Bearbeiter festgehalten. Für
+ * nummerierte Rechnungen ist ein Grund Pflicht – Nachvollziehbarkeit.
+ */
 export async function voidInvoiceAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      invoiceId: z.string().uuid(),
+      reason: z.string().trim().max(500).optional(),
+    })
+    .safeParse({
+      invoiceId: formData.get('invoiceId'),
+      reason: formData.get('reason') ?? undefined,
+    });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const loaded = await loadInvoiceForManage(parsed.data.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { supabase, invoice, user } = loaded;
+
+  if (invoice.status === 'void') {
+    return errorResult('Diese Rechnung ist bereits storniert.');
+  }
+
+  const isNumbered = invoice.status !== 'draft';
+  const reason = parsed.data.reason?.trim() ?? '';
+  if (isNumbered && reason.length === 0) {
+    return errorResult('Bitte einen Storno-Grund angeben.');
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      status: 'void',
+      void_reason: reason || null,
+      voided_at: new Date().toISOString(),
+      voided_by: user.id,
+    })
+    .eq('id', invoice.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: invoice.organization_id,
+    action: 'update',
+    entityType: 'invoice',
+    entityId: invoice.id,
+    metadata: {
+      event: 'void',
+      number: invoice.invoice_number,
+      reason: reason || null,
+    },
+  });
+
+  revalidatePath(`/app/clients/${invoice.client_company_id}`);
+  return successResult(
+    isNumbered
+      ? `Rechnung ${invoice.invoice_number ?? ''} storniert.`.trim()
+      : 'Entwurf verworfen.',
+  );
+}
+
+/**
+ * Rendert das PDF einer nummerierten Rechnung neu (gleiche Nummer und Daten) –
+ * z. B. damit ein neu hinterlegtes Logo erscheint. Entwürfe haben noch kein PDF.
+ */
+export async function regenerateInvoicePdfAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
   const parsed = idSchema.safeParse({ invoiceId: formData.get('invoiceId') });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  return setInvoiceStatus(parsed.data.invoiceId, 'void');
+
+  const loaded = await loadInvoiceForManage(parsed.data.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { supabase, invoice, user } = loaded;
+  if (invoice.status === 'draft') {
+    return errorResult('Bitte die Rechnung zuerst finalisieren.');
+  }
+
+  const entity = await resolveInvoiceEntity(supabase, invoice);
+  if (!entity?.company_name || !entity.iban) {
+    return errorResult(
+      'Bitte zuerst die Firmen- und Bankdaten des Rechnungsstellers ausfüllen.',
+    );
+  }
+
+  const stored = await renderAndStoreInvoicePdf(supabase, invoice, entity);
+  if (!stored.ok) return stored.result;
+
+  if (invoice.pdf_path !== stored.path) {
+    await supabase
+      .from('invoices')
+      .update({ pdf_path: stored.path })
+      .eq('id', invoice.id);
+  }
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: invoice.organization_id,
+    action: 'update',
+    entityType: 'invoice',
+    entityId: invoice.id,
+    metadata: { event: 'regenerate', number: invoice.invoice_number },
+  });
+
+  revalidatePath(`/app/clients/${invoice.client_company_id}`);
+  return successResult('PDF neu generiert.');
 }
 
 /** Empfänger-E-Mails: der hinterlegte Rechnungsempfänger gewinnt, sonst die
@@ -376,6 +497,8 @@ export async function invoiceOpAction(
       return markInvoicePaidAction(prev, formData);
     case 'void':
       return voidInvoiceAction(prev, formData);
+    case 'regenerate':
+      return regenerateInvoicePdfAction(prev, formData);
     default:
       return errorResult(de.errors.VALIDATION);
   }

@@ -3229,6 +3229,9 @@ export interface Database {
           notes: string | null;
           sent_at: string | null;
           paid_at: string | null;
+          void_reason: string | null;
+          voided_at: string | null;
+          voided_by: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
