@@ -481,6 +481,40 @@ export async function sendInvoiceAction(
   return successResult(`Rechnung an ${recipients.join(', ')} gesendet.`);
 }
 
+/**
+ * Setzt/leert die externe Transaktions-/Referenznummer einer Rechnung (z. B.
+ * Stripe-, PayPal- oder Bestellnummer). Sie wird beim Bankabgleich zusätzlich
+ * zur Rechnungsnummer gegen den Verwendungszweck geprüft.
+ */
+export async function setInvoicePaymentRefAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      invoiceId: z.string().uuid(),
+      paymentRef: z.string().trim().max(140),
+    })
+    .safeParse({
+      invoiceId: formData.get('invoiceId'),
+      paymentRef: formData.get('paymentRef') ?? '',
+    });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const loaded = await loadInvoiceForManage(parsed.data.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { supabase, invoice } = loaded;
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({ payment_ref: parsed.data.paymentRef || null })
+    .eq('id', invoice.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath(`/app/clients/${invoice.client_company_id}`);
+  return successResult('Transaktionsnummer gespeichert.');
+}
+
 /** Single dispatcher so one row form can drive several operations via `op`. */
 export async function invoiceOpAction(
   prev: ActionResult,

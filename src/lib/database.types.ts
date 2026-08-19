@@ -3227,6 +3227,7 @@ export interface Database {
           payment_method: MembershipPaymentMethod | null;
           pdf_path: string | null;
           notes: string | null;
+          payment_ref: string | null;
           sent_at: string | null;
           paid_at: string | null;
           void_reason: string | null;

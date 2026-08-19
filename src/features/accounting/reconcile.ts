@@ -28,6 +28,8 @@ export interface InvoiceLite {
   grossCents: number;
   issueDate: string | null;
   kunde: string | null;
+  /** Externe Transaktions-/Referenznummer (Stripe, PayPal, Bestellnr. …). */
+  paymentRef?: string | null;
 }
 export interface ReceiptLite {
   id: string;
@@ -135,9 +137,32 @@ export function numberMatchStrength(
   return 'none';
 }
 
+const NUMBER_MATCH_RANK: Record<NumberMatch, number> = {
+  none: 0,
+  weak: 1,
+  strong: 2,
+};
+
+/** Strongest match across several candidate numbers (invoice no. + payment ref). */
+export function bestNumberMatch(
+  numbers: (string | null | undefined)[],
+  zweck: string | null,
+): NumberMatch {
+  let best: NumberMatch = 'none';
+  for (const n of numbers) {
+    const m = numberMatchStrength(n ?? null, zweck);
+    if (NUMBER_MATCH_RANK[m] > NUMBER_MATCH_RANK[best]) best = m;
+  }
+  return best;
+}
+
 /** True for any (strong or weak) number correspondence – broadens candidates. */
-function numberInPurpose(number: string | null, zweck: string | null): boolean {
-  return numberMatchStrength(number, zweck) !== 'none';
+function numberInPurpose(
+  numbers: (string | null | undefined)[] | string | null,
+  zweck: string | null,
+): boolean {
+  const list = Array.isArray(numbers) ? numbers : [numbers];
+  return bestNumberMatch(list, zweck) !== 'none';
 }
 
 function daysBetween(a: string, b: string): number {
@@ -167,13 +192,13 @@ function scorePaymentInvoice(
   let s = 0;
   const reasons: string[] = [];
 
-  const numMatch = numberMatchStrength(inv.number, tx.zweck);
+  const numMatch = bestNumberMatch([inv.number, inv.paymentRef], tx.zweck);
   if (numMatch === 'strong') {
     s += 0.6;
-    reasons.push('Rechnungsnummer im Zweck');
+    reasons.push('Rechnungs-/Transaktionsnr. im Zweck');
   } else if (numMatch === 'weak') {
     s += 0.45;
-    reasons.push('Rechnungsnummer (Ziffern) im Zweck');
+    reasons.push('Rechnungs-/Transaktionsnr. (Ziffern) im Zweck');
   }
   const amt = amountScore(tx.betragCents, inv.grossCents);
   // A full-ish amount (exact / rounding / Skonto) may corroborate an automatic
@@ -433,7 +458,7 @@ export function matchPaymentCombinations(
   for (const pay of ordered) {
     const candidates = invoices.filter((inv) => {
       if (usedInvoices.has(inv.id)) return false;
-      const byNumber = numberInPurpose(inv.number, pay.zweck);
+      const byNumber = numberInPurpose([inv.number, inv.paymentRef], pay.zweck);
       const byName = nameSimilarity(pay.gegen, inv.kunde) > 0.3;
       if (!byNumber && !byName) return false;
       if (inv.issueDate && daysBetween(pay.datum, inv.issueDate) > 120) return false;
@@ -547,7 +572,7 @@ export function matchInvoiceSplitPayments(
     const candidates = payments.filter((p) => {
       if (usedTx.has(p.id)) return false;
       if (p.betragCents <= 0 || p.betragCents >= inv.grossCents) return false;
-      const byNumber = numberInPurpose(inv.number, p.zweck);
+      const byNumber = numberInPurpose([inv.number, inv.paymentRef], p.zweck);
       const byName = nameSimilarity(p.gegen, inv.kunde) > 0.3;
       if (!byNumber && !byName) return false;
       if (inv.issueDate && daysBetween(p.datum, inv.issueDate) > 180) return false;

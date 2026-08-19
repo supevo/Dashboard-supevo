@@ -96,6 +96,26 @@ describe('matchPaymentsToInvoices', () => {
     expect(matches[0]!.auto).toBe(false);
   });
 
+  it('matches on the external transaction number when the invoice number is absent', () => {
+    const payments = [
+      { id: 't1', datum: '2024-03-10', gegen: 'Kunde AG', zweck: 'PayPal Zahlung ORD-77KX', betragCents: 119000 },
+    ];
+    const invoices = [
+      {
+        id: 'i1',
+        number: 'RE-2024-5',
+        grossCents: 119000,
+        issueDate: '2024-03-08',
+        kunde: 'Kunde AG',
+        paymentRef: 'ORD-77KX',
+      },
+    ];
+    const matches = matchPaymentsToInvoices(payments, invoices);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 't1', rightId: 'i1' });
+    expect(matches[0]!.score).toBeGreaterThanOrEqual(AUTO_THRESHOLD);
+  });
+
   it('a partial debit is suggested but never auto-booked as fully paid', () => {
     const payments = [
       { id: 't1', datum: '2024-03-10', gegen: 'Kunde AG', zweck: 'Anzahlung RE-2024-5', betragCents: 50000 },
