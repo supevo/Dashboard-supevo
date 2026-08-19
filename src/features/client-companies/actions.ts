@@ -142,6 +142,63 @@ export async function updateClientCompanyAction(
   return successResult('Kundenunternehmen aktualisiert.');
 }
 
+const coreDataSchema = z.object({
+  orgId: z.string().uuid(),
+  clientCompanyId: z.string().uuid(),
+  name: z.string().min(2, 'Bitte gib einen Namen ein.').max(160),
+  notes: z.string().max(2000).optional().or(z.literal('')),
+  customerType: z.enum(['supevo', 'legacy']),
+});
+
+/**
+ * Aktualisiert die Stammdaten eines Kunden (Name, Notizen, Kundentyp) – dieselben
+ * Felder wie bei der Anlage. Fasst bewusst NUR diese Spalten an (E-Mail und
+ * Rechnungssteller haben eigene Formulare) und überschreibt sonst nichts.
+ */
+export async function updateClientCoreDataAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = coreDataSchema.safeParse({
+    orgId: formData.get('orgId'),
+    clientCompanyId: formData.get('clientCompanyId'),
+    name: formData.get('name'),
+    notes: formData.get('notes') ?? '',
+    customerType: formData.get('customerType'),
+  });
+  if (!parsed.success) {
+    return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
+  }
+  const { orgId, clientCompanyId, name, notes, customerType } = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'clientCompany.manage', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('client_companies')
+    .update({
+      name,
+      notes: notes || null,
+      is_legacy: customerType === 'legacy',
+    })
+    .eq('organization_id', orgId)
+    .eq('id', clientCompanyId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: orgId,
+    action: 'update',
+    entityType: 'client_company',
+    entityId: clientCompanyId,
+  });
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath('/app/clients');
+  return successResult('Stammdaten gespeichert.');
+}
+
 const updateClientProfileSchema = z.object({
   orgId: z.string().uuid(),
   clientCompanyId: z.string().uuid(),

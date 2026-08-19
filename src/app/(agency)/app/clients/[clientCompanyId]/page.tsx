@@ -11,6 +11,7 @@ import {
 import { InviteContactForm } from '@/features/client-companies/components/invite-contact-form';
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
+import { ClientCoreDataForm } from '@/features/client-companies/components/client-core-data-form';
 import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
 import { AttentionFactorForm } from '@/features/client-companies/components/attention-factor-form';
 import { listTeamMembers } from '@/features/messenger/queries';
@@ -279,6 +280,26 @@ export default async function ClientDetailPage({
       icon: '👤',
       content: (
         <>
+          {isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🏢 Stammdaten</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Name, Notizen und Kundentyp – dieselben Angaben wie beim Anlegen.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ClientCoreDataForm
+                  orgId={orgId}
+                  clientCompanyId={clientCompanyId}
+                  name={company.name}
+                  notes={company.notes}
+                  isLegacy={company.isLegacy}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {isAdmin && (
             <Card>
               <CardHeader>
