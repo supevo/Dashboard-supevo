@@ -12,6 +12,7 @@ import { InviteContactForm } from '@/features/client-companies/components/invite
 import { ContactRow } from '@/features/client-companies/components/contact-row';
 import { ClientProfileForm } from '@/features/client-companies/components/client-profile-form';
 import { ClientCoreDataForm } from '@/features/client-companies/components/client-core-data-form';
+import { BackupLoginCard } from '@/features/client-companies/components/backup-login-card';
 import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
 import { AttentionFactorForm } from '@/features/client-companies/components/attention-factor-form';
 import { listTeamMembers } from '@/features/messenger/queries';
@@ -529,25 +530,41 @@ export default async function ClientDetailPage({
       label: 'Zugänge',
       icon: '🔑',
       content: (
-        <Card>
-          <CardHeader>
-            <CardTitle>🔑 Zugänge</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
-              Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <AssetHubManager
-              clientCompanyId={clientCompanyId}
-              brands={hub.brands}
-              assets={hub.assets}
-              canReveal
-              secretVaultEnabled={isSecretVaultEnabled()}
-              variant="access"
-            />
-          </CardContent>
-        </Card>
+        <>
+          {isSuperAdmin(user) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>🔐 Backup-Login (als Kunde einloggen)</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Nur Super-Admin: ein eigener Portal-Zugang für diesen Kunden zum
+                  Testen und Ansichten-Vergleichen.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <BackupLoginCard clientCompanyId={clientCompanyId} />
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>🔑 Zugänge</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Login-Daten des Kunden – Passwörter verschlüsselt gespeichert, per
+                Klick anzeigbar. Vom Team angelegte Zugänge bleiben team-intern.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <AssetHubManager
+                clientCompanyId={clientCompanyId}
+                brands={hub.brands}
+                assets={hub.assets}
+                canReveal
+                secretVaultEnabled={isSecretVaultEnabled()}
+                variant="access"
+              />
+            </CardContent>
+          </Card>
+        </>
       ),
     },
   ];
