@@ -438,10 +438,15 @@ export default async function ClientDetailPage({
                 <Card>
                   <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                     <div>
-                      <CardTitle>🧩 Mitgliedschafts-Baukasten</CardTitle>
+                      <CardTitle>
+                        {company.isLegacy
+                          ? '🧩 Mitgliedschafts-Baukasten'
+                          : '🧩 supevo-Mitgliedschaft'}
+                      </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Module wählen → Preis ergibt sich live. Erste Einrichtung
-                        gilt sofort, spätere Änderungen ab dem Folgemonat.
+                        {company.isLegacy
+                          ? 'Module wählen → Preis ergibt sich live. Erste Einrichtung gilt sofort, spätere Änderungen ab dem Folgemonat.'
+                          : 'Stufe wählen. Ein gesetzter Custom-Preis überschreibt den regulären Stufenpreis und wird oben angezeigt.'}
                       </p>
                     </div>
                     <Link
@@ -452,7 +457,10 @@ export default async function ClientDetailPage({
                     </Link>
                   </CardHeader>
                   <CardContent>
-                    <MembershipConfiguratorPanel clientCompanyId={clientCompanyId} />
+                    <MembershipConfiguratorPanel
+                      clientCompanyId={clientCompanyId}
+                      show={company.isLegacy ? 'modules' : 'stages'}
+                    />
                   </CardContent>
                 </Card>
 

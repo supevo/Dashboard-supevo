@@ -80,6 +80,7 @@ export function MembershipConfigurator({
   readOnly = false,
   show = 'all',
   taxRatePct = 19,
+  initialCustomNetCents = null,
 }: {
   modules: ModuleDef[];
   clientCompanyId?: string;
@@ -95,6 +96,8 @@ export function MembershipConfigurator({
   show?: 'all' | 'stages' | 'modules';
   /** MwSt-Satz für die Brutto↔Netto-Umrechnung im Custom-Preis-Feld. */
   taxRatePct?: number;
+  /** Gespeicherter Custom-Preis (netto) → Feld vorbefüllen + aktiv anzeigen. */
+  initialCustomNetCents?: number | null;
 }) {
   const router = useRouter();
   const [map, setMap] = useState<SelMap>(() => toMap(modules, initialSelections));
@@ -105,8 +108,10 @@ export function MembershipConfigurator({
   );
   // Finaler Custom-Preis (nur Agentur-Baukasten): überschreibt den berechneten
   // Preis. Eingabe wahlweise netto oder brutto; gespeichert wird immer netto.
-  const [customOn, setCustomOn] = useState(false);
-  const [customEuros, setCustomEuros] = useState('');
+  const [customOn, setCustomOn] = useState(initialCustomNetCents != null);
+  const [customEuros, setCustomEuros] = useState(
+    initialCustomNetCents != null ? String(initialCustomNetCents / 100) : '',
+  );
   const [customBasis, setCustomBasis] = useState<'net' | 'gross'>('net');
   // Agentur-Haken: Änderung sofort gültig statt zum Folgemonat.
   const [applyNow, setApplyNow] = useState(false);

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { de } from '@/lib/i18n/de';
 
 /**
@@ -23,6 +24,10 @@ export function Modal({
   children: React.ReactNode;
   dismissible?: boolean;
 }) {
+  // Nur clientseitig portalen (SSR kennt document nicht).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open || !dismissible) return;
     const onKey = (e: KeyboardEvent) => {
@@ -32,9 +37,12 @@ export function Modal({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose, dismissible]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
-  return (
+  // An document.body portalen, damit das fixe Overlay NICHT innerhalb eines
+  // transformierten Elements (z. B. dnd-kit-Drag-Container der Kanban-Karten)
+  // landet – sonst positioniert sich „fixed" relativ dazu → Fenster-im-Fenster.
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -59,6 +67,7 @@ export function Modal({
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

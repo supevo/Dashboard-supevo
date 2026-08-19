@@ -2276,6 +2276,8 @@ export interface Database {
           created_by: string;
           due_date: string | null;
           estimated_minutes: number | null;
+          ai_estimate_minutes: number | null;
+          manual_estimate_minutes: number | null;
           actual_minutes: number;
           position: number;
           is_internal: boolean;
@@ -2306,6 +2308,8 @@ export interface Database {
           created_by: string;
           due_date?: string | null;
           estimated_minutes?: number | null;
+          ai_estimate_minutes?: number | null;
+          manual_estimate_minutes?: number | null;
           actual_minutes?: number;
           position?: number;
           is_internal?: boolean;

@@ -39,6 +39,7 @@ export async function MembershipConfiguratorPanel({
         }
         show={show}
         taxRatePct={view.taxRatePct}
+        initialCustomNetCents={view.active.customNetCents}
       />
       <div className="border-t pt-4">
         <MembershipClientEditToggle
