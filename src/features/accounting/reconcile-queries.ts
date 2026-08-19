@@ -18,12 +18,15 @@ export interface PaymentSuggestion {
   invoiceNumber: string | null;
   invoiceKunde: string | null;
   invoiceGrossCents: number;
+  /** Rechnungsdatum – für den „Rechnung aus anderem Monat"-Hinweis. */
+  invoiceIssueDate: string | null;
 }
 export interface ReceiptSuggestion {
   match: Match;
   receiptHaendler: string | null;
   receiptDatum: string | null;
   receiptBruttoCents: number | null;
+  receiptWaehrung: string | null;
   receiptRechnungsnummer: string | null;
   receiptKonfidenz: number | null;
   receiptRohtext: string | null;
@@ -309,7 +312,7 @@ export async function getReconcileSuggestions(
   const { data: receiptRows } = await supabase
     .from('bookkeeping_receipts')
     .select(
-      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, konfidenz, rohtext',
+      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, waehrung, konfidenz, rohtext',
     )
     .eq('billing_entity_id', billingEntityId)
     .in('kind', ['ausgabe', 'einnahme'])

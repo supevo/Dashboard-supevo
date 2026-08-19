@@ -47,6 +47,18 @@ function pct(score: number): string {
   return `${Math.round(score * 100)} %`;
 }
 
+/** True if two ISO dates fall in the same calendar month. */
+function sameMonth(a: string, b: string): boolean {
+  return a.slice(0, 7) === b.slice(0, 7);
+}
+
+/** "Juni 2026" from an ISO date, for the cross-month hint. */
+function monthYear(iso: string): string {
+  const m = Number(iso.slice(5, 7));
+  const y = iso.slice(0, 4);
+  return m >= 1 && m <= 12 ? `${MONTHS[m - 1]} ${y}` : y;
+}
+
 /** Small badge for cross-boundary bookings (payment in prev/following month). */
 function PeriodBadge({ period }: { period: PeriodClass }) {
   if (period !== 'vor' && period !== 'folge') return null;
@@ -81,6 +93,9 @@ function ScanDetails({ r }: { r: ReceiptSuggestion }) {
           {r.receiptBruttoCents != null
             ? formatEuroCents(r.receiptBruttoCents)
             : '—'}
+          {r.receiptWaehrung && r.receiptWaehrung.toUpperCase() !== 'EUR'
+            ? ` · Währung ${r.receiptWaehrung} (Betrag im Original, Bankbetrag weicht durch Kurs ab)`
+            : ''}
         </div>
         <div>
           <span className="font-medium">Rechnungsnr.:</span>{' '}
@@ -513,6 +528,12 @@ export async function ReconcilePanel({
                       {p.invoiceNumber ?? '—'} · {p.invoiceKunde ?? '—'}
                       <div className="text-xs text-muted-foreground">
                         {formatEuroCents(p.invoiceGrossCents)}
+                        {p.invoiceIssueDate &&
+                        !sameMonth(p.invoiceIssueDate, p.txDatum) ? (
+                          <span className="ml-2 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-600 dark:text-sky-400">
+                            Rechnung aus {monthYear(p.invoiceIssueDate)}
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
