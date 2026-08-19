@@ -14,6 +14,7 @@ import { getActivePromotions } from '@/features/promotions/queries';
 import { promoDiscountCents } from '@/features/promotions/discount';
 import { resolveClientEntity, type BillingEntity } from '@/features/billing/invoice-service';
 import { DEFAULT_CONTRACT_TERMS } from '@/features/contracts/terms';
+import { getOrgBranding } from '@/features/branding/queries';
 
 export interface ContractLine {
   label: string;
@@ -42,6 +43,8 @@ export interface ContractData {
   terms: string;
   date: string;
   reference: string;
+  /** Dunkles Org-Logo (data-URI) für den hellen Vertragskopf, oder null. */
+  logoDark: string | null;
 }
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
@@ -207,6 +210,7 @@ export async function buildContractFromLead(leadId: string): Promise<ContractDat
     terms,
     date: todayDe(),
     reference: lead.offer_name && lead.offer_name !== 'Individuell' ? lead.offer_name : '',
+    logoDark: (await getOrgBranding(orgId)).logoDark,
   };
 }
 
@@ -264,6 +268,7 @@ export async function buildContractFromClient(
     reference: membership.custom_name && membership.custom_name !== 'Individuell'
       ? membership.custom_name
       : '',
+    logoDark: (await getOrgBranding(orgId)).logoDark,
   };
 }
 

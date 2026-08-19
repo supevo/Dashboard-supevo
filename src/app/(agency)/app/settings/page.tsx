@@ -12,6 +12,8 @@ import { getOneDriveStatus } from '@/features/onedrive/queries';
 import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
 import { ChoreAdmin } from '@/features/office-chores/components/chore-admin';
 import { listOrgChores } from '@/features/office-chores/queries';
+import { getOrgBranding } from '@/features/branding/queries';
+import { LogoSettings } from '@/features/branding/components/logo-settings';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage({
@@ -21,10 +23,11 @@ export default async function SettingsPage({
 }) {
   const { orgId } = await requireOrgAdminPage();
   // Independent → parallel. Org and OneDrive-Status don't depend on each other.
-  const [org, oneDriveStatus, chores, sp, cookieStore] = await Promise.all([
+  const [org, oneDriveStatus, chores, branding, sp, cookieStore] = await Promise.all([
     getOrganization(orgId),
     getOneDriveStatus(orgId),
     listOrgChores(orgId),
+    getOrgBranding(orgId),
     searchParams,
     cookies(),
   ]);
@@ -39,6 +42,19 @@ export default async function SettingsPage({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{de.settings.title}</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🖼️ Logo</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Euer Logo für das Dashboard und für erzeugte Medien (Rechnungen,
+            Verträge). Dunkel für helle Hintergründe, hell für die Dark-Ansicht.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <LogoSettings logoDark={branding.logoDark} logoLight={branding.logoLight} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

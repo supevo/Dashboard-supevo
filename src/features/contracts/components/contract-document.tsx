@@ -27,6 +27,10 @@ export function ContractDocument({ data }: { data: ContractData }) {
 
       <div className="flex items-start justify-between gap-6 border-b pb-4">
         <div>
+          {data.logoDark && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.logoDark} alt="" className="mb-3 h-10 w-auto" />
+          )}
           <h1 className="text-2xl font-bold">Dienstleistungsvertrag</h1>
           <p className="mt-1 text-xs text-gray-500">
             Datum: {data.date}
