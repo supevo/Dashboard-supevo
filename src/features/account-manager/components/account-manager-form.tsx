@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAccountManagerAction } from '@/features/account-manager/actions';
 import { idleResult } from '@/lib/action-result';
@@ -31,6 +31,23 @@ export function AccountManagerForm({
   const [state, formAction] = useActionState(setAccountManagerAction, idleResult);
   const router = useRouter();
 
+  // Kontrollierte Auswahl: Ein <form action={...}> setzt in React 19 seine
+  // unkontrollierten Felder nach dem Absenden automatisch auf den defaultValue
+  // zurück – dadurch sprang die Anzeige trotz erfolgreichem Speichern zurück auf
+  // „keiner". Mit State-gesteuerten Selects bleibt der gewählte Wert stehen; nach
+  // dem router.refresh() synchronisieren wir mit den frischen Server-Props.
+  const [managerId, setManagerId] = useState(currentManagerId ?? '');
+  const [secondaryManagerId, setSecondaryManagerId] = useState(
+    currentSecondaryManagerId ?? '',
+  );
+
+  useEffect(() => {
+    setManagerId(currentManagerId ?? '');
+  }, [currentManagerId]);
+  useEffect(() => {
+    setSecondaryManagerId(currentSecondaryManagerId ?? '');
+  }, [currentSecondaryManagerId]);
+
   useEffect(() => {
     if (state.status === 'success') router.refresh();
   }, [state, router]);
@@ -47,7 +64,8 @@ export function AccountManagerForm({
           <Select
             id="managerId"
             name="managerId"
-            defaultValue={currentManagerId ?? ''}
+            value={managerId}
+            onChange={(e) => setManagerId(e.target.value)}
           >
             <option value="">– keiner –</option>
             {staff.map((s) => (
@@ -65,7 +83,8 @@ export function AccountManagerForm({
           <Select
             id="secondaryManagerId"
             name="secondaryManagerId"
-            defaultValue={currentSecondaryManagerId ?? ''}
+            value={secondaryManagerId}
+            onChange={(e) => setSecondaryManagerId(e.target.value)}
           >
             <option value="">– keine –</option>
             {staff.map((s) => (
