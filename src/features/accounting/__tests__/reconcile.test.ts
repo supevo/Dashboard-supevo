@@ -4,8 +4,44 @@ import {
   matchReceiptsToTransactions,
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
+  numberMatchStrength,
   AUTO_THRESHOLD,
+  SUGGEST_THRESHOLD,
 } from '../reconcile';
+
+describe('numberMatchStrength', () => {
+  it('strong when the full number (incl. letters) is in the purpose', () => {
+    expect(numberMatchStrength('RE-2026-1', 'Zahlung RE 2026/1 danke')).toBe(
+      'strong',
+    );
+    expect(numberMatchStrength('RE-2026-1', 'EREF+RE20261 SVWZ+Rechnung')).toBe(
+      'strong',
+    );
+  });
+
+  it('weak when only the digit groups line up (reformatted separators)', () => {
+    // No "RE" in the purpose, but the digit groups 2026 then 1 appear in order.
+    expect(numberMatchStrength('RE-2026-1', 'Rechnung 2026 1 Zahlung')).toBe(
+      'weak',
+    );
+    // Purpose merged the number's groups into one run, letters dropped.
+    expect(numberMatchStrength('RG-2026/0042', 'Ueberweisung 20260042')).toBe(
+      'weak',
+    );
+  });
+
+  it('does not match a bare year or a short counter (false friends)', () => {
+    expect(numberMatchStrength('2026', 'Miete 2026 Januar')).toBe('none');
+    expect(numberMatchStrength('RE-7', 'Zahlung 7 Stueck')).toBe('none');
+  });
+
+  it('does not match digits hidden inside a longer run (IBAN/amount)', () => {
+    // 20261 must not be found inside a longer digit block.
+    expect(numberMatchStrength('RE-20261', 'DE12 3456 7890 1202610')).toBe(
+      'none',
+    );
+  });
+});
 
 describe('matchPaymentsToInvoices', () => {
   it('auto-matches on invoice number in purpose + exact amount', () => {
@@ -43,6 +79,33 @@ describe('matchPaymentsToInvoices', () => {
       { id: 'i1', number: 'RE-1', grossCents: 10000, issueDate: '2024-03-01', kunde: 'x' },
     ];
     expect(matchPaymentsToInvoices(payments, invoices)).toHaveLength(0);
+  });
+
+  it('suggests a reformatted invoice number (digits only) but does not auto-book', () => {
+    const payments = [
+      // Bank dropped the "RE" and reformatted the separators.
+      { id: 't1', datum: '2024-03-10', gegen: 'Fremd XY', zweck: 'Ueberweisung 2024 5', betragCents: 119000 },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-2024-5', grossCents: 119000, issueDate: '2024-03-08', kunde: 'Kunde AG' },
+    ];
+    const matches = matchPaymentsToInvoices(payments, invoices);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.score).toBeGreaterThanOrEqual(SUGGEST_THRESHOLD);
+    // Digit-only correspondence must not auto-book on its own.
+    expect(matches[0]!.auto).toBe(false);
+  });
+
+  it('a partial debit is suggested but never auto-booked as fully paid', () => {
+    const payments = [
+      { id: 't1', datum: '2024-03-10', gegen: 'Kunde AG', zweck: 'Anzahlung RE-2024-5', betragCents: 50000 },
+    ];
+    const invoices = [
+      { id: 'i1', number: 'RE-2024-5', grossCents: 119000, issueDate: '2024-03-08', kunde: 'Kunde AG' },
+    ];
+    const matches = matchPaymentsToInvoices(payments, invoices);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.auto).toBe(false);
   });
 });
 

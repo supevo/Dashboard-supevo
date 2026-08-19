@@ -69,13 +69,75 @@ function nameSimilarity(a: string | null, b: string | null): number {
   return (2 * inter) / (ta.size + tb.size);
 }
 
-/** True if the (normalized) invoice number appears in the purpose text. */
+/** Only the alphanumeric characters, lowercased ("RE-2026/1" → "re20261"). */
+function alnum(s: string | null): string {
+  return (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Sequences of consecutive digits in the string ("RE 2026-1" → ["2026","1"]). */
+function digitRuns(s: string | null): string[] {
+  return (s ?? '').match(/\d+/g) ?? [];
+}
+
+/** True if `needle` occurs as a contiguous block inside `hay` (element-wise). */
+function isContiguousSubsequence(needle: string[], hay: string[]): boolean {
+  if (needle.length === 0 || needle.length > hay.length) return false;
+  outer: for (let i = 0; i + needle.length <= hay.length; i += 1) {
+    for (let j = 0; j < needle.length; j += 1) {
+      if (hay[i + j] !== needle[j]) continue outer;
+    }
+    return true;
+  }
+  return false;
+}
+
+export type NumberMatch = 'strong' | 'weak' | 'none';
+
+/**
+ * How strongly an invoice/receipt/transaction number is reflected in a bank
+ * purpose text. Bank exports reformat references heavily (different separators,
+ * merged or split groups, EREF/KREF blocks), so a plain substring test misses
+ * real matches.
+ *  - 'strong': the number *including its letters* appears contiguously
+ *    ("RE-2026-1" → "…RE20261…"). Distinctive enough to corroborate an automatic
+ *    booking.
+ *  - 'weak': only the DIGIT part lines up – the digit groups appear in order
+ *    (separators reformatted) or merged into one run. A good suggestion, but on
+ *    its own not enough to auto-book, because amounts/dates can coincide.
+ */
+export function numberMatchStrength(
+  number: string | null,
+  zweck: string | null,
+): NumberMatch {
+  if (!number || !zweck) return 'none';
+  const nFull = alnum(number);
+  const zFull = alnum(zweck);
+  const hasLetters = /[a-z]/.test(nFull);
+  // A number carrying letters (e.g. "RE-…") is distinctive: a contiguous
+  // occurrence incl. its letters is a strong signal.
+  if (hasLetters && nFull.length >= 3 && zFull.includes(nFull)) return 'strong';
+
+  const nRuns = digitRuns(number);
+  const digits = nRuns.join('');
+  // Distinctiveness guard against false friends: a bare 4-digit year or a short
+  // counter. Require ≥5 digits, or ≥2 separate groups (year + counter), so
+  // "2026-1" counts but a lone "2026" does not.
+  if (digits.length < 4 || (nRuns.length < 2 && digits.length < 5)) return 'none';
+
+  const zRuns = digitRuns(zweck);
+  // Purpose merged the groups into one isolated run ("RE20261" → "20261"), or the
+  // number's digit-group sequence appears verbatim (separators reformatted). For
+  // a purely numeric number an isolated match is itself strong; for a lettered
+  // number the missing letters make it only a (still useful) weak suggestion.
+  const digitHit =
+    zRuns.includes(digits) || isContiguousSubsequence(nRuns, zRuns);
+  if (digitHit) return hasLetters ? 'weak' : 'strong';
+  return 'none';
+}
+
+/** True for any (strong or weak) number correspondence – broadens candidates. */
 function numberInPurpose(number: string | null, zweck: string | null): boolean {
-  if (!number || !zweck) return false;
-  const n = number.replace(/[^a-z0-9]/gi, '').toLowerCase();
-  if (n.length < 3) return false;
-  const z = zweck.replace(/[^a-z0-9]/gi, '').toLowerCase();
-  return z.includes(n);
+  return numberMatchStrength(number, zweck) !== 'none';
 }
 
 function daysBetween(a: string, b: string): number {
@@ -105,14 +167,24 @@ function scorePaymentInvoice(
   let s = 0;
   const reasons: string[] = [];
 
-  if (numberInPurpose(inv.number, tx.zweck)) {
+  const numMatch = numberMatchStrength(inv.number, tx.zweck);
+  if (numMatch === 'strong') {
     s += 0.6;
     reasons.push('Rechnungsnummer im Zweck');
+  } else if (numMatch === 'weak') {
+    s += 0.45;
+    reasons.push('Rechnungsnummer (Ziffern) im Zweck');
   }
   const amt = amountScore(tx.betragCents, inv.grossCents);
+  // A full-ish amount (exact / rounding / Skonto) may corroborate an automatic
+  // booking; a partial debit (0.12 tier) must stay a suggestion – it must never
+  // silently mark an invoice as fully paid.
+  const amountFull = amt >= 0.24;
   if (amt > 0) {
     s += amt;
-    reasons.push(amt >= 0.3 ? 'Betrag exakt' : 'Betrag passend');
+    reasons.push(
+      amt >= 0.3 ? 'Betrag exakt' : amountFull ? 'Betrag passend' : 'Teilbetrag',
+    );
   }
   // Graduated time proximity: a payment close to the invoice date scores higher
   // than one months apart (so recurring same-amount items pick the right date).
@@ -138,16 +210,18 @@ function scorePaymentInvoice(
 
   s = Math.min(1, s);
   if (s < minScore) return null;
-  // Automatisch nur übernehmen, wenn außer dem Betrag ein weiteres Signal passt
-  // (Rechnungsnummer im Zweck ODER klar gleicher Kunde). Sonst nur Vorschlag –
-  // gegen zufällig gleiche Beträge verschiedener Rechnungen.
-  const corroborated = numberInPurpose(inv.number, tx.zweck) || sim > 0.5;
+  // Automatisch nur übernehmen, wenn (a) der volle Betrag passt, UND (b) ein
+  // eindeutiges Zusatzsignal vorliegt: die vollständige Rechnungsnummer (inkl.
+  // Buchstaben) im Zweck ODER klar gleicher Kunde. Eine nur ziffernweise
+  // Übereinstimmung oder ein Teilbetrag bleibt Vorschlag – gegen zufällig
+  // gleiche Beträge verschiedener Rechnungen.
+  const corroborated = numMatch === 'strong' || sim > 0.5;
   return {
     leftId: tx.id,
     rightId: inv.id,
     score: Math.round(s * 100) / 100,
     reason: reasons.join(', '),
-    auto: s >= AUTO_THRESHOLD && corroborated,
+    auto: s >= AUTO_THRESHOLD && corroborated && amountFull,
     dist,
   };
 }
@@ -237,11 +311,14 @@ function scoreReceiptTx(
   }
 
   // Starkes Zusatzsignal: die Rechnungs-/Belegnummer taucht im Verwendungszweck
-  // der Bankbuchung auf.
-  const numberMatch = numberInPurpose(rec.rechnungsnummer ?? null, tx.zweck);
-  if (numberMatch) {
+  // der Bankbuchung auf (auch ziffernweise, falls die Bank sie umformatiert hat).
+  const numMatch = numberMatchStrength(rec.rechnungsnummer ?? null, tx.zweck);
+  if (numMatch === 'strong') {
     s += 0.4;
     reasons.push('Rechnungsnr. im Zweck');
+  } else if (numMatch === 'weak') {
+    s += 0.28;
+    reasons.push('Rechnungsnr. (Ziffern) im Zweck');
   }
 
   const sim = nameSimilarity(tx.gegen, rec.haendler);
@@ -253,10 +330,10 @@ function scoreReceiptTx(
   s = Math.min(1, s);
   if (s < minScore) return null;
   // Automatisch nur übernehmen, wenn außer Betrag/Datum ein weiteres Signal
-  // passt (Rechnungsnr. ODER klar gleicher Händler). Sonst nur Vorschlag –
-  // damit zufällig gleiche Beträge verschiedener Belege nicht falsch verbucht
-  // werden (häufigste Fehlzuordnung).
-  const corroborated = numberMatch || sim > 0.5;
+  // passt (vollständige Rechnungsnr. ODER klar gleicher Händler). Sonst nur
+  // Vorschlag – damit zufällig gleiche Beträge verschiedener Belege nicht falsch
+  // verbucht werden (häufigste Fehlzuordnung).
+  const corroborated = numMatch === 'strong' || sim > 0.5;
   return {
     leftId: rec.id,
     rightId: tx.id,
