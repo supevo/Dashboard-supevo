@@ -23,8 +23,11 @@ export function DeleteTaskButton({
 
   useEffect(() => {
     if (state.status === 'success') {
-      router.push(`/app/projects/${projectId}`);
-      router.refresh();
+      // Zur Board-Seite wechseln OHNE router.refresh(): ein refresh würde die
+      // gerade gelöschte Aufgaben-Route neu rendern → notFound() → 404. Der
+      // Server hat das Board bereits per revalidatePath aktualisiert, und
+      // replace() lässt die tote Seite nicht im Verlauf zurück (Back = kein 404).
+      router.replace(`/app/projects/${projectId}`);
     }
   }, [state, router, projectId]);
 

@@ -178,6 +178,20 @@ export function NotificationBell({ area }: { area: 'app' | 'portal' }) {
     router.refresh();
   }
 
+  // Beim Öffnen der Glocke kurz darauf automatisch alles als gelesen markieren.
+  // Refs, damit der Effekt nur an `open` hängt (kein Timer-Reset beim Polling).
+  const markAllRef = useRef(markAll);
+  markAllRef.current = markAll;
+  const unreadRef = useRef(unread);
+  unreadRef.current = unread;
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      if (unreadRef.current > 0) void markAllRef.current();
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [open]);
+
   async function toggleSound() {
     if (soundOn) {
       setSoundOn(false);

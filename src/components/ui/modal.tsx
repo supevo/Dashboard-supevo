@@ -3,26 +3,34 @@
 import { useEffect } from 'react';
 import { de } from '@/lib/i18n/de';
 
-/** Simple accessible modal overlay. Closes on backdrop click or Escape. */
+/**
+ * Simple accessible modal overlay. Schließt bewusst NUR über das ✕ (bzw. eigene
+ * Buttons im Inhalt) – ein Klick auf den Hintergrund schließt NICHT, damit ein
+ * versehentlicher Klick daneben (v. a. auf Kundenseite) das Popup nicht instant
+ * schließt. `dismissible` schaltet das alte Verhalten (Backdrop + Escape) wieder
+ * frei, falls für ein Popup gewünscht.
+ */
 export function Modal({
   open,
   onClose,
   title,
   children,
+  dismissible = false,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  dismissible?: boolean;
 }) {
   useEffect(() => {
-    if (!open) return;
+    if (!open || !dismissible) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, dismissible]);
 
   if (!open) return null;
 
@@ -31,7 +39,7 @@ export function Modal({
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      onClick={onClose}
+      onClick={dismissible ? onClose : undefined}
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
     >
       <div
