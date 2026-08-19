@@ -11,25 +11,13 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
-import { estimateTaskMinutes } from './generate';
+import { estimateTaskMinutes, fetchEstimateExamples } from './generate';
 
-async function saveEstimate(
-  taskId: string,
-  projectId: string,
-  minutes: number | null,
-): Promise<ActionResult> {
-  const supabase = await createSupabaseServerClient();
-  const { error, count } = await supabase
-    .from('tasks')
-    .update({ estimated_minutes: minutes }, { count: 'exact' })
-    .eq('id', taskId);
-  if (error) return errorResult(de.errors.FORBIDDEN);
-  if (!count) return errorResult(de.errors.FORBIDDEN);
-  revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
-  return successResult('Aufwand aktualisiert.');
-}
-
-/** KI-estimates the effort for a task and stores it. */
+/**
+ * KI-schätzt den Aufwand und speichert ihn als KI-Rohwert
+ * (ai_estimate_minutes). Der effektiv genutzte Wert (estimated_minutes) bleibt
+ * ein bestehender manueller Override – ansonsten übernimmt er die KI-Schätzung.
+ */
 export async function estimateTaskAction(
   _prev: ActionResult,
   formData: FormData,
@@ -47,18 +35,36 @@ export async function estimateTaskAction(
   const supabase = await createSupabaseServerClient();
   const { data: task } = await supabase
     .from('tasks')
-    .select('title, description')
+    .select('title, description, organization_id, manual_estimate_minutes')
     .eq('id', parsed.data.taskId)
     .maybeSingle();
   if (!task) return errorResult(de.errors.NOT_FOUND);
 
-  const minutes = await estimateTaskMinutes(task.title, task.description);
+  const examples = await fetchEstimateExamples(task.organization_id);
+  const minutes = await estimateTaskMinutes(task.title, task.description, examples);
   if (minutes === null) return errorResult(de.errors.INTERNAL);
-  return saveEstimate(parsed.data.taskId, parsed.data.projectId, minutes);
+
+  // Manueller Override gewinnt weiterhin; sonst ist die KI-Schätzung effektiv.
+  const effective = task.manual_estimate_minutes ?? minutes;
+  const { error, count } = await supabase
+    .from('tasks')
+    .update(
+      { ai_estimate_minutes: minutes, estimated_minutes: effective },
+      { count: 'exact' },
+    )
+    .eq('id', parsed.data.taskId);
+  if (error || !count) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath(`/app/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return successResult('KI-Schätzung aktualisiert.');
 }
 
-/** Manually sets the effort estimate (in minutes). 0/empty clears it. */
-export async function setEstimateAction(
+/**
+ * Setzt die HÄNDISCHE Aufwandsschätzung (Minuten). Sie überschreibt die KI und
+ * dient künftig als Lern-Beispiel. 0/leer entfernt den manuellen Wert – dann
+ * greift wieder die KI-Schätzung.
+ */
+export async function setManualEstimateAction(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
@@ -76,9 +82,26 @@ export async function setEstimateAction(
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
   await requireUser();
-  return saveEstimate(
-    parsed.data.taskId,
-    parsed.data.projectId,
-    parsed.data.minutes > 0 ? parsed.data.minutes : null,
-  );
+  const supabase = await createSupabaseServerClient();
+
+  const manual = parsed.data.minutes > 0 ? parsed.data.minutes : null;
+  // Effektiver Wert = manuell ∨ (bestehende) KI-Schätzung.
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('ai_estimate_minutes')
+    .eq('id', parsed.data.taskId)
+    .maybeSingle();
+  const effective = manual ?? task?.ai_estimate_minutes ?? null;
+
+  const { error, count } = await supabase
+    .from('tasks')
+    .update(
+      { manual_estimate_minutes: manual, estimated_minutes: effective },
+      { count: 'exact' },
+    )
+    .eq('id', parsed.data.taskId);
+  if (error || !count) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath(`/app/projects/${parsed.data.projectId}/tasks/${parsed.data.taskId}`);
+  return successResult('Aufwand aktualisiert.');
 }

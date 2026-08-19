@@ -294,6 +294,8 @@ export default async function TaskDetailPage({
                 projectId={projectId}
                 taskId={taskId}
                 estimatedMinutes={task.estimatedMinutes}
+                aiEstimateMinutes={task.aiEstimateMinutes}
+                manualEstimateMinutes={task.manualEstimateMinutes}
                 actualMinutes={actualMinutes}
                 canManage={task.canManage}
               />

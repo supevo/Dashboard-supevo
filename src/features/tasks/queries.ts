@@ -16,6 +16,8 @@ export interface TaskDetail {
   isArchived: boolean;
   dueDate: string | null;
   estimatedMinutes: number | null;
+  aiEstimateMinutes: number | null;
+  manualEstimateMinutes: number | null;
   actualMinutes: number;
   lockVersion: number;
   assignees: TaskAssignee[];
@@ -31,7 +33,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -79,6 +81,8 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     isArchived: task.is_archived,
     dueDate: task.due_date,
     estimatedMinutes: task.estimated_minutes,
+    aiEstimateMinutes: task.ai_estimate_minutes,
+    manualEstimateMinutes: task.manual_estimate_minutes,
     actualMinutes: task.actual_minutes,
     lockVersion: task.lock_version,
     assignees: ids.map((id) => ({

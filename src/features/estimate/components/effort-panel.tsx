@@ -1,10 +1,10 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   estimateTaskAction,
-  setEstimateAction,
+  setManualEstimateAction,
 } from '@/features/estimate/actions';
 import { idleResult } from '@/lib/action-result';
 import { formatMinutes } from '@/lib/time';
@@ -13,27 +13,45 @@ import { Input } from '@/components/ui/input';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 
+/**
+ * Aufwand einer Aufgabe: KI-Schätzung + händische Schätzung nebeneinander. Die
+ * händische Schätzung überschreibt die KI (effektiver Wert = manuell ∨ KI) und
+ * fließt als Lern-Beispiel in künftige KI-Schätzungen ein.
+ */
 export function EffortPanel({
   projectId,
   taskId,
   estimatedMinutes,
+  aiEstimateMinutes,
+  manualEstimateMinutes,
   actualMinutes,
   canManage,
 }: {
   projectId: string;
   taskId: string;
+  /** Effektiv genutzter Wert (manuell ∨ KI). */
   estimatedMinutes: number | null;
+  aiEstimateMinutes: number | null;
+  manualEstimateMinutes: number | null;
   actualMinutes: number;
   canManage: boolean;
 }) {
   const [estState, estimate] = useActionState(estimateTaskAction, idleResult);
-  const [, setManual] = useActionState(setEstimateAction, idleResult);
+  const [manualState, setManual] = useActionState(setManualEstimateAction, idleResult);
   const router = useRouter();
+  const [manualInput, setManualInput] = useState(
+    manualEstimateMinutes != null ? String(manualEstimateMinutes) : '',
+  );
   useEffect(() => {
-    if (estState.status === 'success') router.refresh();
-  }, [estState, router]);
+    setManualInput(manualEstimateMinutes != null ? String(manualEstimateMinutes) : '');
+  }, [manualEstimateMinutes]);
+  useEffect(() => {
+    if (estState.status === 'success' || manualState.status === 'success') {
+      router.refresh();
+    }
+  }, [estState, manualState, router]);
 
-  // Efficiency indicator once both numbers exist.
+  // Effizienz-Badge vergleicht Ist gegen den effektiven Schätzwert.
   let badge: { text: string; cls: string } | null = null;
   if (estimatedMinutes && actualMinutes > 0) {
     const ratio = actualMinutes / estimatedMinutes;
@@ -46,9 +64,17 @@ export function EffortPanel({
     <div className="space-y-3 text-sm">
       <div className="flex flex-wrap items-center gap-4">
         <div>
-          <div className="text-xs text-muted-foreground">{de.effort.estimated}</div>
+          <div className="text-xs text-muted-foreground">✨ KI-Schätzung</div>
           <div className="font-semibold">
-            {estimatedMinutes ? formatMinutes(estimatedMinutes) : '—'}
+            {aiEstimateMinutes ? formatMinutes(aiEstimateMinutes) : '—'}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted-foreground">
+            ✍️ Manuell{manualEstimateMinutes != null ? ' (aktiv)' : ''}
+          </div>
+          <div className="font-semibold">
+            {manualEstimateMinutes != null ? formatMinutes(manualEstimateMinutes) : '—'}
           </div>
         </div>
         <div>
@@ -63,34 +89,44 @@ export function EffortPanel({
       </div>
 
       {canManage && (
-        <div className="flex flex-wrap items-center gap-2">
-          <form action={estimate}>
-            <input type="hidden" name="taskId" value={taskId} />
-            <input type="hidden" name="projectId" value={projectId} />
-            <SubmitButton size="sm" variant="outline">
-              ✨ {de.effort.aiEstimate}
-            </SubmitButton>
-          </form>
-          <form action={setManual} className="flex items-center gap-1">
-            <input type="hidden" name="taskId" value={taskId} />
-            <input type="hidden" name="projectId" value={projectId} />
-            <Input
-              name="minutes"
-              type="number"
-              min={0}
-              max={4800}
-              defaultValue={estimatedMinutes ?? ''}
-              placeholder="Min."
-              className="h-8 w-20 text-sm"
-            />
-            <SubmitButton size="sm" variant="ghost">
-              {de.common.save}
-            </SubmitButton>
-          </form>
-        </div>
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={estimate}>
+              <input type="hidden" name="taskId" value={taskId} />
+              <input type="hidden" name="projectId" value={projectId} />
+              <SubmitButton size="sm" variant="outline">
+                ✨ {de.effort.aiEstimate}
+              </SubmitButton>
+            </form>
+            <form action={setManual} className="flex items-center gap-1">
+              <input type="hidden" name="taskId" value={taskId} />
+              <input type="hidden" name="projectId" value={projectId} />
+              <Input
+                name="minutes"
+                type="number"
+                min={0}
+                max={4800}
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="Min."
+                className="h-8 w-24 text-sm"
+              />
+              <SubmitButton size="sm" variant="ghost">
+                Manuell speichern
+              </SubmitButton>
+            </form>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Die manuelle Schätzung überschreibt die KI und hilft ihr, künftige
+            Aufgaben besser einzuschätzen. Leer/0 = wieder KI verwenden.
+          </p>
+        </>
       )}
       {estState.status === 'error' && (
         <p className="text-xs text-destructive">{estState.message}</p>
+      )}
+      {manualState.status === 'error' && (
+        <p className="text-xs text-destructive">{manualState.message}</p>
       )}
     </div>
   );
