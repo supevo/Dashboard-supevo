@@ -64,6 +64,7 @@ export async function getSatisfactionSummary(
 export async function getMyClientCompany(): Promise<{
   clientCompanyId: string;
   organizationId: string;
+  isLegacy: boolean;
 } | null> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
@@ -71,7 +72,15 @@ export async function getMyClientCompany(): Promise<{
     .select('client_company_id, organization_id')
     .limit(1)
     .maybeSingle();
-  return data
-    ? { clientCompanyId: data.client_company_id, organizationId: data.organization_id }
-    : null;
+  if (!data) return null;
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', data.client_company_id)
+    .maybeSingle();
+  return {
+    clientCompanyId: data.client_company_id,
+    organizationId: data.organization_id,
+    isLegacy: company?.is_legacy ?? false,
+  };
 }

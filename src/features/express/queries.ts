@@ -51,7 +51,7 @@ export async function getExpressStatus(
   const [{ data: company }, { data: membership }, { count }] = await Promise.all([
     supabase
       .from('client_companies')
-      .select('express_tickets_per_month')
+      .select('express_tickets_per_month, is_legacy')
       .eq('id', clientCompanyId)
       .maybeSingle(),
     supabase
@@ -66,10 +66,14 @@ export async function getExpressStatus(
       .eq('period', period),
   ]);
 
-  const perMonth = ticketsPerMonth(
-    membership?.stage,
-    company?.express_tickets_per_month ?? 0,
-  );
+  // Express-Tickets sind ein supevo-(Stage-)Feature. Legacy-Kunden haben es NICHT
+  // – unabhängig von der technischen stage-Spalte → kein Kontingent, keine Rakete.
+  const perMonth = company?.is_legacy
+    ? 0
+    : ticketsPerMonth(
+        membership?.stage,
+        company?.express_tickets_per_month ?? 0,
+      );
   const used = count ?? 0;
   return {
     perMonth,
