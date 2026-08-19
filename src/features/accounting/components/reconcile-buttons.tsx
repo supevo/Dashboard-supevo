@@ -18,9 +18,9 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 
 /**
- * Runs the reconcile engine (auto-applies confident matches). The scope dropdown
- * limits it to one month or runs across all open items – so earlier months with
- * still-open payments can be caught up.
+ * Recomputes the suggestions and reports how many are open for review. Writes
+ * NOTHING – nothing is booked automatically; every match is confirmed by hand.
+ * The scope dropdown limits the count to one month or all open items.
  */
 export function RunReconcileButton({
   billingEntityId,
@@ -50,8 +50,15 @@ export function RunReconcileButton({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={run} disabled={busy}>
-        {busy ? 'Gleiche ab …' : '🔗 Abgleich starten'}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={run}
+        disabled={busy}
+        title="Aktualisiert die Vorschläge – verbucht nichts automatisch"
+      >
+        {busy ? 'Aktualisiere …' : '🔄 Vorschläge aktualisieren'}
       </Button>
       {msg && <Alert className="py-1 text-xs">{msg}</Alert>}
     </div>
@@ -59,48 +66,32 @@ export function RunReconcileButton({
 }
 
 /**
- * "Erneut abgleichen": runs the engine again (auto-applies anything now
- * confident) AND switches the view into the lenient pass (?rerun=1), which
- * lowers the suggest bar so under-80 % bookings get a second, manual chance.
+ * Pure view toggle: switches the panel into (or out of) the lenient pass
+ * (?rerun=1), which lowers the suggest bar so sub-80 % candidates get a second,
+ * MANUAL chance. Books nothing – it only changes what is shown.
  */
 export function RerunReconcileButton({
-  billingEntityId,
-  year,
-  month,
   rerunHref,
   active,
 }: {
-  billingEntityId: string;
-  year: number;
-  month: number;
   /** URL that turns the lenient pass on; a plain href turns it off. */
   rerunHref: string;
   active: boolean;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function run() {
-    setBusy(true);
-    await runReconcileAction(billingEntityId, {
-      year,
-      month: month >= 1 && month <= 12 ? month : undefined,
-    });
-    setBusy(false);
-    router.push(rerunHref);
-    router.refresh();
-  }
 
   return (
     <Button
       type="button"
       variant={active ? 'default' : 'outline'}
       size="sm"
-      onClick={run}
-      disabled={busy}
-      title="Prüft offene Buchungen unter 80 % noch einmal mit gelockerter Schwelle"
+      onClick={() => {
+        router.push(rerunHref);
+        router.refresh();
+      }}
+      title="Zeigt zusätzlich schwächere Treffer (ab 35 %) zum manuellen Prüfen – verbucht nichts"
     >
-      {busy ? 'Prüfe erneut …' : '🔁 Erneut abgleichen'}
+      {active ? '🔁 Unsichere Treffer ausblenden' : '🔁 Unsichere Treffer zeigen'}
     </Button>
   );
 }

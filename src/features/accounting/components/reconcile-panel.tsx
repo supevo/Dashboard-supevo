@@ -249,9 +249,10 @@ function UnpaidReceiptsSection({
 }
 
 /**
- * Abgleich tab: run the reconcile engine (auto-applies confident matches) and
- * confirm the remaining suggestions. The month picker limits the view to the
- * selected month plus a ±3-day fringe; fringe bookings are flagged.
+ * Abgleich tab: shows the reconcile suggestions for manual confirmation. Nothing
+ * is booked automatically – every match is applied by hand (per row or via „Alle
+ * sicheren übernehmen"). The month picker limits the view to the selected month
+ * plus a ±3-day fringe; fringe bookings are flagged.
  */
 export async function ReconcilePanel({
   orgId,
@@ -465,13 +466,7 @@ export async function ReconcilePanel({
             year={year}
             month={month}
           />
-          <RerunReconcileButton
-            billingEntityId={active.entity.id}
-            year={year}
-            month={month}
-            rerunHref={toggleHref}
-            active={weak}
-          />
+          <RerunReconcileButton rerunHref={toggleHref} active={weak} />
         </div>
       </div>
 

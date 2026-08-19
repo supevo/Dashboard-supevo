@@ -528,10 +528,11 @@ function inScope(
 }
 
 /**
- * Runs the reconcile engine for a company and auto-applies the confident matches
- * (score ≥ 0.85). Scope limits which bookings are considered by date: pass a
- * month (with year) to reconcile just that month, or omit it for all open items
- * across every month (e.g. to catch up on earlier unpaid payments).
+ * Recomputes the reconcile suggestions for a company and reports how many are
+ * open for review. Deliberately writes NOTHING – reconciliation is confirmed
+ * manually (per row or via „Alle sicheren übernehmen"), because automatic
+ * booking proved too error-prone. Scope limits the count by date: a month (with
+ * year), or omitted for all open items across every month.
  */
 export async function runReconcileAction(
   billingEntityId: string,
@@ -548,39 +549,20 @@ export async function runReconcileAction(
   const payments = all.payments.filter((p) => inScope(p.txDatum, scope));
   const receipts = all.receipts.filter((r) => inScope(r.txDatum, scope));
   const combos = all.combos.filter((c) => inScope(c.txDatum, scope));
-
-  let applied = 0;
-  for (const p of payments) {
-    if (!p.match.auto) continue;
-    if (await linkPayment(supabase, p.match.leftId, p.match.rightId)) applied += 1;
-  }
-  for (const r of receipts) {
-    if (!r.match.auto) continue;
-    if (await linkReceipt(supabase, r.match.leftId, r.match.rightId)) applied += 1;
-  }
-  for (const c of combos) {
-    if (!c.match.auto) continue;
-    const ok = await linkCombo(supabase, {
-      txId: c.match.txId,
-      orgId,
-      entityId: billingEntityId,
-      invoiceIds: c.match.invoiceIds,
-    });
-    if (ok) applied += 1;
-  }
-
+  const splits = all.splits.filter((s) => inScope(s.txDatum, scope));
   const openSuggestions =
-    payments.filter((p) => !p.match.auto).length +
-    receipts.filter((r) => !r.match.auto).length +
-    combos.filter((c) => !c.match.auto).length;
+    payments.length + receipts.length + combos.length + splits.length;
 
   revalidatePath('/app/finance');
   const where =
     scope.month != null ? `${scope.month}/${scope.year}` : 'alle Monate';
-  let msg = `${applied} sichere Zuordnungen übernommen (${where}). ${openSuggestions} Vorschläge zum Prüfen.`;
+  let msg =
+    openSuggestions > 0
+      ? `${openSuggestions} Vorschläge zum Prüfen (${where}). Bitte einzeln bestätigen.`
+      : `Keine Vorschläge (${where}).`;
 
   // Nothing matched at all → explain why, instead of a bare "0".
-  if (applied === 0 && openSuggestions === 0) {
+  if (openSuggestions === 0) {
     const d = await getReconcileDiagnostics(billingEntityId);
     const hints: string[] = [];
     const ohneBetrag = d.receiptsAusgabe - d.receiptsAusgabeMitBetrag;
