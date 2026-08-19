@@ -35,6 +35,8 @@ export interface ConfiguratorView {
   priceContext: PriceContext;
   clientCanEdit: boolean;
   modules: ModuleDef[];
+  /** Regulärer MwSt-Satz der Org (für Brutto↔Netto im Custom-Preis-Feld). */
+  taxRatePct: number;
 }
 
 function parsePending(m: Membership): (PendingChange & { effectiveDate: string }) | null {
@@ -85,15 +87,18 @@ export async function promoteIfDue(
 async function priceContextFor(
   supabase: Supabase,
   orgId: string,
-): Promise<PriceContext> {
+): Promise<{ ctx: PriceContext; taxRatePct: number }> {
   const { data } = await supabase
     .from('billing_settings')
-    .select('stage1_net_cents, stage2_net_cents')
+    .select('stage1_net_cents, stage2_net_cents, default_tax_rate')
     .eq('organization_id', orgId)
     .maybeSingle();
   return {
-    stage1NetCents: data?.stage1_net_cents ?? 0,
-    stage2NetCents: data?.stage2_net_cents ?? 0,
+    ctx: {
+      stage1NetCents: data?.stage1_net_cents ?? 0,
+      stage2NetCents: data?.stage2_net_cents ?? 0,
+    },
+    taxRatePct: data?.default_tax_rate ?? 19,
   };
 }
 
@@ -115,23 +120,25 @@ export async function getMembershipConfigurator(
       .select('organization_id')
       .eq('id', clientCompanyId)
       .maybeSingle();
-    const priceContext = client
+    const pc = client
       ? await priceContextFor(supabase, client.organization_id)
-      : { stage1NetCents: 0, stage2NetCents: 0 };
+      : { ctx: { stage1NetCents: 0, stage2NetCents: 0 }, taxRatePct: 19 };
     const modules = client ? await getModuleCatalog(client.organization_id) : [];
     return {
       hasMembership: false,
       clientCompanyId,
       active: { selections: [], netCents: 0, name: 'Individuell', stage: 1 },
       pending: null,
-      priceContext,
+      priceContext: pc.ctx,
       clientCanEdit: false,
       modules,
+      taxRatePct: pc.taxRatePct,
     };
   }
 
   const membership = await promoteIfDue(supabase, raw as Membership);
-  const priceContext = await priceContextFor(supabase, membership.organization_id);
+  const pc = await priceContextFor(supabase, membership.organization_id);
+  const priceContext = pc.ctx;
   const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
 
@@ -150,6 +157,7 @@ export async function getMembershipConfigurator(
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
+    taxRatePct: pc.taxRatePct,
   };
 }
 // (Promotions/Gutscheine werden bewusst nur im Lead-Angebot angezeigt.)
@@ -215,6 +223,7 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
     priceContext,
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
+    taxRatePct: 19,
     isLegacy: company?.is_legacy ?? false,
     companyName: company?.name ?? null,
   };

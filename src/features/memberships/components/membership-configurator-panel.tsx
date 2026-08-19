@@ -38,6 +38,7 @@ export async function MembershipConfiguratorPanel({
             : null
         }
         show={show}
+        taxRatePct={view.taxRatePct}
       />
       <div className="border-t pt-4">
         <MembershipClientEditToggle
