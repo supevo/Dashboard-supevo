@@ -45,6 +45,24 @@ describe('parseBankCsv', () => {
     expect(res.transactions[1]?.betragCents).toBe(119000);
   });
 
+  it('captures the counterparty IBAN from a dedicated column', () => {
+    const csv = [
+      'Buchungstag;Name Zahlungsbeteiligter;IBAN Zahlungsbeteiligter;Verwendungszweck;Betrag',
+      '06.03.2024;Kunde AG;DE02 1203 0000 0000 2020 51;Zahlung RE-5;1.190,00',
+    ].join('\n');
+    const res = parseBankCsv(csv);
+    expect(res.transactions[0]?.gegenIban).toBe('DE02120300000000202051');
+  });
+
+  it('falls back to an IBAN embedded in the purpose text', () => {
+    const csv = [
+      'Buchungstag;Name;Verwendungszweck;Betrag',
+      '06.03.2024;Kunde AG;Zahlung IBAN DE02 1203 0000 0000 2020 51 Danke;1.190,00',
+    ].join('\n');
+    const res = parseBankCsv(csv);
+    expect(res.transactions[0]?.gegenIban).toBe('DE02120300000000202051');
+  });
+
   it('parses separate Soll/Haben columns', () => {
     const csv = [
       'Datum;Name;Verwendungszweck;Soll;Haben',

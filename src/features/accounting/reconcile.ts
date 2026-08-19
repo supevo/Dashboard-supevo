@@ -21,6 +21,8 @@ export interface TxLite {
   gegen: string | null;
   zweck: string | null;
   betragCents: number;
+  /** IBAN der Gegenpartei (Zahler), falls im Auszug vorhanden. */
+  gegenIban?: string | null;
 }
 export interface InvoiceLite {
   id: string;
@@ -30,6 +32,24 @@ export interface InvoiceLite {
   kunde: string | null;
   /** Externe Transaktions-/Referenznummer (Stripe, PayPal, Bestellnr. …). */
   paymentRef?: string | null;
+  /** Kunde der Rechnung – für den IBAN-Abgleich (gelernte IBAN → Kunde). */
+  clientId?: string | null;
+}
+
+/**
+ * Gelernte Zuordnung „Gegen-IBAN → Kunde", abgeleitet aus früher bestätigten
+ * Zahlungen. Eine übereinstimmende IBAN ist ein eindeutiges Signal.
+ */
+export type IbanClientMap = Map<string, string>;
+
+/** True, wenn die Gegen-IBAN der Zahlung zum Kunden der Rechnung gelernt wurde. */
+function ibanMatches(
+  tx: TxLite,
+  inv: InvoiceLite,
+  ibanClientId: IbanClientMap,
+): boolean {
+  if (!tx.gegenIban || !inv.clientId) return false;
+  return ibanClientId.get(tx.gegenIban) === inv.clientId;
 }
 export interface ReceiptLite {
   id: string;
@@ -188,9 +208,16 @@ function scorePaymentInvoice(
   tx: TxLite,
   inv: InvoiceLite,
   minScore = SUGGEST_THRESHOLD,
+  ibanClientId: IbanClientMap = new Map(),
 ): Match | null {
   let s = 0;
   const reasons: string[] = [];
+
+  const ibanHit = ibanMatches(tx, inv, ibanClientId);
+  if (ibanHit) {
+    s += 0.5;
+    reasons.push('Kunden-IBAN stimmt überein');
+  }
 
   const numMatch = bestNumberMatch([inv.number, inv.paymentRef], tx.zweck);
   if (numMatch === 'strong') {
@@ -237,10 +264,10 @@ function scorePaymentInvoice(
   if (s < minScore) return null;
   // Automatisch nur übernehmen, wenn (a) der volle Betrag passt, UND (b) ein
   // eindeutiges Zusatzsignal vorliegt: die vollständige Rechnungsnummer (inkl.
-  // Buchstaben) im Zweck ODER klar gleicher Kunde. Eine nur ziffernweise
-  // Übereinstimmung oder ein Teilbetrag bleibt Vorschlag – gegen zufällig
-  // gleiche Beträge verschiedener Rechnungen.
-  const corroborated = numMatch === 'strong' || sim > 0.5;
+  // Buchstaben) im Zweck, eine übereinstimmende Kunden-IBAN ODER klar gleicher
+  // Kunde. Eine nur ziffernweise Übereinstimmung oder ein Teilbetrag bleibt
+  // Vorschlag – gegen zufällig gleiche Beträge verschiedener Rechnungen.
+  const corroborated = numMatch === 'strong' || ibanHit || sim > 0.5;
   return {
     leftId: tx.id,
     rightId: inv.id,
@@ -276,12 +303,13 @@ export function matchPaymentsToInvoices(
   payments: TxLite[],
   invoices: InvoiceLite[],
   minScore = SUGGEST_THRESHOLD,
+  ibanClientId: IbanClientMap = new Map(),
 ): Match[] {
   const candidates: Match[] = [];
   for (const tx of payments) {
     if (tx.betragCents <= 0) continue;
     for (const inv of invoices) {
-      const m = scorePaymentInvoice(tx, inv, minScore);
+      const m = scorePaymentInvoice(tx, inv, minScore, ibanClientId);
       if (m) candidates.push(m);
     }
   }
@@ -446,6 +474,7 @@ function bestCombo(
 export function matchPaymentCombinations(
   payments: TxLite[],
   invoices: InvoiceLite[],
+  ibanClientId: IbanClientMap = new Map(),
 ): ComboMatch[] {
   const results: ComboMatch[] = [];
   const usedInvoices = new Set<string>();
@@ -460,7 +489,8 @@ export function matchPaymentCombinations(
       if (usedInvoices.has(inv.id)) return false;
       const byNumber = numberInPurpose([inv.number, inv.paymentRef], pay.zweck);
       const byName = nameSimilarity(pay.gegen, inv.kunde) > 0.3;
-      if (!byNumber && !byName) return false;
+      const byIban = ibanMatches(pay, inv, ibanClientId);
+      if (!byNumber && !byName && !byIban) return false;
       if (inv.issueDate && daysBetween(pay.datum, inv.issueDate) > 120) return false;
       return true;
     });
@@ -559,6 +589,7 @@ function bestPaymentSubset(
 export function matchInvoiceSplitPayments(
   payments: TxLite[],
   invoices: InvoiceLite[],
+  ibanClientId: IbanClientMap = new Map(),
 ): SplitMatch[] {
   const results: SplitMatch[] = [];
   const usedTx = new Set<string>();
@@ -574,7 +605,8 @@ export function matchInvoiceSplitPayments(
       if (p.betragCents <= 0 || p.betragCents >= inv.grossCents) return false;
       const byNumber = numberInPurpose([inv.number, inv.paymentRef], p.zweck);
       const byName = nameSimilarity(p.gegen, inv.kunde) > 0.3;
-      if (!byNumber && !byName) return false;
+      const byIban = ibanMatches(p, inv, ibanClientId);
+      if (!byNumber && !byName && !byIban) return false;
       if (inv.issueDate && daysBetween(p.datum, inv.issueDate) > 180) return false;
       return true;
     });

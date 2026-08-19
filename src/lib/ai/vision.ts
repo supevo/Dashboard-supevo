@@ -41,6 +41,7 @@ export function isReceiptVisionEnabled(): boolean {
 export interface AiBankTransaction {
   datum: string | null;
   gegen: string | null;
+  gegen_iban: string | null;
   zweck: string | null;
   betrag: number | null; // euros, negative = Ausgang
 }
@@ -62,10 +63,11 @@ const BANK_SCHEMA = {
         properties: {
           datum: { type: ['string', 'null'] },
           gegen: { type: ['string', 'null'] },
+          gegen_iban: { type: ['string', 'null'] },
           zweck: { type: ['string', 'null'] },
           betrag: { type: ['number', 'null'] },
         },
-        required: ['datum', 'gegen', 'zweck', 'betrag'],
+        required: ['datum', 'gegen', 'gegen_iban', 'zweck', 'betrag'],
       },
     },
   },
@@ -77,7 +79,9 @@ const BANK_SYSTEM = [
   'JEDE einzelne Buchung strukturiert zurück. datum als YYYY-MM-DD. betrag als',
   'Zahl in Euro (Punkt als Dezimaltrennzeichen): positiv = Geldeingang, negativ =',
   'Geldausgang. gegen = Name der Gegenpartei (Empfänger/Zahler), zweck =',
-  'Verwendungszweck. account_iban = IBAN des Auszug-Kontos, falls erkennbar,',
+  'Verwendungszweck. gegen_iban = IBAN der Gegenpartei (Zahler/Empfänger), falls',
+  'in der Zeile/Spalte vorhanden, sonst null – NICHT die eigene Konto-IBAN.',
+  'account_iban = IBAN des Auszug-Kontos, falls erkennbar,',
   'sonst null. WICHTIG: Gib ausnahmslos ALLE Umsätze zurück, fasse nichts',
   'zusammen, lasse keine Zeile aus und erfinde keine. Zwei Buchungen mit',
   'gleichem Betrag/Datum sind zwei getrennte Einträge. Gib aber JEDE Buchung',

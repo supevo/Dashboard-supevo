@@ -12,6 +12,7 @@ import {
   type TxLite,
   type InvoiceLite,
   type ReceiptLite,
+  type IbanClientMap,
 } from '@/features/accounting/reconcile';
 import type {
   ReconcileSuggestions,
@@ -29,6 +30,7 @@ export interface ReconcileInputRows {
     id: string;
     datum: string;
     gegen: string | null;
+    gegen_iban?: string | null;
     zweck: string | null;
     betrag_cents: number;
     re_id: string | null;
@@ -61,6 +63,8 @@ export interface ReconcileInputRows {
   dismissed?: { a_id: string; b_id: string }[];
   /** Kategorien, die komplett aus dem Abgleich ausgeklammert werden. */
   excludedCategories?: string[];
+  /** Gelernte Zuordnung Gegen-IBAN → Kunde (aus bestätigten Zahlungen). */
+  ibanClientId?: IbanClientMap;
   minScore?: number;
 }
 
@@ -79,6 +83,7 @@ export function computeReconcile({
   receiptRows,
   dismissed = [],
   excludedCategories = [],
+  ibanClientId = new Map(),
   minScore = SUGGEST_THRESHOLD,
 }: ReconcileInputRows): ReconcileSuggestions {
   const allTx = txRows;
@@ -128,6 +133,7 @@ export function computeReconcile({
       gegen: t.gegen,
       zweck: t.zweck,
       betragCents: t.betrag_cents,
+      gegenIban: t.gegen_iban ?? null,
     }));
   const outgoing: TxLite[] = allTx
     .filter(
@@ -156,6 +162,7 @@ export function computeReconcile({
       issueDate: i.issue_date,
       kunde: clientName.get(i.client_company_id) ?? null,
       paymentRef: i.payment_ref ?? null,
+      clientId: i.client_company_id,
     }));
 
   const toLite = (r: {
@@ -184,9 +191,11 @@ export function computeReconcile({
   // nummer im Zweck allein reicht ihr), bevor Sammel-/Teilzahlung greifen kann.
 
   // 1) Teilzahlungen: mehrere Zahlungen → eine Rechnung.
-  const splitMatches = matchInvoiceSplitPayments(payments, invoices).filter(
-    (m) => !m.txIds.some((t) => isDismissed(m.invoiceId, t)),
-  );
+  const splitMatches = matchInvoiceSplitPayments(
+    payments,
+    invoices,
+    ibanClientId,
+  ).filter((m) => !m.txIds.some((t) => isDismissed(m.invoiceId, t)));
   const usedSplitTx = new Set(splitMatches.flatMap((m) => m.txIds));
   const usedSplitInv = new Set(splitMatches.map((m) => m.invoiceId));
   const paymentsAfterSplit = payments.filter((p) => !usedSplitTx.has(p.id));
@@ -196,6 +205,7 @@ export function computeReconcile({
   const comboMatches = matchPaymentCombinations(
     paymentsAfterSplit,
     invoicesAfterSplit,
+    ibanClientId,
   ).filter((m) => !m.invoiceIds.some((inv) => isDismissed(m.txId, inv)));
   const usedComboTx = new Set(comboMatches.map((m) => m.txId));
   const usedComboInv = new Set(comboMatches.flatMap((m) => m.invoiceIds));
@@ -209,6 +219,7 @@ export function computeReconcile({
     paymentsLeft,
     invoicesLeft,
     minScore,
+    ibanClientId,
   ).filter((m) => !isDismissed(m.leftId, m.rightId));
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 

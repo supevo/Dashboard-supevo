@@ -19,6 +19,8 @@ import { periodBounds } from '@/features/accounting/transaction-queries';
 import {
   type ParsedTransaction,
   normalizeDate,
+  normalizeIban,
+  extractIban,
 } from '@/features/accounting/bank-import/types';
 import { extractBankStatement } from '@/lib/ai/vision';
 import {
@@ -146,6 +148,7 @@ export async function importBankStatementAction(
           gegen: t.gegen,
           zweck: t.zweck,
           betragCents: Math.round(t.betrag * 100),
+          gegenIban: normalizeIban(t.gegen_iban) ?? extractIban(t.zweck),
         },
       ];
     });
@@ -228,6 +231,7 @@ export async function importBankStatementAction(
       konto_id: kontoId,
       datum: t.datum,
       gegen: t.gegen,
+      gegen_iban: t.gegenIban ?? null,
       zweck: t.zweck,
       betrag_cents: t.betragCents,
       kategorie_id: ruleHit,
