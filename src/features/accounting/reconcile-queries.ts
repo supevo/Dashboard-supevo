@@ -6,6 +6,7 @@ import {
   type Match,
   type ComboMatch,
   type SplitMatch,
+  type PartnerBalance,
 } from '@/features/accounting/reconcile';
 import { computeReconcile } from '@/features/accounting/reconcile-compute';
 
@@ -107,6 +108,12 @@ export interface ReconcileSuggestions {
    * Lieferantenrechnungen, die (noch) nicht bezahlt sind.
    */
   unpaidIncoming: OpenReceipt[];
+  /**
+   * Saldo je Partner über alle offenen Posten (monatsübergreifend): Summe der
+   * offenen Zahlungen vs. Summe der offenen Rechnungen/Belege – für Muster wie
+   * Google-Ads (runde Teilzahlungen) und fehlende Rechnungen/Zahlungen.
+   */
+  partnerBalances: PartnerBalance[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;

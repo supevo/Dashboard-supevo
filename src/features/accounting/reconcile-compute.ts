@@ -8,6 +8,7 @@ import {
   matchReceiptsToTransactions,
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
+  computePartnerBalances,
   SUGGEST_THRESHOLD,
   type TxLite,
   type InvoiceLite,
@@ -395,6 +396,23 @@ export function computeReconcile({
     .filter((r) => !matchedReceiptIds.has(r.id))
     .map(toOpenReceipt);
 
+  // Saldo je Partner (monatsübergreifend, über die noch offenen Posten):
+  // Ausgabe = offene Bankausgänge vs. offene Eingangsrechnungen; Einnahme =
+  // offene Eingänge vs. offene Ausgangsrechnungen. Fängt das Google-Ads-Muster
+  // (runde Abbuchungen ≠ Rechnungsbeträge, Summe passt) und fehlende Belege.
+  const partnerBalances = [
+    ...computePartnerBalances(
+      missingReceipts.map((m) => ({ name: m.txGegen, cents: Math.abs(m.txBetragCents) })),
+      unpaidIncoming.map((r) => ({ name: r.haendler, cents: r.bruttoCents ?? 0 })),
+      'ausgabe',
+    ),
+    ...computePartnerBalances(
+      missingIncoming.map((m) => ({ name: m.txGegen, cents: Math.abs(m.txBetragCents) })),
+      unpaidOutgoing.map((r) => ({ name: r.haendler, cents: r.bruttoCents ?? 0 })),
+      'einnahme',
+    ),
+  ];
+
   return {
     payments: paymentsOut,
     receipts: receiptsOut,
@@ -405,5 +423,6 @@ export function computeReconcile({
     excluded,
     unpaidOutgoing,
     unpaidIncoming,
+    partnerBalances,
   };
 }

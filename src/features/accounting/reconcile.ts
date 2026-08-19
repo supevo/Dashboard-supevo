@@ -701,3 +701,121 @@ export function matchReceiptsToTransactions(
   }
   return greedy(candidates);
 }
+
+// --- Saldo je Partner -------------------------------------------------------
+
+export interface PartnerBalanceItem {
+  name: string | null;
+  cents: number;
+}
+export interface PartnerBalance {
+  art: 'ausgabe' | 'einnahme';
+  /** Repräsentativer Klartext-Name des Partners. */
+  name: string;
+  paymentsCount: number;
+  /** Betrags-MAGNITUDE der offenen Zahlungen (immer positiv). */
+  paymentsSumCents: number;
+  docsCount: number;
+  /** Betrags-MAGNITUDE der offenen Rechnungen/Belege (immer positiv). */
+  docsSumCents: number;
+  /** paymentsSum − docsSum (positiv = mehr gezahlt als berechnet). */
+  diffCents: number;
+  /**
+   *  match           – Summen passen ~ (wahrscheinlich Teilzahlungen).
+   *  missing_doc     – mehr gezahlt als berechnet → evtl. fehlt eine Rechnung.
+   *  missing_payment – mehr berechnet als gezahlt → evtl. fehlt eine Zahlung.
+   */
+  kind: 'match' | 'missing_doc' | 'missing_payment';
+}
+
+// Geo-/Konzern-Zusätze, die zwei Schreibweisen desselben Partners trennen würden
+// ("Google Ireland Ltd" vs. "Google Ads") – für die Gruppierung ausgeblendet.
+const PARTNER_STOP = new Set([
+  'ireland', 'europe', 'international', 'payments', 'payment', 'limited',
+  'holding', 'group', 'deutschland', 'germany', 'ads', 'pay', 'technologies',
+  'platforms', 'services', 'service', 'online', 'company', 'digital', 'media',
+  'marketing', 'inc', 'llc', 'corp', 'sarl', 'operations',
+]);
+
+/** Gruppierungs-Schlüssel eines Partnernamens (Marken-Token, ohne Zusätze). */
+function partnerKey(name: string | null): string | null {
+  const toks = normName(name)
+    .split(' ')
+    .filter((t) => t.length >= 3 && !PARTNER_STOP.has(t));
+  if (toks.length === 0) return null;
+  toks.sort();
+  return toks.join(' ');
+}
+
+/**
+ * Saldo je Partner: gruppiert offene Zahlungen und offene Rechnungen/Belege nach
+ * Partner (Marken-Token) und vergleicht die Summen. Fängt Muster wie Google-Ads
+ * ab, wo runde Abbuchungen (500/300) nicht zu einzelnen Rechnungen passen, ihre
+ * SUMME aber schon – oder wo eine Rechnung/Zahlung offensichtlich fehlt.
+ */
+export function computePartnerBalances(
+  payments: PartnerBalanceItem[],
+  docs: PartnerBalanceItem[],
+  art: 'ausgabe' | 'einnahme',
+): PartnerBalance[] {
+  interface Agg {
+    name: string;
+    count: number;
+    sum: number;
+  }
+  const agg = (items: PartnerBalanceItem[]): Map<string, Agg> => {
+    const m = new Map<string, Agg>();
+    for (const it of items) {
+      const key = partnerKey(it.name);
+      if (!key || it.cents <= 0) continue;
+      const a = m.get(key) ?? { name: it.name ?? key, count: 0, sum: 0 };
+      a.count += 1;
+      a.sum += it.cents;
+      m.set(key, a);
+    }
+    return m;
+  };
+  const pay = agg(payments);
+  const doc = agg(docs);
+
+  const out: PartnerBalance[] = [];
+  for (const key of new Set([...pay.keys(), ...doc.keys()])) {
+    const p = pay.get(key);
+    const d = doc.get(key);
+    const pc = p?.count ?? 0;
+    const ps = p?.sum ?? 0;
+    const dc = d?.count ?? 0;
+    const ds = d?.sum ?? 0;
+
+    // Nur aussagekräftige Fälle: beide Seiten vorhanden, oder mehrere gleich-
+    // artige (mehrere Zahlungen ohne jede Rechnung / umgekehrt).
+    const bothSides = pc >= 1 && dc >= 1;
+    const manyPaymentsNoDoc = pc >= 2 && dc === 0;
+    const manyDocsNoPayment = dc >= 2 && pc === 0;
+    if (!bothSides && !manyPaymentsNoDoc && !manyDocsNoPayment) continue;
+    if (Math.max(ps, ds) < 100) continue;
+
+    const diff = ps - ds;
+    const tol = Math.max(100, Math.round(Math.max(ps, ds) * 0.01));
+    const kind =
+      Math.abs(diff) <= tol ? 'match' : diff > 0 ? 'missing_doc' : 'missing_payment';
+
+    out.push({
+      art,
+      name: p?.name ?? d?.name ?? key,
+      paymentsCount: pc,
+      paymentsSumCents: ps,
+      docsCount: dc,
+      docsSumCents: ds,
+      diffCents: diff,
+      kind,
+    });
+  }
+  // Größte Auffälligkeit zuerst (Differenz, dann Volumen).
+  out.sort(
+    (a, b) =>
+      Math.abs(b.diffCents) - Math.abs(a.diffCents) ||
+      b.paymentsSumCents + b.docsSumCents - (a.paymentsSumCents + a.docsSumCents),
+  );
+  return out.slice(0, 25);
+}
