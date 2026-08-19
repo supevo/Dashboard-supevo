@@ -129,9 +129,14 @@ function buildLines(
     );
   for (const { s, def } of active) {
     const detail: string[] = [];
-    // Menge nur zeigen, wenn wirklich mehrere Einheiten gemeint sind.
+    // Menge nur zeigen, wenn wirklich mehrere Einheiten gemeint sind. Ohne
+    // Einheiten-Label nur die reine Anzahl (kein „monatlich" o. Ä.).
     if (def.pricing.kind === 'per_unit' && s.qty && s.qty > 1) {
-      detail.push(`${s.qty} ${def.pricing.unitLabel}`);
+      detail.push(
+        def.pricing.unitLabel
+          ? `${s.qty} ${def.pricing.unitLabel}`
+          : `Anzahl: ${s.qty}`,
+      );
     }
     if (def.keywordCents > 0) {
       detail.push(`${s.keywords ?? def.keywordDefault} Keywords`);
