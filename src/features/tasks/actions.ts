@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
@@ -403,8 +404,12 @@ export async function createClientTaskAction(
     metadata: { title, source: 'client' },
   });
 
-  // KI schätzt den Aufwand direkt bei Erstellung (für XP / Zeitnah-Tracking).
-  await autoEstimateTaskMinutes(task.id, title, description ? description : null);
+  // KI-Aufwandsschätzung NACH der Antwort laufen lassen (after), damit das
+  // Anlegen sofort zurückkehrt und die Aufgabe ohne Verzögerung erscheint. Die
+  // Schätzung (Service-Client, wirft nie) füllt estimated_minutes im Hintergrund.
+  after(() =>
+    autoEstimateTaskMinutes(task.id, title, description ? description : null),
+  );
 
   // Alert the agency staff on this project so client requests are not missed.
   const { data: members } = await service
@@ -513,8 +518,12 @@ export async function createTaskAction(
     metadata: { title },
   });
 
-  // KI schätzt den Aufwand direkt bei Erstellung (für XP / Zeitnah-Tracking).
-  await autoEstimateTaskMinutes(task.id, title, description ? description : null);
+  // KI-Aufwandsschätzung NACH der Antwort laufen lassen (after), damit das
+  // Anlegen sofort zurückkehrt und die Aufgabe ohne Verzögerung erscheint. Die
+  // Schätzung (Service-Client, wirft nie) füllt estimated_minutes im Hintergrund.
+  after(() =>
+    autoEstimateTaskMinutes(task.id, title, description ? description : null),
+  );
 
   revalidatePath(`/app/projects/${projectId}`);
   return successResult('Aufgabe erstellt.');
