@@ -29,7 +29,14 @@ export interface ConfiguratorView {
   hasMembership: boolean;
   clientCompanyId: string;
   /** Active selection + its net monthly total (what is billed now). */
-  active: { selections: ModuleSelection[]; netCents: number; name: string; stage: number };
+  active: {
+    selections: ModuleSelection[];
+    netCents: number;
+    name: string;
+    stage: number;
+    /** Gespeicherter Custom-Preis (netto) oder null, falls kein Override. */
+    customNetCents: number | null;
+  };
   /** Scheduled change effective next month, if any. */
   pending: (PendingChange & { effectiveDate: string }) | null;
   priceContext: PriceContext;
@@ -127,7 +134,7 @@ export async function getMembershipConfigurator(
     return {
       hasMembership: false,
       clientCompanyId,
-      active: { selections: [], netCents: 0, name: 'Individuell', stage: 1 },
+      active: { selections: [], netCents: 0, name: 'Individuell', stage: 1, customNetCents: null },
       pending: null,
       priceContext: pc.ctx,
       clientCanEdit: false,
@@ -152,6 +159,7 @@ export async function getMembershipConfigurator(
         totalMonthlyCents(modules, activeSelections, priceContext),
       name: membership.custom_name ?? 'Individuell',
       stage: membership.stage,
+      customNetCents: membership.custom_net_cents ?? null,
     },
     pending: parsePending(membership),
     priceContext,
@@ -218,6 +226,7 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
         totalMonthlyCents(modules, activeSelections, priceContext),
       name: membership.custom_name ?? 'Individuell',
       stage: membership.stage,
+      customNetCents: membership.custom_net_cents ?? null,
     },
     pending: parsePending(membership),
     priceContext,
