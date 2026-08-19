@@ -100,7 +100,7 @@ export function BinAdmin({ coverage }: { coverage: BinCoverage }) {
       </Button>
       <p className="text-xs text-muted-foreground">
         ICS deines Entsorgers hochladen. Erkennt Rest-, Bio-, Gelbe und Blaue
-        Tonne automatisch. „Rausstellen" wird am Vorabend, „Reinnehmen" am
+        Tonne automatisch. „Rausstellen“ wird am Vorabend, „Reinnehmen“ am
         Abfuhrtag beim Ausstempeln zugeteilt.
       </p>
     </div>

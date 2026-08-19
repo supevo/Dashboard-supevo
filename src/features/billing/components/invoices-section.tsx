@@ -127,7 +127,7 @@ function RecipientForm({
         </SubmitButton>
       </div>
       <p className="text-xs text-muted-foreground">
-        An diese Adresse geht die Rechnung beim Klick auf „Absenden". Leer =
+        An diese Adresse geht die Rechnung beim Klick auf „Absenden“. Leer =
         allgemeine Kontakt-E-Mail des Kunden.
       </p>
       {state.status === 'error' && (
