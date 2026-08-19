@@ -713,7 +713,7 @@ function ModuleRow({
             return (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-xs text-muted-foreground">
-                  {def.pricing.unitLabel}:
+                  {def.pricing.unitLabel ? `${def.pricing.unitLabel}:` : 'Anzahl:'}
                 </span>
                 <button
                   type="button"

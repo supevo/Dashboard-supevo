@@ -76,7 +76,7 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     pricing = {
       kind: 'per_unit',
       netCents: r.net_cents,
-      unitLabel: r.unit_label ?? 'Einheiten',
+      unitLabel: (r.unit_label ?? '').trim(),
       defaultQty: r.default_qty,
       minQty: r.min_qty,
       maxQty: r.max_qty,
