@@ -50,13 +50,17 @@ export default async function ClientDashboardPage() {
         <OnboardingStepper status={onboarding} />
       )}
 
-      <ClientStatTiles
-        tiles={[
-          { key: 'open', label: de.dashboard.open, tasks: d.openTasks },
-          { key: 'inProgress', label: de.dashboard.inProgress, tasks: d.inProgressTasks },
-          { key: 'toApprove', label: de.dashboard.toApprove, tasks: d.toApproveTasks },
-        ]}
-      />
+      {/* Aufgaben-Übersicht (offen/Bearbeitung/Freigabe) ist ein supevo-Flow –
+          Legacy-Kunden haben ihn nicht, daher hier ausgeblendet. */}
+      {!company?.isLegacy && (
+        <ClientStatTiles
+          tiles={[
+            { key: 'open', label: de.dashboard.open, tasks: d.openTasks },
+            { key: 'inProgress', label: de.dashboard.inProgress, tasks: d.inProgressTasks },
+            { key: 'toApprove', label: de.dashboard.toApprove, tasks: d.toApproveTasks },
+          ]}
+        />
+      )}
 
       <WeekWorkCard data={weekWork} />
 
