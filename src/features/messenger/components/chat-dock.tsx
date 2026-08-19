@@ -296,6 +296,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
+  const [dmError, setDmError] = useState<string | null>(null);
 
   useEffect(() => {
     setOpen(localStorage.getItem(OPEN_KEY) === '1');
@@ -364,11 +365,17 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   }, [open, activeId, unread]);
 
   const startDm = async (userId: string) => {
+    setDmError(null);
     const res = await openDmAction(userId);
     if ('channelId' in res) {
       setActiveId(res.channelId);
       setStartingDm(false);
       void loadOverview();
+    } else {
+      // Kein stiller Klick ins Leere mehr: Grund sichtbar machen und Dock öffnen.
+      setDmError(res.error || 'Chat konnte nicht geöffnet werden.');
+      setStartingDm(true);
+      setOpen(true);
     }
   };
 
@@ -510,6 +517,11 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               +
             </button>
           </div>
+          {dmError && (
+            <Alert variant="destructive" className="mx-1.5 mb-1 text-[11px]">
+              {dmError}
+            </Alert>
+          )}
           {startingDm && (
             <div className="mx-1.5 mb-1 max-h-28 space-y-0.5 overflow-y-auto rounded border p-1">
               {members.filter((m) => !dmMemberIds.has(m.userId)).length === 0 ? (

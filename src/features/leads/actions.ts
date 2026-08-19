@@ -78,10 +78,19 @@ async function ensureClientForLead(
     return { id: lead.converted_client_company_id };
   }
   const selections = normalizeSelections(lead.modules);
-  const hasSupevo = selections.some(
-    (s) => s.enabled && (s.id === 'supevo_stage1' || s.id === 'supevo_stage2'),
-  );
-  const stage = selections.some((s) => s.enabled && s.id === 'supevo_stage2') ? 2 : 1;
+  // Stufe/Legacy robust über den Preis-Typ ableiten (nicht über harte Keys):
+  const catalog = await getModuleCatalog(lead.organization_id);
+  const enabledDefs = selections
+    .filter((s) => s.enabled)
+    .map((s) => catalog.find((d) => d.key === s.id))
+    .filter((d): d is ModuleDef => !!d);
+  const stageDef = enabledDefs.find((d) => d.pricing.kind === 'stage');
+  const hasSupevo = !!stageDef;
+  const stage = stageDef && stageDef.pricing.kind === 'stage' ? stageDef.pricing.stage : 1;
+  // Reine supevo-Stufe (nur Stage-Module) → als echte Mitgliedschaft speichern:
+  // Name + Preis kommen aus den Billing-Settings, kein „individueller Preis".
+  const isPureStage =
+    enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
 
   const { data: company, error: cErr } = await service
     .from('client_companies')
@@ -103,8 +112,8 @@ async function ensureClientForLead(
     organization_id: lead.organization_id,
     client_company_id: company.id,
     modules: selections as unknown,
-    custom_net_cents: lead.estimated_value_cents ?? 0,
-    custom_name: lead.offer_name || 'Individuell',
+    custom_net_cents: isPureStage ? null : lead.estimated_value_cents ?? 0,
+    custom_name: isPureStage ? null : lead.offer_name || 'Individuell',
     stage,
   });
   if (mErr) return { error: 'Mitgliedschaft konnte nicht angelegt werden.' };

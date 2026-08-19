@@ -126,23 +126,31 @@ export async function openDmAction(
 
   const service = createSupabaseServiceClient();
 
-  // Other user must be an active agency member of the same org.
-  const { data: membership } = await service
+  // Other user must be an active agency member of the same org. Use a limited
+  // list (not maybeSingle): a user can legitimately have more than one active
+  // membership row for the same org (re-invite/migration), and maybeSingle would
+  // error on >1 row → the teammate would be silently un-DMable.
+  const { data: memberships } = await service
     .from('memberships')
     .select('user_id, role, status')
     .eq('organization_id', orgId)
     .eq('user_id', otherUserId)
     .eq('status', 'active')
-    .maybeSingle();
+    .limit(1);
+  const membership = memberships?.[0];
   if (!membership || membership.role === 'client') return { error: de.errors.FORBIDDEN };
 
   const dmKey = [user.id, otherUserId].sort().join(':');
 
-  const { data: existing } = await service
+  // Same guard: if two DM channels ever share a dm_key, take the oldest instead
+  // of erroring out on maybeSingle.
+  const { data: existingRows } = await service
     .from('chat_channels')
     .select('id')
     .eq('dm_key', dmKey)
-    .maybeSingle();
+    .order('created_at', { ascending: true })
+    .limit(1);
+  const existing = existingRows?.[0];
   if (existing) return { channelId: existing.id };
 
   const { data: created, error } = await service
