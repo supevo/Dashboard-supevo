@@ -12,8 +12,15 @@ import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
 import { getClientDocuments } from '@/features/client-documents/queries';
 import { DocumentSlot } from '@/features/client-documents/components/document-slot';
+import { listBillingEntities } from '@/features/billing/queries';
 
 export const dynamic = 'force-dynamic';
+
+/** Rechnungssteller der Org als schlanke Optionen für den Wizard-Schritt 1. */
+async function billingEntityOptions(orgId: string) {
+  const entities = await listBillingEntities(orgId);
+  return entities.map((e) => ({ id: e.id, name: e.name, isDefault: e.is_default }));
+}
 
 export default async function NewClientWizardPage({
   searchParams,
@@ -52,7 +59,7 @@ export default async function NewClientWizardPage({
             </p>
           </CardHeader>
           <CardContent>
-            <ClientWizardStep1 orgId={orgId} />
+            <ClientWizardStep1 orgId={orgId} entities={await billingEntityOptions(orgId)} />
           </CardContent>
         </Card>
       )}

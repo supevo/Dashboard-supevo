@@ -12,6 +12,9 @@ export const createClientCompanySchema = z.object({
   // supevo (Stage 1/2) oder legacy (Modul-Baukasten). Steuert is_legacy und die
   // Mitgliedschafts-Ansicht im Wizard/Portal.
   customerType: z.enum(['supevo', 'legacy']).optional(),
+  // Rechnungssteller (hinterlegte Firma, z. B. supevo oder ONE STEP), unter dem
+  // der Kunde abgerechnet wird. Leer = Standard-Rechnungssteller der Org.
+  billingEntityId: z.string().uuid().optional().or(z.literal('')),
 });
 export type CreateClientCompanyInput = z.infer<
   typeof createClientCompanySchema

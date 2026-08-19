@@ -8,15 +8,28 @@ import { de } from '@/lib/i18n/de';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 import { Alert } from '@/components/ui/alert';
 import { FieldError } from '@/components/ui/field-error';
 import { SubmitButton } from '@/components/ui/submit-button';
+
+export interface BillingEntityOption {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
 
 /**
  * Step 1 of the guided new-client wizard: creates the client company and, on
  * success, advances to the membership step for the freshly created client.
  */
-export function ClientWizardStep1({ orgId }: { orgId: string }) {
+export function ClientWizardStep1({
+  orgId,
+  entities,
+}: {
+  orgId: string;
+  entities: BillingEntityOption[];
+}) {
   const [state, formAction] = useActionState(createClientCompanyAction, idleResult);
   const router = useRouter();
 
@@ -71,6 +84,28 @@ export function ClientWizardStep1({ orgId }: { orgId: string }) {
           </label>
         </div>
       </fieldset>
+
+      {entities.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="billingEntityId">Rechnungssteller (Firma)</Label>
+          <Select
+            id="billingEntityId"
+            name="billingEntityId"
+            defaultValue={entities.find((e) => e.isDefault)?.id ?? entities[0]?.id ?? ''}
+          >
+            {entities.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+                {e.isDefault ? ' (Standard)' : ''}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Unter welcher hinterlegten Firma (z. B. supevo oder ONE STEP) der
+            Kunde abgerechnet wird.
+          </p>
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         Die Rechnungsadresse des Kunden erfasst du im nächsten Schritt bei der
