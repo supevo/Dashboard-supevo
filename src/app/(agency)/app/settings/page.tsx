@@ -137,8 +137,8 @@ export default async function SettingsPage({
         <CardHeader>
           <CardTitle>🗑️ Mülltonnenservice</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Abfuhrtermine per ICS hochladen. „Rausstellen" (Vorabend) und
-            „Reinnehmen" (Abfuhrtag) werden beim Ausstempeln fair verteilt – für
+            Abfuhrtermine per ICS hochladen. „Rausstellen“ (Vorabend) und
+            „Reinnehmen“ (Abfuhrtag) werden beim Ausstempeln fair verteilt – für
             erledigte Aufgaben gibt es XP.
           </p>
         </CardHeader>
