@@ -306,8 +306,22 @@ export async function getReconcileSuggestions(
     .eq('billing_entity_id', billingEntityId)
     .neq('status', 'paid')
     .limit(2000);
+  // Bereits bezahlte Rechnungen (begrenzt) – nur um falsche „offene Eingänge"
+  // auszublenden, deren Rechnung bereits erledigt ist.
+  const { data: paidInvoiceRows } = await supabase
+    .from('invoices')
+    .select(
+      'id, invoice_number, gross_cents, issue_date, client_company_id, payment_ref',
+    )
+    .eq('billing_entity_id', billingEntityId)
+    .eq('status', 'paid')
+    .order('issue_date', { ascending: false })
+    .limit(2000);
   const clientIds = [
-    ...new Set((invoiceRows ?? []).map((i) => i.client_company_id)),
+    ...new Set([
+      ...(invoiceRows ?? []).map((i) => i.client_company_id),
+      ...(paidInvoiceRows ?? []).map((i) => i.client_company_id),
+    ]),
   ];
   const { data: clients } = clientIds.length
     ? await supabase.from('client_companies').select('id, name').in('id', clientIds)
@@ -337,6 +351,7 @@ export async function getReconcileSuggestions(
     txRows: txns ?? [],
     allocRows: allocRows ?? [],
     invoiceRows: invoiceRows ?? [],
+    paidInvoiceRows: paidInvoiceRows ?? [],
     clientName,
     receiptRows: receiptRows ?? [],
     dismissed: dismissRows ?? [],
