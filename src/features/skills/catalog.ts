@@ -51,6 +51,24 @@ export const SKILL_GROUPS: SkillGroup[] = [
 /** Flat list of all catalog skill names. */
 export const SKILL_CATALOG: string[] = SKILL_GROUPS.flatMap((g) => g.skills);
 
+/** Titel der Soft-Skill-Gruppe (persönliche Kompetenzen). */
+export const SOFT_SKILL_GROUP = 'Persönliche Kompetenzen';
+
+/** Namen aller Soft Skills (persönliche Kompetenzen) – zum Trennen von den
+ *  fachlichen Hard Skills in Übersichten. */
+export const SOFT_SKILLS: Set<string> = new Set(
+  SKILL_GROUPS.find((g) => g.title === SOFT_SKILL_GROUP)?.skills ?? [],
+);
+
+/**
+ * Ordnet einen (frei benannten) Skill den Soft Skills zu. Alles, was nicht als
+ * persönliche Kompetenz im Katalog steht – inkl. eigener, nicht katalogisierter
+ * Skills – gilt als fachlicher Hard Skill.
+ */
+export function isSoftSkill(name: string): boolean {
+  return SOFT_SKILLS.has(name);
+}
+
 /**
  * Verankerungs-Beispiele je Fähigkeit: was bedeutet 1, was bedeutet 10? Werden
  * bei der Selbsteinschätzung neben der Fähigkeit angezeigt, damit die Skala

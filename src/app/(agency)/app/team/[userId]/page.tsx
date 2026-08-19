@@ -10,6 +10,7 @@ import { formatTenure, currentTenureBadge } from '@/features/gamification/tenure
 import { LevelRing } from '@/features/gamification/components/level-ring';
 import { StatTile } from '@/features/gamification/components/stat-tile';
 import { SkillRadar } from '@/features/gamification/components/skill-radar';
+import { isSoftSkill } from '@/features/skills/catalog';
 import { LeagueBadge } from '@/features/gamification/components/league-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -222,22 +223,36 @@ export default async function ColleagueProfilePage({
             />
           )}
           {p.skills.length > 0 ? (
-            <ul className="space-y-2">
-              {p.skills.map((s) => (
-                <li key={s.name}>
-                  <div className="mb-0.5 flex items-center justify-between text-xs">
-                    <span className="font-medium">{s.name}</span>
-                    <span className="text-muted-foreground">{s.level}/10</span>
+            <div className="space-y-4">
+              {[
+                { label: t.skillsHard, items: p.skills.filter((s) => !isSoftSkill(s.name)) },
+                { label: t.skillsSoft, items: p.skills.filter((s) => isSoftSkill(s.name)) },
+              ]
+                .filter((grp) => grp.items.length > 0)
+                .map((grp) => (
+                  <div key={grp.label} className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-violet-600 dark:text-violet-400">
+                      {grp.label}
+                    </div>
+                    <ul className="space-y-2">
+                      {grp.items.map((s) => (
+                        <li key={s.name}>
+                          <div className="mb-0.5 flex items-center justify-between text-xs">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-muted-foreground">{s.level}/10</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-violet-500"
+                              style={{ width: `${(s.level / 10) * 100}%` }}
+                            />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-violet-500"
-                      style={{ width: `${(s.level / 10) * 100}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
+                ))}
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">{t.skillsEmpty}</p>
           )}

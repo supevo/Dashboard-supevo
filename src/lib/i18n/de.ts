@@ -604,6 +604,8 @@ export const de = {
     radarEmpty: 'Trage im Profil mindestens drei Skills ein, um dein Kompetenz-Radar zu sehen.',
     skillsTitle: 'Fähigkeiten',
     skillsEmpty: 'Noch keine Fähigkeiten im Profil hinterlegt.',
+    skillsHard: 'Fachliche Fähigkeiten',
+    skillsSoft: 'Persönliche Kompetenzen',
     prefsTitle: 'Lieblingsarbeit',
     prefsEmpty: 'Noch keine Lieblingsarbeit im Profil markiert.',
     recognitions: 'Meine Anerkennungen',
