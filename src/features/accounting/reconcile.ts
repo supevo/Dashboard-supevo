@@ -343,6 +343,32 @@ export function matchPaymentsToInvoices(
   return greedy(candidates);
 }
 
+/**
+ * True if this incoming payment plausibly belongs to an ALREADY-PAID invoice.
+ * Such bookings are NOT really unassigned – the invoice is settled – so they are
+ * excluded from the „Eingänge ohne Zuordnung" list (otherwise the Abgleich
+ * contradicts the Monatsabschluss, which only looks at the invoice status).
+ */
+export function paymentMatchesPaidInvoice(
+  tx: TxLite,
+  paidInvoices: InvoiceLite[],
+  ibanClientId: IbanClientMap = new Map(),
+): boolean {
+  if (tx.betragCents <= 0) return false;
+  for (const inv of paidInvoices) {
+    const num = bestNumberMatch([inv.number, inv.paymentRef], tx.zweck);
+    if (num === 'strong') return true;
+    if (ibanMatches(tx, inv, ibanClientId)) return true;
+    const amountFull = amountScore(tx.betragCents, inv.grossCents) >= 0.24;
+    if (!amountFull) continue;
+    const nameSig =
+      nameSimilarity(tx.gegen, inv.kunde) > 0.5 ||
+      nameInPurpose(inv.kunde, tx.zweck);
+    if (num !== 'none' || nameSig) return true;
+  }
+  return false;
+}
+
 /** Scores one receipt↔outgoing-transaction pair (amount AND date matter). */
 function scoreReceiptTx(
   rec: ReceiptLite,

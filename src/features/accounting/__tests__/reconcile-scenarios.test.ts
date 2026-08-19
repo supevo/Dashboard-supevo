@@ -205,6 +205,34 @@ describe('Szenario: absichtlich falsche/knifflige Daten', () => {
     expect(res.receipts[0]!.match.auto).toBe(false);
   });
 
+  it('blendet einen Eingang aus, dessen Rechnung bereits BEZAHLT ist', () => {
+    const res = computeReconcile(
+      base({
+        txRows: [tx('t1', '2026-03-05', 'Kunde AG', 119000, 'Zahlung RE-2026-1')],
+        paidInvoiceRows: [
+          {
+            id: 'iP',
+            invoice_number: 'RE-2026-1',
+            gross_cents: 119000,
+            issue_date: '2026-03-01',
+            client_company_id: 'cA',
+          },
+        ],
+        clientName: new Map([['cA', 'Kunde AG']]),
+      }),
+    );
+    expect(res.missingIncoming.map((m) => m.txId)).not.toContain('t1');
+  });
+
+  it('zeigt den Eingang, wenn keine (bezahlte) Rechnung dazu passt', () => {
+    const res = computeReconcile(
+      base({
+        txRows: [tx('t1', '2026-03-05', 'Kunde AG', 119000, 'Zahlung RE-2026-1')],
+      }),
+    );
+    expect(res.missingIncoming.map((m) => m.txId)).toContain('t1');
+  });
+
   it('Beleg 90 Tage entfernt wird nicht (falsch) zugeordnet', () => {
     const res = computeReconcile(
       base({

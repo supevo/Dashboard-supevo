@@ -263,86 +263,6 @@ function UnpaidReceiptsSection({
   );
 }
 
-/** Saldo je Partner: Summe offener Zahlungen vs. Summe offener Rechnungen. */
-function PartnerBalancesSection({
-  rows,
-}: {
-  rows: import('@/features/accounting/reconcile').PartnerBalance[];
-}) {
-  if (rows.length === 0) return null;
-  const tone = (k: string) =>
-    k === 'match'
-      ? 'text-sky-600 dark:text-sky-400'
-      : k === 'missing_doc'
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-rose-600 dark:text-rose-400';
-  const hint = (r: (typeof rows)[number]): string => {
-    const delta = formatEuroCents(Math.abs(r.diffCents));
-    if (r.kind === 'match') {
-      return 'Summen passen ~. Wahrscheinlich Teilzahlungen – bitte den Zahlungen die passenden Rechnungen zuordnen.';
-    }
-    if (r.kind === 'missing_doc') {
-      return `Mehr gezahlt als berechnet (Differenz ${delta}). Evtl. fehlt eine Rechnung – bitte hochladen/auslesen.`;
-    }
-    return `Mehr berechnet als gezahlt (Differenz ${delta}). Evtl. fehlt eine Zahlung oder ist noch offen.`;
-  };
-  return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-semibold">
-        ⚖️ Saldo je Partner{' '}
-        <span className="text-muted-foreground">({rows.length})</span>
-      </h2>
-      <p className="text-xs text-muted-foreground">
-        Über alle offenen Posten (monatsübergreifend). Nützlich, wenn Beträge
-        einzeln nicht passen – z. B. runde Google-Teilzahlungen – die Summe aber
-        schon, oder wenn eine Rechnung/Zahlung fehlt.
-      </p>
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Partner</th>
-              <th className="px-3 py-2 text-right font-medium">Offene Zahlungen</th>
-              <th className="px-3 py-2 text-right font-medium">Offene Rechnungen</th>
-              <th className="px-3 py-2 text-right font-medium">Differenz</th>
-              <th className="px-3 py-2 font-medium">Hinweis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={`${r.art}-${r.name}`} className="border-t align-top">
-                <td className="px-3 py-2">
-                  {r.name}
-                  <div className="text-[10px] uppercase text-muted-foreground">
-                    {r.art === 'ausgabe' ? 'Ausgabe' : 'Einnahme'}
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {formatEuroCents(r.paymentsSumCents)}
-                  <div className="text-xs text-muted-foreground">
-                    {r.paymentsCount} Zahlung(en)
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {formatEuroCents(r.docsSumCents)}
-                  <div className="text-xs text-muted-foreground">
-                    {r.docsCount} Rechnung(en)
-                  </div>
-                </td>
-                <td className={`whitespace-nowrap px-3 py-2 text-right font-medium ${tone(r.kind)}`}>
-                  {r.diffCents >= 0 ? '+' : '−'}
-                  {formatEuroCents(Math.abs(r.diffCents))}
-                </td>
-                <td className={`px-3 py-2 text-xs ${tone(r.kind)}`}>{hint(r)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 /**
  * Abgleich tab: shows the reconcile suggestions for manual confirmation. Nothing
  * is booked automatically – every match is applied by hand (per row or via „Alle
@@ -415,11 +335,6 @@ export async function ReconcilePanel({
   // im Ausgaben-Filter, Eingangsrechnungen (Ausgabe) im Einnahmen-Filter.
   const unpaidOutgoing = wantOut ? [] : inView(all.unpaidOutgoing);
   const unpaidIncoming = wantIn ? [] : inView(all.unpaidIncoming);
-  // Saldo je Partner ist ein monatsübergreifender Gesamtsaldo – NICHT nach Monat
-  // filtern, nur nach Einnahmen/Ausgaben respektieren.
-  const partnerBalances = all.partnerBalances.filter((b) =>
-    wantIn ? b.art === 'einnahme' : wantOut ? b.art === 'ausgabe' : true,
-  );
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -577,8 +492,6 @@ export async function ReconcilePanel({
           können. Prüfe die Vorschläge vor dem Übernehmen genau.
         </p>
       )}
-
-      <PartnerBalancesSection rows={partnerBalances} />
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">

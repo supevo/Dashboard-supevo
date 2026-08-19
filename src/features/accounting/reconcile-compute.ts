@@ -9,6 +9,7 @@ import {
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
   computePartnerBalances,
+  paymentMatchesPaidInvoice,
   SUGGEST_THRESHOLD,
   type TxLite,
   type InvoiceLite,
@@ -49,6 +50,18 @@ export interface ReconcileInputRows {
     client_company_id: string;
     payment_ref?: string | null;
   }[];
+  /**
+   * Already-paid invoices (bounded). Used only to suppress incoming payments
+   * that belong to a settled invoice from the „ohne Zuordnung"-list.
+   */
+  paidInvoiceRows?: {
+    id: string;
+    invoice_number: string | null;
+    gross_cents: number;
+    issue_date: string | null;
+    client_company_id: string;
+    payment_ref?: string | null;
+  }[];
   clientName: Map<string, string | null>;
   receiptRows: {
     id: string;
@@ -81,6 +94,7 @@ export function computeReconcile({
   txRows,
   allocRows,
   invoiceRows,
+  paidInvoiceRows = [],
   clientName,
   receiptRows,
   dismissed = [],
@@ -166,6 +180,17 @@ export function computeReconcile({
       paymentRef: i.payment_ref ?? null,
       clientId: i.client_company_id,
     }));
+
+  // Bereits bezahlte Rechnungen – nur zum Ausblenden „falscher" offener Eingänge.
+  const paidInvoices: InvoiceLite[] = paidInvoiceRows.map((i) => ({
+    id: i.id,
+    number: i.invoice_number,
+    grossCents: i.gross_cents,
+    issueDate: i.issue_date,
+    kunde: clientName.get(i.client_company_id) ?? null,
+    paymentRef: i.payment_ref ?? null,
+    clientId: i.client_company_id,
+  }));
 
   const toLite = (r: {
     id: string;
@@ -360,7 +385,10 @@ export function computeReconcile({
       (t) =>
         !matchedInTx.has(t.id) &&
         !usedSplitTx.has(t.id) &&
-        !noDocTxIds.has(t.id),
+        !noDocTxIds.has(t.id) &&
+        // Gehört der Eingang zu einer bereits BEZAHLTEN Rechnung, ist er kein
+        // echter „ohne Zuordnung"-Fall – die Rechnung ist ja erledigt.
+        !paymentMatchesPaidInvoice(t, paidInvoices, ibanClientId),
     )
     .map(toOpen);
 
