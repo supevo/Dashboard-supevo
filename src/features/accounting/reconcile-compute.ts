@@ -8,6 +8,7 @@ import {
   matchReceiptsToTransactions,
   matchPaymentCombinations,
   matchInvoiceSplitPayments,
+  matchReceiptCombinations,
   computePartnerBalances,
   paymentMatchesPaidInvoice,
   SUGGEST_THRESHOLD,
@@ -21,6 +22,7 @@ import type {
   PaymentSuggestion,
   ReceiptSuggestion,
   ComboSuggestion,
+  ReceiptComboSuggestion,
   SplitSuggestion,
   OpenBooking,
   OpenReceipt,
@@ -41,6 +43,8 @@ export interface ReconcileInputRows {
     kategorie_id: string | null;
   }[];
   allocRows: { transaction_id: string; invoice_id: string; betrag_cents: number }[];
+  /** Beleg↔Transaktion-Verknüpfungen (mehrere Belege je Zahlung, Amazon-Fall). */
+  receiptLinks?: { transaction_id: string; receipt_id: string }[];
   /** Open (not-paid) invoices only. */
   invoiceRows: {
     id: string;
@@ -93,6 +97,7 @@ export interface ReconcileInputRows {
 export function computeReconcile({
   txRows,
   allocRows,
+  receiptLinks = [],
   invoiceRows,
   paidInvoiceRows = [],
   clientName,
@@ -128,9 +133,13 @@ export function computeReconcile({
   const linkedInvoiceIds = new Set(
     allTx.map((t) => t.re_id).filter((x): x is string => !!x),
   );
-  const linkedReceiptIds = new Set(
-    allTx.map((t) => t.beleg_id).filter((x): x is string => !!x),
-  );
+  // Belege gelten als verknüpft, wenn eine Buchung sie via beleg_id (1:1) ODER
+  // via bookkeeping_tx_receipts (mehrere Belege je Zahlung) referenziert.
+  const receiptLinkTxIds = new Set(receiptLinks.map((l) => l.transaction_id));
+  const linkedReceiptIds = new Set<string>([
+    ...allTx.map((t) => t.beleg_id).filter((x): x is string => !!x),
+    ...receiptLinks.map((l) => l.receipt_id),
+  ]);
   const noDocTxIds = new Set(
     allTx.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
   );
@@ -158,6 +167,7 @@ export function computeReconcile({
         !t.beleg_id &&
         !t.beleg_nicht_noetig &&
         !allocatedTxIds.has(t.id) &&
+        !receiptLinkTxIds.has(t.id) &&
         !isExcludedTx(t),
     )
     .map((t) => ({
@@ -252,11 +262,25 @@ export function computeReconcile({
   ).filter((m) => !isDismissed(m.leftId, m.rightId));
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 
+  // 3b) Beleg-Sammlung: mehrere Ausgabe-Belege → EIN Ausgang (Amazon-PDF mit
+  //     mehreren Seiten). Vor der 1:1-Zuordnung, damit die Belege nicht einzeln
+  //     „verbraucht" werden.
+  const receiptComboMatches = matchReceiptCombinations(
+    ausgabeReceipts,
+    outgoing,
+  ).filter((m) => !m.receiptIds.some((r) => isDismissed(m.txId, r)));
+  const usedRComboRec = new Set(receiptComboMatches.flatMap((m) => m.receiptIds));
+  const usedRComboTx = new Set(receiptComboMatches.map((m) => m.txId));
+  const ausgabeReceiptsLeft = ausgabeReceipts.filter(
+    (r) => !usedRComboRec.has(r.id),
+  );
+  const outgoingLeft = outgoing.filter((t) => !usedRComboTx.has(t.id));
+
   // 4) Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
-  //    einer Rechnung/Sammelzahlung zugeordnet wurden).
+  //    einer Rechnung/Sammelzahlung/Beleg-Sammlung zugeordnet wurden).
   const incomingForReceipts = paymentsLeft.filter((p) => !usedPayTx.has(p.id));
   const receiptMatches = [
-    ...matchReceiptsToTransactions(ausgabeReceipts, outgoing, 'out', minScore),
+    ...matchReceiptsToTransactions(ausgabeReceiptsLeft, outgoingLeft, 'out', minScore),
     ...matchReceiptsToTransactions(
       einnahmeReceipts,
       incomingForReceipts,
@@ -313,6 +337,32 @@ export function computeReconcile({
       },
     ];
   });
+
+  const receiptCombosOut: ReceiptComboSuggestion[] = receiptComboMatches.flatMap(
+    (m) => {
+      const tx = txById.get(m.txId);
+      if (!tx) return [];
+      const recs = m.receiptIds
+        .map((id) => recById.get(id))
+        .filter((x): x is ReceiptLite => !!x)
+        .map((r) => ({
+          id: r.id,
+          haendler: r.haendler,
+          datum: r.datum,
+          bruttoCents: r.bruttoCents,
+        }));
+      if (recs.length < 2) return [];
+      return [
+        {
+          match: m,
+          txDatum: tx.datum,
+          txGegen: tx.gegen,
+          txBetragCents: tx.betrag_cents,
+          receipts: recs,
+        },
+      ];
+    },
+  );
 
   const combosOut: ComboSuggestion[] = comboMatches.flatMap((m) => {
     const tx = txById.get(m.txId);
@@ -378,7 +428,7 @@ export function computeReconcile({
     txBetragCents: t.betragCents,
   });
   const missingReceipts: OpenBooking[] = outgoing
-    .filter((t) => !matchedOutTx.has(t.id))
+    .filter((t) => !matchedOutTx.has(t.id) && !usedRComboTx.has(t.id))
     .map(toOpen);
   const missingIncoming: OpenBooking[] = payments
     .filter(
@@ -408,7 +458,10 @@ export function computeReconcile({
   // Belege OHNE passende Zahlung: Rechnungen/Belege, zu denen der Abgleich
   // keine Bankbewegung gefunden hat. Einnahme = Ausgangsrechnung ohne Eingang,
   // Ausgabe = Eingangsrechnung ohne Zahlung.
-  const matchedReceiptIds = new Set(receiptMatches.map((m) => m.leftId));
+  const matchedReceiptIds = new Set<string>([
+    ...receiptMatches.map((m) => m.leftId),
+    ...usedRComboRec,
+  ]);
   const toOpenReceipt = (r: ReceiptLite): OpenReceipt => ({
     receiptId: r.id,
     haendler: r.haendler,
@@ -445,6 +498,7 @@ export function computeReconcile({
     payments: paymentsOut,
     receipts: receiptsOut,
     combos: combosOut,
+    receiptCombos: receiptCombosOut,
     splits: splitsOut,
     missingReceipts,
     missingIncoming,

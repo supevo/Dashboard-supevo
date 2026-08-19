@@ -9,10 +9,12 @@ import {
   applyReceiptMatchAction,
   applyComboMatchAction,
   applySplitMatchAction,
+  applyReceiptComboAction,
   dismissPaymentMatchAction,
   dismissReceiptMatchAction,
   dismissComboMatchAction,
   dismissSplitMatchAction,
+  dismissReceiptComboAction,
 } from '@/features/accounting/reconcile-actions';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
@@ -243,6 +245,22 @@ export function ApplyComboButton({
     <ApplyReject
       apply={() => applyComboMatchAction({ transactionId, invoiceIds })}
       reject={() => dismissComboMatchAction({ transactionId, invoiceIds })}
+    />
+  );
+}
+
+/** Confirms/rejects one receipt-combo suggestion (payment ↔ several receipts). */
+export function ApplyReceiptComboButton({
+  transactionId,
+  receiptIds,
+}: {
+  transactionId: string;
+  receiptIds: string[];
+}) {
+  return (
+    <ApplyReject
+      apply={() => applyReceiptComboAction({ transactionId, receiptIds })}
+      reject={() => dismissReceiptComboAction({ transactionId, receiptIds })}
     />
   );
 }
