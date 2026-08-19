@@ -44,6 +44,7 @@ export interface ReconcileInputRows {
     gross_cents: number;
     issue_date: string | null;
     client_company_id: string;
+    payment_ref?: string | null;
   }[];
   clientName: Map<string, string | null>;
   receiptRows: {
@@ -154,6 +155,7 @@ export function computeReconcile({
       grossCents: i.gross_cents,
       issueDate: i.issue_date,
       kunde: clientName.get(i.client_company_id) ?? null,
+      paymentRef: i.payment_ref ?? null,
     }));
 
   const toLite = (r: {

@@ -6,6 +6,7 @@ import {
   createDraftInvoiceAction,
   invoiceOpAction,
   setInvoiceRecipientAction,
+  setInvoicePaymentRefAction,
 } from '@/features/billing/invoice-actions';
 import { idleResult } from '@/lib/action-result';
 import { formatEuroCents } from '@/lib/money';
@@ -212,6 +213,50 @@ function RecipientForm({
   );
 }
 
+function PaymentRefForm({
+  invoiceId,
+  paymentRef,
+}: {
+  invoiceId: string;
+  paymentRef: string | null;
+}) {
+  const [state, formAction] = useActionState(
+    setInvoicePaymentRefAction,
+    idleResult,
+  );
+  const router = useRouter();
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+  return (
+    <form action={formAction} className="flex flex-wrap items-center gap-2">
+      <input type="hidden" name="invoiceId" value={invoiceId} />
+      <Label
+        htmlFor={`payref-${invoiceId}`}
+        className="text-xs text-muted-foreground"
+      >
+        Transaktionsnr.
+      </Label>
+      <Input
+        id={`payref-${invoiceId}`}
+        name="paymentRef"
+        defaultValue={paymentRef ?? ''}
+        placeholder="z. B. Stripe-/PayPal-/Bestellnr."
+        className="h-8 max-w-[16rem] text-sm"
+      />
+      <SubmitButton size="sm" variant="ghost">
+        Speichern
+      </SubmitButton>
+      {state.status === 'error' && (
+        <span className="text-xs text-destructive">{state.message}</span>
+      )}
+      {state.status === 'success' && (
+        <span className="text-xs text-muted-foreground">✓</span>
+      )}
+    </form>
+  );
+}
+
 export function InvoicesSection({
   clientCompanyId,
   invoices,
@@ -279,6 +324,10 @@ export function InvoicesSection({
                   {inv.void_reason ? ` · Grund: ${inv.void_reason}` : ''}
                 </div>
               )}
+              <PaymentRefForm
+                invoiceId={inv.id}
+                paymentRef={inv.payment_ref}
+              />
               <InvoiceRowActions invoice={inv} />
             </li>
           ))}

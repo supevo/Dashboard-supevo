@@ -238,7 +238,9 @@ export async function getReconcileSuggestions(
 
   const { data: invoiceRows } = await supabase
     .from('invoices')
-    .select('id, invoice_number, gross_cents, issue_date, client_company_id, status')
+    .select(
+      'id, invoice_number, gross_cents, issue_date, client_company_id, status, payment_ref',
+    )
     .eq('billing_entity_id', billingEntityId)
     .neq('status', 'paid')
     .limit(2000);
