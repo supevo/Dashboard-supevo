@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   createDraftInvoiceAction,
@@ -33,9 +33,18 @@ function fmtDate(iso: string | null): string {
 function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
   const [state, formAction] = useActionState(invoiceOpAction, idleResult);
   const router = useRouter();
+  const [stornoOpen, setStornoOpen] = useState(false);
   useEffect(() => {
-    if (state.status === 'success') router.refresh();
+    if (state.status === 'success') {
+      setStornoOpen(false);
+      router.refresh();
+    }
   }, [state, router]);
+
+  const isNumbered =
+    invoice.status === 'finalized' ||
+    invoice.status === 'sent' ||
+    invoice.status === 'paid';
 
   return (
     <div className="space-y-1">
@@ -80,13 +89,72 @@ function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
               </SubmitButton>
             </>
           )}
+          {isNumbered && (
+            <SubmitButton
+              name="op"
+              value="regenerate"
+              size="sm"
+              variant="ghost"
+            >
+              🔄 PDF neu generieren
+            </SubmitButton>
+          )}
           {invoice.status === 'draft' && (
             <SubmitButton name="op" value="void" size="sm" variant="ghost">
               Verwerfen
             </SubmitButton>
           )}
         </form>
+        {isNumbered && !stornoOpen && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={() => setStornoOpen(true)}
+          >
+            Stornieren
+          </Button>
+        )}
       </div>
+
+      {isNumbered && stornoOpen && (
+        <form
+          action={formAction}
+          className="space-y-2 rounded-lg border border-destructive/40 p-3"
+        >
+          <input type="hidden" name="invoiceId" value={invoice.id} />
+          <input type="hidden" name="op" value="void" />
+          <Label htmlFor={`storno-${invoice.id}`}>
+            Storno-Grund (wird als Beleg gespeichert)
+          </Label>
+          <Input
+            id={`storno-${invoice.id}`}
+            name="reason"
+            required
+            placeholder="z. B. Falscher Betrag, Kunde storniert …"
+            className="h-9"
+          />
+          <div className="flex flex-wrap gap-2">
+            <SubmitButton size="sm" variant="destructive">
+              Endgültig stornieren
+            </SubmitButton>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setStornoOpen(false)}
+            >
+              Abbrechen
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Die Rechnung {invoice.invoice_number ?? ''} bleibt mit Nummer und PDF
+            als Beleg erhalten und wird nur als „storniert“ markiert.
+          </p>
+        </form>
+      )}
+
       {state.status === 'error' && (
         <Alert variant="destructive">{state.message}</Alert>
       )}
@@ -204,6 +272,13 @@ export function InvoicesSection({
                   </div>
                 </div>
               </div>
+              {inv.status === 'void' && (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  <span className="font-medium">Storniert</span>
+                  {inv.voided_at ? ` am ${fmtDate(inv.voided_at.slice(0, 10))}` : ''}
+                  {inv.void_reason ? ` · Grund: ${inv.void_reason}` : ''}
+                </div>
+              )}
               <InvoiceRowActions invoice={inv} />
             </li>
           ))}
