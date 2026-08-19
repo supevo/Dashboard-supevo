@@ -56,6 +56,7 @@ export interface ReconcileInputRows {
     brutto_cents: number | null;
     kind: string;
     rechnungsnummer?: string | null;
+    waehrung?: string | null;
     konfidenz?: number | null;
     rohtext?: string | null;
   }[];
@@ -171,12 +172,14 @@ export function computeReconcile({
     beleg_datum: string | null;
     brutto_cents: number | null;
     rechnungsnummer?: string | null;
+    waehrung?: string | null;
   }): ReceiptLite => ({
     id: r.id,
     datum: r.beleg_datum,
     haendler: r.haendler,
     bruttoCents: r.brutto_cents,
     rechnungsnummer: r.rechnungsnummer ?? null,
+    waehrung: r.waehrung ?? null,
   });
   const usableReceipts = receiptRows.filter((r) => r.brutto_cents != null);
   const ausgabeReceipts: ReceiptLite[] = usableReceipts
@@ -257,6 +260,7 @@ export function computeReconcile({
         invoiceNumber: inv.number,
         invoiceKunde: inv.kunde,
         invoiceGrossCents: inv.grossCents,
+        invoiceIssueDate: inv.issueDate,
       },
     ];
   });
@@ -272,6 +276,7 @@ export function computeReconcile({
         receiptHaendler: rec.haendler,
         receiptDatum: rec.datum,
         receiptBruttoCents: rec.bruttoCents,
+        receiptWaehrung: meta?.waehrung ?? null,
         receiptRechnungsnummer: meta?.rechnungsnummer ?? null,
         receiptKonfidenz: meta?.konfidenz ?? null,
         receiptRohtext: meta?.rohtext ?? null,

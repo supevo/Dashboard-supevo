@@ -58,6 +58,8 @@ export interface ReceiptLite {
   bruttoCents: number | null;
   /** Von der KI ausgelesene Rechnungs-/Belegnummer (falls vorhanden). */
   rechnungsnummer?: string | null;
+  /** ISO-Währungscode des Belegs (z. B. "USD"); null/"EUR" = Euro. */
+  waehrung?: string | null;
 }
 
 export interface Match {
@@ -89,6 +91,26 @@ function nameSimilarity(a: string | null, b: string | null): number {
   let inter = 0;
   for (const t of ta) if (tb.has(t)) inter += 1;
   return (2 * inter) / (ta.size + tb.size);
+}
+
+/**
+ * True if a distinctive token of `name` appears in the purpose text. Handles
+ * payment intermediaries: paying Meta via PayPal shows gegen="PayPal" while the
+ * real merchant ("Meta"/"Facebook") sits in the Verwendungszweck. Tokens must be
+ * ≥ 4 chars to stay distinctive.
+ */
+function nameInPurpose(name: string | null, zweck: string | null): boolean {
+  if (!name || !zweck) return false;
+  const zt = new Set(
+    normName(zweck)
+      .split(' ')
+      .filter((t) => t.length >= 4),
+  );
+  if (zt.size === 0) return false;
+  return normName(name)
+    .split(' ')
+    .filter((t) => t.length >= 4)
+    .some((t) => zt.has(t));
 }
 
 /** Only the alphanumeric characters, lowercased ("RE-2026/1" → "re20261"). */
@@ -255,9 +277,13 @@ function scorePaymentInvoice(
     }
   }
   const sim = nameSimilarity(tx.gegen, inv.kunde);
+  const nameInZweck = nameInPurpose(inv.kunde, tx.zweck);
   if (sim > 0.3) {
     s += 0.1 * sim;
     reasons.push('Name ähnlich');
+  } else if (nameInZweck) {
+    s += 0.1;
+    reasons.push('Kundenname im Zweck');
   }
 
   s = Math.min(1, s);
@@ -267,7 +293,8 @@ function scorePaymentInvoice(
   // Buchstaben) im Zweck, eine übereinstimmende Kunden-IBAN ODER klar gleicher
   // Kunde. Eine nur ziffernweise Übereinstimmung oder ein Teilbetrag bleibt
   // Vorschlag – gegen zufällig gleiche Beträge verschiedener Rechnungen.
-  const corroborated = numMatch === 'strong' || ibanHit || sim > 0.5;
+  const corroborated =
+    numMatch === 'strong' || ibanHit || sim > 0.5 || nameInZweck;
   return {
     leftId: tx.id,
     rightId: inv.id,
@@ -327,6 +354,7 @@ function scoreReceiptTx(
   let s = 0;
   const reasons: string[] = [];
 
+  const isForeign = !!rec.waehrung && rec.waehrung.toUpperCase() !== 'EUR';
   const diff = Math.abs(outCents - rec.bruttoCents);
   if (diff === 0) {
     s += 0.5;
@@ -337,6 +365,12 @@ function scoreReceiptTx(
   } else if (diff <= rec.bruttoCents * 0.02) {
     s += 0.28;
     reasons.push('Betrag nahe');
+  } else if (isForeign && diff <= rec.bruttoCents * 0.15) {
+    // Fremdwährungsbeleg: der Bankbetrag weicht durch den Wechselkurs ab. Nur
+    // ein schwaches Betragssignal – der Treffer braucht Datum + Nummer/Name, um
+    // die 55 %-Schwelle zu erreichen (sonst kein Vorschlag).
+    s += 0.15;
+    reasons.push(`Betrag ~ (${rec.waehrung}-Kurs)`);
   } else {
     return null; // amount must be close for receipts
   }
@@ -375,9 +409,14 @@ function scoreReceiptTx(
   }
 
   const sim = nameSimilarity(tx.gegen, rec.haendler);
+  const nameInZweck = nameInPurpose(rec.haendler, tx.zweck);
   if (sim > 0.3) {
     s += 0.15 * sim;
     reasons.push('Händler ähnlich');
+  } else if (nameInZweck) {
+    // Intermediär (z. B. PayPal): der Händler steht im Verwendungszweck.
+    s += 0.15;
+    reasons.push('Händlername im Zweck');
   }
 
   s = Math.min(1, s);
@@ -386,7 +425,7 @@ function scoreReceiptTx(
   // passt (vollständige Rechnungsnr. ODER klar gleicher Händler). Sonst nur
   // Vorschlag – damit zufällig gleiche Beträge verschiedener Belege nicht falsch
   // verbucht werden (häufigste Fehlzuordnung).
-  const corroborated = numMatch === 'strong' || sim > 0.5;
+  const corroborated = numMatch === 'strong' || sim > 0.5 || nameInZweck;
   return {
     leftId: rec.id,
     rightId: tx.id,
@@ -488,7 +527,9 @@ export function matchPaymentCombinations(
     const candidates = invoices.filter((inv) => {
       if (usedInvoices.has(inv.id)) return false;
       const byNumber = numberInPurpose([inv.number, inv.paymentRef], pay.zweck);
-      const byName = nameSimilarity(pay.gegen, inv.kunde) > 0.3;
+      const byName =
+        nameSimilarity(pay.gegen, inv.kunde) > 0.3 ||
+        nameInPurpose(inv.kunde, pay.zweck);
       const byIban = ibanMatches(pay, inv, ibanClientId);
       if (!byNumber && !byName && !byIban) return false;
       if (inv.issueDate && daysBetween(pay.datum, inv.issueDate) > 120) return false;
@@ -604,7 +645,9 @@ export function matchInvoiceSplitPayments(
       if (usedTx.has(p.id)) return false;
       if (p.betragCents <= 0 || p.betragCents >= inv.grossCents) return false;
       const byNumber = numberInPurpose([inv.number, inv.paymentRef], p.zweck);
-      const byName = nameSimilarity(p.gegen, inv.kunde) > 0.3;
+      const byName =
+        nameSimilarity(p.gegen, inv.kunde) > 0.3 ||
+        nameInPurpose(inv.kunde, p.zweck);
       const byIban = ibanMatches(p, inv, ibanClientId);
       if (!byNumber && !byName && !byIban) return false;
       if (inv.issueDate && daysBetween(p.datum, inv.issueDate) > 180) return false;

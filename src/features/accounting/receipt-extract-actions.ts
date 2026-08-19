@@ -58,6 +58,7 @@ function toReceiptUpdate(
     netto_cents: euroToCents(ext.netto),
     ust_satz: ext.ust_satz,
     rechnungsnummer: ext.rechnungsnummer,
+    waehrung: ext.waehrung ? ext.waehrung.trim().toUpperCase() : null,
     kategorie_id: kategorieId,
     konfidenz: ext.konfidenz == null ? null : Math.round(ext.konfidenz * 100),
     erkannt: ext as unknown as Record<string, unknown>,

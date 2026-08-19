@@ -250,4 +250,39 @@ describe('matchReceiptsToTransactions', () => {
     ];
     expect(matchReceiptsToTransactions(receipts, outgoing)).toHaveLength(0);
   });
+
+  it('matches a merchant paid via an intermediary (PayPal → Meta in purpose)', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Meta Platforms Ireland', bruttoCents: 5000 },
+    ];
+    const outgoing = [
+      { id: 't1', datum: '2024-03-06', gegen: 'PayPal Europe Sarl', zweck: 'PP.4711 Meta Platforms', betragCents: -5000 },
+    ];
+    const matches = matchReceiptsToTransactions(receipts, outgoing);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
+  });
+
+  it('matches a foreign-currency receipt whose bank amount differs by the FX rate', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Voiceflow', bruttoCents: 5000, waehrung: 'USD', rechnungsnummer: 'VF-99' },
+    ];
+    const outgoing = [
+      // 46 € debited for a 50 USD invoice; number in the purpose corroborates.
+      { id: 't1', datum: '2024-03-06', gegen: 'Kreditkartenabrechnung', zweck: 'VF-99', betragCents: -4600 },
+    ];
+    const matches = matchReceiptsToTransactions(receipts, outgoing);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
+  });
+
+  it('does NOT match a foreign-currency receipt on the FX-wide amount alone', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Voiceflow', bruttoCents: 5000, waehrung: 'USD' },
+    ];
+    const outgoing = [
+      { id: 't1', datum: '2024-03-06', gegen: 'Fremd', zweck: '', betragCents: -4600 },
+    ];
+    expect(matchReceiptsToTransactions(receipts, outgoing)).toHaveLength(0);
+  });
 });

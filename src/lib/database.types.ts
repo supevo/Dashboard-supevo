@@ -2899,6 +2899,7 @@ export interface Database {
           netto_cents: number | null;
           ust_satz: number | null;
           rechnungsnummer: string | null;
+          waehrung: string | null;
           kategorie_id: string | null;
           konfidenz: number | null;
           rohtext: string | null;
@@ -2927,6 +2928,7 @@ export interface Database {
           netto_cents?: number | null;
           ust_satz?: number | null;
           rechnungsnummer?: string | null;
+          waehrung?: string | null;
           kategorie_id?: string | null;
           konfidenz?: number | null;
           rohtext?: string | null;

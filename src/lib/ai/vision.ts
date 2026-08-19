@@ -23,6 +23,7 @@ export interface ReceiptExtraction {
   datum: string | null;
   faellig: string | null;
   brutto: number | null;
+  waehrung: string | null;
   ust_satz: number | null;
   ust_betrag: number | null;
   netto: number | null;
@@ -218,6 +219,7 @@ const SCHEMA = {
     datum: { type: ['string', 'null'] },
     faellig: { type: ['string', 'null'] },
     brutto: { type: ['number', 'null'] },
+    waehrung: { type: ['string', 'null'] },
     ust_satz: { type: ['number', 'null'] },
     ust_betrag: { type: ['number', 'null'] },
     netto: { type: ['number', 'null'] },
@@ -229,7 +231,7 @@ const SCHEMA = {
     begruendung: { type: ['string', 'null'] },
   },
   required: [
-    'haendler', 'richtung', 'datum', 'faellig', 'brutto', 'ust_satz',
+    'haendler', 'richtung', 'datum', 'faellig', 'brutto', 'waehrung', 'ust_satz',
     'ust_betrag', 'netto', 'rechnungsnummer', 'ust_idnr', 'iban',
     'kategorie_id', 'konfidenz', 'begruendung',
   ],
@@ -248,8 +250,10 @@ function systemPrompt(ctx: ReceiptExtractionContext): string {
     'richtung: "ausgang" wenn die eigene Firma der Rechnungssteller/Absender ist',
     '(Ausgangsrechnung), sonst "eingang". Bestimme das über eigene IBAN/USt-IdNr.',
     'haendler = die Gegenpartei (nie die eigene Firma).',
-    'datum/faellig im Format YYYY-MM-DD. Beträge als Zahl in Euro (Punkt als',
-    'Dezimaltrennzeichen). ust_satz ist 19, 7 oder 0.',
+    'datum/faellig im Format YYYY-MM-DD. Beträge als Zahl mit Punkt als',
+    'Dezimaltrennzeichen – im Original der Rechnung. waehrung = ISO-Code der',
+    'Rechnungswährung (z. B. "EUR", "USD"); wenn kein Zeichen/Code erkennbar ist,',
+    '"EUR". ust_satz ist 19, 7 oder 0.',
     'kategorie_id MUSS aus dieser Liste stammen (oder null):',
     kats,
     'konfidenz 0..1. Gib nur ab, was du wirklich erkennst; sonst null.',
