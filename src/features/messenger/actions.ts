@@ -142,8 +142,10 @@ export async function openDmAction(
 
   const dmKey = [user.id, otherUserId].sort().join(':');
 
-  // Same guard: if two DM channels ever share a dm_key, take the oldest instead
-  // of erroring out on maybeSingle.
+  // If DM channels share a dm_key (legacy data created before the dm_key guard),
+  // always resolve to the OLDEST one – the same one listDmConversations shows –
+  // so the overview and the opened conversation never disagree (which yanked the
+  // user off the channel and made a specific colleague un-writable).
   const { data: existingRows } = await service
     .from('chat_channels')
     .select('id')
@@ -151,7 +153,22 @@ export async function openDmAction(
     .order('created_at', { ascending: true })
     .limit(1);
   const existing = existingRows?.[0];
-  if (existing) return { channelId: existing.id };
+  if (existing) {
+    // Ensure BOTH participants are members: a legacy channel could be missing one
+    // (RLS then hid it → you couldn't write). Idempotent: only add what's absent.
+    const { data: mem } = await service
+      .from('chat_channel_members')
+      .select('user_id')
+      .eq('channel_id', existing.id);
+    const have = new Set((mem ?? []).map((m) => m.user_id));
+    const toAdd = [user.id, otherUserId]
+      .filter((id) => !have.has(id))
+      .map((id) => ({ channel_id: existing.id, organization_id: orgId, user_id: id }));
+    if (toAdd.length > 0) {
+      await service.from('chat_channel_members').insert(toAdd);
+    }
+    return { channelId: existing.id };
+  }
 
   const { data: created, error } = await service
     .from('chat_channels')

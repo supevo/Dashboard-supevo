@@ -269,12 +269,15 @@ export async function listDmConversations(
   userId: string,
 ): Promise<DmConversation[]> {
   const supabase = await createSupabaseServerClient();
-  // RLS returns only DMs the user is a member of.
+  // RLS returns only DMs the user is a member of. Order by created_at so the
+  // dedupe below keeps the OLDEST channel per partner – the same one openDmAction
+  // resolves to, so the overview and the opened conversation always agree.
   const { data: dms } = await supabase
     .from('chat_channels')
     .select('id')
     .eq('organization_id', orgId)
-    .eq('kind', 'dm');
+    .eq('kind', 'dm')
+    .order('created_at', { ascending: true });
   const dmIds = (dms ?? []).map((d) => d.id);
   if (dmIds.length === 0) return [];
 
