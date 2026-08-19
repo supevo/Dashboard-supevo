@@ -108,6 +108,8 @@ export function MembershipConfigurator({
   const [customOn, setCustomOn] = useState(false);
   const [customEuros, setCustomEuros] = useState('');
   const [customBasis, setCustomBasis] = useState<'net' | 'gross'>('net');
+  // Agentur-Haken: Änderung sofort gültig statt zum Folgemonat.
+  const [applyNow, setApplyNow] = useState(false);
 
   const selections = useMemo(() => toSelections(modules, map), [modules, map]);
   const total = useMemo(
@@ -234,6 +236,7 @@ export function MembershipConfigurator({
               stage,
               selections,
               customNetCents,
+              applyImmediately: applyNow,
             });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
@@ -500,6 +503,25 @@ export function MembershipConfigurator({
             </div>
           )}
         </div>
+      )}
+
+      {/* „Sofort gültig" – Agentur-Haken: umgeht die Folgemonats-Planung. */}
+      {mode === 'agency' && !readOnly && (
+        <label className="flex items-start gap-2 rounded-lg border p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={applyNow}
+            onChange={(e) => setApplyNow(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-medium">Änderung sofort gültig machen</span>
+            <span className="block text-xs text-muted-foreground">
+              Ohne Haken gilt eine Änderung erst ab dem Folgemonat. Mit Haken wird
+              sie sofort aktiv (die laufende Abrechnung nutzt dann den neuen Preis).
+            </span>
+          </span>
+        </label>
       )}
 
       {readOnly ? (

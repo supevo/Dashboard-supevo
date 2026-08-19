@@ -39,6 +39,8 @@ const saveSchema = z.object({
   // Optionaler finaler Custom-Preis (netto, in Cent). Überschreibt den aus den
   // Modulen berechneten Preis. Nur der Agentur-Baukasten (Neuer Kunde) sendet ihn.
   customNetCents: z.number().int().min(0).max(100_000_00).nullish(),
+  // Änderung sofort aktiv schalten statt zum Folgemonat zu planen (Agentur-Haken).
+  applyImmediately: z.boolean().optional(),
 });
 
 async function priceContext(
@@ -65,7 +67,8 @@ async function priceContext(
 export async function saveMembershipConfigAction(input: unknown): Promise<ActionResult> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { clientCompanyId, name, stage, customNetCents } = parsed.data;
+  const { clientCompanyId, name, stage, customNetCents, applyImmediately } =
+    parsed.data;
   const selections = normalizeSelections(parsed.data.selections);
   const hasCustom = typeof customNetCents === 'number';
 
@@ -106,8 +109,9 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   const activeIsEmpty =
     !existing || normalizeSelections(existing.modules).length === 0;
 
-  // Onboarding / erste Einrichtung → sofort aktiv. Sonst → zum Folgemonat planen.
-  if (activeIsEmpty) {
+  // Sofort aktiv, wenn es die erste Einrichtung ist ODER der Haken „sofort gültig"
+  // gesetzt wurde. Ansonsten → zum Folgemonat planen (Standard).
+  if (activeIsEmpty || applyImmediately) {
     const payload = {
       modules: selections as unknown,
       // Custom-Preis (falls gesetzt) überschreibt alles und macht die
@@ -136,8 +140,30 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
       });
       if (error) return errorResult(de.errors.INTERNAL);
     }
+
+    // Bei einer sofortigen ÄNDERUNG (nicht Erst-Einrichtung) abgewählte Module
+    // dem Team melden – mit heutigem Datum, da sofort gültig.
+    if (existing && !activeIsEmpty) {
+      const today = new Date().toISOString().slice(0, 10);
+      await notifyRemovedModules({
+        orgId: client.organization_id,
+        clientCompanyId,
+        companyName: client.name,
+        removedLabels: removedModuleIds(
+          normalizeSelections(existing.modules),
+          selections,
+        ).map((id) => moduleLabel(catalog, id)),
+        effectiveDate: today,
+        actorId: user.id,
+      });
+    }
+
     revalidatePath(`/app/clients/${clientCompanyId}`);
-    return successResult('Mitgliedschaft eingerichtet und aktiv.');
+    return successResult(
+      activeIsEmpty
+        ? 'Mitgliedschaft eingerichtet und aktiv.'
+        : 'Änderung sofort aktiv gesetzt.',
+    );
   }
 
   // Bestehende aktive Konfiguration → Änderung zum Folgemonat planen.

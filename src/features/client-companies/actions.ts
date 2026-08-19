@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'crypto';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -78,6 +79,34 @@ export async function createClientCompanyAction(
 
   if (error || !data) {
     return errorResult('Ein Kundenunternehmen mit diesem Namen existiert bereits.');
+  }
+
+  // Automatisch ein Produktions-Board anlegen: ein Projekt „Produktion" erzeugt
+  // per Trigger ein Standard-Board (Warteschlange/Aktive/Überprüfung/Fertig);
+  // dessen Board benennen wir in „Produktion". Best effort – ein Fehler hier darf
+  // die Kundenanlage nicht scheitern lassen.
+  try {
+    const projectId = randomUUID();
+    const { error: pErr } = await service.from('projects').insert({
+      id: projectId,
+      organization_id: orgId,
+      client_company_id: data.id,
+      name: 'Produktion',
+      status: 'active',
+      lead_user_id: user.id,
+      created_by: user.id,
+    });
+    if (!pErr) {
+      await service
+        .from('boards')
+        .update({ name: 'Produktion' })
+        .eq('project_id', projectId);
+      await service
+        .from('project_members')
+        .insert({ project_id: projectId, user_id: user.id, role: 'lead' });
+    }
+  } catch {
+    // Board-Anlage ist optional – Kundenanlage bleibt erfolgreich.
   }
 
   await logActivity({
