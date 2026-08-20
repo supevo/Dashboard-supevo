@@ -239,17 +239,11 @@ export default async function TaskDetailPage({
               <CardTitle>{de.task.visibility}</CardTitle>
             </CardHeader>
             <CardContent>
-              {task.canManage ? (
-                <VisibilityEditor
-                  projectId={projectId}
-                  taskId={taskId}
-                  isInternal={task.isInternal}
-                />
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {task.isInternal ? de.task.internal : de.task.clientVisible}
-                </p>
-              )}
+              <VisibilityEditor
+                projectId={projectId}
+                taskId={taskId}
+                isInternal={task.isInternal}
+              />
             </CardContent>
           </Card>
 

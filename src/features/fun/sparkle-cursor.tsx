@@ -4,11 +4,13 @@ import { useEffect } from 'react';
 
 // A little magic wand (SVG) as the cursor. Built as a data URI so it needs no
 // asset. Hotspot sits at the star tip, where the sparkles fly from.
+// Horizontal mirror of the wand so the star tip points to the TOP-LEFT, like a
+// normal mouse pointer (hotspot at the tip). All x-coordinates are 32 − x.
 const WAND_SVG = `<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>
-  <line x1='6' y1='26' x2='20' y2='12' stroke='#7c3aed' stroke-width='3' stroke-linecap='round'/>
-  <path d='M23 3 l1.9 3.8 l3.8 1.9 l-3.8 1.9 l-1.9 3.8 l-1.9-3.8 l-3.8-1.9 l3.8-1.9 z' fill='#fbbf24'/>
+  <line x1='26' y1='26' x2='12' y2='12' stroke='#7c3aed' stroke-width='3' stroke-linecap='round'/>
+  <path d='M9 3 l-1.9 3.8 l-3.8 1.9 l3.8 1.9 l1.9 3.8 l1.9-3.8 l3.8-1.9 l-3.8-1.9 z' fill='#fbbf24'/>
 </svg>`;
-const WAND_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(WAND_SVG)}") 23 3, auto`;
+const WAND_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(WAND_SVG)}") 9 3, auto`;
 
 const SPARKLES = ['✨', '⭐', '🌟', '💫'];
 
