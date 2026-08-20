@@ -378,6 +378,36 @@ export async function savePortalStageAction(input: unknown): Promise<ActionResul
   return successResult(`Wechsel auf Stage ${stage} geplant – gültig ab ${effectiveDate}.`);
 }
 
+/**
+ * Portal (Kunde): verwirft die eigene geplante (pending) Stufen-/Modul-Änderung,
+ * ohne die aktive Konfiguration anzutasten. Selber Auth-Weg wie
+ * savePortalStageAction – RLS-Sicht auf die eigene Mitgliedschaft, Schreiben über
+ * den Service-Client. So kann der Kunde einen versehentlichen oder anders
+ * überlegten Wechsel selbst rückgängig machen.
+ */
+export async function cancelPortalPendingChangeAction(): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return errorResult(de.errors.FORBIDDEN);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: membership } = await supabase
+    .from('client_memberships')
+    .select('id')
+    .limit(1)
+    .maybeSingle();
+  if (!membership) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('client_memberships')
+    .update({ pending_modules: null, pending_effective_date: null })
+    .eq('id', membership.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/portal/membership');
+  return successResult('Geplante Änderung verworfen.');
+}
+
 /** Discards a scheduled (pending) change without touching the active config. */
 export async function cancelPendingMembershipChangeAction(
   clientCompanyId: string,
