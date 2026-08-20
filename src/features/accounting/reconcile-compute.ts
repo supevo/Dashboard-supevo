@@ -267,32 +267,38 @@ export function computeReconcile({
   ).filter((m) => !isDismissed(m.leftId, m.rightId));
   const usedPayTx = new Set(paymentMatches.map((m) => m.leftId));
 
-  // 3b) Beleg-Sammlung: mehrere Ausgabe-Belege → EIN Ausgang (Amazon-PDF mit
-  //     mehreren Seiten). Vor der 1:1-Zuordnung, damit die Belege nicht einzeln
-  //     „verbraucht" werden.
-  const receiptComboMatches = matchReceiptCombinations(
+  // 3b) 1:1 Ausgabe-Beleg ↔ Ausgang ZUERST – ein exakt passender Einzelbeleg
+  //     hat Vorrang und wird nicht von einer Beleg-Sammlung „weggeschnappt".
+  const ausgabeMatches = matchReceiptsToTransactions(
     ausgabeReceipts,
     outgoing,
+    'out',
+    minScore,
+  ).filter((m) => !isDismissed(m.leftId, m.rightId));
+  const used1to1Rec = new Set(ausgabeMatches.map((m) => m.leftId));
+  const used1to1Tx = new Set(ausgabeMatches.map((m) => m.rightId));
+
+  // 3c) Beleg-Sammlung auf dem REST: mehrere Ausgabe-Belege → EIN Ausgang
+  //     (Amazon-PDF mit mehreren Seiten).
+  const receiptComboMatches = matchReceiptCombinations(
+    ausgabeReceipts.filter((r) => !used1to1Rec.has(r.id)),
+    outgoing.filter((t) => !used1to1Tx.has(t.id)),
   ).filter((m) => !m.receiptIds.some((r) => isDismissed(m.txId, r)));
   const usedRComboRec = new Set(receiptComboMatches.flatMap((m) => m.receiptIds));
   const usedRComboTx = new Set(receiptComboMatches.map((m) => m.txId));
-  const ausgabeReceiptsLeft = ausgabeReceipts.filter(
-    (r) => !usedRComboRec.has(r.id),
-  );
-  const outgoingLeft = outgoing.filter((t) => !usedRComboTx.has(t.id));
 
-  // 4) Ausgabe-Belege ↔ Ausgänge, Einnahme-Belege ↔ Eingänge (die nicht schon
-  //    einer Rechnung/Sammelzahlung/Beleg-Sammlung zugeordnet wurden).
+  // 4) Einnahme-Belege ↔ Eingänge (die nicht schon einer Rechnung/Sammelzahlung
+  //    zugeordnet wurden).
   const incomingForReceipts = paymentsLeft.filter((p) => !usedPayTx.has(p.id));
   const receiptMatches = [
-    ...matchReceiptsToTransactions(ausgabeReceiptsLeft, outgoingLeft, 'out', minScore),
+    ...ausgabeMatches,
     ...matchReceiptsToTransactions(
       einnahmeReceipts,
       incomingForReceipts,
       'in',
       minScore,
-    ),
-  ].filter((m) => !isDismissed(m.leftId, m.rightId));
+    ).filter((m) => !isDismissed(m.leftId, m.rightId)),
+  ];
   const receipts = [...ausgabeReceipts, ...einnahmeReceipts];
 
   const txById = new Map(allTx.map((t) => [t.id, t]));
