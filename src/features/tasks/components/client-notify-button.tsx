@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   getClientNotifyDraft,
   notifyClientTaskDoneAction,
+  retractClientNotifyAction,
 } from '@/features/tasks/client-notify';
 import { Modal } from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
@@ -67,6 +68,20 @@ export function ClientNotifyButton({
     });
   }
 
+  function retract() {
+    setError(null);
+    startTransition(async () => {
+      const res = await retractClientNotifyAction(taskId);
+      if (!res.ok) {
+        setError(res.error ?? 'Zurückziehen fehlgeschlagen.');
+        return;
+      }
+      setNotified(false);
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
   const label = notified ? '✓ Kunde informiert' : '📣 Kunde informieren';
 
   return (
@@ -113,8 +128,24 @@ export function ClientNotifyButton({
               rows={7}
               className="text-sm"
             />
+            {notified && (
+              <p className="rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                Dieser Kunde wurde bereits informiert. Du kannst erneut senden –
+                oder den Bericht zurückziehen, falls er zu voreilig war.
+              </p>
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {notified && (
+                <button
+                  type="button"
+                  onClick={retract}
+                  disabled={pending}
+                  className="mr-auto rounded-md border border-destructive/40 px-3 py-1.5 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  {pending ? 'Ziehe zurück…' : 'Bericht zurückziehen'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -128,7 +159,7 @@ export function ClientNotifyButton({
                 disabled={pending || message.trim().length < 5}
                 className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                {pending ? 'Sende…' : 'An Kunden senden'}
+                {pending ? 'Sende…' : notified ? 'Erneut senden' : 'An Kunden senden'}
               </button>
             </div>
           </div>
