@@ -33,7 +33,13 @@ export interface ContractData {
     bic: string | null;
     bankName: string | null;
   };
-  customer: { name: string; contactName: string | null; email: string | null };
+  customer: {
+    name: string;
+    contactName: string | null;
+    email: string | null;
+    addressLines: string[];
+    vatId: string | null;
+  };
   lines: ContractLine[];
   budgetCents: number;
   discountCents: number;
@@ -200,6 +206,9 @@ export async function buildContractFromLead(leadId: string): Promise<ContractDat
       name: lead.company || lead.contact_name,
       contactName: lead.company ? lead.contact_name : null,
       email: lead.email,
+      // Leads tragen (noch) keine Rechnungsadresse – bleibt leer.
+      addressLines: [],
+      vatId: null,
     },
     lines,
     budgetCents,
@@ -221,7 +230,9 @@ export async function buildContractFromClient(
   const supabase = await createSupabaseServerClient();
   const { data: membership } = await supabase
     .from('client_memberships')
-    .select('organization_id, client_company_id, modules, custom_name')
+    .select(
+      'organization_id, client_company_id, modules, custom_name, billing_name, billing_vat_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
+    )
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
   if (!membership) return null;
@@ -250,12 +261,35 @@ export async function buildContractFromClient(
     .eq('organization_id', orgId)
     .maybeSingle();
 
+  // Rechnungsadresse des Kunden aus der Mitgliedschaft (Schritt „Adresse & SEPA").
+  const m = membership as {
+    billing_name?: string | null;
+    billing_vat_id?: string | null;
+    billing_address_line1?: string | null;
+    billing_address_line2?: string | null;
+    billing_postal_code?: string | null;
+    billing_city?: string | null;
+    billing_country?: string | null;
+  };
+  const customerAddress: string[] = [];
+  if (m.billing_address_line1) customerAddress.push(m.billing_address_line1);
+  if (m.billing_address_line2) customerAddress.push(m.billing_address_line2);
+  const custCityLine = [m.billing_postal_code, m.billing_city]
+    .filter(Boolean)
+    .join(' ');
+  if (custCityLine) customerAddress.push(custCityLine);
+  if (m.billing_country && !['deutschland', 'de'].includes(m.billing_country.toLowerCase())) {
+    customerAddress.push(m.billing_country);
+  }
+
   return {
     provider: providerFrom(entity),
     customer: {
-      name: company?.name || 'Kunde',
+      name: m.billing_name || company?.name || 'Kunde',
       contactName: null,
       email: company?.contact_email ?? null,
+      addressLines: customerAddress,
+      vatId: m.billing_vat_id ?? null,
     },
     lines,
     budgetCents,
