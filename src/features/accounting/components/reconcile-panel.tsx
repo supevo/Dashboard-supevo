@@ -32,6 +32,7 @@ import {
   ApplyReceiptComboButton,
 } from '@/features/accounting/components/reconcile-buttons';
 import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
+import { ManualReceiptAssign } from '@/features/accounting/components/manual-receipt-assign';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 const MONTHS = [
@@ -129,6 +130,7 @@ function MissingBookingsSection({
   peerLabel,
   amountPositive,
   withToggle,
+  assignReceipts,
 }: {
   title: string;
   description: string;
@@ -137,8 +139,11 @@ function MissingBookingsSection({
   peerLabel: string;
   amountPositive: boolean;
   withToggle: boolean;
+  /** Offene Ausgabe-Belege zur MANUELLEN Zuordnung (nur „Beleg fehlt"). */
+  assignReceipts?: { id: string; label: string }[];
 }) {
   if (rows.length === 0) return null;
+  const extraCol = withToggle || !!assignReceipts;
   const border = accent === 'rose' ? 'border-rose-500/30' : 'border-amber-500/30';
   const head =
     accent === 'rose'
@@ -161,7 +166,7 @@ function MissingBookingsSection({
               <th className="px-3 py-2 font-medium">{peerLabel}</th>
               <th className="px-3 py-2 font-medium">Verwendungszweck</th>
               <th className="px-3 py-2 text-right font-medium">Betrag</th>
-              {withToggle && <th className="px-3 py-2" />}
+              {extraCol && <th className="px-3 py-2" />}
             </tr>
           </thead>
           <tbody>
@@ -185,9 +190,19 @@ function MissingBookingsSection({
                 >
                   {formatEuroCents(m.txBetragCents)}
                 </td>
-                {withToggle && (
+                {extraCol && (
                   <td className="whitespace-nowrap px-3 py-2 text-right">
-                    <NoReceiptToggle transactionId={m.txId} value={false} />
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {assignReceipts && (
+                        <ManualReceiptAssign
+                          transactionId={m.txId}
+                          receipts={assignReceipts}
+                        />
+                      )}
+                      {withToggle && (
+                        <NoReceiptToggle transactionId={m.txId} value={false} />
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>
@@ -343,6 +358,15 @@ export async function ReconcilePanel({
     missingIncoming.length +
     unpaidOutgoing.length +
     unpaidIncoming.length;
+  // Kandidaten für die MANUELLE Beleg-Zuordnung: alle offenen Ausgabe-Belege
+  // (monatsübergreifend), damit auch eine falsch erkannte/Fremdwährungs-Rechnung
+  // von Hand einer Buchung zugewiesen werden kann.
+  const assignCandidates = all.unpaidIncoming.map((r) => ({
+    id: r.receiptId,
+    label: `${r.haendler ?? '—'} · ${r.datum ?? '—'}${
+      r.bruttoCents != null ? ` · ${formatEuroCents(r.bruttoCents)}` : ''
+    }`,
+  }));
 
   // Flat rows for the CSV export (respects the current month + art filter).
   const exportRows: ReconcileExportRow[] = [
@@ -827,12 +851,13 @@ export async function ReconcilePanel({
           <div className="space-y-6 px-3 pt-2">
             <MissingBookingsSection
               title="❓ Beleg fehlt"
-              description="Diese Ausgaben-Buchungen haben keinen passenden Beleg. Bitte den Beleg suchen und im Tab „Belege“ hochladen – danach „Vorschläge aktualisieren“."
+              description="Diese Ausgaben-Buchungen haben keinen passenden Beleg. Beleg im Tab „Belege“ hochladen – oder rechts einen bereits vorhandenen Beleg manuell zuordnen (z. B. bei falsch erkannter Währung/Betrag)."
               accent="rose"
               rows={missingReceipts}
               peerLabel="Empfänger"
               amountPositive={false}
               withToggle
+              assignReceipts={assignCandidates}
             />
 
             <MissingBookingsSection
