@@ -231,7 +231,7 @@ export async function buildContractFromClient(
   const { data: membership } = await supabase
     .from('client_memberships')
     .select(
-      'organization_id, client_company_id, modules, custom_name, billing_name, billing_vat_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
+      'organization_id, client_company_id, modules, custom_name, custom_net_cents, billing_name, billing_vat_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
     )
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
@@ -252,8 +252,29 @@ export async function buildContractFromClient(
   ]);
 
   const selections = normalizeSelections(membership.modules);
-  const { lines, budgetCents } = buildLines(catalog, selections, ctx);
-  const gross = lines.reduce((s, l) => s + l.monthlyCents, 0);
+  const built = buildLines(catalog, selections, ctx);
+  const budgetCents = built.budgetCents;
+  const grossFromModules = built.lines.reduce((s, l) => s + l.monthlyCents, 0);
+
+  // Ein gesetzter Custom-Preis überschreibt den berechneten Modul-/Stufenpreis
+  // (wie effectiveMonthlyCents und der Baukasten). Dann eine Zeile zum
+  // Custom-Preis, damit Zeile und Summe übereinstimmen.
+  const customNetCents =
+    (membership as { custom_net_cents?: number | null }).custom_net_cents ?? null;
+  const lines: ContractLine[] =
+    customNetCents != null
+      ? [
+          {
+            label:
+              membership.custom_name ||
+              built.lines[0]?.label ||
+              'supevo Mitgliedschaft',
+            detail: built.lines[0]?.detail ?? null,
+            monthlyCents: customNetCents,
+          },
+        ]
+      : built.lines;
+  const gross = customNetCents != null ? customNetCents : grossFromModules;
 
   const { data: s } = await createSupabaseServiceClient()
     .from('billing_settings')
