@@ -176,3 +176,34 @@ export async function notifyClientTaskDoneAction(
   revalidatePath('/app/projects');
   return { ok: true };
 }
+
+/**
+ * Zieht einen bereits gesendeten „Aufgabe erledigt"-Bericht zurück: löscht die
+ * task_done-Benachrichtigungen des Kunden zu dieser Aufgabe und setzt die
+ * Aufgabe wieder auf „nicht informiert". Für Fälle, in denen zu voreilig
+ * abgesendet wurde. Nur für Agentur-Mitarbeiter der zugehörigen Org.
+ */
+export async function retractClientNotifyAction(
+  taskId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await resolveTaskCtx(taskId);
+  if ('error' in ctx) return { ok: false, error: ctx.error };
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('notifications')
+    .delete()
+    .eq('type', 'task_done')
+    .eq('entity_id', taskId)
+    .eq('organization_id', ctx.orgId);
+  if (error) return { ok: false, error: 'Zurückziehen fehlgeschlagen.' };
+
+  await service
+    .from('tasks')
+    .update({ client_notified_at: null })
+    .eq('id', taskId);
+
+  revalidatePath('/app/projects');
+  revalidatePath('/portal/reports');
+  return { ok: true };
+}
