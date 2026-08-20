@@ -771,12 +771,14 @@ export interface ReceiptComboMatch {
 
 /**
  * Best subset (2..maxK) of Ausgabe-Belege whose brutto sums to the payment
- * (exact/rounding). Same DFS shape as bestPaymentSubset.
+ * (exact/rounding). Amazon-Marketplace bündelt viele kleine Bestellungen, daher
+ * ein höheres maxK (10). Bricht bei exakter Summe früh ab, um die Laufzeit zu
+ * begrenzen.
  */
 function bestReceiptSubset(
   targetCents: number,
   candidates: ReceiptLite[],
-  maxK = 6,
+  maxK = 10,
 ): { ids: string[]; sum: number } | null {
   const sorted = candidates
     .filter(
@@ -784,27 +786,28 @@ function bestReceiptSubset(
         c.bruttoCents != null && c.bruttoCents > 0 && c.bruttoCents <= targetCents,
     )
     .sort((a, b) => b.bruttoCents - a.bruttoCents)
-    .slice(0, 16);
+    .slice(0, 24);
   const upper = targetCents + 2;
 
   const found: { ids: string[]; sum: number; delta: number }[] = [];
   const chosen: (ReceiptLite & { bruttoCents: number })[] = [];
+  let exact: { ids: string[]; sum: number } | null = null;
 
   function consider(): void {
     if (chosen.length < 2) return;
     const sum = chosen.reduce((s, c) => s + c.bruttoCents, 0);
     if (comboAmountScore(sum, targetCents) <= 0) return;
-    found.push({
-      ids: chosen.map((c) => c.id),
-      sum,
-      delta: Math.abs(sum - targetCents),
-    });
+    const delta = Math.abs(sum - targetCents);
+    if (delta === 0 && !exact) exact = { ids: chosen.map((c) => c.id), sum };
+    found.push({ ids: chosen.map((c) => c.id), sum, delta });
   }
 
   function dfs(start: number, partial: number): void {
+    if (exact) return; // exakte Summe gefunden – Suche stoppen
     consider();
     if (chosen.length >= maxK) return;
     for (let i = start; i < sorted.length; i += 1) {
+      if (exact) return;
       const next = partial + sorted[i]!.bruttoCents;
       if (next > upper) continue;
       chosen.push(sorted[i]!);
@@ -814,6 +817,7 @@ function bestReceiptSubset(
   }
 
   dfs(0, 0);
+  if (exact) return exact;
   if (found.length === 0) return null;
   found.sort((a, b) => a.delta - b.delta || a.ids.length - b.ids.length);
   const best = found[0]!;

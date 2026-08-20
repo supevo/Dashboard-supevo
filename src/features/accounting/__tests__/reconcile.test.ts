@@ -101,6 +101,25 @@ describe('matchReceiptCombinations', () => {
     expect(combos[0]!.totalCents).toBe(3000);
   });
 
+  it('matches many small Amazon receipts (>6) summing to one debit', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 2293 },
+      { id: 'r2', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+      { id: 'r3', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+      { id: 'r4', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+      { id: 'r5', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+      { id: 'r6', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+      { id: 'r7', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1500 },
+    ];
+    const txs = [
+      { id: 't1', datum: '2024-03-06', gegen: 'AMAZON PAYMENTS EUROPE', zweck: 'AMZN Mktp', betragCents: -11293 },
+    ];
+    const combos = matchReceiptCombinations(receipts, txs);
+    expect(combos).toHaveLength(1);
+    expect(combos[0]!.receiptIds).toHaveLength(7);
+    expect(combos[0]!.totalCents).toBe(11293);
+  });
+
   it('returns nothing when no receipt subset sums to the payment', () => {
     const receipts = [
       { id: 'r1', datum: '2024-03-05', haendler: 'Amazon', bruttoCents: 1000 },
