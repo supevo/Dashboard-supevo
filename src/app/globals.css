@@ -79,6 +79,183 @@
     --ring: 262 84% 69%;
   }
 
+  /* =========================================================================
+     Wählbare Farbpaletten. Gesteuert über <html data-palette="…"> (Picker im
+     Header, gespeichert in localStorage). Jede Palette überschreibt nur die
+     Kern-Tokens für Hell und Dunkel; der ausgewählte Hell/Dunkel-Modus wird
+     obendrauf angewendet. Ohne data-palette (oder = "default") gilt der
+     supevo-Look von oben. Reihenfolge nach den Marken-Blöcken → gewinnt bei
+     gleicher Spezifität.
+     ========================================================================= */
+
+  /* Midnight – tiefes Blau-Violett, kühl. */
+  :root[data-palette='midnight'] {
+    --background: 240 30% 97%;
+    --foreground: 240 40% 12%;
+    --card: 240 30% 99%;
+    --card-foreground: 240 40% 12%;
+    --primary: 250 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 240 25% 93%;
+    --muted-foreground: 240 12% 45%;
+    --border: 240 20% 88%;
+    --input: 240 20% 88%;
+    --ring: 250 70% 55%;
+  }
+  :root[data-palette='midnight'].dark {
+    --background: 245 45% 8%;
+    --foreground: 240 30% 92%;
+    --card: 245 40% 12%;
+    --card-foreground: 240 30% 92%;
+    --primary: 250 90% 76%;
+    --primary-foreground: 245 45% 10%;
+    --muted: 245 30% 18%;
+    --muted-foreground: 240 18% 65%;
+    --border: 245 30% 22%;
+    --input: 245 30% 24%;
+    --ring: 250 90% 76%;
+  }
+
+  /* Ember – warmes Crimson & Bronze. */
+  :root[data-palette='ember'] {
+    --background: 20 30% 96%;
+    --foreground: 15 40% 12%;
+    --card: 24 40% 99%;
+    --card-foreground: 15 40% 12%;
+    --primary: 0 72% 48%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 20 25% 92%;
+    --muted-foreground: 18 15% 42%;
+    --border: 20 25% 86%;
+    --input: 20 25% 86%;
+    --ring: 0 72% 48%;
+  }
+  :root[data-palette='ember'].dark {
+    --background: 12 40% 7%;
+    --foreground: 25 30% 92%;
+    --card: 10 35% 11%;
+    --card-foreground: 25 30% 92%;
+    --primary: 8 80% 60%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 12 25% 17%;
+    --muted-foreground: 24 18% 66%;
+    --border: 12 25% 22%;
+    --input: 12 25% 24%;
+    --ring: 8 80% 60%;
+  }
+
+  /* Mono – klares Graustufen-Design. */
+  :root[data-palette='mono'] {
+    --background: 0 0% 98%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    --primary: 0 0% 20%;
+    --primary-foreground: 0 0% 98%;
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 40%;
+    --border: 0 0% 88%;
+    --input: 0 0% 88%;
+    --ring: 0 0% 20%;
+  }
+  :root[data-palette='mono'].dark {
+    --background: 0 0% 7%;
+    --foreground: 0 0% 92%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 92%;
+    --primary: 0 0% 88%;
+    --primary-foreground: 0 0% 10%;
+    --muted: 0 0% 17%;
+    --muted-foreground: 0 0% 62%;
+    --border: 0 0% 22%;
+    --input: 0 0% 24%;
+    --ring: 0 0% 88%;
+  }
+
+  /* Forest – ruhiges Grün. */
+  :root[data-palette='forest'] {
+    --background: 120 20% 97%;
+    --foreground: 150 30% 10%;
+    --card: 120 25% 99%;
+    --card-foreground: 150 30% 10%;
+    --primary: 142 60% 36%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 120 18% 92%;
+    --muted-foreground: 150 12% 40%;
+    --border: 120 18% 86%;
+    --input: 120 18% 86%;
+    --ring: 142 60% 36%;
+  }
+  :root[data-palette='forest'].dark {
+    --background: 150 30% 7%;
+    --foreground: 120 20% 92%;
+    --card: 150 28% 11%;
+    --card-foreground: 120 20% 92%;
+    --primary: 142 65% 55%;
+    --primary-foreground: 150 40% 10%;
+    --muted: 150 20% 16%;
+    --muted-foreground: 120 12% 64%;
+    --border: 150 20% 21%;
+    --input: 150 20% 23%;
+    --ring: 142 65% 55%;
+  }
+
+  /* Ocean – frisches Türkis/Cyan. */
+  :root[data-palette='ocean'] {
+    --background: 195 40% 97%;
+    --foreground: 200 45% 12%;
+    --card: 195 45% 99%;
+    --card-foreground: 200 45% 12%;
+    --primary: 190 85% 38%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 195 30% 92%;
+    --muted-foreground: 200 15% 42%;
+    --border: 195 28% 86%;
+    --input: 195 28% 86%;
+    --ring: 190 85% 38%;
+  }
+  :root[data-palette='ocean'].dark {
+    --background: 200 45% 7%;
+    --foreground: 195 30% 92%;
+    --card: 200 42% 11%;
+    --card-foreground: 195 30% 92%;
+    --primary: 187 85% 55%;
+    --primary-foreground: 200 45% 9%;
+    --muted: 200 30% 16%;
+    --muted-foreground: 195 15% 64%;
+    --border: 200 30% 21%;
+    --input: 200 30% 23%;
+    --ring: 187 85% 55%;
+  }
+
+  /* Slate – kühles Slate-Blau, fokussiert. */
+  :root[data-palette='slate'] {
+    --background: 215 25% 96%;
+    --foreground: 217 33% 15%;
+    --card: 215 30% 99%;
+    --card-foreground: 217 33% 15%;
+    --primary: 215 50% 40%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 215 20% 91%;
+    --muted-foreground: 217 12% 44%;
+    --border: 215 20% 85%;
+    --input: 215 20% 85%;
+    --ring: 215 50% 40%;
+  }
+  :root[data-palette='slate'].dark {
+    --background: 217 33% 9%;
+    --foreground: 215 25% 92%;
+    --card: 217 30% 13%;
+    --card-foreground: 215 25% 92%;
+    --primary: 213 70% 62%;
+    --primary-foreground: 217 40% 10%;
+    --muted: 217 25% 18%;
+    --muted-foreground: 215 15% 64%;
+    --border: 217 25% 22%;
+    --input: 217 25% 24%;
+    --ring: 213 70% 62%;
+  }
+
   * {
     border-color: hsl(var(--border));
   }

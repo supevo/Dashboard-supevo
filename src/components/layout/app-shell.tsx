@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { PaletteMenu } from '@/components/palette-menu';
 import { NotificationBell } from '@/features/notifications/components/notification-bell';
 import { PresenceTracker } from '@/components/layout/presence-tracker';
 import { CommandPalette } from '@/components/layout/command-palette';
@@ -94,6 +95,7 @@ export function AppShell({
             {searchEnabled && <RunningTimer />}
             {searchEnabled && <CommandPalette />}
             <NotificationBell area={area} />
+            <PaletteMenu />
             <ThemeToggle />
             {typeof coins === 'number' && (
               <Link
