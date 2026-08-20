@@ -1,14 +1,18 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { updateTaskVisibilityAction } from '@/features/tasks/actions';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
-import { SubmitButton } from '@/components/ui/submit-button';
 import { Alert } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
-/** Toggles a task between internal (agency-only) and client-visible. */
+/**
+ * Sichtbarkeit einer Aufgabe (intern ↔ für Kunde sichtbar). Als echter Schalter,
+ * der die Sichtbarkeit sofort umlegt – jederzeit nachträglich änderbar durch die
+ * Agentur-Mitarbeiter (RLS erlaubt es allen, die interne Aufgaben sehen).
+ */
 export function VisibilityEditor({
   projectId,
   taskId,
@@ -18,47 +22,61 @@ export function VisibilityEditor({
   taskId: string;
   isInternal: boolean;
 }) {
-  const [state, formAction] = useActionState(
-    updateTaskVisibilityAction,
-    idleResult,
-  );
   const router = useRouter();
+  const [busy, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  // Client-visible = Schalter „an".
+  const clientVisible = !isInternal;
 
-  useEffect(() => {
-    if (state.status === 'success') router.refresh();
-  }, [state, router]);
+  function toggle() {
+    setError(null);
+    const next = clientVisible; // aktuell sichtbar → auf intern; sonst sichtbar
+    const fd = new FormData();
+    fd.set('projectId', projectId);
+    fd.set('taskId', taskId);
+    // isInternal = das Gegenteil des aktuellen Zustands.
+    fd.set('isInternal', next ? 'true' : 'false');
+    start(async () => {
+      const res = await updateTaskVisibilityAction(idleResult, fd);
+      if (res.status === 'error') {
+        setError(res.message ?? de.errors.INTERNAL);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   return (
-    <form action={formAction} className="space-y-2">
-      {state.status === 'error' && (
-        <Alert variant="destructive">{state.message}</Alert>
-      )}
-      <input type="hidden" name="projectId" value={projectId} />
-      <input type="hidden" name="taskId" value={taskId} />
-      {/* Submit the opposite of the current state to flip it. */}
-      <input
-        type="hidden"
-        name="isInternal"
-        value={isInternal ? 'false' : 'true'}
-      />
+    <div className="space-y-2">
+      {error && <Alert variant="destructive">{error}</Alert>}
 
-      <div className="flex items-center gap-2 text-sm">
-        <span
-          className={
-            isInternal
-              ? 'rounded bg-slate-200 px-2 py-0.5 text-slate-700'
-              : 'rounded bg-emerald-100 px-2 py-0.5 text-emerald-700'
-          }
-        >
-          {isInternal ? de.task.internal : de.task.clientVisible}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={clientVisible}
+        disabled={busy}
+        onClick={toggle}
+        className="flex w-full items-center justify-between gap-3 rounded-md border p-2 text-left transition hover:bg-muted/50 disabled:opacity-60"
+      >
+        <span className="text-sm">
+          {clientVisible ? de.task.clientVisible : de.task.internal}
         </span>
-      </div>
-
-      <SubmitButton size="sm" variant="outline">
-        {isInternal ? de.task.makeVisible : de.task.makeInternal}
-      </SubmitButton>
+        <span
+          className={cn(
+            'relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors',
+            clientVisible ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600',
+          )}
+        >
+          <span
+            className={cn(
+              'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+              clientVisible ? 'translate-x-4' : 'translate-x-0.5',
+            )}
+          />
+        </span>
+      </button>
 
       <p className="text-xs text-muted-foreground">{de.task.visibilityHint}</p>
-    </form>
+    </div>
   );
 }

@@ -553,8 +553,9 @@ export function KanbanBoard({
                           <LabelChip key={l.id} name={l.name} color={l.color} intensity={l.intensity} />
                         ))}
                       {/* Fertig + kundensichtbar (nur Mitarbeiterseite): Kunde
-                          über die erledigte Aufgabe informieren. */}
-                      {col.isDoneColumn && !reorderOnly && !task.isInternal && (
+                          über die erledigte Aufgabe informieren. Im Kundenportal
+                          nie anzeigen – der Kunde hat dafür keine Berechtigung. */}
+                      {col.isDoneColumn && !isPortal && !task.isInternal && (
                         <ClientNotifyButton
                           taskId={task.id}
                           notified={Boolean(task.clientNotifiedAt)}
