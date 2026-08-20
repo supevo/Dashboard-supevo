@@ -34,6 +34,7 @@ export default async function FinancePage({
     monat?: string;
     art?: string;
     rerun?: string;
+    bill?: string;
   }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
@@ -47,6 +48,11 @@ export default async function FinancePage({
   const monatListe = Number(sp.monat) || 0;
   const art = parseArt(sp.art);
   const rerun = sp.rerun === '1';
+  const bill = (['alle', 'offen', 'sepa', 'unbezahlt'] as const).includes(
+    sp.bill as 'alle' | 'offen' | 'sepa' | 'unbezahlt',
+  )
+    ? (sp.bill as 'alle' | 'offen' | 'sepa' | 'unbezahlt')
+    : undefined;
 
   const tabs: TabDef[] = [
     {
@@ -164,6 +170,7 @@ export default async function FinancePage({
           orgId={orgId}
           year={jahr}
           month={monat}
+          filter={bill}
           basePath="/app/finance?tab=rechnungen"
         />
       ),

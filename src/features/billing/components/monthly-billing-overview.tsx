@@ -1,8 +1,21 @@
+import Link from 'next/link';
 import { getMonthlyBillingOverview } from '@/features/billing/overview-queries';
 import { InvoiceRowActions } from '@/features/billing/components/invoices-section';
 import { GenerateInvoiceButton } from '@/features/billing/components/generate-invoice-button';
+import {
+  GenerateAllButton,
+  SepaSubmittedToggle,
+} from '@/features/billing/components/billing-overview-controls';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { formatEuroCents } from '@/lib/money';
+
+type OverviewFilter = 'alle' | 'offen' | 'sepa' | 'unbezahlt';
+const FILTERS: { key: OverviewFilter; label: string }[] = [
+  { key: 'alle', label: 'Alle' },
+  { key: 'offen', label: 'Nicht generiert' },
+  { key: 'sepa', label: 'SEPA ohne Mandat' },
+  { key: 'unbezahlt', label: 'Unbezahlt' },
+];
 
 const STATUS_LABEL: Record<string, string> = {
   draft: 'Entwurf',
@@ -33,14 +46,16 @@ export async function MonthlyBillingOverview({
   orgId,
   year,
   month,
+  filter = 'alle',
   basePath,
 }: {
   orgId: string;
   year: number;
   month: number;
+  filter?: OverviewFilter;
   basePath: string;
 }) {
-  const rows = await getMonthlyBillingOverview(orgId, year, month);
+  const allRows = await getMonthlyBillingOverview(orgId, year, month);
   const now = new Date();
   const nowYear = now.getFullYear();
   const years = [nowYear + 1, nowYear, nowYear - 1, nowYear - 2];
@@ -48,18 +63,45 @@ export async function MonthlyBillingOverview({
   // anbieten, nicht rückwirkend in vergangenen Monaten.
   const isCurrentMonth = year === nowYear && month === now.getMonth() + 1;
 
-  const active = rows.filter((r) => r.membershipStatus === 'active');
+  const active = allRows.filter((r) => r.membershipStatus === 'active');
   const generated = active.filter((r) => r.invoice).length;
   const open = active.length - generated;
+
+  const rows = allRows.filter((r) => {
+    if (filter === 'offen') return r.membershipStatus === 'active' && !r.invoice;
+    if (filter === 'sepa') return r.sepaMandateMissing;
+    if (filter === 'unbezahlt')
+      return r.invoice && !['paid', 'void'].includes(r.invoice.status);
+    return true;
+  });
+  const stateQuery = `&jahr=${year}&monat=${month}`;
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <MonthSwitcher year={year} month={month} years={years} basePath={basePath} />
-        <p className="text-xs text-muted-foreground">
-          {active.length} aktive Mitgliedschaften · {generated} generiert ·{' '}
-          {open} offen
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground">
+            {active.length} aktiv · {generated} generiert · {open} offen
+          </p>
+          {isCurrentMonth && <GenerateAllButton orgId={orgId} />}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {FILTERS.map((f) => (
+          <Link
+            key={f.key}
+            href={`${basePath}${stateQuery}&bill=${f.key}`}
+            className={`rounded-full border px-2.5 py-1 text-xs ${
+              filter === f.key
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            {f.label}
+          </Link>
+        ))}
       </div>
 
       {rows.length === 0 ? (
@@ -96,12 +138,33 @@ export async function MonthlyBillingOverview({
                     <td className="px-3 py-2">
                       {r.paymentMethod === 'transfer' ? (
                         'Überweisung'
-                      ) : r.sepaMandateMissing ? (
-                        <span className="text-destructive" title="SEPA gewählt, aber kein Mandat/IBAN hinterlegt">
-                          SEPA – Mandat fehlt
-                        </span>
                       ) : (
-                        'SEPA-Mandat'
+                        <div className="space-y-1">
+                          {r.sepaMandateMissing ? (
+                            <span
+                              className="text-destructive"
+                              title="SEPA gewählt, aber kein Mandat/IBAN hinterlegt"
+                            >
+                              SEPA – Mandat fehlt
+                            </span>
+                          ) : (
+                            'SEPA-Mandat'
+                          )}
+                          {(r.debtorIban || r.mandateReference || r.mandateDate) && (
+                            <details className="text-[11px] text-muted-foreground">
+                              <summary className="cursor-pointer text-primary">
+                                Mandat anzeigen
+                              </summary>
+                              <div className="mt-0.5 space-y-0.5">
+                                {r.debtorIban && <div>IBAN: {r.debtorIban}</div>}
+                                {r.mandateReference && (
+                                  <div>Ref.: {r.mandateReference}</div>
+                                )}
+                                {r.mandateDate && <div>Datum: {r.mandateDate}</div>}
+                              </div>
+                            </details>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
@@ -114,7 +177,18 @@ export async function MonthlyBillingOverview({
                     </td>
                     <td className="px-3 py-2 text-right">
                       {r.invoice ? (
-                        <InvoiceRowActions invoice={r.invoice} />
+                        <div className="flex flex-col items-end gap-1.5">
+                          <InvoiceRowActions invoice={r.invoice} />
+                          {r.paymentMethod !== 'transfer' &&
+                            ['finalized', 'sent', 'paid'].includes(
+                              r.invoice.status,
+                            ) && (
+                              <SepaSubmittedToggle
+                                invoiceId={r.invoice.id}
+                                submittedAt={r.invoice.sepa_submitted_at ?? null}
+                              />
+                            )}
+                        </div>
                       ) : r.membershipStatus === 'active' && isCurrentMonth ? (
                         <GenerateInvoiceButton clientCompanyId={r.clientCompanyId} />
                       ) : (

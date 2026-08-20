@@ -72,6 +72,100 @@ export async function createDraftInvoiceAction(
   return successResult('Rechnungsentwurf erstellt.');
 }
 
+/** Erster/letzter Tag des laufenden Monats (ISO). */
+function currentMonthBounds(): { start: string; end: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const start = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+  const end = new Date(Date.UTC(y, m + 1, 0)).toISOString().slice(0, 10);
+  return { start, end };
+}
+
+/**
+ * Erstellt für ALLE aktiven Mitgliedschaften der Org, die für den laufenden
+ * Monat noch keine Rechnung haben, je einen Entwurf. Nur Entwürfe – finalisieren
+ * und absenden bleiben bewusste Einzelschritte.
+ */
+export async function generateAllDraftsAction(orgId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(orgId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { data: memberships } = await supabase
+    .from('client_memberships')
+    .select('*')
+    .eq('organization_id', orgId)
+    .eq('status', 'active');
+  if (!memberships || memberships.length === 0) {
+    return successResult('Keine aktiven Mitgliedschaften.');
+  }
+
+  const { start, end } = currentMonthBounds();
+  const { data: existing } = await supabase
+    .from('invoices')
+    .select('client_company_id')
+    .eq('organization_id', orgId)
+    .gte('service_period_start', start)
+    .lte('service_period_start', end);
+  const haveInvoice = new Set(
+    (existing ?? []).map((i) => i.client_company_id),
+  );
+
+  let created = 0;
+  for (const membership of memberships) {
+    if (haveInvoice.has(membership.client_company_id)) continue;
+    const entity = await resolveClientEntity(
+      supabase,
+      orgId,
+      membership.client_company_id,
+    );
+    const result = await createDraftInvoice({
+      supabase,
+      orgId,
+      clientCompanyId: membership.client_company_id,
+      membership,
+      settings: entity,
+      billingEntityId: entity?.id ?? null,
+      createdBy: user.id,
+    });
+    if (!('error' in result)) created += 1;
+  }
+
+  revalidatePath('/app/finance');
+  return successResult(
+    created > 0
+      ? `${created} Rechnungsentwürfe erstellt.`
+      : 'Alle aktiven Kunden haben bereits eine Rechnung diesen Monat.',
+  );
+}
+
+/** Setzt/entfernt den Haken „SEPA eingereicht" einer Rechnung. */
+export async function toggleSepaSubmittedAction(input: {
+  invoiceId: string;
+  submitted: boolean;
+}): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(input.invoiceId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const loaded = await loadInvoiceForManage(input.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { supabase, invoice } = loaded;
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({ sepa_submitted_at: input.submitted ? new Date().toISOString() : null })
+    .eq('id', invoice.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult(
+    input.submitted ? 'Als SEPA-eingereicht markiert.' : 'Haken entfernt.',
+  );
+}
+
 type InvoiceRow = Database['public']['Tables']['invoices']['Row'];
 type LoadedInvoice =
   | { ok: false; result: ActionResult }
