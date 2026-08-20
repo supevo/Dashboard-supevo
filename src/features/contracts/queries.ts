@@ -261,14 +261,17 @@ export async function buildContractFromClient(
   // Custom-Preis, damit Zeile und Summe übereinstimmen.
   const customNetCents =
     (membership as { custom_net_cents?: number | null }).custom_net_cents ?? null;
+  // Label: den echten Stufennamen zeigen, NICHT „Individuell". Ein eigener
+  // custom_name wird nur genutzt, wenn er kein Platzhalter ist.
+  const customLabel =
+    membership.custom_name && membership.custom_name !== 'Individuell'
+      ? membership.custom_name
+      : built.lines[0]?.label || 'supevo Mitgliedschaft';
   const lines: ContractLine[] =
     customNetCents != null
       ? [
           {
-            label:
-              membership.custom_name ||
-              built.lines[0]?.label ||
-              'supevo Mitgliedschaft',
+            label: customLabel,
             detail: built.lines[0]?.detail ?? null,
             monthlyCents: customNetCents,
           },
