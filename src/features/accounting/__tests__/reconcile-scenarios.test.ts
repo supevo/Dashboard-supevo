@@ -254,6 +254,30 @@ describe('Szenario: absichtlich falsche/knifflige Daten', () => {
     ).toBe(true);
   });
 
+  it('Kreditor: Google-Posten raus aus den „fehlt“-Listen, rein in den Saldo', () => {
+    const res = computeReconcile(
+      base({
+        txRows: [
+          tx('t1', '2026-07-02', 'Google Ireland Limited', -50000, 'ADWORDS:1543924365:GG104FN04H'),
+          tx('t2', '2026-07-07', 'Google Ireland Limited', -6305, 'ADWORDS:1543924365:GG104G3TT4'),
+        ],
+        receiptRows: [
+          receipt('r1', '2026-07-31', 'Google', 66806, 'ausgabe'),
+        ],
+        creditors: ['Google'],
+      }),
+    );
+    // Kein Google-Ausgang unter „Beleg fehlt", keine Google-Rechnung unter „ohne Zahlung".
+    expect(res.missingReceipts.map((m) => m.txId)).not.toContain('t1');
+    expect(res.missingReceipts.map((m) => m.txId)).not.toContain('t2');
+    expect(res.unpaidIncoming.map((r) => r.receiptId)).not.toContain('r1');
+    // Stattdessen im Kreditor-Saldo.
+    const g = res.creditorBalances.find((c) => c.name === 'Google');
+    expect(g).toBeTruthy();
+    expect(g!.paymentsSumCents).toBe(56305);
+    expect(g!.invoicesSumCents).toBe(66806);
+  });
+
   it('Beleg 90 Tage entfernt wird nicht (falsch) zugeordnet', () => {
     const res = computeReconcile(
       base({

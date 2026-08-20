@@ -11,6 +11,8 @@ import {
   matchReceiptCombinations,
   computePartnerBalances,
   computeAccountBalances,
+  computeCreditorBalances,
+  matchesCreditor,
   accountRefFromText,
   paymentMatchesPaidInvoice,
   SUGGEST_THRESHOLD,
@@ -85,6 +87,8 @@ export interface ReconcileInputRows {
   dismissed?: { a_id: string; b_id: string }[];
   /** Kategorien, die komplett aus dem Abgleich ausgeklammert werden. */
   excludedCategories?: string[];
+  /** Anbieter, die über ein Kreditorenkonto laufen (kein 1:1-Abgleich). */
+  creditors?: string[];
   /** Gelernte Zuordnung Gegen-IBAN → Kunde (aus bestätigten Zahlungen). */
   ibanClientId?: IbanClientMap;
   minScore?: number;
@@ -107,6 +111,7 @@ export function computeReconcile({
   receiptRows,
   dismissed = [],
   excludedCategories = [],
+  creditors = [],
   ibanClientId = new Map(),
   minScore = SUGGEST_THRESHOLD,
 }: ReconcileInputRows): ReconcileSuggestions {
@@ -171,6 +176,7 @@ export function computeReconcile({
         !t.beleg_nicht_noetig &&
         !allocatedTxIds.has(t.id) &&
         !receiptLinkTxIds.has(t.id) &&
+        !matchesCreditor(t.gegen, creditors) &&
         !isExcludedTx(t),
     )
     .map((t) => ({
@@ -224,7 +230,12 @@ export function computeReconcile({
   });
   const usableReceipts = receiptRows.filter((r) => r.brutto_cents != null);
   const ausgabeReceipts: ReceiptLite[] = usableReceipts
-    .filter((r) => r.kind === 'ausgabe' && !linkedReceiptIds.has(r.id))
+    .filter(
+      (r) =>
+        r.kind === 'ausgabe' &&
+        !linkedReceiptIds.has(r.id) &&
+        !matchesCreditor(r.haendler, creditors),
+    )
     .map(toLite);
   const einnahmeReceipts: ReceiptLite[] = usableReceipts
     .filter((r) => r.kind === 'einnahme' && !linkedReceiptIds.has(r.id))
@@ -511,6 +522,24 @@ export function computeReconcile({
   const openAusgabeReceipts = ausgabeReceipts.filter(
     (r) => !matchedReceiptIds.has(r.id),
   );
+  // Kreditorenkonten: Summe Rechnungen (Aufwand) vs. Summe Zahlungen je Anbieter
+  // über ALLE Posten (auch bereits verknüpfte), da das Konto die volle Bilanz
+  // zeigt. Kein 1:1-Match – der Saldo gleicht sich über die Monate aus.
+  const creditorBalances = computeCreditorBalances(
+    creditors,
+    allTx
+      .filter((t) => t.betrag_cents < 0 && matchesCreditor(t.gegen, creditors))
+      .map((t) => ({ name: t.gegen, cents: Math.abs(t.betrag_cents) })),
+    receiptRows
+      .filter(
+        (r) =>
+          r.kind === 'ausgabe' &&
+          r.brutto_cents != null &&
+          matchesCreditor(r.haendler, creditors),
+      )
+      .map((r) => ({ name: r.haendler, cents: r.brutto_cents ?? 0 })),
+  );
+
   const accountBalances = computeAccountBalances(
     outgoing
       .filter((t) => !matchedOutTx.has(t.id) && !usedRComboTx.has(t.id))
@@ -541,5 +570,6 @@ export function computeReconcile({
     unpaidIncoming,
     partnerBalances,
     accountBalances,
+    creditorBalances,
   };
 }

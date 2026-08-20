@@ -7,11 +7,41 @@ import {
   matchReceiptCombinations,
   computePartnerBalances,
   computeAccountBalances,
+  computeCreditorBalances,
+  matchesCreditor,
   accountRefFromText,
   numberMatchStrength,
   AUTO_THRESHOLD,
   SUGGEST_THRESHOLD,
 } from '../reconcile';
+
+describe('Kreditoren', () => {
+  it('matchesCreditor erkennt den Anbieter über den Marken-Token', () => {
+    expect(matchesCreditor('Google Ireland Limited', ['Google'])).toBe(true);
+    expect(matchesCreditor('AMAZON PAYMENTS EUROPE S.C.A.', ['Amazon'])).toBe(true);
+    expect(matchesCreditor('Meta Platforms Ireland Limited', ['Meta Platforms'])).toBe(true);
+    expect(matchesCreditor('Adobe Systems', ['Google'])).toBe(false);
+    expect(matchesCreditor(null, ['Google'])).toBe(false);
+  });
+
+  it('computeCreditorBalances bildet Aufwand − Zahlungen je Kreditor', () => {
+    const bal = computeCreditorBalances(
+      ['Google'],
+      [
+        { name: 'Google Ireland Limited', cents: 50000 },
+        { name: 'Google Ireland Limited', cents: 30000 },
+      ],
+      [{ name: 'Google', cents: 66806 }],
+    );
+    expect(bal).toHaveLength(1);
+    expect(bal[0]).toMatchObject({
+      name: 'Google',
+      invoicesSumCents: 66806,
+      paymentsSumCents: 80000,
+      balanceCents: 66806 - 80000,
+    });
+  });
+});
 
 describe('accountRefFromText (Google Ads Konto-ID)', () => {
   it('extracts the customer id from an ADWORDS purpose', () => {
