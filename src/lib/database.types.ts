@@ -2900,6 +2900,7 @@ export interface Database {
           ust_satz: number | null;
           rechnungsnummer: string | null;
           waehrung: string | null;
+          konto_ref: string | null;
           kategorie_id: string | null;
           konfidenz: number | null;
           rohtext: string | null;
@@ -2929,6 +2930,7 @@ export interface Database {
           ust_satz?: number | null;
           rechnungsnummer?: string | null;
           waehrung?: string | null;
+          konto_ref?: string | null;
           kategorie_id?: string | null;
           konfidenz?: number | null;
           rohtext?: string | null;
