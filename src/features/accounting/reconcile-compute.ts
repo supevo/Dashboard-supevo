@@ -10,6 +10,8 @@ import {
   matchInvoiceSplitPayments,
   matchReceiptCombinations,
   computePartnerBalances,
+  computeAccountBalances,
+  accountRefFromText,
   paymentMatchesPaidInvoice,
   SUGGEST_THRESHOLD,
   type TxLite,
@@ -75,6 +77,7 @@ export interface ReconcileInputRows {
     kind: string;
     rechnungsnummer?: string | null;
     waehrung?: string | null;
+    konto_ref?: string | null;
     konfidenz?: number | null;
     rohtext?: string | null;
   }[];
@@ -209,6 +212,7 @@ export function computeReconcile({
     brutto_cents: number | null;
     rechnungsnummer?: string | null;
     waehrung?: string | null;
+    konto_ref?: string | null;
   }): ReceiptLite => ({
     id: r.id,
     datum: r.beleg_datum,
@@ -216,6 +220,7 @@ export function computeReconcile({
     bruttoCents: r.brutto_cents,
     rechnungsnummer: r.rechnungsnummer ?? null,
     waehrung: r.waehrung ?? null,
+    kontoRef: r.konto_ref ?? null,
   });
   const usableReceipts = receiptRows.filter((r) => r.brutto_cents != null);
   const ausgabeReceipts: ReceiptLite[] = usableReceipts
@@ -494,6 +499,29 @@ export function computeReconcile({
     ),
   ];
 
+  // Konto-Abgleich (Google Ads u. a.): je Konto-ID Summe gezahlt vs. berechnet.
+  // Zahlungen = offene Bankausgänge (Konto-ID aus „ADWORDS:<ID>"), Rechnungen =
+  // offene Ausgabe-Belege mit passender Konto-ID (von der KI ausgelesen).
+  const openAusgabeReceipts = ausgabeReceipts.filter(
+    (r) => !matchedReceiptIds.has(r.id),
+  );
+  const accountBalances = computeAccountBalances(
+    outgoing
+      .filter((t) => !matchedOutTx.has(t.id) && !usedRComboTx.has(t.id))
+      .map((t) => ({
+        ref: accountRefFromText(t.zweck),
+        name: t.gegen,
+        cents: Math.abs(t.betragCents),
+      })),
+    openAusgabeReceipts.map((r) => ({
+      ref: (r.kontoRef ?? '').replace(/\D/g, '').length >= 6
+        ? (r.kontoRef ?? '').replace(/\D/g, '')
+        : null,
+      name: r.haendler,
+      cents: r.bruttoCents ?? 0,
+    })),
+  );
+
   return {
     payments: paymentsOut,
     receipts: receiptsOut,
@@ -506,5 +534,6 @@ export function computeReconcile({
     unpaidOutgoing,
     unpaidIncoming,
     partnerBalances,
+    accountBalances,
   };
 }

@@ -6,10 +6,54 @@ import {
   matchInvoiceSplitPayments,
   matchReceiptCombinations,
   computePartnerBalances,
+  computeAccountBalances,
+  accountRefFromText,
   numberMatchStrength,
   AUTO_THRESHOLD,
   SUGGEST_THRESHOLD,
 } from '../reconcile';
+
+describe('accountRefFromText (Google Ads Konto-ID)', () => {
+  it('extracts the customer id from an ADWORDS purpose', () => {
+    expect(accountRefFromText('ADWORDS:1543924365:GG104H1HUM')).toBe('1543924365');
+    expect(accountRefFromText('ADWORDS:6179976554:GG104H3UC1')).toBe('6179976554');
+  });
+  it('returns null for non-Google purposes', () => {
+    expect(accountRefFromText('AMZN Mktp DE 4DQKA4IME85XVJ9S')).toBeNull();
+    expect(accountRefFromText(null)).toBeNull();
+  });
+});
+
+describe('computeAccountBalances', () => {
+  it('pairs Google payments and invoices by account id and compares sums', () => {
+    const payments = [
+      { ref: '1543924365', name: 'Google Ireland Limited', cents: 50000 },
+      { ref: '1543924365', name: 'Google Ireland Limited', cents: 6305 },
+      { ref: '1543924365', name: 'Google Ireland Limited', cents: 50000 },
+    ];
+    const docs = [
+      { ref: '1543924365', name: 'Google', cents: 66806 },
+      { ref: '1543924365', name: 'Google', cents: 39499 },
+    ];
+    const bal = computeAccountBalances(payments, docs);
+    expect(bal).toHaveLength(1);
+    expect(bal[0]).toMatchObject({
+      ref: '1543924365',
+      paymentsCount: 3,
+      paymentsSumCents: 106305,
+      docsCount: 2,
+      docsSumCents: 106305,
+      kind: 'match',
+    });
+  });
+  it('only pairs accounts present on BOTH sides', () => {
+    const bal = computeAccountBalances(
+      [{ ref: '6179976554', name: 'Google', cents: 30000 }],
+      [{ ref: '1543924365', name: 'Google', cents: 30000 }],
+    );
+    expect(bal).toHaveLength(0);
+  });
+});
 
 describe('matchReceiptCombinations', () => {
   it('matches several Amazon receipts summing to one debit', () => {

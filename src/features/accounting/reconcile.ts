@@ -60,6 +60,8 @@ export interface ReceiptLite {
   rechnungsnummer?: string | null;
   /** ISO-Währungscode des Belegs (z. B. "USD"); null/"EUR" = Euro. */
   waehrung?: string | null;
+  /** Externe Konto-/Kundennummer (z. B. Google-Ads-Konto-ID). */
+  kontoRef?: string | null;
 }
 
 export interface Match {
@@ -205,6 +207,34 @@ function numberInPurpose(
 ): boolean {
   const list = Array.isArray(numbers) ? numbers : [numbers];
   return bestNumberMatch(list, zweck) !== 'none';
+}
+
+/**
+ * Externe Konto-/Kundennummer aus einem Bank-Verwendungszweck – aktuell Google
+ * Ads („ADWORDS:1543924365:GG104H1HUM" → „1543924365"). Google-Zahlungen sind
+ * Vorauszahlungen und passen nicht 1:1 zu einzelnen Rechnungen; die Konto-ID ist
+ * der stabile gemeinsame Parameter.
+ */
+export function accountRefFromText(text: string | null): string | null {
+  if (!text) return null;
+  const m = text.toUpperCase().match(/ADWORDS[\s:._-]*([0-9]{6,})/);
+  return m ? m[1]! : null;
+}
+
+/** Ziffern einer Konto-/Kundennummer (z. B. „154-392-4365" → „1543924365"). */
+function accountRefDigits(ref: string | null | undefined): string | null {
+  const d = (ref ?? '').replace(/\D/g, '');
+  return d.length >= 6 ? d : null;
+}
+
+/** True, wenn die Konto-ID im Zweck der Konto-Referenz des Belegs entspricht. */
+function accountRefMatches(
+  zweck: string | null,
+  kontoRef: string | null | undefined,
+): boolean {
+  const a = accountRefFromText(zweck);
+  const b = accountRefDigits(kontoRef);
+  return !!a && !!b && a === b;
 }
 
 function daysBetween(a: string, b: string): number {
@@ -819,7 +849,8 @@ export function matchReceiptCombinations(
         nameSimilarity(tx.gegen, r.haendler) > 0.3 ||
         nameInPurpose(r.haendler, tx.zweck);
       const byNumber = numberInPurpose(r.rechnungsnummer ?? null, tx.zweck);
-      if (!byName && !byNumber) return false;
+      const byAccount = accountRefMatches(tx.zweck, r.kontoRef);
+      if (!byName && !byNumber && !byAccount) return false;
       if (r.datum && daysBetween(tx.datum, r.datum) > 60) return false;
       return true;
     });
@@ -845,6 +876,85 @@ export function matchReceiptCombinations(
     });
   }
   return results;
+}
+
+// --- Konto-Abgleich (Google Ads u. a.) --------------------------------------
+
+export interface AccountBalanceItem {
+  ref: string | null;
+  name: string | null;
+  cents: number;
+}
+export interface AccountBalance {
+  /** Konto-/Kundennummer (nur Ziffern). */
+  ref: string;
+  name: string;
+  paymentsCount: number;
+  paymentsSumCents: number;
+  docsCount: number;
+  docsSumCents: number;
+  /** paymentsSum − docsSum (positiv = mehr gezahlt als berechnet). */
+  diffCents: number;
+  kind: 'match' | 'missing_doc' | 'missing_payment';
+}
+
+/**
+ * Stellt je Konto-ID die Summe der offenen Zahlungen der Summe der offenen
+ * Rechnungen gegenüber. Für Anbieter wie Google Ads, deren Abbuchungen
+ * (Vorauszahlungen) nicht 1:1 zu den Rechnungen passen – die Konto-ID
+ * (aus dem Bank-Zweck bzw. von der Rechnung) verbindet beide Seiten.
+ */
+export function computeAccountBalances(
+  payments: AccountBalanceItem[],
+  docs: AccountBalanceItem[],
+): AccountBalance[] {
+  interface Agg {
+    name: string;
+    count: number;
+    sum: number;
+  }
+  const agg = (items: AccountBalanceItem[]): Map<string, Agg> => {
+    const m = new Map<string, Agg>();
+    for (const it of items) {
+      const key = it.ref;
+      if (!key || it.cents <= 0) continue;
+      const a = m.get(key) ?? { name: it.name ?? key, count: 0, sum: 0 };
+      a.count += 1;
+      a.sum += it.cents;
+      m.set(key, a);
+    }
+    return m;
+  };
+  const pay = agg(payments);
+  const doc = agg(docs);
+
+  const out: AccountBalance[] = [];
+  for (const ref of new Set([...pay.keys(), ...doc.keys()])) {
+    const p = pay.get(ref);
+    const d = doc.get(ref);
+    // Nur sinnvoll, wenn zu einer Konto-ID BEIDE Seiten vorliegen.
+    if (!p || !d) continue;
+    const diff = p.sum - d.sum;
+    const tol = Math.max(100, Math.round(Math.max(p.sum, d.sum) * 0.01));
+    const kind =
+      Math.abs(diff) <= tol ? 'match' : diff > 0 ? 'missing_doc' : 'missing_payment';
+    out.push({
+      ref,
+      name: d.name || p.name,
+      paymentsCount: p.count,
+      paymentsSumCents: p.sum,
+      docsCount: d.count,
+      docsSumCents: d.sum,
+      diffCents: diff,
+      kind,
+    });
+  }
+  out.sort(
+    (a, b) =>
+      Math.abs(b.diffCents) - Math.abs(a.diffCents) ||
+      b.paymentsSumCents + b.docsSumCents - (a.paymentsSumCents + a.docsSumCents),
+  );
+  return out;
 }
 
 // --- Saldo je Partner -------------------------------------------------------

@@ -279,6 +279,85 @@ function UnpaidReceiptsSection({
   );
 }
 
+/** Konto-Abgleich je Konto-ID (Google Ads u. a.): gezahlt vs. berechnet. */
+function AccountBalancesSection({
+  rows,
+}: {
+  rows: import('@/features/accounting/reconcile').AccountBalance[];
+}) {
+  if (rows.length === 0) return null;
+  const tone = (k: string) =>
+    k === 'match'
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : k === 'missing_doc'
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-rose-600 dark:text-rose-400';
+  const hint = (r: (typeof rows)[number]): string => {
+    const delta = formatEuroCents(Math.abs(r.diffCents));
+    if (r.kind === 'match') return 'Summen gleichen sich aus.';
+    if (r.kind === 'missing_doc') {
+      return `Mehr gezahlt als berechnet (${delta}). Evtl. fehlt eine Rechnung – oder Vorauszahlung noch nicht verbraucht.`;
+    }
+    return `Mehr berechnet als gezahlt (${delta}). Evtl. fehlt eine Zahlung oder ist noch offen.`;
+  };
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-semibold">
+        🔢 Konto-Abgleich{' '}
+        <span className="text-muted-foreground">({rows.length})</span>
+      </h2>
+      <p className="text-xs text-muted-foreground">
+        Für Anbieter wie Google Ads, deren Abbuchungen (Vorauszahlungen) nicht
+        1:1 zu den Rechnungen passen. Verbunden über die Konto-ID (im Bank-Zweck
+        {' „ADWORDS:<ID>“ '}bzw. auf der Rechnung). Summen über alle offenen
+        Posten.
+      </p>
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="px-3 py-2 font-medium">Konto</th>
+              <th className="px-3 py-2 text-right font-medium">Gezahlt</th>
+              <th className="px-3 py-2 text-right font-medium">Berechnet</th>
+              <th className="px-3 py-2 text-right font-medium">Differenz</th>
+              <th className="px-3 py-2 font-medium">Hinweis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.ref} className="border-t align-top">
+                <td className="px-3 py-2">
+                  {r.name}
+                  <div className="text-[11px] text-muted-foreground">
+                    Konto-ID {r.ref}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {formatEuroCents(r.paymentsSumCents)}
+                  <div className="text-xs text-muted-foreground">
+                    {r.paymentsCount} Zahlung(en)
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  {formatEuroCents(r.docsSumCents)}
+                  <div className="text-xs text-muted-foreground">
+                    {r.docsCount} Rechnung(en)
+                  </div>
+                </td>
+                <td className={`whitespace-nowrap px-3 py-2 text-right font-medium ${tone(r.kind)}`}>
+                  {r.diffCents >= 0 ? '+' : '−'}
+                  {formatEuroCents(Math.abs(r.diffCents))}
+                </td>
+                <td className={`px-3 py-2 text-xs ${tone(r.kind)}`}>{hint(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 /**
  * Abgleich tab: shows the reconcile suggestions for manual confirmation. Nothing
  * is booked automatically – every match is applied by hand (per row or via „Alle
@@ -339,6 +418,8 @@ export async function ReconcilePanel({
   const splits = wantOut ? [] : inView(all.splits);
   // Beleg-Sammlungen sind immer Ausgänge (mehrere Belege → eine Abbuchung).
   const receiptCombos = wantIn ? [] : inView(all.receiptCombos);
+  // Konto-Abgleich (Google Ads u. a.) – monatsübergreifend, nur Ausgaben.
+  const accountBalances = wantIn ? [] : all.accountBalances;
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
@@ -535,6 +616,8 @@ export async function ReconcilePanel({
           können. Prüfe die Vorschläge vor dem Übernehmen genau.
         </p>
       )}
+
+      <AccountBalancesSection rows={accountBalances} />
 
       <div>
         <h2 className="text-base font-semibold">Vorschläge zum Bestätigen</h2>

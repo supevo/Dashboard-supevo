@@ -8,6 +8,7 @@ import {
   type SplitMatch,
   type ReceiptComboMatch,
   type PartnerBalance,
+  type AccountBalance,
 } from '@/features/accounting/reconcile';
 import { computeReconcile } from '@/features/accounting/reconcile-compute';
 
@@ -131,6 +132,11 @@ export interface ReconcileSuggestions {
    * Google-Ads (runde Teilzahlungen) und fehlende Rechnungen/Zahlungen.
    */
   partnerBalances: PartnerBalance[];
+  /**
+   * Konto-Abgleich je Konto-ID (Google Ads u. a.): Summe offener Zahlungen vs.
+   * Summe offener Rechnungen, verbunden über die Konto-/Kundennummer.
+   */
+  accountBalances: AccountBalance[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;
@@ -357,7 +363,7 @@ export async function getReconcileSuggestions(
   const { data: receiptRows } = await supabase
     .from('bookkeeping_receipts')
     .select(
-      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, waehrung, konfidenz, rohtext',
+      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, waehrung, konto_ref, konfidenz, rohtext',
     )
     .eq('billing_entity_id', billingEntityId)
     .in('kind', ['ausgabe', 'einnahme'])

@@ -28,6 +28,7 @@ export interface ReceiptExtraction {
   ust_betrag: number | null;
   netto: number | null;
   rechnungsnummer: string | null;
+  konto_ref: string | null;
   ust_idnr: string | null;
   iban: string | null;
   kategorie_id: string | null;
@@ -224,6 +225,7 @@ const SCHEMA = {
     ust_betrag: { type: ['number', 'null'] },
     netto: { type: ['number', 'null'] },
     rechnungsnummer: { type: ['string', 'null'] },
+    konto_ref: { type: ['string', 'null'] },
     ust_idnr: { type: ['string', 'null'] },
     iban: { type: ['string', 'null'] },
     kategorie_id: { type: ['string', 'null'] },
@@ -232,7 +234,7 @@ const SCHEMA = {
   },
   required: [
     'haendler', 'richtung', 'datum', 'faellig', 'brutto', 'waehrung', 'ust_satz',
-    'ust_betrag', 'netto', 'rechnungsnummer', 'ust_idnr', 'iban',
+    'ust_betrag', 'netto', 'rechnungsnummer', 'konto_ref', 'ust_idnr', 'iban',
     'kategorie_id', 'konfidenz', 'begruendung',
   ],
 } as const;
@@ -254,6 +256,9 @@ function systemPrompt(ctx: ReceiptExtractionContext): string {
     'Dezimaltrennzeichen – im Original der Rechnung. waehrung = ISO-Code der',
     'Rechnungswährung (z. B. "EUR", "USD"); wenn kein Zeichen/Code erkennbar ist,',
     '"EUR". ust_satz ist 19, 7 oder 0.',
+    'konto_ref = externe Kunden-/Kontonummer des Anbieters, falls vorhanden',
+    '(z. B. Google-Ads-Konto-ID „154-392-4365", Kundennummer). NICHT die',
+    'Rechnungsnummer. Sonst null.',
     'kategorie_id MUSS aus dieser Liste stammen (oder null):',
     kats,
     'konfidenz 0..1. Gib nur ab, was du wirklich erkennst; sonst null.',

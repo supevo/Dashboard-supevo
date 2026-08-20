@@ -145,6 +145,7 @@ export async function uploadReceiptAction(
           netto_cents: ext.netto == null ? null : Math.round(ext.netto * 100),
           ust_satz: ext.ust_satz,
           rechnungsnummer: ext.rechnungsnummer,
+          konto_ref: ext.konto_ref?.trim() || null,
           kategorie_id: kategorieId,
           konfidenz: ext.konfidenz == null ? null : Math.round(ext.konfidenz * 100),
           erkannt: ext as unknown as Record<string, unknown>,
