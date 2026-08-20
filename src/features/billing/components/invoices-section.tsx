@@ -31,7 +31,7 @@ function fmtDate(iso: string | null): string {
   return `${d}.${m}.${y}`;
 }
 
-function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
+export function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
   const [state, formAction] = useActionState(invoiceOpAction, idleResult);
   const router = useRouter();
   const [stornoOpen, setStornoOpen] = useState(false);
