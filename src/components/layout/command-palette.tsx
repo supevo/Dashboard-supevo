@@ -11,13 +11,30 @@ interface Hit {
   href: string;
 }
 
+interface HitGroup {
+  title: string;
+  items: Hit[];
+}
+
+/** Reihenfolge & Titel der Trefferkategorien im Suchdialog. */
+const GROUPS: { key: string; title: string }[] = [
+  { key: 'clients', title: 'Kunden' },
+  { key: 'projects', title: 'Projekte' },
+  { key: 'tasks', title: 'Aufgaben' },
+  { key: 'leads', title: 'Leads' },
+  { key: 'invoices', title: 'Rechnungen' },
+  { key: 'colleagues', title: 'Kolleg:innen' },
+];
+
 /** Global ⌘K / Ctrl+K search palette for the agency workspace. */
 export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [hits, setHits] = useState<Hit[]>([]);
+  const [groups, setGroups] = useState<HitGroup[]>([]);
   const [active, setActive] = useState(0);
+  // Flache, in Anzeigereihenfolge sortierte Trefferliste für die Tastatur.
+  const hits = groups.flatMap((g) => g.items);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,7 +56,7 @@ export function CommandPalette() {
     if (open) setTimeout(() => inputRef.current?.focus(), 20);
     else {
       setQuery('');
-      setHits([]);
+      setGroups([]);
       setActive(0);
     }
   }, [open]);
@@ -47,7 +64,7 @@ export function CommandPalette() {
   // Debounced search.
   useEffect(() => {
     if (query.trim().length < 2) {
-      setHits([]);
+      setGroups([]);
       return;
     }
     const ctrl = new AbortController();
@@ -58,12 +75,12 @@ export function CommandPalette() {
           signal: ctrl.signal,
         });
         if (res.ok) {
-          const d = (await res.json()) as {
-            clients: Hit[];
-            projects: Hit[];
-            tasks: Hit[];
-          };
-          setHits([...d.clients, ...d.projects, ...d.tasks]);
+          const d = (await res.json()) as Record<string, Hit[]>;
+          const next: HitGroup[] = GROUPS.map((g) => ({
+            title: g.title,
+            items: d[g.key] ?? [],
+          })).filter((g) => g.items.length > 0);
+          setGroups(next);
           setActive(0);
         }
       } catch {
@@ -137,25 +154,41 @@ export function CommandPalette() {
                   {loading ? de.search.loading : de.search.empty}
                 </p>
               ) : (
-                <ul>
-                  {hits.map((h, i) => (
-                    <li key={`${h.sub}-${h.id}`}>
-                      <button
-                        type="button"
-                        onMouseEnter={() => setActive(i)}
-                        onClick={() => go(h)}
-                        className={`flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm ${
-                          i === active ? 'bg-muted' : ''
-                        }`}
-                      >
-                        <span className="truncate">{h.label}</span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {h.sub}
-                        </span>
-                      </button>
-                    </li>
+                <div>
+                  {groups.map((group) => (
+                    <div key={group.title} className="py-1">
+                      <p className="px-4 pb-0.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {group.title}
+                      </p>
+                      <ul>
+                        {group.items.map((h) => {
+                          // Fortlaufender Index über alle Gruppen für die
+                          // Tastatur-Hervorhebung.
+                          const flatIndex = hits.findIndex(
+                            (x) => x.href === h.href && x.id === h.id,
+                          );
+                          return (
+                            <li key={`${h.sub}-${h.id}`}>
+                              <button
+                                type="button"
+                                onMouseEnter={() => setActive(flatIndex)}
+                                onClick={() => go(h)}
+                                className={`flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm ${
+                                  flatIndex === active ? 'bg-muted' : ''
+                                }`}
+                              >
+                                <span className="truncate">{h.label}</span>
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  {h.sub}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           </div>

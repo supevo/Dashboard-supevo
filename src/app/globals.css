@@ -51,7 +51,8 @@
     --primary-foreground: 0 0% 100%;
     --muted: 24 12% 94%;
     --muted-foreground: 265 6% 42%;
-    --destructive: 349 82% 53%;
+    /* Fehler-Rot dunkler für WCAG-AA-Kontrast auf dem hellen Greige-Grund. */
+    --destructive: 349 84% 42%;
     --destructive-foreground: 0 0% 100%;
     --border: 20 12% 86%;
     --input: 20 12% 86%;
@@ -178,13 +179,13 @@
     --foreground: 150 30% 10%;
     --card: 120 25% 99%;
     --card-foreground: 150 30% 10%;
-    --primary: 142 60% 36%;
+    --primary: 142 60% 30%;
     --primary-foreground: 0 0% 100%;
     --muted: 120 18% 92%;
-    --muted-foreground: 150 12% 40%;
+    --muted-foreground: 150 12% 39%;
     --border: 120 18% 86%;
     --input: 120 18% 86%;
-    --ring: 142 60% 36%;
+    --ring: 142 60% 30%;
   }
   :root[data-palette='forest'].dark {
     --background: 150 30% 7%;
@@ -206,13 +207,13 @@
     --foreground: 200 45% 12%;
     --card: 195 45% 99%;
     --card-foreground: 200 45% 12%;
-    --primary: 190 85% 38%;
+    --primary: 192 88% 30%;
     --primary-foreground: 0 0% 100%;
     --muted: 195 30% 92%;
-    --muted-foreground: 200 15% 42%;
+    --muted-foreground: 200 15% 41%;
     --border: 195 28% 86%;
     --input: 195 28% 86%;
-    --ring: 190 85% 38%;
+    --ring: 192 88% 30%;
   }
   :root[data-palette='ocean'].dark {
     --background: 200 45% 7%;
@@ -237,7 +238,7 @@
     --primary: 215 50% 40%;
     --primary-foreground: 0 0% 100%;
     --muted: 215 20% 91%;
-    --muted-foreground: 217 12% 44%;
+    --muted-foreground: 217 12% 42%;
     --border: 215 20% 85%;
     --input: 215 20% 85%;
     --ring: 215 50% 40%;
@@ -263,13 +264,13 @@
     --foreground: 140 60% 8%;
     --card: 120 45% 99%;
     --card-foreground: 140 60% 8%;
-    --primary: 135 75% 32%;
+    --primary: 135 80% 28%;
     --primary-foreground: 0 0% 100%;
     --muted: 120 25% 92%;
     --muted-foreground: 140 20% 38%;
     --border: 120 25% 85%;
     --input: 120 25% 85%;
-    --ring: 135 75% 32%;
+    --ring: 135 80% 28%;
   }
   :root[data-palette='cyberpunk'].dark {
     --background: 130 25% 5%;
