@@ -71,8 +71,16 @@ export function ContractDocument({ data }: { data: ContractData }) {
           <div className="mt-1 leading-relaxed">
             <div className="font-medium">{data.customer.name}</div>
             {data.customer.contactName && <div>z. Hd. {data.customer.contactName}</div>}
+            {data.customer.addressLines.map((l, i) => (
+              <div key={i}>{l}</div>
+            ))}
+            {data.customer.vatId && <div>USt-IdNr.: {data.customer.vatId}</div>}
             {data.customer.email && <div>{data.customer.email}</div>}
-            <div className="mt-1 text-gray-500">Anschrift: ______________________</div>
+            {data.customer.addressLines.length === 0 && (
+              <div className="mt-1 text-gray-500">
+                Anschrift: ______________________
+              </div>
+            )}
           </div>
         </div>
       </div>
