@@ -15,6 +15,10 @@ export interface BillingOverviewRow {
   /** Effektiver Monatspreis inkl. USt (Custom-Preis gewinnt). */
   grossCents: number;
   membershipStatus: string;
+  /** SEPA-Mandat-Details (für „Mandat anzeigen"). */
+  mandateReference: string | null;
+  debtorIban: string | null;
+  mandateDate: string | null;
   /** Rechnung, deren Leistungszeitraum im gewählten Monat startet (oder null). */
   invoice: InvoiceRow | null;
 }
@@ -43,7 +47,7 @@ export async function getMonthlyBillingOverview(
   const { data: memberships } = await supabase
     .from('client_memberships')
     .select(
-      'client_company_id, stage, custom_name, custom_net_cents, payment_method, mandate_reference, debtor_iban, status',
+      'client_company_id, stage, custom_name, custom_net_cents, payment_method, mandate_reference, debtor_iban, mandate_date, status',
     )
     .eq('organization_id', orgId);
   if (!memberships || memberships.length === 0) return [];
@@ -100,6 +104,9 @@ export async function getMonthlyBillingOverview(
           !m.debtor_iban,
         grossCents: gross,
         membershipStatus: m.status,
+        mandateReference: m.mandate_reference ?? null,
+        debtorIban: m.debtor_iban ?? null,
+        mandateDate: m.mandate_date ?? null,
         invoice: invoiceByClient.get(m.client_company_id) ?? null,
       };
     })

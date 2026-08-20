@@ -3262,6 +3262,7 @@ export interface Database {
           payment_ref: string | null;
           sent_at: string | null;
           paid_at: string | null;
+          sepa_submitted_at: string | null;
           void_reason: string | null;
           voided_at: string | null;
           voided_by: string | null;
