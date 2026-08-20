@@ -18,10 +18,11 @@ export default async function RootLayout({
   return (
     <html lang="de" data-brand={brand} suppressHydrationWarning>
       <head>
-        {/* Apply the stored (or system) theme before paint to avoid a flash. */}
+        {/* Apply the stored (or system) theme + colour palette before paint to
+            avoid a flash. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}var p=localStorage.getItem('palette');if(p&&p!=='default'){document.documentElement.setAttribute('data-palette',p);}}catch(e){}})();`,
           }}
         />
       </head>
