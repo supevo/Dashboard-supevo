@@ -33,6 +33,10 @@ import {
 } from '@/features/accounting/components/reconcile-buttons';
 import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
 import { ManualReceiptAssign } from '@/features/accounting/components/manual-receipt-assign';
+import {
+  CreditorManager,
+  MarkCreditorButton,
+} from '@/features/accounting/components/creditor-controls';
 import { kategorieLabel } from '@/features/accounting/categories';
 
 const MONTHS = [
@@ -131,6 +135,7 @@ function MissingBookingsSection({
   amountPositive,
   withToggle,
   assignReceipts,
+  markCreditorEntityId,
 }: {
   title: string;
   description: string;
@@ -141,9 +146,11 @@ function MissingBookingsSection({
   withToggle: boolean;
   /** Offene Ausgabe-Belege zur MANUELLEN Zuordnung (nur „Beleg fehlt"). */
   assignReceipts?: { id: string; label: string }[];
+  /** Entity-Id für den „als Kreditor führen"-Schnellbutton (nur „Beleg fehlt"). */
+  markCreditorEntityId?: string;
 }) {
   if (rows.length === 0) return null;
-  const extraCol = withToggle || !!assignReceipts;
+  const extraCol = withToggle || !!assignReceipts || !!markCreditorEntityId;
   const border = accent === 'rose' ? 'border-rose-500/30' : 'border-amber-500/30';
   const head =
     accent === 'rose'
@@ -193,6 +200,12 @@ function MissingBookingsSection({
                 {extraCol && (
                   <td className="whitespace-nowrap px-3 py-2 text-right">
                     <div className="flex flex-wrap items-center justify-end gap-2">
+                      {markCreditorEntityId && (
+                        <MarkCreditorButton
+                          billingEntityId={markCreditorEntityId}
+                          name={m.txGegen}
+                        />
+                      )}
                       {assignReceipts && (
                         <ManualReceiptAssign
                           transactionId={m.txId}
@@ -279,81 +292,78 @@ function UnpaidReceiptsSection({
   );
 }
 
-/** Konto-Abgleich je Konto-ID (Google Ads u. a.): gezahlt vs. berechnet. */
-function AccountBalancesSection({
+/** Kreditorenkonten je Anbieter: Aufwand vs. Zahlungen, laufender Saldo. */
+function CreditorBalancesSection({
+  billingEntityId,
+  creditors,
   rows,
 }: {
-  rows: import('@/features/accounting/reconcile').AccountBalance[];
+  billingEntityId: string;
+  creditors: string[];
+  rows: import('@/features/accounting/reconcile').CreditorBalance[];
 }) {
-  if (rows.length === 0) return null;
-  const tone = (k: string) =>
-    k === 'match'
+  const tone = (b: number) =>
+    Math.abs(b) <= 100
       ? 'text-emerald-600 dark:text-emerald-400'
-      : k === 'missing_doc'
-        ? 'text-amber-600 dark:text-amber-400'
-        : 'text-rose-600 dark:text-rose-400';
-  const hint = (r: (typeof rows)[number]): string => {
-    const delta = formatEuroCents(Math.abs(r.diffCents));
-    if (r.kind === 'match') return 'Summen gleichen sich aus.';
-    if (r.kind === 'missing_doc') {
-      return `Mehr gezahlt als berechnet (${delta}). Evtl. fehlt eine Rechnung – oder Vorauszahlung noch nicht verbraucht.`;
-    }
-    return `Mehr berechnet als gezahlt (${delta}). Evtl. fehlt eine Zahlung oder ist noch offen.`;
+      : b > 0
+        ? 'text-rose-600 dark:text-rose-400'
+        : 'text-sky-600 dark:text-sky-400';
+  const hint = (b: number): string => {
+    if (Math.abs(b) <= 100) return 'ausgeglichen';
+    return b > 0
+      ? `offener Saldo ${formatEuroCents(b)} (noch nicht bezahlt)`
+      : `Guthaben/Vorauszahlung ${formatEuroCents(Math.abs(b))}`;
   };
   return (
-    <section className="space-y-2">
-      <h2 className="text-sm font-semibold">
-        🔢 Konto-Abgleich{' '}
-        <span className="text-muted-foreground">({rows.length})</span>
-      </h2>
+    <section className="space-y-2 rounded-lg border p-3">
+      <h2 className="text-sm font-semibold">🏦 Kreditorenkonten</h2>
       <p className="text-xs text-muted-foreground">
-        Für Anbieter wie Google Ads, deren Abbuchungen (Vorauszahlungen) nicht
-        1:1 zu den Rechnungen passen. Verbunden über die Konto-ID (im Bank-Zweck
-        {' „ADWORDS:<ID>“ '}bzw. auf der Rechnung). Summen über alle offenen
-        Posten.
+        Für Anbieter wie Google, Meta oder Amazon, deren Abbuchungen nicht 1:1 zu
+        den Rechnungen passen: Rechnungen (Aufwand) und Zahlungen laufen gegen ein
+        Kreditorenkonto – der Saldo gleicht sich über die Monate aus. Diese
+        Anbieter erscheinen nicht mehr unter „Beleg fehlt“ / „ohne Zahlung“.
       </p>
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium">Konto</th>
-              <th className="px-3 py-2 text-right font-medium">Gezahlt</th>
-              <th className="px-3 py-2 text-right font-medium">Berechnet</th>
-              <th className="px-3 py-2 text-right font-medium">Differenz</th>
-              <th className="px-3 py-2 font-medium">Hinweis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.ref} className="border-t align-top">
-                <td className="px-3 py-2">
-                  {r.name}
-                  <div className="text-[11px] text-muted-foreground">
-                    Konto-ID {r.ref}
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {formatEuroCents(r.paymentsSumCents)}
-                  <div className="text-xs text-muted-foreground">
-                    {r.paymentsCount} Zahlung(en)
-                  </div>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2 text-right">
-                  {formatEuroCents(r.docsSumCents)}
-                  <div className="text-xs text-muted-foreground">
-                    {r.docsCount} Rechnung(en)
-                  </div>
-                </td>
-                <td className={`whitespace-nowrap px-3 py-2 text-right font-medium ${tone(r.kind)}`}>
-                  {r.diffCents >= 0 ? '+' : '−'}
-                  {formatEuroCents(Math.abs(r.diffCents))}
-                </td>
-                <td className={`px-3 py-2 text-xs ${tone(r.kind)}`}>{hint(r)}</td>
+      <CreditorManager billingEntityId={billingEntityId} creditors={creditors} />
+      {rows.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2 font-medium">Kreditor</th>
+                <th className="px-3 py-2 text-right font-medium">Rechnungen (Aufwand)</th>
+                <th className="px-3 py-2 text-right font-medium">Zahlungen</th>
+                <th className="px-3 py-2 text-right font-medium">Saldo</th>
+                <th className="px-3 py-2 font-medium">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.name} className="border-t align-top">
+                  <td className="px-3 py-2">{r.name}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {formatEuroCents(r.invoicesSumCents)}
+                    <div className="text-xs text-muted-foreground">
+                      {r.invoicesCount} Rechnung(en)
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    {formatEuroCents(r.paymentsSumCents)}
+                    <div className="text-xs text-muted-foreground">
+                      {r.paymentsCount} Zahlung(en)
+                    </div>
+                  </td>
+                  <td className={`whitespace-nowrap px-3 py-2 text-right font-medium ${tone(r.balanceCents)}`}>
+                    {formatEuroCents(r.balanceCents)}
+                  </td>
+                  <td className={`px-3 py-2 text-xs ${tone(r.balanceCents)}`}>
+                    {hint(r.balanceCents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -418,8 +428,8 @@ export async function ReconcilePanel({
   const splits = wantOut ? [] : inView(all.splits);
   // Beleg-Sammlungen sind immer Ausgänge (mehrere Belege → eine Abbuchung).
   const receiptCombos = wantIn ? [] : inView(all.receiptCombos);
-  // Konto-Abgleich (Google Ads u. a.) – monatsübergreifend, nur Ausgaben.
-  const accountBalances = wantIn ? [] : all.accountBalances;
+  // Kreditorenkonten – Anbieter, die als laufender Saldo geführt werden.
+  const creditorNames = all.creditorBalances.map((c) => c.name);
   const receipts = inView(all.receipts).filter(({ s }) =>
     wantIn ? s.txBetragCents > 0 : wantOut ? s.txBetragCents < 0 : true,
   );
@@ -617,7 +627,11 @@ export async function ReconcilePanel({
         </p>
       )}
 
-      <AccountBalancesSection rows={accountBalances} />
+      <CreditorBalancesSection
+        billingEntityId={active.entity.id}
+        creditors={creditorNames}
+        rows={all.creditorBalances}
+      />
 
       <div>
         <h2 className="text-base font-semibold">Vorschläge zum Bestätigen</h2>
@@ -941,6 +955,7 @@ export async function ReconcilePanel({
               amountPositive={false}
               withToggle
               assignReceipts={assignCandidates}
+              markCreditorEntityId={active.entity.id}
             />
 
             <MissingBookingsSection

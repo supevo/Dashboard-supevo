@@ -559,6 +559,61 @@ export async function dismissSplitMatchAction(input: {
 }
 
 /**
+ * Führt einen Anbieter über ein Kreditorenkonto (oder nimmt ihn wieder heraus).
+ * Rechnungen und Zahlungen dieses Anbieters werden dann nicht mehr 1:1
+ * abgeglichen, sondern als laufender Saldo geführt.
+ */
+export async function toggleCreditorAction(input: {
+  billingEntityId: string;
+  name: string;
+  enabled: boolean;
+}): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      billingEntityId: z.string().uuid(),
+      name: z.string().trim().min(2).max(120),
+      enabled: z.boolean(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { billingEntityId, name, enabled } = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const orgId = await authorizeEntity(supabase, billingEntityId);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select('kreditoren')
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  const current: string[] =
+    (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
+  const exists = current.some((c) => c.toLowerCase() === name.toLowerCase());
+  const next = enabled
+    ? exists
+      ? current
+      : [...current, name]
+    : current.filter((c) => c.toLowerCase() !== name.toLowerCase());
+
+  const { error } = await supabase.from('accounting_profiles').upsert(
+    {
+      billing_entity_id: billingEntityId,
+      organization_id: orgId,
+      kreditoren: next,
+    },
+    { onConflict: 'billing_entity_id' },
+  );
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult(
+    enabled
+      ? `„${name}" wird als Kreditor geführt.`
+      : `„${name}" ist kein Kreditor mehr.`,
+  );
+}
+
+/**
  * Bulk-applies ALL suggestions of the current scope above a "safe" score bar
  * (≥ 0.7). The auto-run only applies corroborated ≥ 0.85 matches; this covers
  * the reviewed 70–85 % band and high-but-uncorroborated matches in one click,

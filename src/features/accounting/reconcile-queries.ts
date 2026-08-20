@@ -9,6 +9,7 @@ import {
   type ReceiptComboMatch,
   type PartnerBalance,
   type AccountBalance,
+  type CreditorBalance,
 } from '@/features/accounting/reconcile';
 import { computeReconcile } from '@/features/accounting/reconcile-compute';
 
@@ -137,6 +138,8 @@ export interface ReconcileSuggestions {
    * Summe offener Rechnungen, verbunden über die Konto-/Kundennummer.
    */
   accountBalances: AccountBalance[];
+  /** Kreditorenkonten je Anbieter: Aufwand vs. Zahlungen, laufender Saldo. */
+  creditorBalances: CreditorBalance[];
 }
 
 export type PeriodClass = 'in' | 'vor' | 'folge' | null;
@@ -310,10 +313,12 @@ export async function getReconcileSuggestions(
 
   const { data: profile } = await supabase
     .from('accounting_profiles')
-    .select('abgleich_ausschluss')
+    .select('abgleich_ausschluss, kreditoren')
     .eq('billing_entity_id', billingEntityId)
     .maybeSingle();
   const excludedCategories = profile?.abgleich_ausschluss ?? [];
+  const creditors =
+    (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
 
   const { data: allocRows } = await supabase
     .from('bookkeeping_tx_allocations')
@@ -387,6 +392,7 @@ export async function getReconcileSuggestions(
     receiptRows: receiptRows ?? [],
     dismissed: dismissRows ?? [],
     excludedCategories,
+    creditors,
     ibanClientId,
     minScore,
   });

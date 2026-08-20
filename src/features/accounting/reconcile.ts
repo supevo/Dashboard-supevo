@@ -878,6 +878,68 @@ export function matchReceiptCombinations(
   return results;
 }
 
+// --- Kreditoren-/Verrechnungskonten -----------------------------------------
+
+/** True, wenn der Anbietername zu einem der Kreditoren-Einträge passt. */
+export function matchesCreditor(
+  name: string | null,
+  creditors: string[],
+): boolean {
+  if (!name || creditors.length === 0) return false;
+  const tokens = new Set(
+    normName(name)
+      .split(' ')
+      .filter((t) => t.length >= 3),
+  );
+  for (const c of creditors) {
+    const cts = normName(c)
+      .split(' ')
+      .filter((t) => t.length >= 3);
+    if (cts.length > 0 && cts.every((t) => tokens.has(t))) return true;
+  }
+  return false;
+}
+
+export interface CreditorBalance {
+  /** Kreditor-Name, wie eingetragen. */
+  name: string;
+  invoicesCount: number;
+  /** Summe der Rechnungen (Aufwand). */
+  invoicesSumCents: number;
+  paymentsCount: number;
+  /** Summe der Zahlungen/Abbuchungen. */
+  paymentsSumCents: number;
+  /** Aufwand − Zahlungen. Positiv = offener Saldo (wir schulden noch); negativ =
+   *  Guthaben/Vorauszahlung. */
+  balanceCents: number;
+}
+
+/**
+ * Kreditorenkonto je Anbieter: Rechnungen (Aufwand) und Zahlungen laufen beide
+ * gegen dasselbe Konto; der Saldo gleicht sich über die Monate aus. Kein
+ * 1:1-Match – nur die laufende Bilanz je Kreditor.
+ */
+export function computeCreditorBalances(
+  creditors: string[],
+  payments: { name: string | null; cents: number }[],
+  invoices: { name: string | null; cents: number }[],
+): CreditorBalance[] {
+  return creditors.map((c) => {
+    const pay = payments.filter((p) => matchesCreditor(p.name, [c]));
+    const inv = invoices.filter((i) => matchesCreditor(i.name, [c]));
+    const paymentsSumCents = pay.reduce((s, p) => s + p.cents, 0);
+    const invoicesSumCents = inv.reduce((s, i) => s + i.cents, 0);
+    return {
+      name: c,
+      invoicesCount: inv.length,
+      invoicesSumCents,
+      paymentsCount: pay.length,
+      paymentsSumCents,
+      balanceCents: invoicesSumCents - paymentsSumCents,
+    };
+  });
+}
+
 // --- Konto-Abgleich (Google Ads u. a.) --------------------------------------
 
 export interface AccountBalanceItem {

@@ -2853,6 +2853,7 @@ export interface Database {
           onedrive_ausgaben_folder_id: string | null;
           onedrive_ausgaben_folder_path: string | null;
           abgleich_ausschluss: string[];
+          kreditoren: string[];
           created_at: string;
           updated_at: string;
         };
@@ -2873,6 +2874,7 @@ export interface Database {
           onedrive_ausgaben_folder_id?: string | null;
           onedrive_ausgaben_folder_path?: string | null;
           abgleich_ausschluss?: string[];
+          kreditoren?: string[];
           created_at?: string;
           updated_at?: string;
         };
