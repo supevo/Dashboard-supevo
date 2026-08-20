@@ -5,17 +5,47 @@ import {
   BillingEntityCard,
   AddBillingEntity,
 } from '@/features/billing/components/billing-entity-form';
+import { MonthlyBillingOverview } from '@/features/billing/components/monthly-billing-overview';
 
 /**
  * Rechnungen: billing entities (Rechnungssteller) and the SEPA export. Extracted
  * so it can live in the Finanzen module. Each billing entity is a company that
  * issues invoices with its own sender, bank details and invoice number range.
  */
-export async function BillingPanel({ orgId }: { orgId: string }) {
+export async function BillingPanel({
+  orgId,
+  year,
+  month,
+  basePath,
+}: {
+  orgId: string;
+  year: number;
+  month: number;
+  basePath: string;
+}) {
   const entities = await listBillingEntities(orgId);
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>🧾 Monatsabrechnung Kunden</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Alle Mitgliedschaften mit Paket, Zahlweg und Preis inkl. USt. Pro
+            Monat siehst du, ob die Rechnung schon generiert/versendet ist –
+            „Generieren“ legt einen Entwurf an.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <MonthlyBillingOverview
+            orgId={orgId}
+            year={year}
+            month={month}
+            basePath={basePath}
+          />
+        </CardContent>
+      </Card>
+
       <p className="text-sm text-muted-foreground">
         Rechnungssteller sind die Firmen, in deren Namen Rechnungen gestellt
         werden. Jeder hat einen eigenen Absender, eigene Bankdaten und einen

@@ -159,7 +159,14 @@ export default async function FinancePage({
     {
       key: 'rechnungen',
       label: '🧾 Rechnungen',
-      content: <BillingPanel orgId={orgId} />,
+      content: (
+        <BillingPanel
+          orgId={orgId}
+          year={jahr}
+          month={monat}
+          basePath="/app/finance?tab=rechnungen"
+        />
+      ),
     },
     {
       key: 'einstellungen',
