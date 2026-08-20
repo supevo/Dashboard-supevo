@@ -16,10 +16,7 @@ import { BackupLoginCard } from '@/features/client-companies/components/backup-l
 import { AccountManagerForm } from '@/features/account-manager/components/account-manager-form';
 import { AttentionFactorForm } from '@/features/client-companies/components/attention-factor-form';
 import { listTeamMembers } from '@/features/messenger/queries';
-import {
-  listBillingEntities,
-  getBillingEntityForClient,
-} from '@/features/billing/queries';
+import { listBillingEntities } from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
@@ -106,7 +103,6 @@ export default async function ClientDetailPage({
     onboarding,
     contacts,
     membership,
-    billingEntity,
     billingEntities,
     invoices,
     teamMembers,
@@ -126,9 +122,6 @@ export default async function ClientDetailPage({
     getOnboarding(clientCompanyId, orgId),
     listClientContacts(orgId, clientCompanyId),
     isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
-    isAdmin
-      ? getBillingEntityForClient(orgId, clientCompanyId)
-      : Promise.resolve(null),
     isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
     isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
     isAdmin ? listTeamMembers(orgId) : Promise.resolve([]),
@@ -474,7 +467,6 @@ export default async function ClientDetailPage({
                       orgId={orgId}
                       clientCompanyId={clientCompanyId}
                       membership={membership}
-                      settings={billingEntity}
                     />
                   </CardContent>
                 </Card>

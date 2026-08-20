@@ -1,16 +1,14 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { upsertMembershipAction } from '@/features/billing/membership-actions';
 import { idleResult } from '@/lib/action-result';
-import { centsToInput, formatEuroCents } from '@/lib/money';
 import { Alert } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
-import type { BillingSettings } from '@/features/billing/queries';
 import type { ClientMembership } from '@/features/billing/membership';
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -25,27 +23,17 @@ export function MembershipForm({
   orgId,
   clientCompanyId,
   membership,
-  settings,
 }: {
   orgId: string;
   clientCompanyId: string;
   membership: ClientMembership | null;
-  settings: BillingSettings | null;
 }) {
   const [state, formAction] = useActionState(upsertMembershipAction, idleResult);
   const router = useRouter();
-  const [customEnabled, setCustomEnabled] = useState(
-    membership?.custom_net_cents != null,
-  );
 
   useEffect(() => {
     if (state.status === 'success') router.refresh();
   }, [state, router]);
-
-  const stage1Name = settings?.stage1_name ?? 'supevo Mitgliedschaft Stage 1';
-  const stage2Name = settings?.stage2_name ?? 'supevo Mitgliedschaft Stage 2';
-  const stage1Price = formatEuroCents(settings?.stage1_net_cents ?? 0);
-  const stage2Price = formatEuroCents(settings?.stage2_net_cents ?? 0);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -57,54 +45,10 @@ export function MembershipForm({
       )}
       {state.status === 'success' && <Alert>{state.message}</Alert>}
 
-      <SectionTitle>Paket</SectionTitle>
-      <div className="space-y-1">
-        <Label htmlFor="stage">Stage</Label>
-        <Select
-          id="stage"
-          name="stage"
-          defaultValue={String(membership?.stage ?? 1)}
-        >
-          <option value="1">
-            {stage1Name} – {stage1Price}
-          </option>
-          <option value="2">
-            {stage2Name} – {stage2Price}
-          </option>
-        </Select>
-      </div>
-
-      <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="custom_enabled"
-          checked={customEnabled}
-          onChange={(e) => setCustomEnabled(e.target.checked)}
-        />
-        Individueller Sonderpreis (weicht vom Stage-Standardpreis ab)
-      </label>
-      {customEnabled && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="custom_name">Bezeichnung (optional)</Label>
-            <Input
-              id="custom_name"
-              name="custom_name"
-              defaultValue={membership?.custom_name ?? ''}
-              placeholder="z. B. Sonderpaket"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="custom_price">Preis (€ netto/Monat)</Label>
-            <Input
-              id="custom_price"
-              name="custom_price"
-              defaultValue={centsToInput(membership?.custom_net_cents)}
-              placeholder="z. B. 3500"
-            />
-          </div>
-        </div>
-      )}
+      <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Stufe &amp; Preis stellst du oben im Baukasten „supevo-Mitgliedschaft“
+        ein. Hier geht es nur um Abrechnungsrhythmus, Zahlweg und Adresse.
+      </p>
 
       <SectionTitle>Abrechnung</SectionTitle>
       <div className="grid gap-4 sm:grid-cols-2">
