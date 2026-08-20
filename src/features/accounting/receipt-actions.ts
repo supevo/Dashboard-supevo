@@ -159,15 +159,35 @@ export async function importOneDriveReceiptsAction(input: {
     );
   }
 
-  // Existing receipts of this company → dedup by OneDrive item id.
+  const receiptKind = kind === 'einnahmen' ? 'einnahme' : 'ausgabe';
+
+  // Existing receipts of this kind → dedup by OneDrive item id.
   const { data: known } = await supabase
     .from('bookkeeping_receipts')
-    .select('onedrive_item_id')
+    .select('id, onedrive_item_id')
     .eq('billing_entity_id', billingEntityId)
+    .eq('kind', receiptKind)
     .not('onedrive_item_id', 'is', null);
   const knownIds = new Set((known ?? []).map((r) => r.onedrive_item_id));
 
-  const receiptKind = kind === 'einnahmen' ? 'einnahme' : 'ausgabe';
+  // Sync: Belege, deren OneDrive-Datei nicht mehr existiert, entfernen – aber nur
+  // beim vollständigen Scan (kein einzelner Unterordner), sonst würde man Belege
+  // aus anderen Unterordnern löschen. Löscht nur den DB-Datensatz.
+  let removed = 0;
+  if (!subfolderId) {
+    const fileIds = new Set(files.map((f) => f.id));
+    const staleIds = (known ?? [])
+      .filter((r) => r.onedrive_item_id && !fileIds.has(r.onedrive_item_id))
+      .map((r) => r.id);
+    if (staleIds.length > 0) {
+      const { error: delErr, count } = await supabase
+        .from('bookkeeping_receipts')
+        .delete({ count: 'exact' })
+        .in('id', staleIds);
+      if (!delErr) removed = count ?? staleIds.length;
+    }
+  }
+
   const toInsert = files
     .filter((f) => !knownIds.has(f.id))
     .map((f) => ({
@@ -205,15 +225,18 @@ export async function importOneDriveReceiptsAction(input: {
   });
 
   revalidatePath('/app/finance');
+  const removedNote =
+    removed > 0 ? ` ${removed} in OneDrive gelöschte entfernt.` : '';
   if (errors > 0) {
     return errorResult(
       `${imported} importiert, ${errors} fehlgeschlagen. Bitte erneut versuchen.`,
     );
   }
   return successResult(
-    imported > 0
+    (imported > 0
       ? `${imported} neue Belege importiert (${skipped} bereits vorhanden).`
-      : `Keine neuen Belege – alle ${files.length} bereits importiert.`,
+      : `Keine neuen Belege – alle ${files.length} bereits importiert.`) +
+      removedNote,
     { imported },
   );
 }
@@ -301,6 +324,42 @@ export async function deleteReceiptAction(receiptId: string): Promise<ActionResu
   if (error) return errorResult(de.errors.INTERNAL);
   revalidatePath('/app/finance');
   return successResult('Beleg gelöscht.');
+}
+
+/**
+ * Hebt die Zuordnung eines Belegs auf: löst die Verknüpfung(en) zur Bankbuchung
+ * (beleg_id / Beleg-Sammlung) und setzt den Beleg auf „offen" zurück, damit der
+ * Abgleich ihn erneut anbieten kann. Für falsch gebundene Belege.
+ */
+export async function unlinkReceiptAction(receiptId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(receiptId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: receipt } = await supabase
+    .from('bookkeeping_receipts')
+    .select('organization_id')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (!receipt) return errorResult(de.errors.FORBIDDEN);
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: receipt.organization_id });
+
+  await supabase
+    .from('bookkeeping_transactions')
+    .update({ beleg_id: null })
+    .eq('beleg_id', receiptId);
+  await supabase
+    .from('bookkeeping_tx_receipts')
+    .delete()
+    .eq('receipt_id', receiptId);
+  const { error } = await supabase
+    .from('bookkeeping_receipts')
+    .update({ status: 'offen' })
+    .eq('id', receiptId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Zuordnung aufgehoben.');
 }
 
 const setKindSchema = z.object({

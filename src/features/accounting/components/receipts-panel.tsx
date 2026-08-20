@@ -20,6 +20,7 @@ import {
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
 import { ReceiptFieldsEdit } from '@/features/accounting/components/receipt-fields-edit';
 import { DeleteReceiptButton } from '@/features/accounting/components/delete-receipt-button';
+import { UnlinkReceiptButton } from '@/features/accounting/components/unlink-receipt-button';
 import { duplicateReceiptIds } from '@/features/accounting/receipt-duplicates';
 import { kategorieLabel } from '@/features/accounting/categories';
 
@@ -294,6 +295,11 @@ export async function ReceiptsPanel({
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                         {STATUS_LABEL[r.status] ?? r.status}
                       </span>
+                    )}
+                    {r.status === 'zugeordnet' && (
+                      <div className="mt-1">
+                        <UnlinkReceiptButton id={r.id} />
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-2">
