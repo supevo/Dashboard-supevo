@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 import { formatEuroCents } from '@/lib/money';
-import { savePortalStageAction } from '@/features/memberships/configurator-actions';
+import {
+  savePortalStageAction,
+  cancelPortalPendingChangeAction,
+} from '@/features/memberships/configurator-actions';
 
 function BenefitList({ benefits }: { benefits: string[] }) {
   if (benefits.length === 0) return null;
@@ -49,11 +52,22 @@ export function PortalStageSwitch({
   const router = useRouter();
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, start] = useTransition();
+  const [confirmStage, setConfirmStage] = useState<number | null>(null);
 
   function switchTo(stage: number) {
     setMsg(null);
+    setConfirmStage(null);
     start(async () => {
       const res = await savePortalStageAction({ stage });
+      setMsg('message' in res ? res.message ?? '' : '');
+      if (res.status === 'success') router.refresh();
+    });
+  }
+
+  function cancelPending() {
+    setMsg(null);
+    start(async () => {
+      const res = await cancelPortalPendingChangeAction();
       setMsg('message' in res ? res.message ?? '' : '');
       if (res.status === 'success') router.refresh();
     });
@@ -73,8 +87,22 @@ export function PortalStageSwitch({
 
       {pending && (
         <Alert className="text-xs">
-          📅 Geplant: Wechsel auf <strong>Stage {pending.stage}</strong> (
-          {formatEuroCents(pending.netCents)} netto) ab {pending.effectiveDate}.
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              📅 Geplant: Wechsel auf <strong>Stage {pending.stage}</strong> (
+              {formatEuroCents(pending.netCents)} netto) ab {pending.effectiveDate}
+              .
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={cancelPending}
+            >
+              {busy ? 'Wird verworfen …' : 'Wechsel abbrechen'}
+            </Button>
+          </div>
         </Alert>
       )}
 
@@ -105,19 +133,41 @@ export function PortalStageSwitch({
                   <span className="inline-block rounded bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
                     Ihr aktuelles Paket
                   </span>
+                ) : confirmStage === c.stage ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Wechsel auf <strong>{c.name}</strong> ({formatEuroCents(c.cents)}{' '}
+                      netto/Monat) ab dem Folgemonat wirklich einplanen?
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => switchTo(c.stage)}
+                      >
+                        {busy ? 'Wird geplant …' : 'Ja, wechseln'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => setConfirmStage(null)}
+                      >
+                        Abbrechen
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     disabled={busy || isPendingTarget}
-                    onClick={() => switchTo(c.stage)}
+                    onClick={() => setConfirmStage(c.stage)}
                   >
-                    {isPendingTarget
-                      ? 'Wechsel geplant'
-                      : busy
-                        ? 'Wird geplant …'
-                        : `Zu ${c.name} wechseln`}
+                    {isPendingTarget ? 'Wechsel geplant' : `Zu ${c.name} wechseln`}
                   </Button>
                 )}
               </div>
