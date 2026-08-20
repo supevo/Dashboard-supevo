@@ -274,6 +274,35 @@ export async function updateReceiptFieldsAction(input: unknown): Promise<ActionR
   return successResult('Beleg aktualisiert.');
 }
 
+/**
+ * Löscht einen Beleg-Datensatz (z. B. eine Alt-/Test-Leiche oder eine Dublette
+ * aus mehrfachem Hochladen). Verknüpfungen lösen sich automatisch (tx.beleg_id →
+ * null, tx_receipts → cascade). Die Datei in OneDrive bleibt unangetastet.
+ */
+export async function deleteReceiptAction(receiptId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(receiptId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: receipt } = await supabase
+    .from('bookkeeping_receipts')
+    .select('organization_id')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (!receipt) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: receipt.organization_id });
+
+  const { error } = await supabase
+    .from('bookkeeping_receipts')
+    .delete()
+    .eq('id', receiptId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  revalidatePath('/app/finance');
+  return successResult('Beleg gelöscht.');
+}
+
 const setKindSchema = z.object({
   receiptId: z.string().uuid(),
   kind: z.enum(['einnahme', 'ausgabe']),

@@ -233,6 +233,27 @@ describe('Szenario: absichtlich falsche/knifflige Daten', () => {
     expect(res.missingIncoming.map((m) => m.txId)).toContain('t1');
   });
 
+  it('exakter Einzelbeleg wird 1:1 zugeordnet, nicht in eine Sammlung gezogen', () => {
+    const res = computeReconcile(
+      base({
+        txRows: [
+          tx('t1', '2026-03-05', 'Amazon', -11293, 'AMZN Mktp'),
+          tx('t2', '2026-03-06', 'Amazon', -15293, 'AMZN Mktp'),
+        ],
+        receiptRows: [
+          receipt('r1', '2026-03-04', 'Amazon', 11293, 'ausgabe'),
+          receipt('r2', '2026-03-04', 'Amazon', 4000, 'ausgabe'),
+        ],
+      }),
+    );
+    // r1 (exakt) muss 1:1 an t1 gehen, nicht in eine Sammlung für t2 wandern.
+    expect(
+      res.receipts.some(
+        (x) => x.match.leftId === 'r1' && x.match.rightId === 't1',
+      ),
+    ).toBe(true);
+  });
+
   it('Beleg 90 Tage entfernt wird nicht (falsch) zugeordnet', () => {
     const res = computeReconcile(
       base({
