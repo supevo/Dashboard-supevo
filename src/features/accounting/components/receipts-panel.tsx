@@ -275,6 +275,7 @@ export async function ReceiptsPanel({
                     haendler={r.haendler}
                     belegDatum={r.beleg_datum}
                     bruttoCents={r.brutto_cents}
+                    waehrung={(r as { waehrung?: string | null }).waehrung ?? null}
                   />
                   <td className="px-3 py-2">{kategorieLabel(r.kategorie_id)}</td>
                   <td className="px-3 py-2">

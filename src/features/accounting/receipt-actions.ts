@@ -227,6 +227,7 @@ const updateFieldsSchema = z.object({
     .nullable()
     .optional(),
   bruttoCents: z.number().int().min(0).max(1_000_000_00).nullable().optional(),
+  waehrung: z.string().trim().max(8).nullable().optional(),
 });
 
 /**
@@ -237,7 +238,7 @@ const updateFieldsSchema = z.object({
 export async function updateReceiptFieldsAction(input: unknown): Promise<ActionResult> {
   const parsed = updateFieldsSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { receiptId, haendler, belegDatum, bruttoCents } = parsed.data;
+  const { receiptId, haendler, belegDatum, bruttoCents, waehrung } = parsed.data;
 
   const supabase = await createSupabaseServerClient();
   const { data: receipt } = await supabase
@@ -258,6 +259,9 @@ export async function updateReceiptFieldsAction(input: unknown): Promise<ActionR
     patch.brutto_cents = bruttoCents;
     // Ein manuell gesetzter Betrag hebt einen früheren Lesefehler auf.
     if (bruttoCents != null) patch.extract_failed_at = null;
+  }
+  if (waehrung !== undefined) {
+    patch.waehrung = waehrung ? waehrung.toUpperCase() : null;
   }
   if (Object.keys(patch).length === 0) return successResult('Nichts geändert.');
 

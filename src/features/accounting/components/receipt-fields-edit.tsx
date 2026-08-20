@@ -16,18 +16,23 @@ function formatDate(d: string | null): string {
  * the KI read a value wrong. Renders the three <td> cells directly (fragment)
  * so it drops into the Beleg table row. Pencil → inputs → Speichern/Abbrechen.
  */
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF'];
+
 export function ReceiptFieldsEdit({
   receiptId,
   haendler,
   belegDatum,
   bruttoCents,
+  waehrung,
 }: {
   receiptId: string;
   haendler: string | null;
   belegDatum: string | null;
   bruttoCents: number | null;
+  waehrung?: string | null;
 }) {
   const router = useRouter();
+  const cur = (waehrung || 'EUR').toUpperCase();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [h, setH] = useState(haendler ?? '');
@@ -35,11 +40,13 @@ export function ReceiptFieldsEdit({
   const [betrag, setBetrag] = useState(
     bruttoCents != null ? (bruttoCents / 100).toFixed(2) : '',
   );
+  const [w, setW] = useState(cur);
 
   function reset() {
     setH(haendler ?? '');
     setD(belegDatum ?? '');
     setBetrag(bruttoCents != null ? (bruttoCents / 100).toFixed(2) : '');
+    setW(cur);
   }
 
   async function save() {
@@ -52,6 +59,7 @@ export function ReceiptFieldsEdit({
       haendler: h.trim() || null,
       belegDatum: d || null,
       bruttoCents: Number.isFinite(parsedBetrag as number) ? parsedBetrag : null,
+      waehrung: w || 'EUR',
     });
     setBusy(false);
     if (res.status === 'success') {
@@ -67,7 +75,17 @@ export function ReceiptFieldsEdit({
         <td className="px-3 py-2">{formatDate(belegDatum)}</td>
         <td className="px-3 py-2 text-right">
           <span className="inline-flex items-center gap-2">
-            <span>{bruttoCents != null ? formatEuroCents(bruttoCents) : '—'}</span>
+            <span>
+              {bruttoCents != null ? formatEuroCents(bruttoCents) : '—'}
+              {cur !== 'EUR' && (
+                <span
+                  className="ml-1 rounded bg-amber-500/15 px-1 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                  title="Fremdwährung – Betrag im Original; der Bankbetrag weicht durch den Kurs ab"
+                >
+                  {cur}
+                </span>
+              )}
+            </span>
             <button
               type="button"
               onClick={() => {
@@ -116,7 +134,19 @@ export function ReceiptFieldsEdit({
             placeholder="0,00"
             disabled={busy}
           />
-          <span className="text-xs text-muted-foreground">€</span>
+          <select
+            value={w}
+            onChange={(e) => setW(e.target.value)}
+            disabled={busy}
+            className="rounded border bg-background px-1 py-1 text-xs"
+            title="Währung des Belegs"
+          >
+            {CURRENCIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={save}
