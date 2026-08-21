@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { logger } from '@/lib/logger';
 import { isEmailEnabled, sendEmail } from '@/lib/email/send';
 import { renderEmail } from '@/lib/email/templates';
+import { sendPushToUser } from '@/lib/push/send';
 import { env } from '@/lib/env';
 import type { NotificationType } from '@/lib/database.types';
 
@@ -51,6 +52,19 @@ export async function createNotifications(
   // Fan out to email (best-effort; never blocks or fails the caller's action).
   await sendNotificationEmails(entries, excludeUserId).catch((e) => {
     logger.warn('email.notify.failed', { error: (e as Error).message });
+  });
+
+  // Fan out to Web-Push (best-effort; No-op ohne VAPID-Konfiguration/Abos).
+  await Promise.all(
+    rows.map((r) =>
+      sendPushToUser(r.recipient_id, {
+        title: r.title,
+        body: r.body ?? undefined,
+        url: env.NEXT_PUBLIC_APP_URL,
+      }),
+    ),
+  ).catch((e) => {
+    logger.warn('push.notify.failed', { error: (e as Error).message });
   });
 }
 

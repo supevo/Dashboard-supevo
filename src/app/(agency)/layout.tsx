@@ -28,6 +28,7 @@ import {
   MessageSquare,
   KeyRound,
   Wallet,
+  Plug,
 } from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
@@ -68,7 +69,10 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
     { href: '/app/passwords', label: 'Passwörter', icon: <KeyRound /> },
     // Finanzen (Ausgaben + Rechnungen) – nur Super-Admin.
     ...(superAdmin
-      ? [{ href: '/app/finance', label: 'Finanzen', icon: <Wallet /> }]
+      ? [
+          { href: '/app/finance', label: 'Finanzen', icon: <Wallet /> },
+          { href: '/app/integrations', label: 'Integrationen', icon: <Plug /> },
+        ]
       : []),
   ];
 }
