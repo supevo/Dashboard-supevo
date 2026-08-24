@@ -18,14 +18,17 @@ export function InquirySettings({
   clientCompanyId,
   endpoint,
   baseUrl,
+  inboundDomain = null,
 }: {
   clientCompanyId: string;
   endpoint: InquiryEndpoint | null;
   baseUrl: string;
+  /** Domain für den E-Mail-Eingang (z. B. inbound.supevo.de), aus INBOUND_DOMAIN. */
+  inboundDomain?: string | null;
 }) {
   const [toggleState, toggleAction] = useActionState(toggleInquiryEndpointAction, idleResult);
   const [regenState, regenAction] = useActionState(regenerateInquiryTokenAction, idleResult);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'url' | 'email' | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,6 +39,8 @@ export function InquirySettings({
 
   const enabled = endpoint?.enabled ?? false;
   const webhookUrl = endpoint ? `${baseUrl}/api/inquiries/${endpoint.token}` : '';
+  const inboundEmail =
+    endpoint && inboundDomain ? `${endpoint.token}@${inboundDomain}` : '';
   const errorMsg =
     toggleState.status === 'error'
       ? toggleState.message
@@ -43,12 +48,12 @@ export function InquirySettings({
         ? regenState.message
         : null;
 
-  const copy = async () => {
-    if (!webhookUrl) return;
+  const copyValue = async (value: string, which: 'url' | 'email') => {
+    if (!value) return;
     try {
-      await navigator.clipboard.writeText(webhookUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(value);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 1500);
     } catch {
       /* clipboard unavailable */
     }
@@ -79,17 +84,61 @@ export function InquirySettings({
       {errorMsg && <Alert variant="destructive">{errorMsg}</Alert>}
 
       {endpoint && (
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{de.inquiries.webhookUrl}</label>
-          <div className="flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 text-xs">
-              {webhookUrl}
-            </code>
-            <Button type="button" size="sm" variant="outline" onClick={copy}>
-              {copied ? de.inquiries.copied : de.inquiries.copy}
-            </Button>
+        <div className="space-y-4">
+          {/* Per E-Mail: Adresse dieses Kunden für den Funnel. */}
+          {inboundEmail && (
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <p className="text-sm font-medium">📥 Per E-Mail (Funnel)</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Wenn dein Funnel keinen Webhook kann: Diese Adresse als „weitere
+                Mail" im Funnel hinterlegen – Anfragen dieses Kunden landen dann
+                automatisch hier.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <code className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-background px-2 py-1.5 text-xs">
+                  {inboundEmail}
+                </code>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyValue(inboundEmail, 'email')}
+                >
+                  {copied === 'email' ? de.inquiries.copied : de.inquiries.copy}
+                </Button>
+              </div>
+              <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">
+                <li>Adresse kopieren.</li>
+                <li>Im Funnel unter „weitere Mail" / Benachrichtigungs-E-Mail eintragen.</li>
+                <li>Fertig – neue Anfragen erscheinen unten in der Liste.</li>
+              </ol>
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Die Adresse gehört nur zu diesem Kunden. Spam wird automatisch
+                aussortiert.
+              </p>
+            </div>
+          )}
+
+          {/* Per Webhook: für Make/Zapier oder direkt einbindbare Formulare. */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              🔗 {de.inquiries.webhookUrl} (Make / Zapier / direkt)
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted/50 px-2 py-1.5 text-xs">
+                {webhookUrl}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => copyValue(webhookUrl, 'url')}
+              >
+                {copied === 'url' ? de.inquiries.copied : de.inquiries.copy}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">{de.inquiries.webhookHint}</p>
           </div>
-          <p className="text-xs text-muted-foreground">{de.inquiries.webhookHint}</p>
 
           <form action={regenAction} className="pt-1">
             <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
