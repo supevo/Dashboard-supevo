@@ -20,6 +20,7 @@ export interface WebInquiry {
   message: string | null;
   source: string | null;
   status: InquiryStatus;
+  isSpam: boolean;
   createdAt: string;
   comments: InquiryComment[];
 }
@@ -65,7 +66,7 @@ export async function listInquiries(
   const supabase = await createSupabaseServerClient();
   const { data: inquiries } = await supabase
     .from('web_inquiries')
-    .select('id, name, email, phone, subject, message, source, status, created_at')
+    .select('id, name, email, phone, subject, message, source, status, is_spam, created_at')
     .eq('client_company_id', clientCompanyId)
     .order('created_at', { ascending: false })
     .limit(200);
@@ -113,6 +114,7 @@ export async function listInquiries(
     message: i.message,
     source: i.source,
     status: i.status,
+    isSpam: i.is_spam ?? false,
     createdAt: i.created_at,
     comments: commentsByInquiry.get(i.id) ?? [],
   }));

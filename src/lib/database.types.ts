@@ -1692,6 +1692,8 @@ export interface Database {
           source: string | null;
           payload: Record<string, unknown>;
           status: 'new' | 'called' | 'mailed' | 'done';
+          is_spam: boolean;
+          spam_reason: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -1707,8 +1709,40 @@ export interface Database {
           source?: string | null;
           payload?: unknown;
           status?: 'new' | 'called' | 'mailed' | 'done';
+          is_spam?: boolean;
+          spam_reason?: string | null;
         };
         Update: Partial<Database['public']['Tables']['web_inquiries']['Insert']>;
+        Relationships: [];
+      };
+      inbound_quarantine: {
+        Row: {
+          id: string;
+          organization_id: string | null;
+          reason: string;
+          from_address: string | null;
+          to_addresses: string[];
+          subject: string | null;
+          body: string | null;
+          message_id: string | null;
+          resolved: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id?: string | null;
+          reason: string;
+          from_address?: string | null;
+          to_addresses?: string[];
+          subject?: string | null;
+          body?: string | null;
+          message_id?: string | null;
+          resolved?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['inbound_quarantine']['Insert']
+        >;
         Relationships: [];
       };
       inquiry_comments: {

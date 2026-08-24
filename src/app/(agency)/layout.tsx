@@ -29,6 +29,7 @@ import {
   KeyRound,
   Wallet,
   Plug,
+  ShieldAlert,
 } from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
@@ -72,6 +73,7 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
       ? [
           { href: '/app/finance', label: 'Finanzen', icon: <Wallet /> },
           { href: '/app/integrations', label: 'Integrationen', icon: <Plug /> },
+          { href: '/app/inbound-quarantine', label: 'Quarantäne', icon: <ShieldAlert /> },
         ]
       : []),
   ];
