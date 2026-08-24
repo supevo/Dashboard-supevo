@@ -108,9 +108,27 @@ export async function autoAssignTaskAction(
     .from('project_members')
     .select('user_id')
     .eq('project_id', projectId);
-  const memberIds = [...new Set((members ?? []).map((m) => m.user_id))];
-  if (memberIds.length === 0) {
+  const allMemberIds = [...new Set((members ?? []).map((m) => m.user_id))];
+  if (allMemberIds.length === 0) {
     return errorResult('Das Projekt hat keine Mitglieder zum Zuweisen.');
+  }
+
+  // Super-Admins werden NICHT automatisch zugewiesen (z. B. der Inhaber).
+  const { data: roleRows } = await supabase
+    .from('memberships')
+    .select('user_id, role')
+    .eq('organization_id', task.organization_id)
+    .in('user_id', allMemberIds);
+  const superAdminIds = new Set(
+    (roleRows ?? [])
+      .filter((r) => r.role === 'super_admin')
+      .map((r) => r.user_id),
+  );
+  const memberIds = allMemberIds.filter((id) => !superAdminIds.has(id));
+  if (memberIds.length === 0) {
+    return errorResult(
+      'Keine geeignete Person zum Zuweisen (nur Super-Admin im Projekt).',
+    );
   }
 
   const [
