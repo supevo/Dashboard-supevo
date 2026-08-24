@@ -1,0 +1,25 @@
+{
+  "name": "supevo Dashboard",
+  "short_name": "supevo",
+  "description": "Agentur-Dashboard für Projekte, Kunden und Finanzen.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f0d10",
+  "theme_color": "#0f0d10",
+  "icons": [
+    {
+      "src": "/supevo-logo-dark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/supevo-logo-dark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,12 +1,19 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
 import './globals.css';
 import { de } from '@/lib/i18n/de';
 import { BRAND_COOKIE, resolveBrand } from '@/lib/brand';
+import { PwaRegister } from '@/components/pwa-register';
 
 export const metadata: Metadata = {
   title: de.app.name,
   description: 'Mandantenfähiges Projektmanagement für Agentur und Kunden.',
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'supevo', statusBarStyle: 'default' },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0f0d10',
 };
 
 export default async function RootLayout({
@@ -26,7 +33,10 @@ export default async function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen antialiased">{children}</body>
+      <body className="min-h-screen antialiased">
+        <PwaRegister />
+        {children}
+      </body>
     </html>
   );
 }

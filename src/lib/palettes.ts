@@ -14,7 +14,8 @@ export type PaletteId =
   | 'mono'
   | 'forest'
   | 'ocean'
-  | 'slate';
+  | 'slate'
+  | 'cyberpunk';
 
 export interface PaletteMeta {
   id: PaletteId;
@@ -28,44 +29,50 @@ export const PALETTES: PaletteMeta[] = [
   {
     id: 'default',
     label: 'supevo',
-    description: 'Warmer Greige-Grund mit Violett-Akzent (Standard)',
+    description: 'Der Hauszauber – warmes Greige mit Violett (Standard)',
     swatch: { bg: 'hsl(20 13% 91%)', fg: 'hsl(265 12% 9%)', accent: 'hsl(262 83% 58%)' },
   },
   {
     id: 'midnight',
-    label: 'Midnight',
-    description: 'Tiefes Blau-Violett mit kühlen Akzenten',
+    label: 'Arkanum',
+    description: 'Tiefes Blau-Violett – arkane Energie',
     swatch: { bg: 'hsl(245 45% 8%)', fg: 'hsl(240 30% 92%)', accent: 'hsl(250 90% 76%)' },
   },
   {
     id: 'ember',
-    label: 'Ember',
-    description: 'Warmes Crimson & Bronze',
+    label: 'Phönixfeuer',
+    description: 'Warmes Crimson & Bronze – lodernd',
     swatch: { bg: 'hsl(12 40% 7%)', fg: 'hsl(25 30% 92%)', accent: 'hsl(8 80% 60%)' },
   },
   {
     id: 'mono',
-    label: 'Mono',
-    description: 'Klares Graustufen-Design – minimal & fokussiert',
+    label: 'Nebelschleier',
+    description: 'Graustufen wie ziehender Nebel – minimal & fokussiert',
     swatch: { bg: 'hsl(0 0% 7%)', fg: 'hsl(0 0% 92%)', accent: 'hsl(0 0% 88%)' },
   },
   {
     id: 'forest',
-    label: 'Forest',
-    description: 'Ruhiges Grün',
+    label: 'Elfenwald',
+    description: 'Tiefes Waldgrün – uralte Magie',
     swatch: { bg: 'hsl(150 30% 7%)', fg: 'hsl(120 20% 92%)', accent: 'hsl(142 65% 55%)' },
   },
   {
     id: 'ocean',
-    label: 'Ocean',
-    description: 'Frisches Türkis/Cyan',
+    label: 'Sirenenlied',
+    description: 'Türkis & Cyan aus der Tiefe',
     swatch: { bg: 'hsl(200 45% 7%)', fg: 'hsl(195 30% 92%)', accent: 'hsl(187 85% 55%)' },
   },
   {
     id: 'slate',
-    label: 'Slate',
-    description: 'Kühles Slate-Blau – fokussiert',
+    label: 'Frostrunen',
+    description: 'Kühles Slate-Blau – klare Runen',
     swatch: { bg: 'hsl(217 33% 9%)', fg: 'hsl(215 25% 92%)', accent: 'hsl(213 70% 62%)' },
+  },
+  {
+    id: 'cyberpunk',
+    label: 'Koboldfeuer',
+    description: 'Neongrün auf Schwarz – Hexenterminal',
+    swatch: { bg: 'hsl(130 25% 5%)', fg: 'hsl(120 80% 78%)', accent: 'hsl(135 90% 50%)' },
   },
 ];
 

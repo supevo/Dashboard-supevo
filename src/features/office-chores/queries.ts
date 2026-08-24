@@ -77,16 +77,26 @@ export async function assignClockOutChores(args: {
   }[];
   if (rows.length === 0) return;
 
-  // Aktive Kolleg:innen als mögliche Prüfer (nicht der Erlediger, keine Kunden).
+  // Aktive Kolleg:innen als mögliche Prüfer (nicht der Erlediger, keine Kunden,
+  // keine Super-Admins – die sind vom Ordnungsdienst ausgenommen).
   const { data: members } = await service
     .from('memberships')
     .select('user_id, role, status')
     .eq('organization_id', orgId)
     .eq('status', 'active');
+  const roleByUser = new Map(
+    (members ?? []).map(
+      (m) => [(m as { user_id: string }).user_id, (m as { role: string }).role] as const,
+    ),
+  );
+  // Super-Admins bekommen selbst keinen Ordnungsdienst zugeteilt.
+  if (roleByUser.get(userId) === 'super_admin') return;
+
   const others = (members ?? [])
     .filter(
       (m) =>
         (m as { role: string }).role !== 'client' &&
+        (m as { role: string }).role !== 'super_admin' &&
         (m as { user_id: string }).user_id !== userId,
     )
     .map((m) => (m as { user_id: string }).user_id);

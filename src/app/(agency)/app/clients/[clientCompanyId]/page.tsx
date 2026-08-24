@@ -414,6 +414,7 @@ export default async function ClientDetailPage({
                 clientCompanyId={clientCompanyId}
                 endpoint={inquiryEndpoint}
                 baseUrl={env.NEXT_PUBLIC_APP_URL}
+                inboundDomain={process.env.INBOUND_DOMAIN ?? null}
               />
               <InquiryList inquiries={inquiries} />
             </CardContent>
