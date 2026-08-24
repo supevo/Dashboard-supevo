@@ -45,6 +45,10 @@
     {
       "path": "/api/cron/auto-clockout",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/inbound-email",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

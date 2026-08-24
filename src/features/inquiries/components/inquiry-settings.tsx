@@ -90,8 +90,9 @@ export function InquirySettings({
             <div className="rounded-lg border bg-muted/30 p-3">
               <p className="text-sm font-medium">📥 Per E-Mail (Funnel)</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Wenn dein Funnel keinen Webhook kann: Diese Adresse als „weitere
-                Mail" im Funnel hinterlegen – Anfragen dieses Kunden landen dann
+                Wenn dein Funnel keinen Webhook kann: Diese Adresse als
+                {' „weitere Mail" '}
+                im Funnel hinterlegen – Anfragen dieses Kunden landen dann
                 automatisch hier.
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -109,7 +110,7 @@ export function InquirySettings({
               </div>
               <ol className="mt-2 list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">
                 <li>Adresse kopieren.</li>
-                <li>Im Funnel unter „weitere Mail" / Benachrichtigungs-E-Mail eintragen.</li>
+                <li>{'Im Funnel unter „weitere Mail" / Benachrichtigungs-E-Mail eintragen.'}</li>
                 <li>Fertig – neue Anfragen erscheinen unten in der Liste.</li>
               </ol>
               <p className="mt-1.5 text-[11px] text-muted-foreground">

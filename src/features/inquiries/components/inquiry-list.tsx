@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   setInquiryStatusAction,
   addInquiryCommentAction,
+  setInquirySpamAction,
 } from '@/features/inquiries/actions';
 import type { WebInquiry, InquiryStatus } from '@/features/inquiries/queries';
 import { idleResult } from '@/lib/action-result';
@@ -82,6 +83,27 @@ function CommentForm({ inquiryId }: { inquiryId: string }) {
   );
 }
 
+/** Kleiner „Spam / Kein Spam"-Umschalter je Anfrage. */
+function SpamToggle({ inquiry }: { inquiry: WebInquiry }) {
+  const [state, action] = useActionState(setInquirySpamAction, idleResult);
+  const router = useRouter();
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+  return (
+    <form action={action}>
+      <input type="hidden" name="id" value={inquiry.id} />
+      <input type="hidden" name="isSpam" value={inquiry.isSpam ? 'false' : 'true'} />
+      <button
+        type="submit"
+        className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted"
+      >
+        {inquiry.isSpam ? '↩ Kein Spam' : 'Als Spam markieren'}
+      </button>
+    </form>
+  );
+}
+
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
     day: '2-digit',
@@ -92,15 +114,9 @@ function formatDateTime(iso: string): string {
   });
 }
 
-export function InquiryList({ inquiries }: { inquiries: WebInquiry[] }) {
-  if (inquiries.length === 0) {
-    return <p className="text-sm text-muted-foreground">{de.inquiries.empty}</p>;
-  }
-
+function InquiryCard({ i }: { i: WebInquiry }) {
   return (
-    <div className="space-y-4">
-      {inquiries.map((i) => (
-        <Card key={i.id}>
+    <Card>
           <CardContent className="space-y-3 pt-6">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
@@ -161,9 +177,43 @@ export function InquiryList({ inquiries }: { inquiries: WebInquiry[] }) {
               )}
               <CommentForm inquiryId={i.id} />
             </div>
+
+            <div className="flex justify-end border-t pt-2">
+              <SpamToggle inquiry={i} />
+            </div>
           </CardContent>
         </Card>
-      ))}
+  );
+}
+
+export function InquiryList({ inquiries }: { inquiries: WebInquiry[] }) {
+  if (inquiries.length === 0) {
+    return <p className="text-sm text-muted-foreground">{de.inquiries.empty}</p>;
+  }
+
+  const real = inquiries.filter((i) => !i.isSpam);
+  const spam = inquiries.filter((i) => i.isSpam);
+
+  return (
+    <div className="space-y-4">
+      {real.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{de.inquiries.empty}</p>
+      ) : (
+        real.map((i) => <InquiryCard key={i.id} i={i} />)
+      )}
+
+      {spam.length > 0 && (
+        <details className="rounded-lg border bg-muted/20 p-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+            🚫 Spam ({spam.length}) anzeigen
+          </summary>
+          <div className="mt-3 space-y-4">
+            {spam.map((i) => (
+              <InquiryCard key={i.id} i={i} />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

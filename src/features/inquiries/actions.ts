@@ -39,6 +39,30 @@ export async function setInquiryStatusAction(
   return successResult('Status aktualisiert.');
 }
 
+/** Markiert eine Anfrage als Spam bzw. hebt die Markierung auf (Agentur). */
+export async function setInquirySpamAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ id: z.string().uuid(), isSpam: z.enum(['true', 'false']) })
+    .safeParse({ id: formData.get('id'), isSpam: formData.get('isSpam') });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('web_inquiries')
+    .update({ is_spam: parsed.data.isSpam === 'true' })
+    .eq('id', parsed.data.id);
+  if (error) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath('/portal/inquiries');
+  return successResult(
+    parsed.data.isSpam === 'true' ? 'Als Spam markiert.' : 'Kein Spam.',
+  );
+}
+
 /** Adds a comment to an inquiry (agency or client). */
 export async function addInquiryCommentAction(
   _prev: ActionResult,
