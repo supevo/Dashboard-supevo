@@ -12,6 +12,7 @@ const PUBLIC_PREFIXES = [
   '/auth',
   '/no-access',
   '/api/inquiries', // public webhook, authenticated by secret URL token
+  '/api/cron', // Vercel-Crons – jede Route prüft selbst das CRON_SECRET
 ];
 
 function isPublicPath(pathname: string): boolean {
