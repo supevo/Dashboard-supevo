@@ -34,6 +34,7 @@ interface LeadForConvert {
   email: string | null;
   note: string | null;
   modules: unknown;
+  redeemed_promotions: unknown;
   offer_name: string | null;
   estimated_value_cents: number | null;
   converted_client_company_id: string | null;
@@ -92,6 +93,22 @@ async function ensureClientForLead(
   const isPureStage =
     enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
 
+  // Eingelöste Gutscheine vom Lead übernehmen (waren bisher verloren gegangen).
+  const redeemedPromotions = Array.isArray(lead.redeemed_promotions)
+    ? (lead.redeemed_promotions as unknown[]).filter(
+        (v): v is string => typeof v === 'string',
+      )
+    : [];
+
+  // Versprochenes Google-Ads-Budget als einmaliges, einlösbares Guthaben ableiten
+  // (Summe der Werbebudgets, die „über Google" laufen sollen).
+  let adsCreditCents = 0;
+  for (const s of selections) {
+    if (!s.enabled || s.budgetVia !== 'google' || !s.budgetCents) continue;
+    const def = catalog.find((d) => d.key === s.id);
+    if (def?.captureBudget) adsCreditCents += s.budgetCents;
+  }
+
   const { data: company, error: cErr } = await service
     .from('client_companies')
     .insert({
@@ -115,6 +132,8 @@ async function ensureClientForLead(
     custom_net_cents: isPureStage ? null : lead.estimated_value_cents ?? 0,
     custom_name: isPureStage ? null : lead.offer_name || 'Individuell',
     stage,
+    redeemed_promotions: redeemedPromotions,
+    ads_credit_cents: adsCreditCents,
   });
   if (mErr) return { error: 'Mitgliedschaft konnte nicht angelegt werden.' };
   return { id: company.id };
@@ -310,7 +329,7 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, email, note, modules, offer_name, estimated_value_cents, converted_client_company_id',
+      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id',
     )
     .eq('id', leadId)
     .maybeSingle();
@@ -418,7 +437,7 @@ export async function convertLeadToProjectAction(input: unknown): Promise<Action
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, email, note, modules, offer_name, estimated_value_cents, converted_client_company_id',
+      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id',
     )
     .eq('id', leadId)
     .maybeSingle();

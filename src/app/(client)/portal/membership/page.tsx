@@ -7,6 +7,9 @@ import { getPortalMembershipConfigurator } from '@/features/memberships/configur
 import { MembershipConfigurator } from '@/features/memberships/components/membership-configurator';
 import { PortalStageSwitch } from '@/features/memberships/components/portal-stage-switch';
 import { getClientDocuments, type DocLink } from '@/features/documents/queries';
+import { getOfferCarryover } from '@/features/billing/offer-carryover';
+import { OfferCarryoverCard } from '@/features/billing/components/offer-carryover-card';
+import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { de } from '@/lib/i18n/de';
 
 export const dynamic = 'force-dynamic';
@@ -39,10 +42,12 @@ function DocList({ items, empty }: { items: DocLink[]; empty: string }) {
 
 export default async function PortalMembershipPage() {
   await requireClientPage();
-  const [cfg, membershipView, docs] = await Promise.all([
+  const company = await getMyClientCompany();
+  const [cfg, membershipView, docs, carryover] = await Promise.all([
     getPortalMembershipConfigurator(),
     getPortalMembership(),
     getClientDocuments(),
+    company ? getOfferCarryover(company.clientCompanyId) : Promise.resolve(null),
   ]);
   // Legacy-Kunden sehen den Modul-Baukasten; supevo-Kunden die klassische Sicht.
   const showModules = cfg?.isLegacy ?? false;
@@ -106,6 +111,10 @@ export default async function PortalMembershipPage() {
           )}
         </CardContent>
       </Card>
+
+      {company && carryover && (
+        <OfferCarryoverCard clientCompanyId={company.clientCompanyId} data={carryover} />
+      )}
 
       <Card>
         <CardHeader>

@@ -3323,6 +3323,9 @@ export interface Database {
           pending_modules: unknown;
           pending_effective_date: string | null;
           client_can_edit: boolean;
+          redeemed_promotions: string[];
+          ads_credit_cents: number;
+          ads_credit_redeemed_at: string | null;
           created_at: string;
           updated_at: string;
         };
