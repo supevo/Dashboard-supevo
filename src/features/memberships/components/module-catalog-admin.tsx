@@ -355,23 +355,84 @@ function ModuleForm({
           <Field label="Keywords Standardanzahl">
             <input name="keywordDefault" type="number" defaultValue={m?.keywordDefault ?? 0} className={inputCls} />
           </Field>
-          <Field label="Add-on-Modul (aus bestehenden)">
-            <select name="addonModuleKey" defaultValue={m?.addonModuleKey ?? ''} className={inputCls}>
-              <option value="">— kein Add-on —</option>
-              {modules
-                .filter((mod) => mod.key !== m?.key)
-                .map((mod) => (
-                  <option key={mod.id} value={mod.key}>
-                    {mod.icon ? `${mod.icon} ` : ''}
-                    {mod.label}
-                  </option>
-                ))}
-            </select>
+          <Field label="Add-on-Module (mehrere möglich)" full>
+            <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+              {modules.filter((mod) => mod.key !== m?.key).length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Keine anderen Module vorhanden.
+                </p>
+              ) : (
+                modules
+                  .filter((mod) => mod.key !== m?.key)
+                  .map((mod) => (
+                    <label key={mod.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="addonModuleKeys"
+                        value={mod.key}
+                        defaultChecked={(m?.addonModuleKeys ?? []).includes(mod.key)}
+                      />
+                      <span>
+                        {mod.icon ? `${mod.icon} ` : ''}
+                        {mod.label}
+                      </span>
+                    </label>
+                  ))
+              )}
+            </div>
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="addonRequired" defaultChecked={m?.addonRequired ?? false} />
-          Add-on ist Pflicht / Must-Have (wird beim Aktivieren automatisch mit gewählt)
+          Add-ons sind Pflicht / Must-Have (werden beim Aktivieren automatisch mit gewählt)
+        </label>
+      </div>
+
+      {/* Umsetzung: „Aus Angebot erzeugen" (Marketingplan & Aufgaben) */}
+      <div className="sm:col-span-2 mt-1 space-y-3 rounded-lg border border-dashed p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {'Umsetzung – „Aus Angebot erzeugen"'}
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="planInclude" defaultChecked={m?.planInclude ?? false} />
+          In den Marketingplan aufnehmen (als Maßnahme)
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Marketingplan-Phase (1–n, leer = Standard)">
+            <input
+              name="planPhase"
+              type="number"
+              min={1}
+              defaultValue={m?.planPhase ?? ''}
+              className={inputCls}
+              placeholder="z. B. 1"
+            />
+          </Field>
+          <Field label="Aufgabe erzeugen">
+            <select name="taskMode" defaultValue={m?.taskMode ?? 'none'} className={inputCls}>
+              <option value="none">keine Aufgabe</option>
+              <option value="queue">einmalig in die Warteschlange</option>
+              <option value="recurring">wiederkehrende (Dauer-)Aufgabe</option>
+            </select>
+          </Field>
+          <Field label="Takt (nur wiederkehrend)">
+            <select
+              name="taskRecurringFreq"
+              defaultValue={m?.taskRecurringFreq ?? 'monthly'}
+              className={inputCls}
+            >
+              <option value="weekly">wöchentlich</option>
+              <option value="monthly">monatlich</option>
+            </select>
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="taskPerQty" defaultChecked={m?.taskPerQty ?? false} />
+          Nach Menge vervielfachen (z. B. 2 Landingpages = 2 Aufgaben)
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="taskStretchWeeks" defaultChecked={m?.taskStretchWeeks ?? false} />
+          Warteschlangen-Aufgaben über die Wochen staffeln (Fälligkeiten)
         </label>
       </div>
 

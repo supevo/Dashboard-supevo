@@ -78,6 +78,7 @@ export default async function NewClientWizardPage({
             <MembershipConfiguratorPanel
               clientCompanyId={clientId}
               show={company.isLegacy ? 'modules' : 'stages'}
+              isLegacy={company.isLegacy}
             />
             <div className="flex justify-end border-t pt-3">
               <Link

@@ -62,6 +62,7 @@ import { listMarketingReports } from '@/features/marketing-reports/queries';
 import { ReportsManager } from '@/features/marketing-reports/components/reports-manager';
 import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
+import { GenerateOfferButton } from '@/features/memberships/components/generate-offer-button';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
 import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
@@ -468,6 +469,7 @@ export default async function ClientDetailPage({
                     <MembershipConfiguratorPanel
                       clientCompanyId={clientCompanyId}
                       show={company.isLegacy ? 'modules' : 'stages'}
+                      isLegacy={company.isLegacy}
                     />
                   </CardContent>
                 </Card>
@@ -624,7 +626,15 @@ export default async function ClientDetailPage({
               übernehmen.
             </p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {isAdmin && (
+              <div className="rounded-lg border border-dashed p-4">
+                <p className="mb-2 text-sm font-semibold">
+                  ✨ Aus Angebot erzeugen
+                </p>
+                <GenerateOfferButton clientCompanyId={clientCompanyId} />
+              </div>
+            )}
             <PlanManager
               clientCompanyId={clientCompanyId}
               plan={marketingPlan}

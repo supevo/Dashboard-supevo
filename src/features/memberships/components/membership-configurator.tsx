@@ -172,9 +172,11 @@ export function MembershipConfigurator({
           }
         }
       }
-      // Pflicht-Add-on beim Aktivieren automatisch mit aktivieren.
-      if (enabled && def?.addonRequired && def.addonModuleKey && next[def.addonModuleKey]) {
-        next[def.addonModuleKey] = { ...next[def.addonModuleKey]!, enabled: true };
+      // Pflicht-Add-ons beim Aktivieren automatisch mit aktivieren.
+      if (enabled && def?.addonRequired) {
+        for (const addonKey of def.addonModuleKeys) {
+          if (next[addonKey]) next[addonKey] = { ...next[addonKey]!, enabled: true };
+        }
       }
       return next;
     });
@@ -242,6 +244,7 @@ export function MembershipConfigurator({
               selections,
               customNetCents,
               applyImmediately: applyNow,
+              redeemedPromotions: [...redeemed],
             });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
@@ -281,11 +284,10 @@ export function MembershipConfigurator({
         },
         priceContext,
       )}
-      addon={(() => {
-        if (!def.addonModuleKey) return null;
-        const am = modules.find((d) => d.key === def.addonModuleKey);
-        if (!am) return null;
-        return {
+      addons={def.addonModuleKeys
+        .map((key) => modules.find((d) => d.key === key))
+        .filter((am): am is ModuleDef => !!am)
+        .map((am) => ({
           label: `${am.icon ? `${am.icon} ` : ''}${am.label}`,
           cents: moduleMonthlyCents(
             am,
@@ -294,8 +296,7 @@ export function MembershipConfigurator({
           ),
           enabled: map[am.key]?.enabled ?? false,
           onToggle: (on: boolean) => toggle(am.key, on),
-        };
-      })()}
+        }))}
       onToggle={(en) => toggle(def.key, en)}
       onQty={(q) => setQty(def.key, q)}
       onBudget={(e) => setBudget(def.key, e)}
@@ -306,8 +307,9 @@ export function MembershipConfigurator({
 
   return (
     <div className="space-y-6">
-      {/* Aktuelle Aktionen (Promotions/Gutscheine) – nur im Lead-Angebot. */}
-      {mode === 'lead' && promotions.length > 0 && (
+      {/* Aktuelle Aktionen (Promotions/Gutscheine) – im Lead-Angebot und im
+          Agentur-Baukasten einlösbar. */}
+      {(mode === 'lead' || mode === 'agency') && promotions.length > 0 && (
         <div className="space-y-2">
           {promotions.map((p) => {
             const isRedeemed = redeemed.has(p.id);
@@ -565,7 +567,7 @@ function ModuleRow({
   state,
   lineCents,
   readOnly,
-  addon,
+  addons,
   onToggle,
   onQty,
   onBudget,
@@ -576,13 +578,13 @@ function ModuleRow({
   state: SelState;
   lineCents: number;
   readOnly: boolean;
-  /** Verknüpftes Add-on-Modul (falls konfiguriert). */
-  addon: {
+  /** Verknüpfte Add-on-Module (falls konfiguriert). */
+  addons: {
     label: string;
     cents: number;
     enabled: boolean;
     onToggle: (on: boolean) => void;
-  } | null;
+  }[];
   onToggle: (enabled: boolean) => void;
   onQty: (qty: number) => void;
   onBudget: (euros: number) => void;
@@ -595,7 +597,7 @@ function ModuleRow({
     def.captureBudget ||
     def.budgetViaOptions ||
     def.keywordCents > 0 ||
-    !!addon;
+    addons.length > 0;
   return (
     <div
       role="button"
@@ -690,13 +692,16 @@ function ModuleRow({
             </label>
           )}
 
-          {addon &&
-            (def.addonRequired ? (
-              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+          {addons.map((addon, i) =>
+            def.addonRequired ? (
+              <span
+                key={i}
+                className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
+              >
                 inkl. {addon.label} (+{formatEuroCents(addon.cents)}) · Must-Have
               </span>
             ) : (
-              <label className="flex items-center gap-2 text-sm">
+              <label key={i} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={addon.enabled}
@@ -710,7 +715,8 @@ function ModuleRow({
                   </span>
                 </span>
               </label>
-            ))}
+            ),
+          )}
 
           {perUnit && def.pricing.kind === 'per_unit' && (() => {
             const upper = def.pricing.maxQty > 1 ? def.pricing.maxQty : 99;

@@ -18,6 +18,7 @@ import {
   createClientCompanySchema,
   updateClientCompanySchema,
 } from './schema';
+import { invalidateClientNews } from '@/features/news/service';
 
 function fieldErrorsOf(error: z.ZodError): Record<string, string[]> {
   return error.flatten().fieldErrors as Record<string, string[]>;
@@ -287,6 +288,10 @@ export async function updateClientProfileAction(
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId);
   if (error) return errorResult(de.errors.INTERNAL);
+
+  // Branche/Marken/Interessen steuern die News → Cache verwerfen, damit die
+  // News beim nächsten Portal-Aufruf mit den neuen Themen frisch geladen werden.
+  await invalidateClientNews(clientCompanyId);
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult('Kundenprofil gespeichert.');
