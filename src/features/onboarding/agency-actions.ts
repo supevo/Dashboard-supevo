@@ -268,12 +268,17 @@ export async function generateContractFromMembershipAction(
   // Der Onboarding-Vertrag wird aus DENSELBEN Daten wie die Abrechnungs-/Lead-
   // Ansicht erzeugt (itemisierte Module, Gutschein-Rabatt, editierbarer
   // Konditionstext) – so ist das signierte PDF inhaltlich identisch.
-  const { buildContractFromClient } = await import('@/features/contracts/queries');
-  const data = await buildContractFromClient(clientCompanyId);
-  if (!data) return errorResult('Vertragsdaten konnten nicht geladen werden.');
-
-  const { renderOfferContractPdf } = await import('@/features/onboarding/pdf');
-  const pdf = await renderOfferContractPdf(data);
+  let pdf: Uint8Array;
+  try {
+    const { buildContractFromClient } = await import('@/features/contracts/queries');
+    const data = await buildContractFromClient(clientCompanyId);
+    if (!data) return errorResult('Vertragsdaten konnten nicht geladen werden.');
+    const { renderOfferContractPdf } = await import('@/features/onboarding/pdf');
+    pdf = await renderOfferContractPdf(data);
+  } catch (e) {
+    console.error('[onboarding] contract render failed', (e as Error).message);
+    return errorResult(`Vertrag konnte nicht erzeugt werden: ${(e as Error).message}`);
+  }
 
   const { randomUUID } = await import('node:crypto');
   const { FILES_BUCKET } = await import('@/lib/files/storage');
