@@ -868,10 +868,19 @@ export async function syncOfferFromLeadAction(
   await regenerateOnboardingContract(clientCompanyId);
 
   const moduleCount = selections.filter((sel) => sel.enabled).length;
+  const hasAddress = Boolean(
+    lead.billing_address_line1 ||
+      lead.billing_postal_code ||
+      lead.billing_city,
+  );
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult(
     `Angebot vom Lead übernommen${res.created ? ' (Mitgliedschaft angelegt)' : ''}: ${moduleCount} Modul(e)${
       redeemedPromotions.length > 0 ? `, ${redeemedPromotions.length} Gutschein(e)` : ''
-    }.`,
+    }. ${
+      hasAddress
+        ? 'Anschrift übernommen.'
+        : 'Hinweis: Am Lead ist keine Anschrift hinterlegt – bitte im Lead unter „Bearbeiten → Anschrift" eintragen.'
+    }`,
   );
 }
