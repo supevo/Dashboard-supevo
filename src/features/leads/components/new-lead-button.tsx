@@ -75,6 +75,33 @@ export function NewLeadButton() {
               <Input id="l-website" name="website" placeholder="z. B. muster-praxis.de" />
             </div>
           </div>
+          <div className="rounded-md border border-dashed p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Anschrift (für den Vertrag – nach deutschem Recht Pflicht)
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="l-addr1">Straße &amp; Hausnr.</Label>
+                <Input id="l-addr1" name="addressLine1" placeholder="z. B. Musterstraße 12" />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="l-addr2">Adresszusatz (optional)</Label>
+                <Input id="l-addr2" name="addressLine2" placeholder="z. B. c/o, Gebäude, Etage" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="l-plz">PLZ</Label>
+                <Input id="l-plz" name="postalCode" placeholder="12345" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="l-city">Ort</Label>
+                <Input id="l-city" name="city" placeholder="Musterstadt" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="l-country">Land</Label>
+                <Input id="l-country" name="country" placeholder="DE" />
+              </div>
+            </div>
+          </div>
           <div className="space-y-1">
             <Label htmlFor="l-goals">Ziele / Vorhaben</Label>
             <Textarea

@@ -39,6 +39,11 @@ interface LeadForConvert {
   offer_name: string | null;
   estimated_value_cents: number | null;
   converted_client_company_id: string | null;
+  billing_address_line1: string | null;
+  billing_address_line2: string | null;
+  billing_postal_code: string | null;
+  billing_city: string | null;
+  billing_country: string | null;
 }
 
 /** Menschlich lesbare Modulzeilen (inkl. Keywords/Budget) für die KI. */
@@ -135,6 +140,12 @@ async function ensureClientForLead(
     stage,
     redeemed_promotions: redeemedPromotions,
     ads_credit_cents: adsCreditCents,
+    // Vertrags-/Rechnungsadresse vom Lead übernehmen (für den Vertrag).
+    billing_address_line1: lead.billing_address_line1 || null,
+    billing_address_line2: lead.billing_address_line2 || null,
+    billing_postal_code: lead.billing_postal_code || null,
+    billing_city: lead.billing_city || null,
+    ...(lead.billing_country ? { billing_country: lead.billing_country } : {}),
   });
   if (mErr) return { error: 'Mitgliedschaft konnte nicht angelegt werden.' };
   return { id: company.id };
@@ -175,6 +186,11 @@ const createSchema = z.object({
   goals: z.string().max(4000).optional().or(z.literal('')),
   targetGroup: z.string().max(2000).optional().or(z.literal('')),
   website: z.string().max(300).optional().or(z.literal('')),
+  addressLine1: z.string().max(200).optional().or(z.literal('')),
+  addressLine2: z.string().max(200).optional().or(z.literal('')),
+  postalCode: z.string().max(20).optional().or(z.literal('')),
+  city: z.string().max(120).optional().or(z.literal('')),
+  country: z.string().max(80).optional().or(z.literal('')),
   value: z.string().max(20).optional().or(z.literal('')),
 });
 
@@ -185,6 +201,11 @@ function contextFieldsFrom(fd: FormData) {
     goals: fd.get('goals') ?? '',
     targetGroup: fd.get('targetGroup') ?? '',
     website: fd.get('website') ?? '',
+    addressLine1: fd.get('addressLine1') ?? '',
+    addressLine2: fd.get('addressLine2') ?? '',
+    postalCode: fd.get('postalCode') ?? '',
+    city: fd.get('city') ?? '',
+    country: fd.get('country') ?? '',
   };
 }
 
@@ -232,6 +253,11 @@ export async function createLeadAction(
     goals: d.goals || null,
     target_group: d.targetGroup || null,
     website: d.website || null,
+    billing_address_line1: d.addressLine1 || null,
+    billing_address_line2: d.addressLine2 || null,
+    billing_postal_code: d.postalCode || null,
+    billing_city: d.city || null,
+    billing_country: d.country || null,
     estimated_value_cents: parseEuroToCents(d.value ?? ''),
     created_by: user.id,
   });
@@ -367,7 +393,7 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id',
+      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
     )
     .eq('id', leadId)
     .maybeSingle();
@@ -478,7 +504,7 @@ export async function convertLeadToProjectAction(input: unknown): Promise<Action
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id',
+      'id, organization_id, contact_name, company, email, note, modules, redeemed_promotions, offer_name, estimated_value_cents, converted_client_company_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
     )
     .eq('id', leadId)
     .maybeSingle();
@@ -595,6 +621,11 @@ export async function updateLeadAction(
         goals: d.goals || null,
         target_group: d.targetGroup || null,
         website: d.website || null,
+        billing_address_line1: d.addressLine1 || null,
+        billing_address_line2: d.addressLine2 || null,
+        billing_postal_code: d.postalCode || null,
+        billing_city: d.city || null,
+        billing_country: d.country || null,
         estimated_value_cents: parseEuroToCents(d.value ?? ''),
       },
       { count: 'exact' },

@@ -171,7 +171,7 @@ export async function buildContractFromLead(leadId: string): Promise<ContractDat
   const { data: lead } = await supabase
     .from('leads')
     .select(
-      'id, organization_id, contact_name, company, email, modules, redeemed_promotions, offer_name',
+      'id, organization_id, contact_name, company, email, modules, redeemed_promotions, offer_name, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
     )
     .eq('id', leadId)
     .maybeSingle();
@@ -200,14 +200,24 @@ export async function buildContractFromLead(leadId: string): Promise<ContractDat
     .eq('organization_id', orgId)
     .maybeSingle();
 
+  const leadAddress: string[] = [];
+  if (lead.billing_address_line1) leadAddress.push(lead.billing_address_line1);
+  if (lead.billing_address_line2) leadAddress.push(lead.billing_address_line2);
+  const leadCityLine = [lead.billing_postal_code, lead.billing_city]
+    .filter(Boolean)
+    .join(' ');
+  if (leadCityLine) leadAddress.push(leadCityLine);
+  if (lead.billing_country && lead.billing_country !== 'DE') {
+    leadAddress.push(lead.billing_country);
+  }
+
   return {
     provider: providerFrom(entity),
     customer: {
       name: lead.company || lead.contact_name,
       contactName: lead.company ? lead.contact_name : null,
       email: lead.email,
-      // Leads tragen (noch) keine Rechnungsadresse – bleibt leer.
-      addressLines: [],
+      addressLines: leadAddress,
       vatId: null,
     },
     lines,

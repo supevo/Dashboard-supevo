@@ -1975,6 +1975,11 @@ export interface Database {
           goals: string | null;
           target_group: string | null;
           website: string | null;
+          billing_address_line1: string | null;
+          billing_address_line2: string | null;
+          billing_postal_code: string | null;
+          billing_city: string | null;
+          billing_country: string | null;
           estimated_value_cents: number | null;
           modules: unknown;
           redeemed_promotions: unknown;
@@ -1999,6 +2004,11 @@ export interface Database {
           goals?: string | null;
           target_group?: string | null;
           website?: string | null;
+          billing_address_line1?: string | null;
+          billing_address_line2?: string | null;
+          billing_postal_code?: string | null;
+          billing_city?: string | null;
+          billing_country?: string | null;
           estimated_value_cents?: number | null;
           modules?: unknown;
           redeemed_promotions?: unknown;
