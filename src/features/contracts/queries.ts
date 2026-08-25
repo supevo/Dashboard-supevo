@@ -241,7 +241,7 @@ export async function buildContractFromClient(
   const { data: membership } = await supabase
     .from('client_memberships')
     .select(
-      'organization_id, client_company_id, modules, custom_name, custom_net_cents, billing_name, billing_vat_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
+      'organization_id, client_company_id, modules, custom_name, custom_net_cents, redeemed_promotions, billing_name, billing_vat_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
     )
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
@@ -289,6 +289,32 @@ export async function buildContractFromClient(
       : built.lines;
   const gross = customNetCents != null ? customNetCents : grossFromModules;
 
+  // Eingelöste Gutscheine mindern den Vertragspreis (wie im Lead-Angebot und in
+  // der laufenden Abrechnung). Bewusst ohne active-Filter – einmal eingelöst,
+  // gilt der Rabatt weiter.
+  const clientRedeemed = Array.isArray(membership.redeemed_promotions)
+    ? (membership.redeemed_promotions as unknown[]).filter(
+        (x): x is string => typeof x === 'string',
+      )
+    : [];
+  let clientDiscountCents = 0;
+  if (clientRedeemed.length > 0) {
+    const { data: promoRows } = await createSupabaseServiceClient()
+      .from('promotions')
+      .select('id, discount_kind, discount_value')
+      .eq('organization_id', orgId)
+      .in('id', clientRedeemed);
+    const rules = (promoRows ?? []).map((p) => ({
+      id: p.id,
+      discountKind: (p.discount_kind ?? 'none') as
+        | 'none'
+        | 'fixed'
+        | 'percent',
+      discountValue: p.discount_value ?? 0,
+    }));
+    clientDiscountCents = promoDiscountCents(gross, rules, clientRedeemed);
+  }
+
   const { data: s } = await createSupabaseServiceClient()
     .from('billing_settings')
     .select('default_tax_rate, small_business')
@@ -327,8 +353,8 @@ export async function buildContractFromClient(
     },
     lines,
     budgetCents,
-    discountCents: 0,
-    monthlyNetCents: gross,
+    discountCents: clientDiscountCents,
+    monthlyNetCents: Math.max(0, gross - clientDiscountCents),
     taxRatePct: s?.default_tax_rate ?? 19,
     smallBusiness: s?.small_business ?? false,
     terms,

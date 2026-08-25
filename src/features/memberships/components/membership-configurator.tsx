@@ -131,12 +131,6 @@ export function MembershipConfigurator({
       }, 0),
     [modules, map],
   );
-  // Eingelöste Gutscheine mindern den Paketpreis (Werbebudget bleibt außen vor).
-  const discountCents = useMemo(
-    () => promoDiscountCents(total, promotions, redeemed),
-    [total, promotions, redeemed],
-  );
-  const netAfterDiscount = Math.max(0, total - discountCents);
   // Finaler Custom-Preis in Netto-Cent (oder null, wenn nicht aktiv/ungültig).
   const customNetCents = useMemo(() => {
     if (mode !== 'agency' || !customOn) return null;
@@ -147,6 +141,15 @@ export function MembershipConfigurator({
       ? Math.round(cents / (1 + taxRatePct / 100))
       : cents;
   }, [mode, customOn, customEuros, customBasis, taxRatePct]);
+  // Effektiver Basispreis (Custom-Preis gewinnt) und der darauf bezogene
+  // Gutschein-Rabatt – so mindert der Gutschein auch einen gesetzten Custom-Preis
+  // (konsistent zur laufenden Abrechnung).
+  const effectiveBase = customNetCents ?? total;
+  const effectiveDiscount = useMemo(
+    () => promoDiscountCents(effectiveBase, promotions, redeemed),
+    [effectiveBase, promotions, redeemed],
+  );
+  const displayNet = Math.max(0, effectiveBase - effectiveDiscount);
   const anySelected = selections.some((s) => s.enabled);
   const stageModules = useMemo(
     () => modules.filter((d) => d.pricing.kind === 'stage'),
@@ -361,7 +364,7 @@ export function MembershipConfigurator({
         <div className="rounded-lg border bg-emerald-500/5 p-4">
           <p className="text-xs text-muted-foreground">Monatlicher Preis (netto)</p>
           <p className="text-4xl font-bold text-emerald-600 dark:text-emerald-400">
-            {formatEuroCents(customNetCents ?? netAfterDiscount)}
+            {formatEuroCents(displayNet)}
             {customNetCents != null && (
               <span className="ml-2 align-middle text-xs font-medium text-muted-foreground">
                 Custom
@@ -374,10 +377,11 @@ export function MembershipConfigurator({
               </span>
             )}
           </p>
-          {discountCents > 0 && (
+          {effectiveDiscount > 0 && (
             <p className="text-xs text-muted-foreground">
-              Paketpreis {formatEuroCents(total)} · Gutschein −
-              {formatEuroCents(discountCents)}
+              {customNetCents != null ? 'Preis' : 'Paketpreis'}{' '}
+              {formatEuroCents(effectiveBase)} · Gutschein −
+              {formatEuroCents(effectiveDiscount)}
             </p>
           )}
           <p className="text-xs text-muted-foreground">
