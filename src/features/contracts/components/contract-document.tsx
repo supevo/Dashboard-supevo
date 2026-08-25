@@ -1,5 +1,37 @@
+import { Fragment } from 'react';
 import { formatEuroCents } from '@/lib/money';
 import type { ContractData } from '@/features/contracts/queries';
+
+/**
+ * Rendert den Konditionstext strukturiert: §-/nummerierte Überschriften fett,
+ * Leerzeilen als Abstand, Aufzählungen eingerückt – identisch zur Logik im
+ * Onboarding-PDF, damit HTML- und PDF-Vertrag gleich aussehen.
+ */
+function renderTerms(terms: string) {
+  const isHeading = (t: string) =>
+    /^§\s*\d+/.test(t) || /^\d+[.)]\s+\S/.test(t) || /^[A-ZÄÖÜ][^a-zäöüß]{0,40}$/.test(t);
+  const isBullet = (t: string) => /^[-•*–]\s+/.test(t);
+  return terms.split('\n').map((raw, i) => {
+    const t = raw.trim();
+    if (t === '') return <div key={i} className="h-2" />;
+    if (isHeading(t)) {
+      return (
+        <div key={i} className="mt-2 font-semibold">
+          {t}
+        </div>
+      );
+    }
+    if (isBullet(t)) {
+      return (
+        <div key={i} className="flex gap-1.5 pl-1">
+          <span>•</span>
+          <span>{t.replace(/^[-•*–]\s+/, '')}</span>
+        </div>
+      );
+    }
+    return <Fragment key={i}>{<div>{t}</div>}</Fragment>;
+  });
+}
 
 const PRINT_CSS = `
 @media print {
@@ -148,8 +180,8 @@ export function ContractDocument({ data }: { data: ContractData }) {
         <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           Vertragsbedingungen
         </div>
-        <div className="mt-2 whitespace-pre-line text-xs leading-relaxed">
-          {data.terms}
+        <div className="mt-2 space-y-1 text-xs leading-relaxed">
+          {renderTerms(data.terms)}
         </div>
       </div>
 
