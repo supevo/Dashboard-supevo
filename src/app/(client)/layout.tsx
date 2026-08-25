@@ -10,7 +10,7 @@ import {
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { hasMyMarketingPlan } from '@/features/marketing-plan/queries';
-import { isInquiryInboxEnabled } from '@/features/inquiries/queries';
+import { isInquiryClientVisible } from '@/features/inquiries/queries';
 import { getExpressStatus } from '@/features/express/queries';
 import { ExpressHeaderBadge } from '@/features/express/components/express-header-badge';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
@@ -56,24 +56,25 @@ export default async function ClientLayout({
     .eq('id', user.id)
     .maybeSingle();
 
-  // Show the inquiries inbox only when the agency has enabled it for this client.
+  // Kundenanfragen nur zeigen, wenn die Agentur das Board für diesen Kunden
+  // freigegeben hat (Sichtbarkeit je Kunde).
   const company = await getMyClientCompany();
   const branding = company ? await getOrgBranding(company.organizationId) : null;
-  const [inquiriesEnabled, hasPlan] = await Promise.all([
-    company ? isInquiryInboxEnabled(company.clientCompanyId) : Promise.resolve(false),
+  const [inquiriesVisible, hasPlan] = await Promise.all([
+    company ? isInquiryClientVisible(company.clientCompanyId) : Promise.resolve(false),
     hasMyMarketingPlan(),
   ]);
 
-  // Gruppierte Portal-Navigation. Bedingte Punkte (Marketingplan, Anfragen)
+  // Gruppierte Portal-Navigation. Bedingte Punkte (Kundenanfragen, Marketingplan)
   // werden in die passende Gruppe eingehängt.
   const navItems: NavItem[] = [
     { href: '#arbeitsbereich', label: 'Arbeitsbereich', heading: true },
     { href: '/portal', label: 'Übersicht', icon: <LayoutDashboard /> },
+    ...(inquiriesVisible
+      ? [{ href: '/portal/inquiries', label: 'Kundenanfragen', icon: <Inbox /> }]
+      : []),
     { href: '/portal/projects', label: 'Projekte', icon: <FolderKanban /> },
     { href: '/portal/reports', label: 'Berichte', icon: <BarChart3 /> },
-    ...(inquiriesEnabled
-      ? [{ href: '/portal/inquiries', label: de.nav.inquiries, icon: <Inbox /> }]
-      : []),
 
     { href: '#planung', label: 'Planung & Kreativität', heading: true },
     { href: '/portal/ideas', label: 'Ideen', icon: <Lightbulb /> },

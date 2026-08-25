@@ -32,7 +32,7 @@ import { getSatisfactionSummary } from '@/features/satisfaction/queries';
 import { SatisfactionSummaryCard } from '@/features/satisfaction/components/satisfaction-summary';
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
-import { InquiryList } from '@/features/inquiries/components/inquiry-list';
+import { InquiryKanban } from '@/features/inquiries/components/inquiry-kanban';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
@@ -69,7 +69,7 @@ import { isSecretVaultEnabled } from '@/lib/crypto/secret-vault';
 import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 
-const TAB_KEYS = ['board', 'plan', 'pages', 'files'] as const;
+const TAB_KEYS = ['board', 'inquiries', 'plan', 'pages', 'files'] as const;
 
 export default async function ClientDetailPage({
   params,
@@ -416,7 +416,9 @@ export default async function ClientDetailPage({
                 baseUrl={env.NEXT_PUBLIC_APP_URL}
                 inboundDomain={process.env.INBOUND_DOMAIN ?? null}
               />
-              <InquiryList inquiries={inquiries} />
+              <p className="text-xs text-muted-foreground">
+                {'Die eingegangenen Anfragen findest du im Reiter „Kundenanfragen".'}
+              </p>
             </CardContent>
           </Card>
         </>
@@ -576,6 +578,26 @@ export default async function ClientDetailPage({
           canCreate={canCreateProject}
           initialProjectId={boardParam}
         />
+      ),
+    },
+    {
+      key: 'inquiries',
+      label: 'Kundenanfragen',
+      content: (
+        <Card>
+          <CardHeader>
+            <CardTitle>📥 Kundenanfragen</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Leads dieses Kunden als Board – ziehe Karten zwischen den Spalten,
+              um den Status zu ändern. Eingang &amp; Sichtbarkeit stellst du im
+              {' ⚙️-Menü unter „Anfragen" '}
+              ein.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <InquiryKanban inquiries={inquiries} />
+          </CardContent>
+        </Card>
       ),
     },
     {

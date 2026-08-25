@@ -140,6 +140,46 @@ export async function toggleInquiryEndpointAction(
   return successResult(enabled ? 'Aktiviert.' : 'Deaktiviert.');
 }
 
+/**
+ * Schaltet die Sichtbarkeit des Kundenanfragen-Boards im Kundenportal um.
+ * Agentur only. Legt bei Bedarf einen Endpoint-Eintrag an.
+ */
+export async function toggleInquiryClientVisibleAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({ clientCompanyId: z.string().uuid(), visible: z.string() })
+    .safeParse({
+      clientCompanyId: formData.get('clientCompanyId'),
+      visible: formData.get('visible'),
+    });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+
+  const visible = parsed.data.visible === 'true';
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('inquiry_endpoints').upsert(
+    {
+      client_company_id: parsed.data.clientCompanyId,
+      organization_id: orgId,
+      client_visible: visible,
+    },
+    { onConflict: 'client_company_id' },
+  );
+  if (error) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath(`/app/clients/${parsed.data.clientCompanyId}`);
+  revalidatePath('/portal/inquiries');
+  return successResult(
+    visible ? 'Für den Kunden sichtbar.' : 'Für den Kunden ausgeblendet.',
+  );
+}
+
 /** Regenerates the webhook token (invalidates the old URL). Agency only. */
 export async function regenerateInquiryTokenAction(
   _prev: ActionResult,

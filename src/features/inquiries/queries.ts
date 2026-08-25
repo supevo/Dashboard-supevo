@@ -29,6 +29,7 @@ export interface InquiryEndpoint {
   clientCompanyId: string;
   token: string;
   enabled: boolean;
+  clientVisible: boolean;
 }
 
 /** The webhook endpoint for a client company (agency view). RLS-scoped. */
@@ -38,11 +39,16 @@ export async function getInquiryEndpoint(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('inquiry_endpoints')
-    .select('client_company_id, token, enabled')
+    .select('client_company_id, token, enabled, client_visible')
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
   return data
-    ? { clientCompanyId: data.client_company_id, token: data.token, enabled: data.enabled }
+    ? {
+        clientCompanyId: data.client_company_id,
+        token: data.token,
+        enabled: data.enabled,
+        clientVisible: data.client_visible ?? false,
+      }
     : null;
 }
 
@@ -57,6 +63,19 @@ export async function isInquiryInboxEnabled(
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
   return Boolean(data?.enabled);
+}
+
+/** Whether the client may see the Kundenanfragen board in the portal. */
+export async function isInquiryClientVisible(
+  clientCompanyId: string,
+): Promise<boolean> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('inquiry_endpoints')
+    .select('client_visible')
+    .eq('client_company_id', clientCompanyId)
+    .maybeSingle();
+  return Boolean(data?.client_visible);
 }
 
 /** Lists inquiries for a client company with their comments. RLS-scoped. */

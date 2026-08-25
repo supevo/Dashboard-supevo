@@ -1667,6 +1667,7 @@ export interface Database {
           organization_id: string;
           token: string;
           enabled: boolean;
+          client_visible: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1675,6 +1676,7 @@ export interface Database {
           organization_id: string;
           token?: string;
           enabled?: boolean;
+          client_visible?: boolean;
         };
         Update: Partial<Database['public']['Tables']['inquiry_endpoints']['Insert']>;
         Relationships: [];
