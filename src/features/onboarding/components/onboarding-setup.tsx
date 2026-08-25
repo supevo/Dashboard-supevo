@@ -11,6 +11,7 @@ import {
   generateContractFromMembershipAction,
   generateSepaPreviewAction,
   releaseSepaAction,
+  resetOnboardingProgressAction,
 } from '@/features/onboarding/agency-actions';
 import type { OnboardingStatus } from '@/features/onboarding/queries';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -345,6 +346,35 @@ export function OnboardingSetup({
             >
               Onboarding deaktivieren
             </button>
+            {(status.contractSignedAt || status.sepaSignedAt) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    !window.confirm(
+                      'Onboarding zurücksetzen? Vertrags- und SEPA-Unterschrift des Kunden werden gelöscht, er unterschreibt neu. Vorlage, SEPA-Vorschau und der Marketingplan bleiben erhalten.',
+                    )
+                  ) {
+                    return;
+                  }
+                  setError(null);
+                  setNotice(null);
+                  startTransition(async () => {
+                    const res = await resetOnboardingProgressAction(clientCompanyId);
+                    if (res.status === 'success') {
+                      setNotice('message' in res ? (res.message ?? 'Zurückgesetzt.') : 'Zurückgesetzt.');
+                      router.refresh();
+                    } else {
+                      setError('message' in res ? res.message : 'Fehlgeschlagen.');
+                    }
+                  });
+                }}
+                disabled={pending}
+                className="rounded-md border border-amber-300 px-3 py-1.5 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-60 dark:border-amber-900/60 dark:text-amber-300 dark:hover:bg-amber-950/30"
+              >
+                ↩︎ Onboarding zurücksetzen
+              </button>
+            )}
           </>
         )}
       </div>

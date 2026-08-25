@@ -79,6 +79,41 @@ export async function configureOnboardingAction(input: {
     : successResult('Onboarding deaktiviert.');
 }
 
+/**
+ * Setzt den Fortschritt des Onboardings zurück, damit der Kunde es erneut
+ * durchläuft (z. B. nach einem Test): löscht Vertrags- und SEPA-Unterschrift
+ * inkl. der signierten PDFs/IBAN. Die hinterlegte Vertragsvorlage, die SEPA-
+ * Vorschau/Freigabe und die Einstellungen bleiben erhalten. Der Marketingplan
+ * ist davon NICHT betroffen (eigene Tabelle).
+ */
+export async function resetOnboardingProgressAction(
+  clientCompanyId: string,
+): Promise<ActionResult> {
+  const orgId = await authorizeClient(clientCompanyId);
+  if (!orgId) return errorResult('Keine Berechtigung.');
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('client_onboarding')
+    .update({
+      contract_signed_at: null,
+      contract_pdf_path: null,
+      sepa_signed_at: null,
+      sepa_pdf_path: null,
+      sepa_iban_last4: null,
+      sepa_mandate_ref: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('client_company_id', clientCompanyId);
+  if (error) return errorResult('Zurücksetzen fehlgeschlagen.');
+
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  revalidatePath('/portal');
+  return successResult(
+    'Onboarding zurückgesetzt – der Kunde kann Vertrag & SEPA erneut unterschreiben.',
+  );
+}
+
 const templateSchema = z.object({
   clientCompanyId: z.string().uuid(),
   fileName: z.string().trim().min(1).max(200),
