@@ -32,6 +32,7 @@ const web: ModuleDef = {
   addonModuleKeys: [],
   addonRequired: false,
   delivery: {
+    isBase: false,
     planInclude: false,
     planPhase: null,
     taskMode: 'none',
@@ -65,6 +66,7 @@ const seo: ModuleDef = {
   addonModuleKeys: [],
   addonRequired: false,
   delivery: {
+    isBase: false,
     planInclude: false,
     planPhase: null,
     taskMode: 'none',
@@ -91,6 +93,7 @@ const stage1: ModuleDef = {
   addonModuleKeys: [],
   addonRequired: false,
   delivery: {
+    isBase: false,
     planInclude: false,
     planPhase: null,
     taskMode: 'none',
@@ -117,6 +120,7 @@ const ads: ModuleDef = {
   addonModuleKeys: [],
   addonRequired: false,
   delivery: {
+    isBase: false,
     planInclude: false,
     planPhase: null,
     taskMode: 'none',
