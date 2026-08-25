@@ -27,7 +27,20 @@ export async function updateContractTermsAction(
   const { error } = await supabase
     .from('contract_settings')
     .upsert({ organization_id: orgId, terms }, { onConflict: 'organization_id' });
-  if (error) return errorResult(de.errors.INTERNAL);
+  if (error) {
+    console.error('[contracts] updateContractTerms failed', {
+      code: error.code,
+      message: error.message,
+    });
+    // Fehlt die Tabelle, ist Migration 0137 nicht eingespielt – klar benennen,
+    // statt nur „interner Fehler" (spiegelt das Muster aus dem Marketingplan).
+    if (error.code === '42P01') {
+      return errorResult(
+        'Vertragstext-Tabelle fehlt (Migration 0137_contract_settings nicht ausgeführt).',
+      );
+    }
+    return errorResult(`Speichern fehlgeschlagen (${error.code ?? 'Fehler'}).`);
+  }
 
   revalidatePath('/app/vertrag');
   return successResult('Vertragstext gespeichert.');
