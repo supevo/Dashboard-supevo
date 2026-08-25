@@ -51,6 +51,8 @@ export interface ModuleDef {
 }
 
 export interface ModuleDelivery {
+  /** Basis-Modul (z. B. supevo Smart): seine Auswahl schaltet die Erzeugung frei. */
+  isBase: boolean;
   /** Als Maßnahme in den Marketingplan. */
   planInclude: boolean;
   /** Optionale Phasen-Nummer (1..n); null = Standardphase. */
@@ -89,6 +91,7 @@ export interface ModuleRow {
   addon_module_keys?: string[] | null;
   addon_required?: boolean | null;
   position: number;
+  plan_is_base?: boolean | null;
   plan_include?: boolean | null;
   plan_phase?: number | null;
   task_mode?: string | null;
@@ -136,6 +139,7 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
           : [],
     addonRequired: r.addon_required ?? false,
     delivery: {
+      isBase: r.plan_is_base ?? false,
       planInclude: r.plan_include ?? false,
       planPhase: r.plan_phase ?? null,
       taskMode:

@@ -24,6 +24,7 @@ interface JoinedRow {
   addon_module_keys: string[] | null;
   addon_required: boolean;
   position: number;
+  plan_is_base: boolean | null;
   plan_include: boolean | null;
   plan_phase: number | null;
   task_mode: string | null;
@@ -58,6 +59,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
       addon_module_keys: r.addon_module_keys,
       addon_required: r.addon_required,
       position: r.position,
+      plan_is_base: r.plan_is_base,
       plan_include: r.plan_include,
       plan_phase: r.plan_phase,
       task_mode: r.task_mode,
@@ -69,7 +71,7 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
 }
 
 const SELECT =
-  'key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_module_keys, addon_required, position, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks, membership_module_categories(name, position)';
+  'key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_module_keys, addon_required, position, plan_is_base, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks, membership_module_categories(name, position)';
 
 /**
  * Active module catalog of an org (for the configurator). Uses the service
@@ -115,6 +117,7 @@ export interface AdminModule {
   icon: string | null;
   position: number;
   active: boolean;
+  planIsBase: boolean;
   planInclude: boolean;
   planPhase: number | null;
   taskMode: 'none' | 'queue' | 'recurring';
@@ -139,7 +142,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
     supabase
       .from('membership_modules')
       .select(
-        'id, category_id, key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_module_keys, addon_required, position, active, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks',
+        'id, category_id, key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_module_keys, addon_required, position, active, plan_is_base, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks',
       )
       .eq('organization_id', orgId)
       .order('position', { ascending: true }),
@@ -179,6 +182,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
       icon: m.icon,
       position: m.position,
       active: m.active,
+      planIsBase: m.plan_is_base ?? false,
       planInclude: m.plan_include ?? false,
       planPhase: m.plan_phase ?? null,
       taskMode:

@@ -394,6 +394,10 @@ function ModuleForm({
           {'Umsetzung – „Aus Angebot erzeugen"'}
         </p>
         <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="planIsBase" defaultChecked={m?.planIsBase ?? false} />
+          {'Basis-Modul (z. B. supevo Smart) – schaltet „Aus Angebot erzeugen" frei'}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="planInclude" defaultChecked={m?.planInclude ?? false} />
           In den Marketingplan aufnehmen (als Maßnahme)
         </label>

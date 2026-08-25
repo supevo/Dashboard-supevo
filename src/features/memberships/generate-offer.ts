@@ -6,11 +6,44 @@ import { nextRunAfter } from '@/features/recurring/recurrence';
 import {
   normalizeSelections,
   type ModuleDef,
+  type ModuleDelivery,
   type ModuleSelection,
 } from '@/features/memberships/modules';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 
 type Service = ReturnType<typeof createSupabaseServiceClient>;
+
+/** Basis-Modul (supevo Smart o. Ä.) – markiert oder ein Stufen-Modul. */
+function isBaseModule(def: ModuleDef): boolean {
+  return def.delivery.isBase || def.pricing.kind === 'stage';
+}
+
+/**
+ * Umsetzungs-Verhalten eines Moduls – mit sinnvollen Defaults, damit „Aus
+ * Angebot erzeugen" sofort funktioniert, ohne dass jedes Modul einzeln
+ * konfiguriert werden muss. Explizit gesetztes Verhalten hat Vorrang.
+ * Default: Basis → Daueraufgabe (nicht in den Plan); jedes andere Modul → als
+ * Plan-Maßnahme UND als wiederkehrende Aufgabe.
+ */
+function effectiveDelivery(def: ModuleDef): ModuleDelivery {
+  const d = def.delivery;
+  const hasExplicit = d.planInclude || d.taskMode !== 'none';
+  if (hasExplicit) return d;
+  if (isBaseModule(def)) {
+    return {
+      ...d,
+      planInclude: false,
+      taskMode: 'recurring',
+      taskRecurringFreq: d.taskRecurringFreq ?? 'monthly',
+    };
+  }
+  return {
+    ...d,
+    planInclude: true,
+    taskMode: 'recurring',
+    taskRecurringFreq: d.taskRecurringFreq ?? 'monthly',
+  };
+}
 
 export interface GenerateOfferResult {
   planItems: number;
@@ -133,24 +166,30 @@ export async function generateOfferDelivery(
   const catalog = await getModuleCatalog(orgId);
   const byKey = new Map(catalog.map((d) => [d.key, d]));
   const chosen = selections
-    .map((s) => ({ sel: s, def: byKey.get(s.id) }))
-    .filter((x): x is { sel: ModuleSelection; def: ModuleDef } => !!x.def);
-
-  // Gate: nur mit supevo-Basis (Stage-Modul) erzeugen.
-  const hasBase = chosen.some((x) => x.def.pricing.kind === 'stage');
-  if (!hasBase) {
-    return {
-      error:
-        'Zum Erzeugen muss die supevo-Basis (Stufe) gewählt sein. Ohne Basis werden keine Maßnahmen/Aufgaben angelegt.',
-    };
-  }
+    .map((s) => {
+      const def = byKey.get(s.id);
+      return def ? { sel: s, def, eff: effectiveDelivery(def) } : null;
+    })
+    .filter(
+      (x): x is { sel: ModuleSelection; def: ModuleDef; eff: ModuleDelivery } => !!x,
+    );
 
   const { data: company } = await service
     .from('client_companies')
-    .select('name')
+    .select('name, is_legacy')
     .eq('id', clientCompanyId)
     .maybeSingle();
   const clientName = company?.name ?? 'Kunde';
+
+  // Gate: supevo-Basis vorausgesetzt. Ein supevo-Kunde (nicht Legacy) hat die
+  // Basis per Definition; sonst muss ein Basis-/Stufen-Modul gewählt sein.
+  const hasBase = chosen.some((x) => isBaseModule(x.def));
+  if (company?.is_legacy && !hasBase) {
+    return {
+      error:
+        'Zum Erzeugen muss die supevo-Basis gewählt sein (Basis-Modul im Katalog markieren, z. B. supevo Smart – oder den Kunden als supevo-Kunde führen).',
+    };
+  }
 
   const projectId = await ensureClientProject(
     service,
@@ -164,7 +203,7 @@ export async function generateOfferDelivery(
   // Wie viele der gewählten Module haben überhaupt ein Umsetzungs-Verhalten
   // hinterlegt? 0 = die je Modul konfigurierbaren Regeln sind noch nicht gesetzt.
   const configured = chosen.filter(
-    (x) => x.def.delivery.planInclude || x.def.delivery.taskMode !== 'none',
+    (x) => x.eff.planInclude || x.eff.taskMode !== 'none',
   ).length;
 
   const skipped: string[] = [];
@@ -173,7 +212,7 @@ export async function generateOfferDelivery(
   let recurringTasks = 0;
 
   // --- Marketingplan-Maßnahmen ---------------------------------------------
-  const planMods = chosen.filter((x) => x.def.delivery.planInclude);
+  const planMods = chosen.filter((x) => x.eff.planInclude);
   if (planMods.length > 0) {
     // Plan sicherstellen.
     let planId: string | null = null;
@@ -211,7 +250,7 @@ export async function generateOfferDelivery(
     // Nach Phase gruppieren (planPhase; null → letzte „Laufende Maßnahmen").
     const groups = new Map<number, typeof planMods>();
     for (const m of planMods) {
-      const key = m.def.delivery.planPhase ?? 9999;
+      const key = m.eff.planPhase ?? 9999;
       (groups.get(key) ?? groups.set(key, []).get(key)!).push(m);
     }
     const phaseKeys = [...groups.keys()].sort((a, b) => a - b);
@@ -259,10 +298,8 @@ export async function generateOfferDelivery(
   }
 
   // --- Aufgaben (Warteschlange + wiederkehrend) ----------------------------
-  const queueMods = chosen.filter((x) => x.def.delivery.taskMode === 'queue');
-  const recurringMods = chosen.filter(
-    (x) => x.def.delivery.taskMode === 'recurring',
-  );
+  const queueMods = chosen.filter((x) => x.eff.taskMode === 'queue');
+  const recurringMods = chosen.filter((x) => x.eff.taskMode === 'recurring');
 
   if (queueMods.length > 0 || recurringMods.length > 0) {
     const col = await queueColumn(service, projectId);
@@ -289,8 +326,8 @@ export async function generateOfferDelivery(
     // Warteschlangen-Aufgaben. „Gestreckte" Module bekommen gestaffelte
     // Fälligkeiten (wochenweise, grob nach der Webseiten-Phase, ~ab Woche 4).
     let stretchWeek = 4;
-    for (const { def, sel } of queueMods) {
-      const count = def.delivery.taskPerQty ? selQty(def, sel) : 1;
+    for (const { def, sel, eff } of queueMods) {
+      const count = eff.taskPerQty ? selQty(def, sel) : 1;
       for (let n = 0; n < count; n += 1) {
         const baseTitle = moduleTitle(def, sel);
         const title = count > 1 ? `${baseTitle} – ${n + 1}` : baseTitle;
@@ -299,7 +336,7 @@ export async function generateOfferDelivery(
           continue;
         }
         let dueDate: string | null = null;
-        if (def.delivery.taskStretchWeeks) {
+        if (eff.taskStretchWeeks) {
           const d = new Date(`${today}T00:00:00Z`);
           d.setUTCDate(d.getUTCDate() + stretchWeek * 7);
           dueDate = d.toISOString().slice(0, 10);
@@ -326,9 +363,9 @@ export async function generateOfferDelivery(
     }
 
     // Wiederkehrende (Dauer-)Aufgaben.
-    for (const { def, sel } of recurringMods) {
-      const count = def.delivery.taskPerQty ? selQty(def, sel) : 1;
-      const frequency = def.delivery.taskRecurringFreq ?? 'monthly';
+    for (const { def, sel, eff } of recurringMods) {
+      const count = eff.taskPerQty ? selQty(def, sel) : 1;
+      const frequency = eff.taskRecurringFreq ?? 'monthly';
       const weekday = frequency === 'weekly' ? 1 : null;
       const dayOfMonth = frequency === 'monthly' ? 1 : null;
       const nextRun = nextRunAfter(frequency, weekday, dayOfMonth, today);

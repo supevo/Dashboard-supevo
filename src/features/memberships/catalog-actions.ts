@@ -173,6 +173,7 @@ export async function upsertModuleAction(
     position: intOf(formData.get('position'), 0),
     active: formData.get('active') === 'on',
     // Umsetzungs-Verhalten (für „Aus Angebot erzeugen").
+    plan_is_base: formData.get('planIsBase') === 'on',
     plan_include: formData.get('planInclude') === 'on',
     plan_phase: (() => {
       const v = intOf(formData.get('planPhase'), 0);
