@@ -43,6 +43,23 @@ export interface ModuleDef {
   addonModuleKey: string | null;
   /** Add-on ist Pflicht (Must-Have) → beim Aktivieren automatisch mit aktiv. */
   addonRequired: boolean;
+  /** Umsetzungs-Verhalten: was beim „Aus Angebot erzeugen" entsteht. */
+  delivery: ModuleDelivery;
+}
+
+export interface ModuleDelivery {
+  /** Als Maßnahme in den Marketingplan. */
+  planInclude: boolean;
+  /** Optionale Phasen-Nummer (1..n); null = Standardphase. */
+  planPhase: number | null;
+  /** Aufgabe: keine / einmal in die Warteschlange / wiederkehrend (Dauer). */
+  taskMode: 'none' | 'queue' | 'recurring';
+  /** Nach Menge vervielfachen (2 gewählt = 2 Aufgaben). */
+  taskPerQty: boolean;
+  /** Für wiederkehrende Aufgaben: Takt. */
+  taskRecurringFreq: 'weekly' | 'monthly' | null;
+  /** Warteschlangen-Aufgaben über die Wochen gestaffelt (Fälligkeiten). */
+  taskStretchWeeks: boolean;
 }
 
 /** DB-Zeile (membership_modules) → ModuleDef. */
@@ -68,6 +85,12 @@ export interface ModuleRow {
   addon_module_key?: string | null;
   addon_required?: boolean | null;
   position: number;
+  plan_include?: boolean | null;
+  plan_phase?: number | null;
+  task_mode?: string | null;
+  task_per_qty?: boolean | null;
+  task_recurring_freq?: string | null;
+  task_stretch_weeks?: boolean | null;
 }
 
 export function rowToModuleDef(r: ModuleRow): ModuleDef {
@@ -102,6 +125,22 @@ export function rowToModuleDef(r: ModuleRow): ModuleDef {
     keywordDefault: r.keyword_default ?? 0,
     addonModuleKey: r.addon_module_key ?? null,
     addonRequired: r.addon_required ?? false,
+    delivery: {
+      planInclude: r.plan_include ?? false,
+      planPhase: r.plan_phase ?? null,
+      taskMode:
+        r.task_mode === 'queue' || r.task_mode === 'recurring'
+          ? r.task_mode
+          : 'none',
+      taskPerQty: r.task_per_qty ?? false,
+      taskRecurringFreq:
+        r.task_recurring_freq === 'monthly'
+          ? 'monthly'
+          : r.task_recurring_freq === 'weekly'
+            ? 'weekly'
+            : null,
+      taskStretchWeeks: r.task_stretch_weeks ?? false,
+    },
   };
 }
 

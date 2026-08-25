@@ -1296,6 +1296,12 @@ export interface Database {
           icon: string | null;
           position: number;
           active: boolean;
+          plan_include: boolean;
+          plan_phase: number | null;
+          task_mode: string;
+          task_per_qty: boolean;
+          task_recurring_freq: string | null;
+          task_stretch_weeks: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1325,6 +1331,12 @@ export interface Database {
           icon?: string | null;
           position?: number;
           active?: boolean;
+          plan_include?: boolean;
+          plan_phase?: number | null;
+          task_mode?: string;
+          task_per_qty?: boolean;
+          task_recurring_freq?: string | null;
+          task_stretch_weeks?: boolean;
         };
         Update: Partial<
           Database['public']['Tables']['membership_modules']['Insert']

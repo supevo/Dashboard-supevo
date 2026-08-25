@@ -23,6 +23,12 @@ interface JoinedRow {
   addon_module_key: string | null;
   addon_required: boolean;
   position: number;
+  plan_include: boolean | null;
+  plan_phase: number | null;
+  task_mode: string | null;
+  task_per_qty: boolean | null;
+  task_recurring_freq: string | null;
+  task_stretch_weeks: boolean | null;
   membership_module_categories: { name: string; position: number } | null;
 }
 
@@ -50,12 +56,18 @@ function mapRows(rows: JoinedRow[] | null): ModuleDef[] {
       addon_module_key: r.addon_module_key,
       addon_required: r.addon_required,
       position: r.position,
+      plan_include: r.plan_include,
+      plan_phase: r.plan_phase,
+      task_mode: r.task_mode,
+      task_per_qty: r.task_per_qty,
+      task_recurring_freq: r.task_recurring_freq,
+      task_stretch_weeks: r.task_stretch_weeks,
     }),
   );
 }
 
 const SELECT =
-  'key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, membership_module_categories(name, position)';
+  'key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks, membership_module_categories(name, position)';
 
 /**
  * Active module catalog of an org (for the configurator). Uses the service
@@ -100,6 +112,12 @@ export interface AdminModule {
   icon: string | null;
   position: number;
   active: boolean;
+  planInclude: boolean;
+  planPhase: number | null;
+  taskMode: 'none' | 'queue' | 'recurring';
+  taskPerQty: boolean;
+  taskRecurringFreq: 'weekly' | 'monthly' | null;
+  taskStretchWeeks: boolean;
 }
 export interface AdminCatalog {
   categories: AdminCategory[];
@@ -118,7 +136,7 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
     supabase
       .from('membership_modules')
       .select(
-        'id, category_id, key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, active',
+        'id, category_id, key, label, description, features, icon, pricing_kind, net_cents, unit_label, default_qty, min_qty, max_qty, stage, capture_budget, budget_via_options, keyword_cents, keyword_default, addon_module_key, addon_required, position, active, plan_include, plan_phase, task_mode, task_per_qty, task_recurring_freq, task_stretch_weeks',
       )
       .eq('organization_id', orgId)
       .order('position', { ascending: true }),
@@ -152,6 +170,20 @@ export async function getAdminCatalog(orgId: string): Promise<AdminCatalog> {
       icon: m.icon,
       position: m.position,
       active: m.active,
+      planInclude: m.plan_include ?? false,
+      planPhase: m.plan_phase ?? null,
+      taskMode:
+        m.task_mode === 'queue' || m.task_mode === 'recurring'
+          ? m.task_mode
+          : 'none',
+      taskPerQty: m.task_per_qty ?? false,
+      taskRecurringFreq:
+        m.task_recurring_freq === 'monthly'
+          ? 'monthly'
+          : m.task_recurring_freq === 'weekly'
+            ? 'weekly'
+            : null,
+      taskStretchWeeks: m.task_stretch_weeks ?? false,
     })),
   };
 }

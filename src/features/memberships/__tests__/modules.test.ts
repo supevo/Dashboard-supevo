@@ -30,6 +30,14 @@ const web: ModuleDef = {
   keywordDefault: 0,
   addonModuleKey: null,
   addonRequired: false,
+  delivery: {
+    planInclude: false,
+    planPhase: null,
+    taskMode: 'none',
+    taskPerQty: false,
+    taskRecurringFreq: null,
+    taskStretchWeeks: false,
+  },
 };
 const seo: ModuleDef = {
   key: 'seo',
@@ -54,6 +62,14 @@ const seo: ModuleDef = {
   keywordDefault: 0,
   addonModuleKey: null,
   addonRequired: false,
+  delivery: {
+    planInclude: false,
+    planPhase: null,
+    taskMode: 'none',
+    taskPerQty: false,
+    taskRecurringFreq: null,
+    taskStretchWeeks: false,
+  },
 };
 const stage1: ModuleDef = {
   key: 'supevo_stage1',
@@ -71,6 +87,14 @@ const stage1: ModuleDef = {
   keywordDefault: 0,
   addonModuleKey: null,
   addonRequired: false,
+  delivery: {
+    planInclude: false,
+    planPhase: null,
+    taskMode: 'none',
+    taskPerQty: false,
+    taskRecurringFreq: null,
+    taskStretchWeeks: false,
+  },
 };
 const ads: ModuleDef = {
   key: 'google_ads',
@@ -88,6 +112,14 @@ const ads: ModuleDef = {
   keywordDefault: 0,
   addonModuleKey: null,
   addonRequired: false,
+  delivery: {
+    planInclude: false,
+    planPhase: null,
+    taskMode: 'none',
+    taskPerQty: false,
+    taskRecurringFreq: null,
+    taskStretchWeeks: false,
+  },
 };
 
 describe('moduleMonthlyCents', () => {

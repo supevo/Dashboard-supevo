@@ -375,6 +375,54 @@ function ModuleForm({
         </label>
       </div>
 
+      {/* Umsetzung: „Aus Angebot erzeugen" (Marketingplan & Aufgaben) */}
+      <div className="sm:col-span-2 mt-1 space-y-3 rounded-lg border border-dashed p-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {'Umsetzung – „Aus Angebot erzeugen"'}
+        </p>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="planInclude" defaultChecked={m?.planInclude ?? false} />
+          In den Marketingplan aufnehmen (als Maßnahme)
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Marketingplan-Phase (1–n, leer = Standard)">
+            <input
+              name="planPhase"
+              type="number"
+              min={1}
+              defaultValue={m?.planPhase ?? ''}
+              className={inputCls}
+              placeholder="z. B. 1"
+            />
+          </Field>
+          <Field label="Aufgabe erzeugen">
+            <select name="taskMode" defaultValue={m?.taskMode ?? 'none'} className={inputCls}>
+              <option value="none">keine Aufgabe</option>
+              <option value="queue">einmalig in die Warteschlange</option>
+              <option value="recurring">wiederkehrende (Dauer-)Aufgabe</option>
+            </select>
+          </Field>
+          <Field label="Takt (nur wiederkehrend)">
+            <select
+              name="taskRecurringFreq"
+              defaultValue={m?.taskRecurringFreq ?? 'monthly'}
+              className={inputCls}
+            >
+              <option value="weekly">wöchentlich</option>
+              <option value="monthly">monatlich</option>
+            </select>
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="taskPerQty" defaultChecked={m?.taskPerQty ?? false} />
+          Nach Menge vervielfachen (z. B. 2 Landingpages = 2 Aufgaben)
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="taskStretchWeeks" defaultChecked={m?.taskStretchWeeks ?? false} />
+          Warteschlangen-Aufgaben über die Wochen staffeln (Fälligkeiten)
+        </label>
+      </div>
+
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" name="captureBudget" defaultChecked={m?.captureBudget ?? false} />
         Werbebudget erfassen (fließt nicht in den Preis)

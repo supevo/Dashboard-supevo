@@ -163,6 +163,25 @@ export async function upsertModuleAction(
     icon: String(formData.get('icon') ?? '').trim() || null,
     position: intOf(formData.get('position'), 0),
     active: formData.get('active') === 'on',
+    // Umsetzungs-Verhalten (für „Aus Angebot erzeugen").
+    plan_include: formData.get('planInclude') === 'on',
+    plan_phase: (() => {
+      const v = intOf(formData.get('planPhase'), 0);
+      return v >= 1 ? v : null;
+    })(),
+    task_mode: (['none', 'queue', 'recurring'] as const).includes(
+      formData.get('taskMode') as 'none' | 'queue' | 'recurring',
+    )
+      ? (formData.get('taskMode') as 'none' | 'queue' | 'recurring')
+      : 'none',
+    task_per_qty: formData.get('taskPerQty') === 'on',
+    task_recurring_freq:
+      formData.get('taskRecurringFreq') === 'monthly'
+        ? 'monthly'
+        : formData.get('taskRecurringFreq') === 'weekly'
+          ? 'weekly'
+          : null,
+    task_stretch_weeks: formData.get('taskStretchWeeks') === 'on',
   };
 
   const supabase = await createSupabaseServerClient();
