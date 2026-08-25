@@ -14,6 +14,7 @@ import {
   hasClientAccess,
 } from '@/features/auth/session';
 import { primaryAgencyOrgId } from '@/features/auth/access';
+import { countUnresolvedQuarantine } from '@/features/inquiries/quarantine-queries';
 import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
@@ -41,7 +42,11 @@ const heading = (label: string): NavItem => ({ href: '', label, heading: true })
  * "Team & Motivation" and "Ressourcen" groups grow with role so every heading
  * always has at least one entry (no empty sections for plain staff).
  */
-function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
+function buildNavItems(
+  admin: boolean,
+  superAdmin: boolean,
+  quarantineCount: number,
+): NavItem[] {
   return [
     heading('Arbeit'),
     { href: '/app', label: de.nav.dashboard, icon: <LayoutDashboard /> },
@@ -73,7 +78,16 @@ function buildNavItems(admin: boolean, superAdmin: boolean): NavItem[] {
       ? [
           { href: '/app/finance', label: 'Finanzen', icon: <Wallet /> },
           { href: '/app/integrations', label: 'Integrationen', icon: <Plug /> },
-          { href: '/app/inbound-quarantine', label: 'Quarantäne', icon: <ShieldAlert /> },
+          // Quarantäne nur zeigen, wenn wirklich etwas drin ist.
+          ...(quarantineCount > 0
+            ? [
+                {
+                  href: '/app/inbound-quarantine',
+                  label: `Quarantäne (${quarantineCount})`,
+                  icon: <ShieldAlert />,
+                },
+              ]
+            : []),
         ]
       : []),
   ];
@@ -120,7 +134,9 @@ export default async function AgencyLayout({
   const gamification = await getMyGamification(user.id, orgId ?? undefined);
 
   const admin = Boolean(orgId && isOrgAdmin(user, orgId));
-  const navItems = buildNavItems(admin, isSuperAdmin(user));
+  const superAdmin = isSuperAdmin(user);
+  const quarantineCount = superAdmin ? await countUnresolvedQuarantine() : 0;
+  const navItems = buildNavItems(admin, superAdmin, quarantineCount);
   const menuItems = admin ? [...MENU_ITEMS, ...ADMIN_MENU_ITEMS] : MENU_ITEMS;
   const coins = orgId ? await getCoinBalance(user.id, orgId) : undefined;
   const branding = orgId ? await getOrgBranding(orgId) : null;

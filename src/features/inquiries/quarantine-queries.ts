@@ -5,6 +5,16 @@ import type { QuarantineItem } from '@/features/inquiries/quarantine-types';
 export type { QuarantineItem } from '@/features/inquiries/quarantine-types';
 export { quarantineReasonLabel } from '@/features/inquiries/quarantine-types';
 
+/** Anzahl offener Quarantäne-Mails (für den bedingten Menüpunkt). */
+export async function countUnresolvedQuarantine(): Promise<number> {
+  const service = createSupabaseServiceClient();
+  const { count } = await service
+    .from('inbound_quarantine')
+    .select('id', { count: 'exact', head: true })
+    .eq('resolved', false);
+  return count ?? 0;
+}
+
 /**
  * Offene Quarantäne-Mails (nicht eindeutig zuordenbar). Service-Client; der
  * Aufrufer muss Super-Admin sein (siehe Page-Guard).
