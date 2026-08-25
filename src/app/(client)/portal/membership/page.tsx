@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getPortalMembership } from '@/features/billing/portal';
@@ -110,7 +111,27 @@ export default async function PortalMembershipPage() {
         <CardHeader>
           <CardTitle>📄 Verträge &amp; Mandate</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {(docs.pendingSepa || docs.pendingContract) && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900/60 dark:bg-amber-950/30">
+              <p className="font-medium text-amber-800 dark:text-amber-300">
+                ✍️ Es liegt etwas zur Unterschrift bereit
+              </p>
+              <p className="mt-0.5 text-amber-700 dark:text-amber-200/80">
+                {docs.pendingContract && docs.pendingSepa
+                  ? 'Ihr Dienstleistungsvertrag und das SEPA-Mandat warten auf Ihre Bestätigung.'
+                  : docs.pendingSepa
+                    ? 'Ihr SEPA-Lastschriftmandat wartet auf Ihre Bestätigung.'
+                    : 'Ihr Dienstleistungsvertrag wartet auf Ihre Unterschrift.'}
+              </p>
+              <Link
+                href="/portal"
+                className="mt-2 inline-block rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+              >
+                Jetzt erledigen →
+              </Link>
+            </div>
+          )}
           <DocList items={docs.contracts} empty="Noch keine Verträge hinterlegt." />
         </CardContent>
       </Card>

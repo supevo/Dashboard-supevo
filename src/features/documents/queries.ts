@@ -14,6 +14,10 @@ export interface ClientDocuments {
   contracts: DocLink[]; // signed contract + SEPA mandate
   invoices: DocLink[];
   assets: DocLink[]; // brand assets / uploaded files
+  /** Ein Dienstleistungsvertrag wurde bereitgestellt, aber noch nicht unterschrieben. */
+  pendingContract: boolean;
+  /** Ein SEPA-Mandat wurde freigegeben, aber noch nicht erteilt. */
+  pendingSepa: boolean;
 }
 
 const INVOICE_STATUS: Record<string, string> = {
@@ -32,7 +36,13 @@ export async function getClientDocuments(): Promise<ClientDocuments> {
   const supabase = await createSupabaseServerClient();
   const company = await getMyClientCompany();
 
-  const empty: ClientDocuments = { contracts: [], invoices: [], assets: [] };
+  const empty: ClientDocuments = {
+    contracts: [],
+    invoices: [],
+    assets: [],
+    pendingContract: false,
+    pendingSepa: false,
+  };
   if (!company) return empty;
 
   const cid = company.clientCompanyId;
@@ -40,7 +50,9 @@ export async function getClientDocuments(): Promise<ClientDocuments> {
   const [{ data: ob }, invoices, { data: assets }] = await Promise.all([
     supabase
       .from('client_onboarding')
-      .select('contract_pdf_path, sepa_pdf_path')
+      .select(
+        'contract_pdf_path, sepa_pdf_path, requires_contract, contract_template_path, requires_sepa, sepa_released',
+      )
       .eq('client_company_id', cid)
       .maybeSingle(),
     listPortalInvoices(),
@@ -84,5 +96,18 @@ export async function getClientDocuments(): Promise<ClientDocuments> {
     url: `/api/assets/${a.id}/download`,
   }));
 
-  return { contracts, invoices: invoiceLinks, assets: assetLinks };
+  const pendingContract = Boolean(
+    ob?.requires_contract && ob?.contract_template_path && !ob?.contract_pdf_path,
+  );
+  const pendingSepa = Boolean(
+    ob?.requires_sepa && ob?.sepa_released && !ob?.sepa_pdf_path,
+  );
+
+  return {
+    contracts,
+    invoices: invoiceLinks,
+    assets: assetLinks,
+    pendingContract,
+    pendingSepa,
+  };
 }

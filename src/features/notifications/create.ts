@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { isEmailEnabled, sendEmail } from '@/lib/email/send';
 import { renderEmail } from '@/lib/email/templates';
 import { sendPushToUser } from '@/lib/push/send';
+import { notificationHref } from '@/features/notifications/deep-link';
+import { isExternalRole } from '@/lib/authz/roles';
 import { env } from '@/lib/env';
 import type { NotificationType } from '@/lib/database.types';
 
@@ -81,6 +83,7 @@ async function sendNotificationEmails(
 
   const service = createSupabaseServiceClient();
   const recipients = entries.filter((e) => e.recipientId !== excludeUserId);
+  const appUrl = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
 
   for (const entry of recipients) {
     const { data, error } = await service.auth.admin.getUserById(
@@ -89,11 +92,24 @@ async function sendNotificationEmails(
     const email = data?.user?.email;
     if (error || !email) continue;
 
+    // Bereich des Empfängers bestimmen (Agentur vs. Kunde) → passende Deep-URL.
+    const { data: mem } = await service
+      .from('memberships')
+      .select('role')
+      .eq('user_id', entry.recipientId)
+      .eq('organization_id', entry.organizationId)
+      .maybeSingle();
+    const area: 'app' | 'portal' = isExternalRole(mem?.role as never)
+      ? 'portal'
+      : 'app';
+    const path = notificationHref(area, entry.entityType, entry.entityId);
+    const ctaUrl = path ? `${appUrl}${path}` : env.NEXT_PUBLIC_APP_URL;
+
     const { html, text } = renderEmail({
       heading: entry.title,
       intro: entry.body ?? 'Es gibt eine neue Aktivität in Ihrem Dashboard.',
-      ctaLabel: 'Im Dashboard öffnen',
-      ctaUrl: env.NEXT_PUBLIC_APP_URL,
+      ctaLabel: path ? 'Direkt öffnen' : 'Im Dashboard öffnen',
+      ctaUrl,
       footer:
         'Sie erhalten diese E-Mail, weil Sie eine Benachrichtigung im Supevo Dashboard haben.',
     });
