@@ -1,5 +1,7 @@
 import 'server-only';
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { formatEuroCents } from '@/lib/money';
+import type { ContractData } from '@/features/contracts/queries';
 
 function decodePngDataUrl(dataUrl: string): Uint8Array {
   const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1]! : dataUrl;
@@ -321,6 +323,200 @@ export async function renderMembershipContractPdf(
   y -= 12;
   page.drawText('Auftraggeber', { x: left, y, size: 9, font, color: rgb(0.4, 0.4, 0.45) });
   page.drawText('Auftragnehmer', { x: left + colW + 30, y, size: 9, font, color: rgb(0.4, 0.4, 0.45) });
+
+  return doc.save();
+}
+
+/**
+ * Rendert den Dienstleistungsvertrag aus denselben ContractData wie die
+ * Abrechnungs-/Lead-Ansicht (buildContractFromClient): Vertragspartner,
+ * itemisierte Modul-Positionen inkl. Gutschein-Rabatt, der editierbare
+ * Konditionstext und Unterschriftsfelder. So ist das signierte Onboarding-PDF
+ * inhaltlich identisch mit dem, was in der Abrechnung angezeigt wird.
+ */
+export async function renderOfferContractPdf(data: ContractData): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const PAGE_W = 595.28;
+  const PAGE_H = 841.89;
+  const left = 50;
+  const right = 50;
+  const maxW = PAGE_W - left - right;
+  const bottom = 60;
+  const gray = rgb(0.42, 0.42, 0.47);
+  const ink = rgb(0.12, 0.12, 0.14);
+
+  let page = doc.addPage([PAGE_W, PAGE_H]);
+  let y = PAGE_H - 55;
+
+  const ensure = (need: number) => {
+    if (y - need < bottom) {
+      page = doc.addPage([PAGE_W, PAGE_H]);
+      y = PAGE_H - 55;
+    }
+  };
+  const wrap = (t: string, f: PDFFont, size: number, width = maxW): string[] => {
+    const out: string[] = [];
+    for (const raw of t.split('\n')) {
+      const words = raw.split(/\s+/);
+      let line = '';
+      for (const w of words) {
+        const test = line ? `${line} ${w}` : w;
+        if (f.widthOfTextAtSize(test, size) > width && line) {
+          out.push(line);
+          line = w;
+        } else line = test;
+      }
+      out.push(line);
+    }
+    return out;
+  };
+  const text = (
+    s: string,
+    { size = 10, f = font, gap = 3, color = ink, indent = 0 } = {},
+  ) => {
+    for (const line of wrap(s, f, size, maxW - indent)) {
+      ensure(size + gap);
+      page.drawText(line, { x: left + indent, y, size, font: f, color });
+      y -= size + gap;
+    }
+  };
+  const label = (s: string) => {
+    y -= 8;
+    ensure(14);
+    page.drawText(s.toUpperCase(), { x: left, y, size: 8.5, font: bold, color: gray });
+    y -= 14;
+  };
+  const amountRight = (s: string, size: number, f: PDFFont, color = ink) => {
+    const w = f.widthOfTextAtSize(s, size);
+    page.drawText(s, { x: PAGE_W - right - w, y, size, font: f, color });
+  };
+
+  // --- Kopf ---
+  if (data.logoDark) {
+    try {
+      const png = await doc.embedPng(decodePngDataUrl(data.logoDark));
+      const h = 26;
+      const w = (png.width / png.height) * h;
+      page.drawImage(png, { x: left, y: y - h + 8, width: w, height: h });
+      y -= h + 6;
+    } catch {
+      // Logo optional – bei Problemen weglassen.
+    }
+  }
+  page.drawText('Dienstleistungsvertrag', { x: left, y, size: 20, font: bold });
+  y -= 22;
+  page.drawText(`Datum: ${data.date}${data.reference ? ` · ${data.reference}` : ''}`, {
+    x: left,
+    y,
+    size: 9,
+    font,
+    color: gray,
+  });
+  y -= 16;
+
+  // --- Vertragspartner ---
+  label('Auftragnehmer');
+  text(data.provider.name, { f: bold, size: 10.5 });
+  for (const l of data.provider.addressLines) text(l, { size: 9.5, gap: 2 });
+  if (data.provider.vatId) text(`USt-IdNr.: ${data.provider.vatId}`, { size: 9.5, gap: 2 });
+  else if (data.provider.taxNumber) text(`Steuernr.: ${data.provider.taxNumber}`, { size: 9.5, gap: 2 });
+  if (data.provider.email) text(data.provider.email, { size: 9.5, gap: 2 });
+  if (data.provider.phone) text(data.provider.phone, { size: 9.5, gap: 2 });
+
+  label('Auftraggeber');
+  text(data.customer.name, { f: bold, size: 10.5 });
+  if (data.customer.contactName) text(`z. Hd. ${data.customer.contactName}`, { size: 9.5, gap: 2 });
+  if (data.customer.addressLines.length > 0) {
+    for (const l of data.customer.addressLines) text(l, { size: 9.5, gap: 2 });
+  } else {
+    text('Anschrift: ______________________________', { size: 9.5, gap: 2, color: gray });
+  }
+  if (data.customer.vatId) text(`USt-IdNr.: ${data.customer.vatId}`, { size: 9.5, gap: 2 });
+  if (data.customer.email) text(data.customer.email, { size: 9.5, gap: 2 });
+
+  // --- Positionen ---
+  label('Leistungen / Positionsübersicht');
+  ensure(16);
+  page.drawText('Leistung', { x: left, y, size: 8.5, font, color: gray });
+  amountRight('monatlich (netto)', 8.5, font, gray);
+  y -= 6;
+  page.drawLine({ start: { x: left, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.83) });
+  y -= 12;
+
+  if (data.lines.length === 0) {
+    text('Keine Module ausgewählt.', { size: 9.5, color: gray });
+  }
+  for (const line of data.lines) {
+    ensure(16);
+    page.drawText(line.label, { x: left, y, size: 10, font: bold });
+    amountRight(formatEuroCents(line.monthlyCents), 10, font);
+    y -= 12;
+    if (line.detail) {
+      for (const dl of wrap(line.detail, font, 8.5, maxW - 10)) {
+        ensure(11);
+        page.drawText(dl, { x: left + 10, y, size: 8.5, font, color: gray });
+        y -= 11;
+      }
+    }
+    y -= 3;
+  }
+
+  y -= 2;
+  page.drawLine({ start: { x: left, y: y + 4 }, end: { x: left + maxW, y: y + 4 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.83) });
+  y -= 6;
+  if (data.discountCents > 0) {
+    ensure(14);
+    page.drawText('Gutschein', { x: left, y, size: 9.5, font, color: gray });
+    amountRight(`−${formatEuroCents(data.discountCents)}`, 9.5, font, gray);
+    y -= 14;
+  }
+  ensure(16);
+  page.drawText('Monatlich netto', { x: left, y, size: 11, font: bold });
+  amountRight(formatEuroCents(data.monthlyNetCents), 11, bold);
+  y -= 16;
+
+  const vatNote = data.smallBusiness
+    ? 'Kleinunternehmer gemäß § 19 UStG – es wird keine Umsatzsteuer ausgewiesen.'
+    : `Alle Beträge netto zzgl. gesetzlicher Umsatzsteuer (${data.taxRatePct} %).`;
+  text(vatNote, { size: 8.5, color: gray, gap: 2 });
+  if (data.budgetCents > 0) {
+    text(
+      `Zzgl. Werbebudget ${formatEuroCents(data.budgetCents)}/Monat – wird separat abgerechnet und ist nicht Teil der Agenturvergütung.`,
+      { size: 8.5, color: gray, gap: 2 },
+    );
+  }
+
+  // --- Vertragsbedingungen (editierbarer Konditionstext) ---
+  label('Vertragsbedingungen');
+  text(data.terms, { size: 8.5, gap: 2.5 });
+
+  // --- Unterschriften ---
+  y -= 20;
+  ensure(60);
+  const colW = (maxW - 30) / 2;
+  page.drawLine({ start: { x: left, y }, end: { x: left + colW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  page.drawLine({ start: { x: left + colW + 30, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  y -= 11;
+  page.drawText('Ort, Datum – Auftraggeber', { x: left, y, size: 8.5, font, color: gray });
+  page.drawText('Ort, Datum – Auftragnehmer', { x: left + colW + 30, y, size: 8.5, font, color: gray });
+  y -= 34;
+  ensure(20);
+  page.drawLine({ start: { x: left, y }, end: { x: left + colW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  page.drawLine({ start: { x: left + colW + 30, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  y -= 11;
+  page.drawText('Unterschrift Auftraggeber', { x: left, y, size: 8.5, font, color: gray });
+  page.drawText('Unterschrift Auftragnehmer', { x: left + colW + 30, y, size: 8.5, font, color: gray });
+
+  if (data.provider.iban) {
+    y -= 20;
+    ensure(14);
+    text(
+      `Bankverbindung: ${data.provider.bankName ? `${data.provider.bankName}, ` : ''}IBAN ${data.provider.iban}${data.provider.bic ? ` · BIC ${data.provider.bic}` : ''}`,
+      { size: 8, color: gray },
+    );
+  }
 
   return doc.save();
 }

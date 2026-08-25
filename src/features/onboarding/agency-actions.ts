@@ -256,100 +256,24 @@ export async function generateContractFromMembershipAction(
 
   const service = createSupabaseServiceClient();
 
-  const [{ data: company }, { data: membership }] = await Promise.all([
-    service.from('client_companies').select('name, billing_entity_id').eq('id', clientCompanyId).maybeSingle(),
-    service.from('client_memberships').select('*').eq('client_company_id', clientCompanyId).maybeSingle(),
-  ]);
+  const { data: membership } = await service
+    .from('client_memberships')
+    .select('id')
+    .eq('client_company_id', clientCompanyId)
+    .maybeSingle();
   if (!membership) {
     return errorResult('Bitte zuerst eine Mitgliedschaft einstellen (Preis, Stage, Startdatum).');
   }
 
-  // Billing entity: the client's assigned one, else the org default.
-  let entity: Record<string, unknown> | null = null;
-  if (company?.billing_entity_id) {
-    const { data } = await service.from('billing_entities').select('*').eq('id', company.billing_entity_id).maybeSingle();
-    entity = data ?? null;
-  }
-  if (!entity) {
-    const { data } = await service
-      .from('billing_entities')
-      .select('*')
-      .eq('organization_id', orgId)
-      .order('is_default', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    entity = data ?? null;
-  }
+  // Der Onboarding-Vertrag wird aus DENSELBEN Daten wie die Abrechnungs-/Lead-
+  // Ansicht erzeugt (itemisierte Module, Gutschein-Rabatt, editierbarer
+  // Konditionstext) – so ist das signierte PDF inhaltlich identisch.
+  const { buildContractFromClient } = await import('@/features/contracts/queries');
+  const data = await buildContractFromClient(clientCompanyId);
+  if (!data) return errorResult('Vertragsdaten konnten nicht geladen werden.');
 
-  const { netMonthlyAfterPromos, membershipLabel } = await import('@/features/billing/membership');
-  const { formatEuroCents } = await import('@/lib/money');
-
-  const settings = entity as {
-    company_name?: string | null; name?: string | null;
-    address_line1?: string | null; address_line2?: string | null;
-    postal_code?: string | null; city?: string | null; country?: string | null;
-    phone?: string | null; contact_email?: string | null; vat_id?: string | null;
-    stage1_name?: string; stage1_net_cents?: number; stage2_name?: string; stage2_net_cents?: number;
-  } | null;
-
-  const agencyName = settings?.company_name || settings?.name || 'Agentur';
-  const agencyAddress = [
-    settings?.address_line1,
-    settings?.address_line2,
-    [settings?.postal_code, settings?.city].filter(Boolean).join(' '),
-    settings?.country,
-  ].filter((l): l is string => Boolean(l && l.trim()));
-
-  const clientAddress = [
-    membership.billing_address_line1,
-    membership.billing_address_line2,
-    [membership.billing_postal_code, membership.billing_city].filter(Boolean).join(' '),
-    membership.billing_country,
-  ].filter((l): l is string => Boolean(l && l.trim()));
-
-  const netCents = await netMonthlyAfterPromos(
-    {
-      organization_id: orgId,
-      stage: membership.stage,
-      custom_net_cents: membership.custom_net_cents,
-      redeemed_promotions: membership.redeemed_promotions,
-    },
-    settings
-      ? {
-          stage1_net_cents: settings.stage1_net_cents ?? 0,
-          stage2_net_cents: settings.stage2_net_cents ?? 0,
-        }
-      : null,
-  );
-  const planLabel = membershipLabel(
-    { stage: membership.stage, custom_name: membership.custom_name },
-    settings
-      ? { stage1_name: settings.stage1_name ?? 'Stage 1', stage2_name: settings.stage2_name ?? 'Stage 2' }
-      : null,
-  );
-  const intervalLabel =
-    membership.interval_months === 12
-      ? 'jährlich'
-      : membership.interval_months === 3
-        ? 'quartalsweise'
-        : 'monatlich';
-
-  const { renderMembershipContractPdf } = await import('@/features/onboarding/pdf');
-  const pdf = await renderMembershipContractPdf({
-    agency: {
-      name: agencyName,
-      addressLines: agencyAddress,
-      phone: settings?.phone ?? null,
-      email: settings?.contact_email ?? null,
-      vatId: settings?.vat_id ?? null,
-    },
-    client: { name: company?.name ?? 'Kunde', addressLines: clientAddress },
-    startDate: membership.start_date,
-    monthlyNet: formatEuroCents(netCents),
-    billingInterval: intervalLabel,
-    planLabel,
-    city: settings?.city ?? '',
-  });
+  const { renderOfferContractPdf } = await import('@/features/onboarding/pdf');
+  const pdf = await renderOfferContractPdf(data);
 
   const { randomUUID } = await import('node:crypto');
   const { FILES_BUCKET } = await import('@/lib/files/storage');
