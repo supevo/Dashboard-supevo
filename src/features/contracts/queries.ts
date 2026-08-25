@@ -277,23 +277,22 @@ export async function buildContractFromClient(
     membership.custom_name && membership.custom_name !== 'Individuell'
       ? membership.custom_name
       : built.lines[0]?.label || 'supevo Mitgliedschaft';
-  // Module möglichst einzeln auflisten (wie im Lead-Angebot). Nur wenn ein
-  // manueller Custom-Preis gesetzt ist, der NICHT der Modulsumme entspricht,
-  // gibt es stattdessen eine einzelne Preiszeile (der Betrag ist dann nicht
-  // itemisierbar).
-  const itemize =
-    built.lines.length > 0 &&
-    (customNetCents == null || customNetCents === grossFromModules);
+  // Module immer einzeln auflisten (wie im Lead-Angebot), sobald welche gewählt
+  // sind. Nur ganz ohne Modulzeilen (reiner manueller Preis) gibt es eine
+  // einzelne Preiszeile.
+  const itemize = built.lines.length > 0;
   const lines: ContractLine[] = itemize
     ? built.lines
     : [
         {
           label: customLabel,
-          detail: built.lines[0]?.detail ?? null,
+          detail: null,
           monthlyCents: customNetCents ?? grossFromModules,
         },
       ];
-  const gross = itemize ? grossFromModules : customNetCents ?? grossFromModules;
+  // Der abgerechnete Betrag gewinnt (Custom-Preis überschreibt die Modulsumme);
+  // die Modulzeilen bleiben zur Transparenz erhalten.
+  const gross = customNetCents ?? grossFromModules;
 
   // Eingelöste Gutscheine mindern den Vertragspreis (wie im Lead-Angebot und in
   // der laufenden Abrechnung). Bewusst ohne active-Filter – einmal eingelöst,

@@ -180,11 +180,15 @@ async function ensureOnboardingContract(
  * Preis inkl. Gutschein, Anschrift) und hinterlegt ihn – nach jeder Übernahme
  * eines Lead-Angebots, damit der Vertrag immer zum Baukasten passt. Best-effort.
  */
-async function regenerateOnboardingContract(clientCompanyId: string): Promise<void> {
+async function regenerateOnboardingContract(
+  clientCompanyId: string,
+): Promise<{ ok: boolean; error?: string }> {
   try {
-    await generateContractFromMembershipAction(clientCompanyId);
-  } catch {
-    // Vertrag lässt sich jederzeit manuell auf der Kundenseite neu generieren.
+    const res = await generateContractFromMembershipAction(clientCompanyId);
+    if (res.status === 'success') return { ok: true };
+    return { ok: false, error: 'message' in res ? res.message : 'unbekannt' };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
   }
 }
 
@@ -865,7 +869,7 @@ export async function syncOfferFromLeadAction(
 
   // Onboarding-Vertrag neu erzeugen, damit er Module, Preis (inkl. Gutschein)
   // und Anschrift widerspiegelt.
-  await regenerateOnboardingContract(clientCompanyId);
+  const contract = await regenerateOnboardingContract(clientCompanyId);
 
   const moduleCount = selections.filter((sel) => sel.enabled).length;
   const hasAddress = Boolean(
@@ -880,7 +884,11 @@ export async function syncOfferFromLeadAction(
     }. ${
       hasAddress
         ? 'Anschrift übernommen.'
-        : 'Hinweis: Am Lead ist keine Anschrift hinterlegt – bitte im Lead unter „Bearbeiten → Anschrift" eintragen.'
+        : 'Hinweis: Am Lead ist keine Anschrift hinterlegt (Lead → Bearbeiten → Anschrift).'
+    } ${
+      contract.ok
+        ? 'Onboarding-Vertrag hinterlegt.'
+        : `Onboarding-Vertrag konnte NICHT erzeugt werden: ${contract.error}`
     }`,
   );
 }
