@@ -244,6 +244,7 @@ export function MembershipConfigurator({
               selections,
               customNetCents,
               applyImmediately: applyNow,
+              redeemedPromotions: [...redeemed],
             });
     setBusy(false);
     setMsg({ ok: res.status === 'success', text: 'message' in res ? res.message ?? '' : '' });
@@ -306,8 +307,9 @@ export function MembershipConfigurator({
 
   return (
     <div className="space-y-6">
-      {/* Aktuelle Aktionen (Promotions/Gutscheine) – nur im Lead-Angebot. */}
-      {mode === 'lead' && promotions.length > 0 && (
+      {/* Aktuelle Aktionen (Promotions/Gutscheine) – im Lead-Angebot und im
+          Agentur-Baukasten einlösbar. */}
+      {(mode === 'lead' || mode === 'agency') && promotions.length > 0 && (
         <div className="space-y-2">
           {promotions.map((p) => {
             const isRedeemed = redeemed.has(p.id);

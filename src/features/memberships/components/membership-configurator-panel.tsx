@@ -43,6 +43,8 @@ export async function MembershipConfiguratorPanel({
         show={show}
         taxRatePct={view.taxRatePct}
         initialCustomNetCents={view.active.customNetCents}
+        promotions={view.promotions}
+        initialRedeemed={view.redeemedPromotions}
       />
       <div className="border-t pt-4">
         {isLegacy ? (

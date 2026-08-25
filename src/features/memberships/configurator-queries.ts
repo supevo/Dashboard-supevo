@@ -5,6 +5,7 @@ import type { Database } from '@/lib/database.types';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import { getActivePromotions, type Promotion } from '@/features/promotions/queries';
 import {
   normalizeSelections,
   totalMonthlyCents,
@@ -44,6 +45,16 @@ export interface ConfiguratorView {
   modules: ModuleDef[];
   /** Regulärer MwSt-Satz der Org (für Brutto↔Netto im Custom-Preis-Feld). */
   taxRatePct: number;
+  /** Aktive Aktionen/Gutscheine der Org (für den Baukasten). */
+  promotions: Promotion[];
+  /** Bereits eingelöste Aktionen (Promotion-IDs) dieser Mitgliedschaft. */
+  redeemedPromotions: string[];
+}
+
+/** Liest die eingelösten Promotion-IDs robust aus einer Mitgliedschaft. */
+function readRedeemed(m: { redeemed_promotions?: unknown } | null): string[] {
+  const raw = m?.redeemed_promotions;
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
 }
 
 function parsePending(m: Membership): (PendingChange & { effectiveDate: string }) | null {
@@ -131,6 +142,9 @@ export async function getMembershipConfigurator(
       ? await priceContextFor(supabase, client.organization_id)
       : { ctx: { stage1NetCents: 0, stage2NetCents: 0 }, taxRatePct: 19 };
     const modules = client ? await getModuleCatalog(client.organization_id) : [];
+    const promotions = client
+      ? await getActivePromotions(client.organization_id)
+      : [];
     return {
       hasMembership: false,
       clientCompanyId,
@@ -140,6 +154,8 @@ export async function getMembershipConfigurator(
       clientCanEdit: false,
       modules,
       taxRatePct: pc.taxRatePct,
+      promotions,
+      redeemedPromotions: [],
     };
   }
 
@@ -148,6 +164,7 @@ export async function getMembershipConfigurator(
   const priceContext = pc.ctx;
   const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
+  const promotions = await getActivePromotions(membership.organization_id);
 
   return {
     hasMembership: true,
@@ -166,6 +183,8 @@ export async function getMembershipConfigurator(
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
     taxRatePct: pc.taxRatePct,
+    promotions,
+    redeemedPromotions: readRedeemed(membership),
   };
 }
 // (Promotions/Gutscheine werden bewusst nur im Lead-Angebot angezeigt.)
@@ -233,6 +252,10 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
     taxRatePct: 19,
+    // Gutscheine werden bewusst nur im Lead-Angebot und im Agentur-Baukasten
+    // eingelöst; im Portal nur angezeigt (OfferCarryoverCard).
+    promotions: [],
+    redeemedPromotions: readRedeemed(membership),
     isLegacy: company?.is_legacy ?? false,
     companyName: company?.name ?? null,
   };

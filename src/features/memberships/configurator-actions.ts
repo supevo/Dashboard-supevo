@@ -41,6 +41,8 @@ const saveSchema = z.object({
   customNetCents: z.number().int().min(0).max(100_000_00).nullish(),
   // Änderung sofort aktiv schalten statt zum Folgemonat zu planen (Agentur-Haken).
   applyImmediately: z.boolean().optional(),
+  // Eingelöste Gutscheine/Aktionen (Promotion-IDs) – wie im Lead-Angebot.
+  redeemedPromotions: z.array(z.string().min(1).max(64)).max(50).optional(),
 });
 
 async function priceContext(
@@ -71,6 +73,9 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
     parsed.data;
   const selections = normalizeSelections(parsed.data.selections);
   const hasCustom = typeof customNetCents === 'number';
+  // Eingelöste Gutscheine (dedupliziert) – werden immer sofort auf der
+  // Mitgliedschaft gespeichert (Carryover-Marker, keine Folgemonats-Planung).
+  const redeemedPromotions = [...new Set(parsed.data.redeemedPromotions ?? [])];
 
   const supabase = await createSupabaseServerClient();
   const { data: client } = await supabase
@@ -123,6 +128,7 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
           ? name?.trim() || null
           : label,
       stage,
+      redeemed_promotions: redeemedPromotions,
       pending_modules: null,
       pending_effective_date: null,
     };
@@ -179,6 +185,8 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
         stage,
       } as unknown,
       pending_effective_date: effectiveDate,
+      // Gutscheine gelten sofort (Carryover), unabhängig von der Modul-Planung.
+      redeemed_promotions: redeemedPromotions,
     })
     .eq('id', existing!.id);
   if (error) return errorResult(de.errors.INTERNAL);
