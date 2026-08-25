@@ -18,6 +18,7 @@ import {
 } from '@/features/memberships/modules';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 import { generateProjectTasks } from '@/features/leads/generate-tasks';
+import { generateContractFromMembershipAction } from '@/features/onboarding/agency-actions';
 import {
   type ActionResult,
   errorResult,
@@ -137,6 +138,30 @@ async function ensureClientForLead(
   });
   if (mErr) return { error: 'Mitgliedschaft konnte nicht angelegt werden.' };
   return { id: company.id };
+}
+
+/**
+ * Hinterlegt den Vertrag beim Onboarding des (frisch aus dem Lead entstandenen)
+ * Kunden: erzeugt aus der Mitgliedschaft das Vertrags-PDF, das der Kunde im
+ * Onboarding liest und unterschreibt. Best-effort und idempotent – existiert
+ * schon ein Vertrag, wird nichts überschrieben; Fehler brechen die Umwandlung
+ * nicht ab.
+ */
+async function ensureOnboardingContract(
+  service: Service,
+  clientCompanyId: string,
+): Promise<void> {
+  try {
+    const { data: ob } = await service
+      .from('client_onboarding')
+      .select('contract_template_path')
+      .eq('client_company_id', clientCompanyId)
+      .maybeSingle();
+    if (ob?.contract_template_path) return; // schon hinterlegt
+    await generateContractFromMembershipAction(clientCompanyId);
+  } catch {
+    // Vertrag kann jederzeit auf der Kundenseite manuell generiert werden.
+  }
 }
 
 const createSchema = z.object({
@@ -348,6 +373,9 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
   const res = await ensureClientForLead(service, lead as LeadForConvert, user.id);
   if ('error' in res) return errorResult(res.error);
 
+  // Vertrag aus der neuen Mitgliedschaft direkt beim Onboarding hinterlegen.
+  await ensureOnboardingContract(service, res.id);
+
   await service
     .from('leads')
     .update({ status: 'won', converted_client_company_id: res.id })
@@ -452,6 +480,9 @@ export async function convertLeadToProjectAction(input: unknown): Promise<Action
   const service = createSupabaseServiceClient();
   const client = await ensureClientForLead(service, lead as LeadForConvert, user.id);
   if ('error' in client) return errorResult(client.error);
+
+  // Vertrag aus der neuen Mitgliedschaft direkt beim Onboarding hinterlegen.
+  await ensureOnboardingContract(service, client.id);
 
   // Projekt anlegen (Trigger create_default_board erzeugt Board + Spalten).
   const projectId = randomUUID();
