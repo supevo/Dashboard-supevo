@@ -13,10 +13,11 @@ export interface DrawerSection {
 }
 
 /**
- * Slide-over "Einstellungen" panel opened from a gear button. Houses the
- * client's configuration sections (profile, onboarding, billing, …) so the main
- * tabs stay focused on day-to-day work. All section panels stay mounted (hidden
- * via CSS) so in-progress form input survives switching sections.
+ * "Einstellungen" als zentriertes Popup (Modal) mit verschwommenem Hintergrund,
+ * geöffnet über einen Zahnrad-Button. Enthält die Konfigurations-Abschnitte des
+ * Kunden (Profil, Onboarding, Abrechnung, …), damit die Haupt-Reiter auf die
+ * tägliche Arbeit fokussiert bleiben. Alle Panels bleiben gemountet (per CSS
+ * versteckt), damit Formulareingaben beim Abschnittswechsel erhalten bleiben.
  */
 export function SettingsDrawer({
   sections,
@@ -28,20 +29,18 @@ export function SettingsDrawer({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(sections[0]?.key ?? '');
 
-  // Keep the off-canvas panel OUT of the DOM while closed – a fixed element
-  // parked at translate-x-full sits past the right edge and adds a stray
-  // scrollbar to the page. `visible` mounts it; `slid` drives the transition.
+  // `visible` mountet das Popup, `shown` steuert die Ein-/Ausblende-Animation.
   const [visible, setVisible] = useState(false);
-  const [slid, setSlid] = useState(false);
+  const [shown, setShown] = useState(false);
 
   useEffect(() => {
     if (open) {
       setVisible(true);
-      const id = requestAnimationFrame(() => setSlid(true));
+      const id = requestAnimationFrame(() => setShown(true));
       return () => cancelAnimationFrame(id);
     }
-    setSlid(false);
-    const t = setTimeout(() => setVisible(false), 300);
+    setShown(false);
+    const t = setTimeout(() => setVisible(false), 200);
     return () => clearTimeout(t);
   }, [open]);
 
@@ -66,76 +65,73 @@ export function SettingsDrawer({
       </button>
 
       {visible && (
-        <>
-          {/* Scrim */}
+        <div
+          className={cn(
+            'fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-200',
+            'bg-black/40 backdrop-blur-sm',
+            shown ? 'opacity-100' : 'opacity-0',
+          )}
+          onClick={() => setOpen(false)}
+        >
           <div
-            aria-hidden
-            onClick={() => setOpen(false)}
-            className={cn(
-              'fixed inset-0 z-40 bg-black/40 transition-opacity duration-300',
-              slid ? 'opacity-100' : 'opacity-0',
-            )}
-          />
-
-          {/* Panel */}
-          <aside
             role="dialog"
             aria-modal="true"
             aria-label={label}
+            onClick={(e) => e.stopPropagation()}
             className={cn(
-              'fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col border-l bg-card shadow-2xl transition-transform duration-300',
-              slid ? 'translate-x-0' : 'translate-x-full',
+              'flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl transition-all duration-200',
+              shown ? 'scale-100 opacity-100' : 'scale-95 opacity-0',
             )}
           >
-        <header className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold">
-            <Settings className="h-4 w-4" /> {label}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Schließen"
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </header>
-
-        <div className="flex min-h-0 flex-1">
-          {/* Section list */}
-          <nav className="w-44 shrink-0 space-y-0.5 overflow-y-auto border-r p-2">
-            {sections.map((s) => (
+            <header className="flex items-center justify-between border-b px-5 py-4">
+              <h2 className="flex items-center gap-2 text-base font-semibold">
+                <Settings className="h-4 w-4" /> {label}
+              </h2>
               <button
-                key={s.key}
                 type="button"
-                onClick={() => setActive(s.key)}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition',
-                  active === s.key
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
+                onClick={() => setOpen(false)}
+                aria-label="Schließen"
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                {s.icon && <span aria-hidden>{s.icon}</span>}
-                <span className="min-w-0 truncate">{s.label}</span>
+                <X className="h-5 w-5" />
               </button>
-            ))}
-          </nav>
+            </header>
 
-          {/* Content */}
-          <div className="min-w-0 flex-1 overflow-y-auto p-5">
-            {sections.map((s) => (
-              <div
-                key={s.key}
-                className={cn('space-y-6', active === s.key ? '' : 'hidden')}
-              >
-                {s.content}
+            <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
+              {/* Abschnittsliste: mobil oben (horizontal), ab sm links. */}
+              <nav className="flex shrink-0 gap-1 overflow-x-auto border-b p-2 sm:w-48 sm:flex-col sm:gap-0.5 sm:space-y-0.5 sm:overflow-y-auto sm:border-b-0 sm:border-r">
+                {sections.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setActive(s.key)}
+                    className={cn(
+                      'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-sm transition sm:w-full sm:shrink',
+                      active === s.key
+                        ? 'bg-primary/10 font-medium text-primary'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    {s.icon && <span aria-hidden>{s.icon}</span>}
+                    <span className="min-w-0 truncate">{s.label}</span>
+                  </button>
+                ))}
+              </nav>
+
+              {/* Inhalt */}
+              <div className="min-w-0 flex-1 overflow-y-auto p-5">
+                {sections.map((s) => (
+                  <div
+                    key={s.key}
+                    className={cn('space-y-6', active === s.key ? '' : 'hidden')}
+                  >
+                    {s.content}
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
-          </aside>
-        </>
       )}
     </>
   );
