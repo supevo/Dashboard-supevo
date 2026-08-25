@@ -15,15 +15,10 @@ import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
 import type { NotificationView } from '@/features/notifications/queries';
 import type { NotificationType } from '@/lib/database.types';
+import { notificationHref } from '@/features/notifications/deep-link';
 
 function deepLink(area: 'app' | 'portal', n: NotificationView): string | null {
-  if (n.entityType === 'task' && n.entityId) {
-    return `/${area}/tasks/${n.entityId}`;
-  }
-  if (n.entityType === 'chat' && n.entityId) {
-    return area === 'app' ? `/app/chat/${n.entityId}` : '/portal';
-  }
-  return null;
+  return notificationHref(area, n.entityType, n.entityId);
 }
 
 function NotificationRow({
