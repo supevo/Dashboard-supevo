@@ -38,7 +38,12 @@ export async function generateOfferDeliveryAction(
   if (res.recurringTasks > 0)
     parts.push(`${res.recurringTasks} wiederkehrende Aufgabe(n)`);
   if (parts.length === 0) {
-    return successResult('Nichts Neues zu erzeugen (bereits vorhanden).');
+    if (res.configured === 0) {
+      return successResult(
+        'Nichts erzeugt: Für die gewählten Module ist noch kein Umsetzungs-Verhalten hinterlegt. Bitte unter „Pakete & Module → Modul bearbeiten → Umsetzung – Aus Angebot erzeugen" je Modul festlegen (Marketingplan-Maßnahme und/oder Aufgabe).',
+      );
+    }
+    return successResult('Nichts Neues zu erzeugen (alles bereits vorhanden).');
   }
   const skippedNote =
     res.skipped.length > 0 ? ` (${res.skipped.length} bereits vorhanden übersprungen)` : '';

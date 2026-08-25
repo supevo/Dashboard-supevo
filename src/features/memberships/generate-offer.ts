@@ -17,6 +17,8 @@ export interface GenerateOfferResult {
   queueTasks: number;
   recurringTasks: number;
   skipped: string[];
+  /** Anzahl gewählter Module mit hinterlegtem Umsetzungs-Verhalten. */
+  configured: number;
 }
 
 /** Menge einer Auswahl (mind. 1). */
@@ -158,6 +160,12 @@ export async function generateOfferDelivery(
     userId,
   );
   if (!projectId) return { error: 'Projekt konnte nicht angelegt/gefunden werden.' };
+
+  // Wie viele der gewählten Module haben überhaupt ein Umsetzungs-Verhalten
+  // hinterlegt? 0 = die je Modul konfigurierbaren Regeln sind noch nicht gesetzt.
+  const configured = chosen.filter(
+    (x) => x.def.delivery.planInclude || x.def.delivery.taskMode !== 'none',
+  ).length;
 
   const skipped: string[] = [];
   let planItems = 0;
@@ -353,5 +361,5 @@ export async function generateOfferDelivery(
     }
   }
 
-  return { planItems, queueTasks, recurringTasks, skipped };
+  return { planItems, queueTasks, recurringTasks, skipped, configured };
 }
