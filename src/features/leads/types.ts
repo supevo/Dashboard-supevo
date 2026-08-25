@@ -20,6 +20,11 @@ export interface Lead {
   goals: string | null;
   targetGroup: string | null;
   website: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  postalCode: string | null;
+  city: string | null;
+  country: string | null;
   estimatedValueCents: number | null;
   status: LeadStatus;
   /** Set once the lead has been converted into a client. */

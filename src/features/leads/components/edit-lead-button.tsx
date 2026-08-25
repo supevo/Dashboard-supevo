@@ -92,6 +92,43 @@ export function EditLeadButton({ lead }: { lead: Lead }) {
               />
             </div>
           </div>
+          <div className="rounded-md border border-dashed p-3">
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              Anschrift (für den Vertrag – nach deutschem Recht Pflicht)
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="e-addr1">Straße &amp; Hausnr.</Label>
+                <Input
+                  id="e-addr1"
+                  name="addressLine1"
+                  defaultValue={lead.addressLine1 ?? ''}
+                  placeholder="z. B. Musterstraße 12"
+                />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="e-addr2">Adresszusatz (optional)</Label>
+                <Input
+                  id="e-addr2"
+                  name="addressLine2"
+                  defaultValue={lead.addressLine2 ?? ''}
+                  placeholder="z. B. c/o, Gebäude, Etage"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="e-plz">PLZ</Label>
+                <Input id="e-plz" name="postalCode" defaultValue={lead.postalCode ?? ''} placeholder="12345" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="e-city">Ort</Label>
+                <Input id="e-city" name="city" defaultValue={lead.city ?? ''} placeholder="Musterstadt" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="e-country">Land</Label>
+                <Input id="e-country" name="country" defaultValue={lead.country ?? ''} placeholder="DE" />
+              </div>
+            </div>
+          </div>
           <div className="space-y-1">
             <Label htmlFor="e-goals">Ziele / Vorhaben</Label>
             <Textarea id="e-goals" name="goals" rows={2} defaultValue={lead.goals ?? ''} />
