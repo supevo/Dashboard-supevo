@@ -374,17 +374,18 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
   const left = 50;
   const right = 50;
   const maxW = PAGE_W - left - right;
-  const bottom = 60;
-  const gray = rgb(0.42, 0.42, 0.47);
+  const bottom = 55;
   const ink = rgb(0.12, 0.12, 0.14);
+  const gray = rgb(0.45, 0.45, 0.5);
+  const rule = rgb(0.82, 0.82, 0.85);
 
   let page = doc.addPage([PAGE_W, PAGE_H]);
-  let y = PAGE_H - 55;
+  let y = PAGE_H - 50;
 
   const ensure = (need: number) => {
     if (y - need < bottom) {
       page = doc.addPage([PAGE_W, PAGE_H]);
-      y = PAGE_H - 55;
+      y = PAGE_H - 50;
     }
   };
   const wrap = (raw0: string, f: PDFFont, size: number, width = maxW): string[] => {
@@ -404,9 +405,17 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
     }
     return out;
   };
+  const hr = (yy: number, color = rule, thickness = 0.5) =>
+    page.drawLine({ start: { x: left, y: yy }, end: { x: left + maxW, y: yy }, thickness, color });
+  const drawRight = (s: string, yy: number, size: number, f: PDFFont, color = ink) => {
+    const safe = winAnsiSafe(s);
+    const w = f.widthOfTextAtSize(safe, size);
+    page.drawText(safe, { x: PAGE_W - right - w, y: yy, size, font: f, color });
+  };
+  // Flowing text (advances shared y). Used after the two-column header.
   const text = (
     s: string,
-    { size = 10, f = font, gap = 3, color = ink, indent = 0 } = {},
+    { size = 9.5, f = font, gap = 3, color = ink, indent = 0 } = {},
   ) => {
     for (const line of wrap(s, f, size, maxW - indent)) {
       ensure(size + gap);
@@ -414,101 +423,144 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
       y -= size + gap;
     }
   };
-  const label = (s: string) => {
-    y -= 8;
+  const sectionLabel = (s: string) => {
+    y -= 10;
     ensure(14);
-    page.drawText(winAnsiSafe(s.toUpperCase()), { x: left, y, size: 8.5, font: bold, color: gray });
-    y -= 14;
+    page.drawText(winAnsiSafe(s.toUpperCase()), { x: left, y, size: 8, font: bold, color: gray });
+    y -= 13;
   };
-  const amountRight = (s0: string, size: number, f: PDFFont, color = ink) => {
-    const s = winAnsiSafe(s0);
-    const w = f.widthOfTextAtSize(s, size);
-    page.drawText(s, { x: PAGE_W - right - w, y, size, font: f, color });
+  type Item = {
+    text: string;
+    size?: number;
+    font?: PDFFont;
+    color?: ReturnType<typeof rgb>;
+    gap?: number;
+  };
+  // Draws a stack at a fixed column, returns the y it ended at (does not touch shared y).
+  const drawStack = (x: number, width: number, items: Item[], startY: number): number => {
+    let yy = startY;
+    for (const it of items) {
+      const size = it.size ?? 9.5;
+      const f = it.font ?? font;
+      const gap = it.gap ?? 2;
+      for (const ln of wrap(it.text, f, size, width)) {
+        page.drawText(ln, { x, y: yy, size, font: f, color: it.color ?? ink });
+        yy -= size + gap;
+      }
+    }
+    return yy;
   };
 
-  // --- Kopf ---
+  // ---------- Kopf ----------
+  const topY = y;
+  let leftY = topY;
   if (data.logoDark) {
     try {
       const png = await doc.embedPng(decodePngDataUrl(data.logoDark));
       const h = 26;
       const w = (png.width / png.height) * h;
-      page.drawImage(png, { x: left, y: y - h + 8, width: w, height: h });
-      y -= h + 6;
+      page.drawImage(png, { x: left, y: leftY - h, width: w, height: h });
+      leftY -= h + 8;
     } catch {
-      // Logo optional – bei Problemen weglassen.
+      // Logo optional.
     }
   }
-  page.drawText('Dienstleistungsvertrag', { x: left, y, size: 20, font: bold });
-  y -= 22;
-  page.drawText(winAnsiSafe(`Datum: ${data.date}${data.reference ? ` · ${data.reference}` : ''}`), {
-    x: left,
-    y,
-    size: 9,
-    font,
-    color: gray,
-  });
+  page.drawText('Dienstleistungsvertrag', { x: left, y: leftY - 16, size: 19, font: bold });
+  leftY -= 16 + 12;
+  page.drawText(
+    winAnsiSafe(`Datum: ${data.date}${data.reference ? ` · ${data.reference}` : ''}`),
+    { x: left, y: leftY, size: 8.5, font, color: gray },
+  );
+  leftY -= 8.5;
+
+  // Absenderblock oben rechts (rechtsbündig).
+  let rightY = topY - 2;
+  const rlines: Item[] = [
+    { text: data.provider.name, font: bold, size: 9.5 },
+    ...data.provider.addressLines.map((l) => ({ text: l, size: 8.5, color: gray })),
+    ...(data.provider.email ? [{ text: data.provider.email, size: 8.5, color: gray }] : []),
+    ...(data.provider.phone ? [{ text: data.provider.phone, size: 8.5, color: gray }] : []),
+  ];
+  for (const it of rlines) {
+    const size = it.size ?? 8.5;
+    drawRight(it.text, rightY, size, it.font ?? font, it.color ?? ink);
+    rightY -= size + 2;
+  }
+
+  y = Math.min(leftY, rightY) - 12;
+  hr(y);
   y -= 16;
 
-  // --- Vertragspartner ---
-  label('Auftragnehmer');
-  text(data.provider.name, { f: bold, size: 10.5 });
-  for (const l of data.provider.addressLines) text(l, { size: 9.5, gap: 2 });
-  if (data.provider.vatId) text(`USt-IdNr.: ${data.provider.vatId}`, { size: 9.5, gap: 2 });
-  else if (data.provider.taxNumber) text(`Steuernr.: ${data.provider.taxNumber}`, { size: 9.5, gap: 2 });
-  if (data.provider.email) text(data.provider.email, { size: 9.5, gap: 2 });
-  if (data.provider.phone) text(data.provider.phone, { size: 9.5, gap: 2 });
+  // ---------- Vertragspartner (zwei Spalten) ----------
+  const colGap = 24;
+  const colW = (maxW - colGap) / 2;
+  const colLX = left;
+  const colRX = left + colW + colGap;
+  const startY = y;
 
-  label('Auftraggeber');
-  text(data.customer.name, { f: bold, size: 10.5 });
-  if (data.customer.contactName) text(`z. Hd. ${data.customer.contactName}`, { size: 9.5, gap: 2 });
-  if (data.customer.addressLines.length > 0) {
-    for (const l of data.customer.addressLines) text(l, { size: 9.5, gap: 2 });
-  } else {
-    text('Anschrift: ______________________________', { size: 9.5, gap: 2, color: gray });
-  }
-  if (data.customer.vatId) text(`USt-IdNr.: ${data.customer.vatId}`, { size: 9.5, gap: 2 });
-  if (data.customer.email) text(data.customer.email, { size: 9.5, gap: 2 });
+  const providerItems: Item[] = [
+    { text: 'Auftragnehmer', font: bold, size: 8, color: gray, gap: 4 },
+    { text: data.provider.name, font: bold, size: 10 },
+    ...data.provider.addressLines.map((l) => ({ text: l, size: 9.5 })),
+    ...(data.provider.vatId
+      ? [{ text: `USt-IdNr.: ${data.provider.vatId}`, size: 9.5 }]
+      : data.provider.taxNumber
+        ? [{ text: `Steuernr.: ${data.provider.taxNumber}`, size: 9.5 }]
+        : []),
+  ];
+  const customerItems: Item[] = [
+    { text: 'Auftraggeber', font: bold, size: 8, color: gray, gap: 4 },
+    { text: data.customer.name, font: bold, size: 10 },
+    ...(data.customer.contactName ? [{ text: `z. Hd. ${data.customer.contactName}`, size: 9.5 }] : []),
+    ...(data.customer.addressLines.length > 0
+      ? data.customer.addressLines.map((l) => ({ text: l, size: 9.5 }))
+      : [{ text: 'Anschrift: ____________________________', size: 9.5, color: gray }]),
+    ...(data.customer.vatId ? [{ text: `USt-IdNr.: ${data.customer.vatId}`, size: 9.5 }] : []),
+    ...(data.customer.email ? [{ text: data.customer.email, size: 9.5 }] : []),
+  ];
+  const endL = drawStack(colLX, colW, providerItems, startY);
+  const endR = drawStack(colRX, colW, customerItems, startY);
+  y = Math.min(endL, endR) - 6;
 
-  // --- Positionen ---
-  label('Leistungen / Positionsübersicht');
+  // ---------- Positionen ----------
+  sectionLabel('Leistungen / Positionsübersicht');
   ensure(16);
-  page.drawText('Leistung', { x: left, y, size: 8.5, font, color: gray });
-  amountRight('monatlich (netto)', 8.5, font, gray);
-  y -= 6;
-  page.drawLine({ start: { x: left, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.8, 0.8, 0.83) });
-  y -= 12;
+  page.drawText('Leistung', { x: left, y, size: 8, font, color: gray });
+  drawRight('monatlich (netto)', y, 8, font, gray);
+  y -= 5;
+  hr(y);
+  y -= 13;
 
   if (data.lines.length === 0) {
     text('Keine Module ausgewählt.', { size: 9.5, color: gray });
   }
   for (const line of data.lines) {
-    ensure(16);
+    const detailLines = line.detail ? wrap(line.detail, font, 8.5, colW * 1.4) : [];
+    ensure(14 + detailLines.length * 11 + 6);
     page.drawText(winAnsiSafe(line.label), { x: left, y, size: 10, font: bold });
-    amountRight(formatEuroCents(line.monthlyCents), 10, font);
-    y -= 12;
-    if (line.detail) {
-      for (const dl of wrap(line.detail, font, 8.5, maxW - 10)) {
-        ensure(11);
-        page.drawText(dl, { x: left + 10, y, size: 8.5, font, color: gray });
-        y -= 11;
-      }
+    drawRight(formatEuroCents(line.monthlyCents), y, 10, font);
+    y -= 13;
+    for (const dl of detailLines) {
+      page.drawText(dl, { x: left + 10, y, size: 8.5, font, color: gray });
+      y -= 11;
     }
-    y -= 3;
+    y -= 5;
+    hr(y + 2, rgb(0.9, 0.9, 0.92));
   }
 
   y -= 2;
-  page.drawLine({ start: { x: left, y: y + 4 }, end: { x: left + maxW, y: y + 4 }, thickness: 0.5, color: rgb(0.8, 0.8, 0.83) });
-  y -= 6;
+  hr(y + 4, rule, 1);
+  y -= 8;
   if (data.discountCents > 0) {
     ensure(14);
     page.drawText('Gutschein', { x: left, y, size: 9.5, font, color: gray });
-    amountRight(`−${formatEuroCents(data.discountCents)}`, 9.5, font, gray);
+    drawRight(`−${formatEuroCents(data.discountCents)}`, y, 9.5, font, gray);
     y -= 14;
   }
-  ensure(16);
+  ensure(18);
   page.drawText('Monatlich netto', { x: left, y, size: 11, font: bold });
-  amountRight(formatEuroCents(data.monthlyNetCents), 11, bold);
-  y -= 16;
+  drawRight(formatEuroCents(data.monthlyNetCents), y, 11, bold);
+  y -= 17;
 
   const vatNote = data.smallBusiness
     ? 'Kleinunternehmer gemäß § 19 UStG – es wird keine Umsatzsteuer ausgewiesen.'
@@ -521,30 +573,32 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
     );
   }
 
-  // --- Vertragsbedingungen (editierbarer Konditionstext) ---
-  label('Vertragsbedingungen');
+  // ---------- Vertragsbedingungen ----------
+  sectionLabel('Vertragsbedingungen');
   text(data.terms, { size: 8.5, gap: 2.5 });
 
-  // --- Unterschriften ---
-  y -= 20;
-  ensure(60);
-  const colW = (maxW - 30) / 2;
-  page.drawLine({ start: { x: left, y }, end: { x: left + colW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
-  page.drawLine({ start: { x: left + colW + 30, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  // ---------- Unterschriften ----------
+  y -= 24;
+  ensure(64);
+  const sigLine = (yy: number) => {
+    page.drawLine({ start: { x: colLX, y: yy }, end: { x: colLX + colW, y: yy }, thickness: 0.6, color: rgb(0.25, 0.25, 0.28) });
+    page.drawLine({ start: { x: colRX, y: yy }, end: { x: colRX + colW, y: yy }, thickness: 0.6, color: rgb(0.25, 0.25, 0.28) });
+  };
+  sigLine(y);
   y -= 11;
-  page.drawText('Ort, Datum – Auftraggeber', { x: left, y, size: 8.5, font, color: gray });
-  page.drawText('Ort, Datum – Auftragnehmer', { x: left + colW + 30, y, size: 8.5, font, color: gray });
+  page.drawText('Ort, Datum – Auftraggeber', { x: colLX, y, size: 8.5, font, color: gray });
+  page.drawText('Ort, Datum – Auftragnehmer', { x: colRX, y, size: 8.5, font, color: gray });
   y -= 34;
   ensure(20);
-  page.drawLine({ start: { x: left, y }, end: { x: left + colW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
-  page.drawLine({ start: { x: left + colW + 30, y }, end: { x: left + maxW, y }, thickness: 0.5, color: rgb(0.6, 0.6, 0.6) });
+  sigLine(y);
   y -= 11;
-  page.drawText('Unterschrift Auftraggeber', { x: left, y, size: 8.5, font, color: gray });
-  page.drawText('Unterschrift Auftragnehmer', { x: left + colW + 30, y, size: 8.5, font, color: gray });
+  page.drawText('Unterschrift Auftraggeber', { x: colLX, y, size: 8.5, font, color: gray });
+  page.drawText('Unterschrift Auftragnehmer', { x: colRX, y, size: 8.5, font, color: gray });
 
   if (data.provider.iban) {
-    y -= 20;
-    ensure(14);
+    y -= 22;
+    ensure(16);
+    hr(y + 8, rule);
     text(
       `Bankverbindung: ${data.provider.bankName ? `${data.provider.bankName}, ` : ''}IBAN ${data.provider.iban}${data.provider.bic ? ` · BIC ${data.provider.bic}` : ''}`,
       { size: 8, color: gray },
