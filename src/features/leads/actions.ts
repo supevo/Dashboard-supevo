@@ -358,15 +358,33 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   if (error) return errorResult(de.errors.INTERNAL);
   if (!count) return errorResult(de.errors.FORBIDDEN);
 
-  // Ist der Lead bereits ein Kunde, den eingelösten Gutschein sofort in die
-  // Mitgliedschaft übernehmen – so sieht die Person in den Kunden-Einstellungen
-  // dieselbe Auswahl, ohne dass der Lead erneut umgewandelt werden müsste.
-  // (Bewusst nur die Gutscheine, nicht Module/Preis: eine spätere Änderung der
-  // Mitgliedschaft soll durch ein Lead-Update nicht überschrieben werden.)
+  // Ist der Lead bereits ein Kunde, das gesamte Angebot (Module, Preis, Stufe,
+  // Gutscheine) 1:1 in die Mitgliedschaft übernehmen – so entspricht die Kunden-
+  // Einstellung immer der zuletzt am Lead gespeicherten Auswahl. Der Lead ist
+  // dabei die Quelle der Wahrheit; eine geplante Folgemonats-Änderung wird
+  // verworfen, damit nichts die Übernahme zurückdreht.
   if (lead.converted_client_company_id) {
+    const enabledDefs = selections
+      .filter((s) => s.enabled)
+      .map((s) => catalog.find((d) => d.key === s.id))
+      .filter((d): d is ModuleDef => !!d);
+    const stageDef = enabledDefs.find((d) => d.pricing.kind === 'stage');
+    const stage =
+      stageDef && stageDef.pricing.kind === 'stage' ? stageDef.pricing.stage : 1;
+    // Reine supevo-Stufe → Name/Preis aus den Billing-Settings (kein Custom).
+    const isPureStage =
+      enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
     await createSupabaseServiceClient()
       .from('client_memberships')
-      .update({ redeemed_promotions: redeemedPromotions })
+      .update({
+        modules: selections as unknown,
+        custom_net_cents: isPureStage ? null : netCents,
+        custom_name: isPureStage ? null : name?.trim() || 'Individuell',
+        stage,
+        redeemed_promotions: redeemedPromotions,
+        pending_modules: null,
+        pending_effective_date: null,
+      })
       .eq('client_company_id', lead.converted_client_company_id);
     revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
   }
