@@ -63,6 +63,7 @@ import { ReportsManager } from '@/features/marketing-reports/components/reports-
 import { getPlan } from '@/features/marketing-plan/queries';
 import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 import { GenerateOfferButton } from '@/features/memberships/components/generate-offer-button';
+import { SyncOfferFromLeadButton } from '@/features/leads/components/sync-offer-button';
 import { getOnboarding } from '@/features/onboarding/queries';
 import { OnboardingSetup } from '@/features/onboarding/components/onboarding-setup';
 import { PrintBillingToggle } from '@/features/print-billing/components/print-billing-toggle';
@@ -465,7 +466,8 @@ export default async function ClientDetailPage({
                       📄 Vertrag
                     </Link>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
+                    <SyncOfferFromLeadButton clientCompanyId={clientCompanyId} />
                     <MembershipConfiguratorPanel
                       clientCompanyId={clientCompanyId}
                       show={company.isLegacy ? 'modules' : 'stages'}
