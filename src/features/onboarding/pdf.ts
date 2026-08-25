@@ -334,6 +334,37 @@ export async function renderMembershipContractPdf(
  * Konditionstext und Unterschriftsfelder. So ist das signierte Onboarding-PDF
  * inhaltlich identisch mit dem, was in der Abrechnung angezeigt wird.
  */
+// CP1252-Sonderzeichen, die die Standard-Schrift (WinAnsi) darstellen kann.
+const WINANSI_HIGH = new Set([
+  0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030,
+  0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022,
+  0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178,
+]);
+const CHAR_REPLACEMENTS: Record<number, string> = {
+  0x2192: '->', 0x2190: '<-', 0x21d2: '=>', 0x2713: '-', 0x2714: '-',
+  0x2717: 'x', 0x2718: 'x', 0x2265: '>=', 0x2264: '<=', 0x00d7: 'x',
+  0x2011: '-', 0x2012: '-', 0x2015: '-', 0x00a0: ' ', 0x0009: ' ',
+};
+
+/**
+ * Macht Text für die Standard-Schrift (WinAnsi/CP1252) sicher: nicht
+ * darstellbare Zeichen (Pfeile, Häkchen, Emoji …) würden sonst in pdf-lib eine
+ * Exception werfen und die Vertragserzeugung abbrechen. Bekannte Zeichen werden
+ * ersetzt, unbekannte entfernt.
+ */
+function winAnsiSafe(s: string): string {
+  let out = '';
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0;
+    if ((c >= 0x20 && c <= 0xff) || WINANSI_HIGH.has(c)) {
+      out += ch;
+    } else if (CHAR_REPLACEMENTS[c] !== undefined) {
+      out += CHAR_REPLACEMENTS[c];
+    } // sonst: entfernen (Emoji, exotische Symbole)
+  }
+  return out;
+}
+
 export async function renderOfferContractPdf(data: ContractData): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -356,7 +387,8 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
       y = PAGE_H - 55;
     }
   };
-  const wrap = (t: string, f: PDFFont, size: number, width = maxW): string[] => {
+  const wrap = (raw0: string, f: PDFFont, size: number, width = maxW): string[] => {
+    const t = winAnsiSafe(raw0);
     const out: string[] = [];
     for (const raw of t.split('\n')) {
       const words = raw.split(/\s+/);
@@ -385,10 +417,11 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
   const label = (s: string) => {
     y -= 8;
     ensure(14);
-    page.drawText(s.toUpperCase(), { x: left, y, size: 8.5, font: bold, color: gray });
+    page.drawText(winAnsiSafe(s.toUpperCase()), { x: left, y, size: 8.5, font: bold, color: gray });
     y -= 14;
   };
-  const amountRight = (s: string, size: number, f: PDFFont, color = ink) => {
+  const amountRight = (s0: string, size: number, f: PDFFont, color = ink) => {
+    const s = winAnsiSafe(s0);
     const w = f.widthOfTextAtSize(s, size);
     page.drawText(s, { x: PAGE_W - right - w, y, size, font: f, color });
   };
@@ -407,7 +440,7 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
   }
   page.drawText('Dienstleistungsvertrag', { x: left, y, size: 20, font: bold });
   y -= 22;
-  page.drawText(`Datum: ${data.date}${data.reference ? ` · ${data.reference}` : ''}`, {
+  page.drawText(winAnsiSafe(`Datum: ${data.date}${data.reference ? ` · ${data.reference}` : ''}`), {
     x: left,
     y,
     size: 9,
@@ -450,7 +483,7 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
   }
   for (const line of data.lines) {
     ensure(16);
-    page.drawText(line.label, { x: left, y, size: 10, font: bold });
+    page.drawText(winAnsiSafe(line.label), { x: left, y, size: 10, font: bold });
     amountRight(formatEuroCents(line.monthlyCents), 10, font);
     y -= 12;
     if (line.detail) {
