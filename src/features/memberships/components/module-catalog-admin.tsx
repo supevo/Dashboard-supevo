@@ -355,23 +355,36 @@ function ModuleForm({
           <Field label="Keywords Standardanzahl">
             <input name="keywordDefault" type="number" defaultValue={m?.keywordDefault ?? 0} className={inputCls} />
           </Field>
-          <Field label="Add-on-Modul (aus bestehenden)">
-            <select name="addonModuleKey" defaultValue={m?.addonModuleKey ?? ''} className={inputCls}>
-              <option value="">— kein Add-on —</option>
-              {modules
-                .filter((mod) => mod.key !== m?.key)
-                .map((mod) => (
-                  <option key={mod.id} value={mod.key}>
-                    {mod.icon ? `${mod.icon} ` : ''}
-                    {mod.label}
-                  </option>
-                ))}
-            </select>
+          <Field label="Add-on-Module (mehrere möglich)" full>
+            <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+              {modules.filter((mod) => mod.key !== m?.key).length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Keine anderen Module vorhanden.
+                </p>
+              ) : (
+                modules
+                  .filter((mod) => mod.key !== m?.key)
+                  .map((mod) => (
+                    <label key={mod.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        name="addonModuleKeys"
+                        value={mod.key}
+                        defaultChecked={(m?.addonModuleKeys ?? []).includes(mod.key)}
+                      />
+                      <span>
+                        {mod.icon ? `${mod.icon} ` : ''}
+                        {mod.label}
+                      </span>
+                    </label>
+                  ))
+              )}
+            </div>
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="addonRequired" defaultChecked={m?.addonRequired ?? false} />
-          Add-on ist Pflicht / Must-Have (wird beim Aktivieren automatisch mit gewählt)
+          Add-ons sind Pflicht / Must-Have (werden beim Aktivieren automatisch mit gewählt)
         </label>
       </div>
 

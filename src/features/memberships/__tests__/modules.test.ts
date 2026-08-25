@@ -29,6 +29,7 @@ const web: ModuleDef = {
   keywordCents: 0,
   keywordDefault: 0,
   addonModuleKey: null,
+  addonModuleKeys: [],
   addonRequired: false,
   delivery: {
     planInclude: false,
@@ -61,6 +62,7 @@ const seo: ModuleDef = {
   keywordCents: 0,
   keywordDefault: 0,
   addonModuleKey: null,
+  addonModuleKeys: [],
   addonRequired: false,
   delivery: {
     planInclude: false,
@@ -86,6 +88,7 @@ const stage1: ModuleDef = {
   keywordCents: 0,
   keywordDefault: 0,
   addonModuleKey: null,
+  addonModuleKeys: [],
   addonRequired: false,
   delivery: {
     planInclude: false,
@@ -111,6 +114,7 @@ const ads: ModuleDef = {
   keywordCents: 0,
   keywordDefault: 0,
   addonModuleKey: null,
+  addonModuleKeys: [],
   addonRequired: false,
   delivery: {
     planInclude: false,

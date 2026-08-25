@@ -9,9 +9,12 @@ import { MembershipClientEditToggle } from '@/features/memberships/components/me
 export async function MembershipConfiguratorPanel({
   clientCompanyId,
   show = 'all',
+  isLegacy = true,
 }: {
   clientCompanyId: string;
   show?: 'all' | 'stages' | 'modules';
+  /** Nur Legacy-Kunden (Baukasten) können ihre Module selbst anpassen. */
+  isLegacy?: boolean;
 }) {
   const view = await getMembershipConfigurator(clientCompanyId);
   if (!view) {
@@ -42,10 +45,19 @@ export async function MembershipConfiguratorPanel({
         initialCustomNetCents={view.active.customNetCents}
       />
       <div className="border-t pt-4">
-        <MembershipClientEditToggle
-          clientCompanyId={clientCompanyId}
-          enabled={view.clientCanEdit}
-        />
+        {isLegacy ? (
+          <MembershipClientEditToggle
+            clientCompanyId={clientCompanyId}
+            enabled={view.clientCanEdit}
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Selbstbedienung der Module ist nur für Baukasten-Kunden möglich.
+            supevo-Kunden wechseln im Portal nur ihre Stufe. Soll dieser Kunde
+            seine Module selbst anpassen, stelle ihn unter „Stammdaten“ auf den
+            Kundentyp Baukasten (Legacy) um.
+          </p>
+        )}
       </div>
     </div>
   );

@@ -158,7 +158,16 @@ export async function upsertModuleAction(
     budget_via_options: formData.get('budgetViaOptions') === 'on',
     keyword_cents: euroToCents(formData.get('keywordEuros')),
     keyword_default: intOf(formData.get('keywordDefault'), 0),
-    addon_module_key: String(formData.get('addonModuleKey') ?? '').trim() || null,
+    addon_module_keys: (() => {
+      const keys = formData
+        .getAll('addonModuleKeys')
+        .map((v) => String(v).trim())
+        .filter(Boolean);
+      return [...new Set(keys)];
+    })(),
+    // Einzel-Key gespiegelt (Abwärtskompatibilität): erster gewählter Add-on-Key.
+    addon_module_key:
+      formData.getAll('addonModuleKeys').map((v) => String(v).trim()).filter(Boolean)[0] ?? null,
     addon_required: formData.get('addonRequired') === 'on',
     icon: String(formData.get('icon') ?? '').trim() || null,
     position: intOf(formData.get('position'), 0),

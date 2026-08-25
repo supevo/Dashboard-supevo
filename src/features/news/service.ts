@@ -29,21 +29,25 @@ function parseBrands(brands: string | null): string[] {
 }
 
 /**
- * Builds the news search queries from the client's industry + brands. One query
- * per brand (so several brands each get their own headlines instead of only the
- * first), plus a human-readable label for the UI. Falls back to industry/name
- * when no brands are set.
+ * Builds the news search queries from the client's industry + brands +
+ * interests/target group. One query per brand and per interest (so each gets its
+ * own headlines instead of only the first), plus a human-readable label for the
+ * UI. Falls back to industry/name when nothing specific is set.
  */
 function buildTopics(company: {
   industry: string | null;
   brands: string | null;
+  interests: string | null;
   name: string | null;
 }): { queries: string[]; label: string } {
   const industry = (company.industry ?? '').trim();
-  const brands = parseBrands(company.brands).slice(0, MAX_BRANDS);
-  if (brands.length > 0) {
-    const queries = brands.map((b) => (industry ? `${industry} ${b}` : b));
-    return { queries, label: brands.join(', ') };
+  const brands = parseBrands(company.brands);
+  const interests = parseBrands(company.interests);
+  // Marken zuerst, dann Interessen/Zielgruppen – zusammen begrenzt.
+  const seeds = [...brands, ...interests].slice(0, MAX_BRANDS);
+  if (seeds.length > 0) {
+    const queries = seeds.map((s) => (industry ? `${industry} ${s}` : s));
+    return { queries, label: seeds.join(', ') };
   }
   const fallback = industry || company.name || 'Marketing';
   return { queries: [fallback], label: fallback };
@@ -120,6 +124,22 @@ Antworte AUSSCHLIESSLICH mit JSON: { "top": [Indizes] } – Indizes aus der List
 }
 
 /**
+ * Invalidates the cached news of a client so the next portal open refetches with
+ * the updated topics. Called when the agency changes the client's profile
+ * (industry/brands/interests) in the backend. Best-effort; ignores errors.
+ */
+export async function invalidateClientNews(clientCompanyId: string): Promise<void> {
+  try {
+    await createSupabaseServiceClient()
+      .from('client_news')
+      .delete()
+      .eq('client_company_id', clientCompanyId);
+  } catch {
+    // ignore – stale cache simply refreshes on the daily schedule instead.
+  }
+}
+
+/**
  * Current industry news for a client company. Lazily refreshed at most once per
  * day, and only when the client actually opens the portal – so it never runs
  * for clients who are away for days. All I/O uses the service client (the
@@ -133,11 +153,11 @@ export async function getClientNews(
 
   const [{ data: cache }, { data: company }] = await Promise.all([
     service.from('client_news').select('items, fetched_at').eq('client_company_id', clientCompanyId).maybeSingle(),
-    service.from('client_companies').select('industry, brands, name').eq('id', clientCompanyId).maybeSingle(),
+    service.from('client_companies').select('industry, brands, interests, name').eq('id', clientCompanyId).maybeSingle(),
   ]);
 
   const { queries, label } = buildTopics(
-    company ?? { industry: null, brands: null, name: null },
+    company ?? { industry: null, brands: null, interests: null, name: null },
   );
   const topic = label;
   const cachedItems = (cache?.items as NewsItem[] | undefined) ?? [];

@@ -469,6 +469,7 @@ export default async function ClientDetailPage({
                     <MembershipConfiguratorPanel
                       clientCompanyId={clientCompanyId}
                       show={company.isLegacy ? 'modules' : 'stages'}
+                      isLegacy={company.isLegacy}
                     />
                   </CardContent>
                 </Card>
