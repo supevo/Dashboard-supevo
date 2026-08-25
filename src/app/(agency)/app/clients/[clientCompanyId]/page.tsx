@@ -33,6 +33,8 @@ import { SatisfactionSummaryCard } from '@/features/satisfaction/components/sati
 import { getInquiryEndpoint, listInquiries } from '@/features/inquiries/queries';
 import { InquirySettings } from '@/features/inquiries/components/inquiry-settings';
 import { InquiryKanban } from '@/features/inquiries/components/inquiry-kanban';
+import { getOfferCarryover } from '@/features/billing/offer-carryover';
+import { OfferCarryoverCard } from '@/features/billing/components/offer-carryover-card';
 import { listCompanyHub } from '@/features/assets/queries';
 import { AssetHubManager } from '@/features/assets/components/asset-hub-manager';
 import { getOneDriveStatus, getClientFolder } from '@/features/onedrive/queries';
@@ -103,6 +105,7 @@ export default async function ClientDetailPage({
     onboarding,
     contacts,
     membership,
+    offerCarryover,
     billingEntities,
     invoices,
     teamMembers,
@@ -122,6 +125,7 @@ export default async function ClientDetailPage({
     getOnboarding(clientCompanyId, orgId),
     listClientContacts(orgId, clientCompanyId),
     isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
+    isAdmin ? getOfferCarryover(clientCompanyId) : Promise.resolve(null),
     isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
     isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
     isAdmin ? listTeamMembers(orgId) : Promise.resolve([]),
@@ -432,6 +436,13 @@ export default async function ClientDetailPage({
             icon: '💶',
             content: (
               <>
+                {offerCarryover && (
+                  <OfferCarryoverCard
+                    clientCompanyId={clientCompanyId}
+                    data={offerCarryover}
+                    canRedeem
+                  />
+                )}
                 <Card>
                   <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
                     <div>
