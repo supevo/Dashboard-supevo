@@ -192,7 +192,7 @@ async function writeOfferToMembership(
     name: string | null;
     redeemedPromotions: string[];
   },
-): Promise<number> {
+): Promise<{ ok: true; created: boolean } | { ok: false; error: string }> {
   const catalog = await getModuleCatalog(params.orgId);
   const enabledDefs = params.selections
     .filter((s) => s.enabled)
@@ -205,22 +205,39 @@ async function writeOfferToMembership(
   const isPureStage =
     enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
 
-  const { count } = await service
+  const payload = {
+    modules: params.selections as unknown,
+    custom_net_cents: isPureStage ? null : params.netCents,
+    custom_name: isPureStage ? null : params.name?.trim() || 'Individuell',
+    stage,
+    redeemed_promotions: params.redeemedPromotions,
+    pending_modules: null,
+    pending_effective_date: null,
+  };
+
+  const { data: existing } = await service
     .from('client_memberships')
-    .update(
-      {
-        modules: params.selections as unknown,
-        custom_net_cents: isPureStage ? null : params.netCents,
-        custom_name: isPureStage ? null : params.name?.trim() || 'Individuell',
-        stage,
-        redeemed_promotions: params.redeemedPromotions,
-        pending_modules: null,
-        pending_effective_date: null,
-      },
-      { count: 'exact' },
-    )
-    .eq('client_company_id', params.clientCompanyId);
-  return count ?? 0;
+    .select('id')
+    .eq('client_company_id', params.clientCompanyId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await service
+      .from('client_memberships')
+      .update(payload)
+      .eq('id', existing.id);
+    if (error) return { ok: false, error: `${error.message} (${error.code ?? '—'})` };
+    return { ok: true, created: false };
+  }
+
+  // Keine Mitgliedschaft vorhanden → aus dem Angebot anlegen.
+  const { error } = await service.from('client_memberships').insert({
+    organization_id: params.orgId,
+    client_company_id: params.clientCompanyId,
+    ...payload,
+  });
+  if (error) return { ok: false, error: `${error.message} (${error.code ?? '—'})` };
+  return { ok: true, created: true };
 }
 
 const createSchema = z.object({
@@ -410,7 +427,7 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   // Gutscheine) 1:1 in die Mitgliedschaft übernehmen – so entspricht die Kunden-
   // Einstellung immer der zuletzt am Lead gespeicherten Auswahl.
   if (lead.converted_client_company_id) {
-    await writeOfferToMembership(createSupabaseServiceClient(), {
+    const sync = await writeOfferToMembership(createSupabaseServiceClient(), {
       clientCompanyId: lead.converted_client_company_id,
       orgId: lead.organization_id,
       selections,
@@ -418,6 +435,9 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
       name: name ?? null,
       redeemedPromotions,
     });
+    if (!sync.ok) {
+      console.error('[leads] offer sync to membership failed', sync.error);
+    }
     revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
   }
 
@@ -778,7 +798,7 @@ export async function syncOfferFromLeadAction(
   const catalog = await getModuleCatalog(orgId);
   const netCents = totalMonthlyCents(catalog, selections, ctx);
 
-  const updated = await writeOfferToMembership(service, {
+  const res = await writeOfferToMembership(service, {
     clientCompanyId,
     orgId,
     selections,
@@ -786,16 +806,14 @@ export async function syncOfferFromLeadAction(
     name: lead.offer_name,
     redeemedPromotions,
   });
-  if (updated === 0) {
-    return errorResult(
-      'Der Kunde hat noch keine Mitgliedschaft, in die übernommen werden könnte.',
-    );
+  if (!res.ok) {
+    return errorResult(`Übernahme fehlgeschlagen: ${res.error}`);
   }
 
   const moduleCount = selections.filter((sel) => sel.enabled).length;
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult(
-    `Angebot vom Lead übernommen: ${moduleCount} Modul(e)${
+    `Angebot vom Lead übernommen${res.created ? ' (Mitgliedschaft angelegt)' : ''}: ${moduleCount} Modul(e)${
       redeemedPromotions.length > 0 ? `, ${redeemedPromotions.length} Gutschein(e)` : ''
     }.`,
   );
