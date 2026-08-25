@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
@@ -885,5 +886,8 @@ export async function deleteTaskAction(
   const pid = projectId ?? task.project_id;
   revalidatePath(`/app/projects/${pid}`);
   revalidatePath(`/portal/projects/${pid}`);
-  return successResult('Aufgabe gelöscht.');
+  // Server-seitig zum Board weiterleiten: Ohne Redirect würde Next nach der
+  // Action die gerade gelöschte Aufgaben-Route neu rendern → notFound() → 404.
+  // redirect() wirft und navigiert, bevor die tote Seite gerendert wird.
+  redirect(`/app/projects/${pid}`);
 }
