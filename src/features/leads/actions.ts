@@ -175,6 +175,54 @@ async function ensureOnboardingContract(
   }
 }
 
+/**
+ * Überträgt ein Lead-Angebot 1:1 in die Mitgliedschaft eines Kunden: Module
+ * (inkl. Mengen), Preis, Name, Stufe und eingelöste Gutscheine. Eine geplante
+ * Folgemonats-Änderung wird verworfen, damit nichts die Übernahme zurückdreht.
+ * Gibt die Anzahl aktualisierter Mitgliedschaften zurück (0 = kein Kunde/keine
+ * Mitgliedschaft).
+ */
+async function writeOfferToMembership(
+  service: Service,
+  params: {
+    clientCompanyId: string;
+    orgId: string;
+    selections: ModuleSelection[];
+    netCents: number;
+    name: string | null;
+    redeemedPromotions: string[];
+  },
+): Promise<number> {
+  const catalog = await getModuleCatalog(params.orgId);
+  const enabledDefs = params.selections
+    .filter((s) => s.enabled)
+    .map((s) => catalog.find((d) => d.key === s.id))
+    .filter((d): d is ModuleDef => !!d);
+  const stageDef = enabledDefs.find((d) => d.pricing.kind === 'stage');
+  const stage =
+    stageDef && stageDef.pricing.kind === 'stage' ? stageDef.pricing.stage : 1;
+  // Reine supevo-Stufe → Name/Preis aus den Billing-Settings (kein Custom).
+  const isPureStage =
+    enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
+
+  const { count } = await service
+    .from('client_memberships')
+    .update(
+      {
+        modules: params.selections as unknown,
+        custom_net_cents: isPureStage ? null : params.netCents,
+        custom_name: isPureStage ? null : params.name?.trim() || 'Individuell',
+        stage,
+        redeemed_promotions: params.redeemedPromotions,
+        pending_modules: null,
+        pending_effective_date: null,
+      },
+      { count: 'exact' },
+    )
+    .eq('client_company_id', params.clientCompanyId);
+  return count ?? 0;
+}
+
 const createSchema = z.object({
   contactName: z.string().trim().min(1, 'Bitte einen Namen angeben.').max(200),
   company: z.string().max(200).optional().or(z.literal('')),
@@ -343,7 +391,7 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   const catalog = await getModuleCatalog(lead.organization_id);
   const netCents = totalMonthlyCents(catalog, selections, ctx);
 
-  const { error, count } = await supabase
+  const { error, count: leadCount } = await supabase
     .from('leads')
     .update(
       {
@@ -356,36 +404,20 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
     )
     .eq('id', leadId);
   if (error) return errorResult(de.errors.INTERNAL);
-  if (!count) return errorResult(de.errors.FORBIDDEN);
+  if (!leadCount) return errorResult(de.errors.FORBIDDEN);
 
   // Ist der Lead bereits ein Kunde, das gesamte Angebot (Module, Preis, Stufe,
   // Gutscheine) 1:1 in die Mitgliedschaft übernehmen – so entspricht die Kunden-
-  // Einstellung immer der zuletzt am Lead gespeicherten Auswahl. Der Lead ist
-  // dabei die Quelle der Wahrheit; eine geplante Folgemonats-Änderung wird
-  // verworfen, damit nichts die Übernahme zurückdreht.
+  // Einstellung immer der zuletzt am Lead gespeicherten Auswahl.
   if (lead.converted_client_company_id) {
-    const enabledDefs = selections
-      .filter((s) => s.enabled)
-      .map((s) => catalog.find((d) => d.key === s.id))
-      .filter((d): d is ModuleDef => !!d);
-    const stageDef = enabledDefs.find((d) => d.pricing.kind === 'stage');
-    const stage =
-      stageDef && stageDef.pricing.kind === 'stage' ? stageDef.pricing.stage : 1;
-    // Reine supevo-Stufe → Name/Preis aus den Billing-Settings (kein Custom).
-    const isPureStage =
-      enabledDefs.length > 0 && enabledDefs.every((d) => d.pricing.kind === 'stage');
-    await createSupabaseServiceClient()
-      .from('client_memberships')
-      .update({
-        modules: selections as unknown,
-        custom_net_cents: isPureStage ? null : netCents,
-        custom_name: isPureStage ? null : name?.trim() || 'Individuell',
-        stage,
-        redeemed_promotions: redeemedPromotions,
-        pending_modules: null,
-        pending_effective_date: null,
-      })
-      .eq('client_company_id', lead.converted_client_company_id);
+    await writeOfferToMembership(createSupabaseServiceClient(), {
+      clientCompanyId: lead.converted_client_company_id,
+      orgId: lead.organization_id,
+      selections,
+      netCents,
+      name: name ?? null,
+      redeemedPromotions,
+    });
     revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
   }
 
@@ -691,4 +723,80 @@ export async function deleteLeadAction(
 
   revalidatePath('/app/leads');
   return successResult('Lead gelöscht.');
+}
+
+/**
+ * Agentur: übernimmt das Angebot des mit diesem Kunden verknüpften Leads 1:1 in
+ * die Mitgliedschaft (Module inkl. Mengen, Preis, Stufe, Gutscheine). Auslösung
+ * per Knopf auf der Kundenseite – unabhängig davon, wann der Lead gespeichert
+ * wurde. Meldet klar, wenn kein verknüpfter Lead existiert.
+ */
+export async function syncOfferFromLeadAction(
+  clientCompanyId: string,
+): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(clientCompanyId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const orgId = primaryAgencyOrgId(user);
+  if (!orgId) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  // Verknüpften Lead finden (neuester, falls mehrere).
+  const { data: lead } = await service
+    .from('leads')
+    .select('id, organization_id, modules, redeemed_promotions, offer_name')
+    .eq('organization_id', orgId)
+    .eq('converted_client_company_id', clientCompanyId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!lead) {
+    return errorResult(
+      'Dieser Kunde ist mit keinem Lead verknüpft – es gibt kein Angebot zum Übernehmen. (Der Kunde wurde nicht per „Lead umwandeln" erzeugt.)',
+    );
+  }
+
+  const selections = normalizeSelections(lead.modules);
+  const redeemedPromotions = Array.isArray(lead.redeemed_promotions)
+    ? (lead.redeemed_promotions as unknown[]).filter(
+        (v): v is string => typeof v === 'string',
+      )
+    : [];
+
+  // Preis frisch aus den Modulen berechnen (aktuelle Billing-Settings).
+  const { data: s } = await service
+    .from('billing_settings')
+    .select('stage1_net_cents, stage2_net_cents')
+    .eq('organization_id', orgId)
+    .maybeSingle();
+  const ctx: PriceContext = {
+    stage1NetCents: s?.stage1_net_cents ?? 0,
+    stage2NetCents: s?.stage2_net_cents ?? 0,
+  };
+  const catalog = await getModuleCatalog(orgId);
+  const netCents = totalMonthlyCents(catalog, selections, ctx);
+
+  const updated = await writeOfferToMembership(service, {
+    clientCompanyId,
+    orgId,
+    selections,
+    netCents,
+    name: lead.offer_name,
+    redeemedPromotions,
+  });
+  if (updated === 0) {
+    return errorResult(
+      'Der Kunde hat noch keine Mitgliedschaft, in die übernommen werden könnte.',
+    );
+  }
+
+  const moduleCount = selections.filter((sel) => sel.enabled).length;
+  revalidatePath(`/app/clients/${clientCompanyId}`);
+  return successResult(
+    `Angebot vom Lead übernommen: ${moduleCount} Modul(e)${
+      redeemedPromotions.length > 0 ? `, ${redeemedPromotions.length} Gutschein(e)` : ''
+    }.`,
+  );
 }
