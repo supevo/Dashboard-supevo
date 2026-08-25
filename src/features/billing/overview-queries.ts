@@ -1,7 +1,8 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getBillingSettings } from '@/features/billing/queries';
-import { effectiveMonthlyCents } from '@/features/billing/membership';
+import { effectiveMonthlyCents, readRedeemedIds } from '@/features/billing/membership';
+import { promoDiscountCents, type PromoDiscount } from '@/features/promotions/discount';
 import type { InvoiceRow } from '@/features/billing/invoice-queries';
 
 export interface BillingOverviewRow {
@@ -47,10 +48,22 @@ export async function getMonthlyBillingOverview(
   const { data: memberships } = await supabase
     .from('client_memberships')
     .select(
-      'client_company_id, stage, custom_name, custom_net_cents, payment_method, mandate_reference, debtor_iban, mandate_date, status',
+      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, mandate_date, status',
     )
     .eq('organization_id', orgId);
   if (!memberships || memberships.length === 0) return [];
+
+  // Alle Gutscheine der Org einmalig laden (auch inaktive: ein eingelöster
+  // Gutschein mindert die Abrechnung weiter). Rabatt später je Zeile im Speicher.
+  const { data: promoRows } = await supabase
+    .from('promotions')
+    .select('id, discount_kind, discount_value')
+    .eq('organization_id', orgId);
+  const promoRules: PromoDiscount[] = (promoRows ?? []).map((p) => ({
+    id: p.id,
+    discountKind: (p.discount_kind ?? 'none') as PromoDiscount['discountKind'],
+    discountValue: p.discount_value ?? 0,
+  }));
 
   const clientIds = [...new Set(memberships.map((m) => m.client_company_id))];
   const { data: companies } = await supabase
@@ -84,10 +97,12 @@ export async function getMonthlyBillingOverview(
   const rows: BillingOverviewRow[] = memberships
     .filter((m) => nameById.has(m.client_company_id))
     .map((m) => {
-      const net = effectiveMonthlyCents(
+      const base = effectiveMonthlyCents(
         { stage: m.stage, custom_net_cents: m.custom_net_cents },
         settings,
       );
+      const redeemed = readRedeemedIds(m);
+      const net = Math.max(0, base - promoDiscountCents(base, promoRules, redeemed));
       const gross = Math.round((net * (100 + taxRate)) / 100);
       // Kein „Individuell" – immer der echte Stufenname.
       const stageName = m.stage === 2 ? stage2Name : stage1Name;

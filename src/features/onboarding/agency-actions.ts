@@ -281,7 +281,7 @@ export async function generateContractFromMembershipAction(
     entity = data ?? null;
   }
 
-  const { effectiveMonthlyCents, membershipLabel } = await import('@/features/billing/membership');
+  const { netMonthlyAfterPromos, membershipLabel } = await import('@/features/billing/membership');
   const { formatEuroCents } = await import('@/lib/money');
 
   const settings = entity as {
@@ -307,8 +307,13 @@ export async function generateContractFromMembershipAction(
     membership.billing_country,
   ].filter((l): l is string => Boolean(l && l.trim()));
 
-  const netCents = effectiveMonthlyCents(
-    { stage: membership.stage, custom_net_cents: membership.custom_net_cents },
+  const netCents = await netMonthlyAfterPromos(
+    {
+      organization_id: orgId,
+      stage: membership.stage,
+      custom_net_cents: membership.custom_net_cents,
+      redeemed_promotions: membership.redeemed_promotions,
+    },
     settings
       ? {
           stage1_net_cents: settings.stage1_net_cents ?? 0,

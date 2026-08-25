@@ -3,7 +3,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
 import type { BillingSettings } from '@/features/billing/queries';
 import type { ClientMembership } from '@/features/billing/membership';
-import { effectiveMonthlyCents, membershipLabel } from '@/features/billing/membership';
+import {
+  netMonthlyAfterPromos,
+  membershipLabel,
+} from '@/features/billing/membership';
 
 export type BillingEntity =
   Database['public']['Tables']['billing_entities']['Row'];
@@ -110,7 +113,9 @@ export async function createDraftInvoice(params: {
     params;
   const refDate = params.refDate ?? new Date();
 
-  const monthly = effectiveMonthlyCents(membership, settings);
+  // Netto-Monatspreis inkl. eingelöster Gutscheine (mindert die laufende
+  // Abrechnung dauerhaft, solange der Gutschein eingelöst ist).
+  const monthly = await netMonthlyAfterPromos(membership, settings);
   const netCents = monthly * membership.interval_months;
   const taxRate = settings?.default_tax_rate ?? 19;
   const smallBusiness = settings?.small_business ?? false;

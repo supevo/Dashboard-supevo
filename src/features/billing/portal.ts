@@ -2,7 +2,10 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { logger } from '@/lib/logger';
-import type { ClientMembership } from '@/features/billing/membership';
+import {
+  netMonthlyAfterPromos,
+  type ClientMembership,
+} from '@/features/billing/membership';
 
 export interface PortalMembershipView {
   membership: ClientMembership;
@@ -67,11 +70,11 @@ export async function getPortalMembership(): Promise<PortalMembershipView | null
   }
 
   const isCustom = membership.custom_net_cents != null;
-  const effectiveCents = isCustom
-    ? (membership.custom_net_cents as number)
-    : membership.stage === 2
-      ? stage2Cents
-      : stage1Cents;
+  // Tatsächlicher Preis inkl. eingelöster Gutscheine (mindert laufend).
+  const effectiveCents = await netMonthlyAfterPromos(membership, {
+    stage1_net_cents: stage1Cents,
+    stage2_net_cents: stage2Cents,
+  });
 
   return {
     membership,
