@@ -176,12 +176,53 @@ async function ensureOnboardingContract(
 }
 
 /**
+ * Erzeugt den Onboarding-Vertrag neu aus der aktuellen Mitgliedschaft (Module,
+ * Preis inkl. Gutschein, Anschrift) und hinterlegt ihn – nach jeder Übernahme
+ * eines Lead-Angebots, damit der Vertrag immer zum Baukasten passt. Best-effort.
+ */
+async function regenerateOnboardingContract(clientCompanyId: string): Promise<void> {
+  try {
+    await generateContractFromMembershipAction(clientCompanyId);
+  } catch {
+    // Vertrag lässt sich jederzeit manuell auf der Kundenseite neu generieren.
+  }
+}
+
+/**
  * Überträgt ein Lead-Angebot 1:1 in die Mitgliedschaft eines Kunden: Module
  * (inkl. Mengen), Preis, Name, Stufe und eingelöste Gutscheine. Eine geplante
  * Folgemonats-Änderung wird verworfen, damit nichts die Übernahme zurückdreht.
  * Gibt die Anzahl aktualisierter Mitgliedschaften zurück (0 = kein Kunde/keine
  * Mitgliedschaft).
  */
+interface LeadAddress {
+  billing_address_line1: string | null;
+  billing_address_line2: string | null;
+  billing_postal_code: string | null;
+  billing_city: string | null;
+  billing_country: string | null;
+}
+
+interface AddressCols {
+  billing_address_line1?: string;
+  billing_address_line2?: string;
+  billing_postal_code?: string;
+  billing_city?: string;
+  billing_country?: string;
+}
+
+/** Nur die tatsächlich gefüllten Adressfelder – leere überschreiben nichts. */
+function addressPayload(a: LeadAddress | null): AddressCols {
+  if (!a) return {};
+  const out: AddressCols = {};
+  if (a.billing_address_line1) out.billing_address_line1 = a.billing_address_line1;
+  if (a.billing_address_line2) out.billing_address_line2 = a.billing_address_line2;
+  if (a.billing_postal_code) out.billing_postal_code = a.billing_postal_code;
+  if (a.billing_city) out.billing_city = a.billing_city;
+  if (a.billing_country) out.billing_country = a.billing_country;
+  return out;
+}
+
 async function writeOfferToMembership(
   service: Service,
   params: {
@@ -191,6 +232,7 @@ async function writeOfferToMembership(
     netCents: number;
     name: string | null;
     redeemedPromotions: string[];
+    address?: LeadAddress | null;
   },
 ): Promise<{ ok: true; created: boolean } | { ok: false; error: string }> {
   const catalog = await getModuleCatalog(params.orgId);
@@ -213,6 +255,7 @@ async function writeOfferToMembership(
     redeemed_promotions: params.redeemedPromotions,
     pending_modules: null,
     pending_effective_date: null,
+    ...addressPayload(params.address ?? null),
   };
 
   const { data: existing } = await service
@@ -391,7 +434,9 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   const supabase = await createSupabaseServerClient();
   const { data: lead } = await supabase
     .from('leads')
-    .select('organization_id, converted_client_company_id')
+    .select(
+      'organization_id, converted_client_company_id, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
+    )
     .eq('id', leadId)
     .maybeSingle();
   if (!lead) return errorResult(de.errors.FORBIDDEN);
@@ -427,16 +472,21 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   // Gutscheine) 1:1 in die Mitgliedschaft übernehmen – so entspricht die Kunden-
   // Einstellung immer der zuletzt am Lead gespeicherten Auswahl.
   if (lead.converted_client_company_id) {
-    const sync = await writeOfferToMembership(createSupabaseServiceClient(), {
+    const svc = createSupabaseServiceClient();
+    const sync = await writeOfferToMembership(svc, {
       clientCompanyId: lead.converted_client_company_id,
       orgId: lead.organization_id,
       selections,
       netCents,
       name: name ?? null,
       redeemedPromotions,
+      address: lead,
     });
     if (!sync.ok) {
       console.error('[leads] offer sync to membership failed', sync.error);
+    } else {
+      // Onboarding-Vertrag aktualisieren, damit er dem neuen Stand entspricht.
+      await regenerateOnboardingContract(lead.converted_client_company_id);
     }
     revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
   }
@@ -766,7 +816,9 @@ export async function syncOfferFromLeadAction(
   // Verknüpften Lead finden (neuester, falls mehrere).
   const { data: lead } = await service
     .from('leads')
-    .select('id, organization_id, modules, redeemed_promotions, offer_name')
+    .select(
+      'id, organization_id, modules, redeemed_promotions, offer_name, billing_address_line1, billing_address_line2, billing_postal_code, billing_city, billing_country',
+    )
     .eq('organization_id', orgId)
     .eq('converted_client_company_id', clientCompanyId)
     .order('updated_at', { ascending: false })
@@ -805,10 +857,15 @@ export async function syncOfferFromLeadAction(
     netCents,
     name: lead.offer_name,
     redeemedPromotions,
+    address: lead,
   });
   if (!res.ok) {
     return errorResult(`Übernahme fehlgeschlagen: ${res.error}`);
   }
+
+  // Onboarding-Vertrag neu erzeugen, damit er Module, Preis (inkl. Gutschein)
+  // und Anschrift widerspiegelt.
+  await regenerateOnboardingContract(clientCompanyId);
 
   const moduleCount = selections.filter((sel) => sel.enabled).length;
   revalidatePath(`/app/clients/${clientCompanyId}`);
