@@ -300,7 +300,7 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
   const supabase = await createSupabaseServerClient();
   const { data: lead } = await supabase
     .from('leads')
-    .select('organization_id')
+    .select('organization_id, converted_client_company_id')
     .eq('id', leadId)
     .maybeSingle();
   if (!lead) return errorResult(de.errors.FORBIDDEN);
@@ -331,6 +331,19 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
     .eq('id', leadId);
   if (error) return errorResult(de.errors.INTERNAL);
   if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  // Ist der Lead bereits ein Kunde, den eingelösten Gutschein sofort in die
+  // Mitgliedschaft übernehmen – so sieht die Person in den Kunden-Einstellungen
+  // dieselbe Auswahl, ohne dass der Lead erneut umgewandelt werden müsste.
+  // (Bewusst nur die Gutscheine, nicht Module/Preis: eine spätere Änderung der
+  // Mitgliedschaft soll durch ein Lead-Update nicht überschrieben werden.)
+  if (lead.converted_client_company_id) {
+    await createSupabaseServiceClient()
+      .from('client_memberships')
+      .update({ redeemed_promotions: redeemedPromotions })
+      .eq('client_company_id', lead.converted_client_company_id);
+    revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
+  }
 
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);
