@@ -47,9 +47,18 @@ export function notificationHref(
       return portal ? null : '/app/feedback';
     case 'award':
     case 'kudos':
+    case 'loot':
       return portal ? '/portal/hub' : '/app/kudos';
     case 'optimization':
       return portal ? null : '/app/workload';
+    case 'office_chore':
+    case 'work_session':
+    case 'time_entry':
+      // Ordnungsdienst-Kontrolle + Zeiterfassung liegen auf der Zeit-Seite.
+      return portal ? null : '/app/time';
+    case 'pulse':
+    case 'birthday':
+      return portal ? null : '/app';
     default:
       return null;
   }
