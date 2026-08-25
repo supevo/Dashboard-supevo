@@ -5,7 +5,11 @@ import type { Database } from '@/lib/database.types';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
-import { getActivePromotions, type Promotion } from '@/features/promotions/queries';
+import {
+  getActivePromotions,
+  getPromotionsByIds,
+  type Promotion,
+} from '@/features/promotions/queries';
 import {
   normalizeSelections,
   totalMonthlyCents,
@@ -55,6 +59,22 @@ export interface ConfiguratorView {
 function readRedeemed(m: { redeemed_promotions?: unknown } | null): string[] {
   const raw = m?.redeemed_promotions;
   return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string') : [];
+}
+
+/**
+ * Aktive Promotions plus die eingelösten (auch inaktive/abgelaufene) – so kann
+ * der Baukasten den Rabatt eines eingelösten Gutscheins immer anwenden, genau
+ * wie die laufende Abrechnung. Deduped über die ID.
+ */
+async function promotionsForConfigurator(
+  orgId: string,
+  redeemedIds: string[],
+): Promise<Promotion[]> {
+  const active = await getActivePromotions(orgId);
+  const missing = redeemedIds.filter((id) => !active.some((p) => p.id === id));
+  if (missing.length === 0) return active;
+  const extra = await getPromotionsByIds(orgId, missing);
+  return [...active, ...extra];
 }
 
 function parsePending(m: Membership): (PendingChange & { effectiveDate: string }) | null {
@@ -164,7 +184,11 @@ export async function getMembershipConfigurator(
   const priceContext = pc.ctx;
   const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
-  const promotions = await getActivePromotions(membership.organization_id);
+  const redeemedPromotions = readRedeemed(membership);
+  const promotions = await promotionsForConfigurator(
+    membership.organization_id,
+    redeemedPromotions,
+  );
 
   return {
     hasMembership: true,
@@ -184,7 +208,7 @@ export async function getMembershipConfigurator(
     modules,
     taxRatePct: pc.taxRatePct,
     promotions,
-    redeemedPromotions: readRedeemed(membership),
+    redeemedPromotions,
   };
 }
 // (Promotions/Gutscheine werden bewusst nur im Lead-Angebot angezeigt.)

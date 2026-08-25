@@ -58,6 +58,24 @@ export async function getAdminPromotions(orgId: string): Promise<Promotion[]> {
 }
 
 /**
+ * Bestimmte Promotions per ID (unabhängig von aktiv/gültig) – für eingelöste
+ * Gutscheine, die weiter greifen sollen, auch wenn die Aktion inzwischen endet.
+ * Service-Client (auch fürs Portal lesbar).
+ */
+export async function getPromotionsByIds(
+  orgId: string,
+  ids: string[],
+): Promise<Promotion[]> {
+  if (ids.length === 0) return [];
+  const { data } = await createSupabaseServiceClient()
+    .from('promotions')
+    .select(SELECT)
+    .eq('organization_id', orgId)
+    .in('id', ids);
+  return (data as Row[] | null ?? []).map(mapRow);
+}
+
+/**
  * Aktive, noch gültige Promotions – für die Anzeige (z. B. im Onboarding).
  * Service-Client, damit auch Portal-Kunden sie lesen können; Schreiben bleibt
  * über RLS admin-only.
