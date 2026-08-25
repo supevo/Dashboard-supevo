@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   toggleInquiryEndpointAction,
   regenerateInquiryTokenAction,
+  toggleInquiryClientVisibleAction,
 } from '@/features/inquiries/actions';
 import type { InquiryEndpoint } from '@/features/inquiries/queries';
 import { idleResult } from '@/lib/action-result';
@@ -28,16 +29,22 @@ export function InquirySettings({
 }) {
   const [toggleState, toggleAction] = useActionState(toggleInquiryEndpointAction, idleResult);
   const [regenState, regenAction] = useActionState(regenerateInquiryTokenAction, idleResult);
+  const [visState, visAction] = useActionState(toggleInquiryClientVisibleAction, idleResult);
   const [copied, setCopied] = useState<'url' | 'email' | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (toggleState.status === 'success' || regenState.status === 'success') {
+    if (
+      toggleState.status === 'success' ||
+      regenState.status === 'success' ||
+      visState.status === 'success'
+    ) {
       router.refresh();
     }
-  }, [toggleState, regenState, router]);
+  }, [toggleState, regenState, visState, router]);
 
   const enabled = endpoint?.enabled ?? false;
+  const clientVisible = endpoint?.clientVisible ?? false;
   const webhookUrl = endpoint ? `${baseUrl}/api/inquiries/${endpoint.token}` : '';
   const inboundEmail =
     endpoint && inboundDomain ? `${endpoint.token}@${inboundDomain}` : '';
@@ -85,6 +92,28 @@ export function InquirySettings({
 
       {endpoint && (
         <div className="space-y-4">
+          {/* Sichtbarkeit des Kundenanfragen-Boards im Kundenportal. */}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Für Kunde sichtbar</p>
+              <p className="text-xs text-muted-foreground">
+                Wenn aktiv, sieht der Kunde das Kundenanfragen-Board in seinem
+                Portal (zwischen Übersicht und Projekte).
+              </p>
+            </div>
+            <form action={visAction}>
+              <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
+              <input
+                type="hidden"
+                name="visible"
+                value={clientVisible ? 'false' : 'true'}
+              />
+              <SubmitButton size="sm" variant={clientVisible ? 'ghost' : 'default'}>
+                {clientVisible ? 'Ausblenden' : 'Für Kunde freigeben'}
+              </SubmitButton>
+            </form>
+          </div>
+
           {/* Per E-Mail: Adresse dieses Kunden für den Funnel. */}
           {inboundEmail && (
             <div className="rounded-lg border bg-muted/30 p-3">
