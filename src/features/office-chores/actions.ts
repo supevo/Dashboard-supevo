@@ -65,7 +65,23 @@ export async function completeChoreAction(
     return successResult('Nachgeholt – danke! (keine XP)');
   }
 
-  if (row.verifier_id) {
+  // Super-Admins machen keinen Ordnungsdienst – auch nicht als Prüfer. Wurde in
+  // einer alten Zuteilung ein Super-Admin als Prüfer gezogen (vor der Ausnahme),
+  // wird die Kontrolle übersprungen und die Aufgabe direkt abgeschlossen.
+  let verifierId = row.verifier_id;
+  if (verifierId) {
+    const { data: vm } = await service
+      .from('memberships')
+      .select('role')
+      .eq('user_id', verifierId)
+      .eq('organization_id', row.organization_id)
+      .maybeSingle();
+    if ((vm as { role?: string } | null)?.role === 'super_admin') {
+      verifierId = null;
+    }
+  }
+
+  if (verifierId) {
     await service
       .from('office_chore_assignments')
       .update({ status: 'done', done_at: now } as never)
@@ -74,7 +90,7 @@ export async function completeChoreAction(
       [
         {
           organizationId: row.organization_id,
-          recipientId: row.verifier_id,
+          recipientId: verifierId,
           type: 'chore' as NotificationType,
           title: 'Ordnungsdienst: Kontrolle nötig',
           body: 'Bitte prüfe kurz einen erledigten Checkpunkt gegen.',

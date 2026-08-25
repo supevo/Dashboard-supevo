@@ -38,20 +38,41 @@ function NotificationRow({
         n.isRead ? 'opacity-60' : ''
       }`}
     >
-      <div className="min-w-0">
-        <div className="text-sm font-medium">
-          {!n.isRead && (
-            <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
+      {href ? (
+        <Link
+          href={href}
+          className="group min-w-0 flex-1"
+          aria-label={de.notifications.open}
+        >
+          <div className="text-sm font-medium group-hover:underline">
+            {!n.isRead && (
+              <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
+            )}
+            {n.title}
+          </div>
+          {n.body && (
+            <div className="truncate text-xs text-muted-foreground">{n.body}</div>
           )}
-          {n.title}
+          <div className="text-xs text-muted-foreground">
+            {de.notificationType[n.type]} · {formatBerlinDateTime(n.createdAt)}
+          </div>
+        </Link>
+      ) : (
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">
+            {!n.isRead && (
+              <span className="mr-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
+            )}
+            {n.title}
+          </div>
+          {n.body && (
+            <div className="truncate text-xs text-muted-foreground">{n.body}</div>
+          )}
+          <div className="text-xs text-muted-foreground">
+            {de.notificationType[n.type]} · {formatBerlinDateTime(n.createdAt)}
+          </div>
         </div>
-        {n.body && (
-          <div className="truncate text-xs text-muted-foreground">{n.body}</div>
-        )}
-        <div className="text-xs text-muted-foreground">
-          {de.notificationType[n.type]} · {formatBerlinDateTime(n.createdAt)}
-        </div>
-      </div>
+      )}
       <div className="flex shrink-0 items-center gap-2">
         {href && (
           <Link href={href} className="text-sm text-primary hover:underline">
