@@ -575,7 +575,45 @@ export async function renderOfferContractPdf(data: ContractData): Promise<Uint8A
 
   // ---------- Vertragsbedingungen ----------
   sectionLabel('Vertragsbedingungen');
-  text(data.terms, { size: 8.5, gap: 2.5 });
+  // Text strukturiert rendern: §-/nummerierte Überschriften fett, Leerzeilen als
+  // Abstand, Aufzählungen eingerückt – statt eines flachen Blocks.
+  const isHeading = (t: string) =>
+    /^§\s*\d+/.test(t) || /^\d+[.)]\s+\S/.test(t) || /^[A-ZÄÖÜ][^a-zäöüß]{0,40}$/.test(t);
+  const isBullet = (t: string) => /^[-•*–]\s+/.test(t);
+  for (const rawLine of data.terms.split('\n')) {
+    const t = rawLine.trim();
+    if (t === '') {
+      y -= 5;
+      continue;
+    }
+    if (isHeading(t)) {
+      y -= 5;
+      for (const l of wrap(t, bold, 9.5, maxW)) {
+        ensure(9.5 + 3);
+        page.drawText(l, { x: left, y, size: 9.5, font: bold, color: ink });
+        y -= 9.5 + 3;
+      }
+      y -= 1;
+      continue;
+    }
+    if (isBullet(t)) {
+      const body = t.replace(/^[-•*–]\s+/, '');
+      const wrapped = wrap(body, font, 8.5, maxW - 14);
+      wrapped.forEach((l, i) => {
+        ensure(8.5 + 2.5);
+        if (i === 0) page.drawText('•', { x: left + 2, y, size: 8.5, font, color: ink });
+        page.drawText(l, { x: left + 14, y, size: 8.5, font, color: ink });
+        y -= 8.5 + 2.5;
+      });
+      continue;
+    }
+    for (const l of wrap(t, font, 8.5, maxW)) {
+      ensure(8.5 + 2.5);
+      page.drawText(l, { x: left, y, size: 8.5, font, color: ink });
+      y -= 8.5 + 2.5;
+    }
+    y -= 1;
+  }
 
   // ---------- Unterschriften ----------
   y -= 24;
