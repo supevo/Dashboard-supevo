@@ -655,6 +655,9 @@ export async function convertLeadToProjectAction(input: unknown): Promise<Action
     client_company_id: client.id,
     name: projectName,
     status: 'active',
+    // Für den Kunden sichtbar (Board im Portal, schreibgeschützt). Sichtbarkeit
+    // ist auf der Agenturseite jederzeit umstellbar.
+    is_client_visible: true,
     lead_user_id: user.id,
     created_by: user.id,
   });

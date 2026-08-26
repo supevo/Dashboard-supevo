@@ -107,6 +107,9 @@ async function ensureClientProject(
     client_company_id: clientCompanyId,
     name: `${clientName} – Umsetzung`,
     status: 'active',
+    // Für den Kunden sichtbar – das Board ist für ihn gedacht (im Portal
+    // schreibgeschützt). Die Agentur kann die Sichtbarkeit später umstellen.
+    is_client_visible: true,
     lead_user_id: userId,
     created_by: userId,
   });
