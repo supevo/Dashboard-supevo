@@ -468,8 +468,21 @@ export async function releasePlanAction(planId: string): Promise<ActionResult> {
 
   await service
     .from('marketing_plans')
-    .update({ status: 'in_review', updated_at: new Date().toISOString() })
+    .update({
+      status: 'in_review',
+      accepted_at: null,
+      updated_at: new Date().toISOString(),
+    })
     .eq('id', planId);
+
+  // Erneute Freigabe (Plan war schon akzeptiert): bereits akzeptierte Maßnahmen
+  // zurück auf „vorgeschlagen", damit der Kunde erneut zustimmen muss. Bereits
+  // ins Kanban übernommene (embedded) Maßnahmen bleiben unverändert.
+  await service
+    .from('marketing_plan_items')
+    .update({ status: 'proposed', updated_at: new Date().toISOString() })
+    .eq('plan_id', planId)
+    .eq('status', 'accepted');
 
   const { data: contacts } = await service
     .from('client_contacts')

@@ -438,14 +438,23 @@ export function PlanManager({
           {PLAN_STATUS[plan.status] ?? plan.status}
         </span>
         <div className="flex gap-2">
-          {plan.status === 'draft' && (
+          {plan.items.length > 0 && (
             <Button
               size="sm"
               variant="outline"
-              disabled={pending || plan.items.length === 0}
+              disabled={pending}
               onClick={() => run(() => releasePlanAction(plan.id))}
+              title={
+                plan.status === 'accepted'
+                  ? 'Plan erneut zur Zustimmung an den Kunden senden (Inhalt bleibt; bereits akzeptierte Maßnahmen müssen erneut bestätigt werden).'
+                  : 'Plan zur Abstimmung an den Kunden senden.'
+              }
             >
-              Zur Abstimmung freigeben
+              {plan.status === 'draft'
+                ? 'Zur Abstimmung freigeben'
+                : plan.status === 'accepted'
+                  ? 'Erneut zur Abstimmung'
+                  : 'Erneut an Kunden senden'}
             </Button>
           )}
           <Button
