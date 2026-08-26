@@ -93,6 +93,7 @@ export async function resetOnboardingProgressAction(
   if (!orgId) return errorResult('Keine Berechtigung.');
 
   const service = createSupabaseServiceClient();
+  const now = new Date().toISOString();
   const { error } = await service
     .from('client_onboarding')
     .update({
@@ -102,15 +103,39 @@ export async function resetOnboardingProgressAction(
       sepa_pdf_path: null,
       sepa_iban_last4: null,
       sepa_mandate_ref: null,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     })
     .eq('client_company_id', clientCompanyId);
   if (error) return errorResult('Zurücksetzen fehlgeschlagen.');
 
+  // Marketingplan-Akzeptanz zurücksetzen (Inhalt bleibt!): ein im Test bereits
+  // akzeptierter Plan geht zurück in die Abstimmung, damit der echte Kunde ihn
+  // erneut akzeptieren muss. Phasen/Maßnahmen bleiben unverändert; bereits ins
+  // Kanban übernommene Maßnahmen (embedded) werden NICHT angefasst.
+  const { data: plans } = await service
+    .from('marketing_plans')
+    .select('id')
+    .eq('client_company_id', clientCompanyId)
+    .eq('status', 'accepted');
+  const planIds = (plans ?? []).map((p) => p.id);
+  if (planIds.length > 0) {
+    await service
+      .from('marketing_plans')
+      .update({ status: 'in_review', accepted_at: null, updated_at: now })
+      .in('id', planIds);
+    await service
+      .from('marketing_plan_items')
+      .update({ status: 'proposed', updated_at: now })
+      .in('plan_id', planIds)
+      .eq('status', 'accepted');
+  }
+
   revalidatePath(`/app/clients/${clientCompanyId}`);
   revalidatePath('/portal');
   return successResult(
-    'Onboarding zurückgesetzt – der Kunde kann Vertrag & SEPA erneut unterschreiben.',
+    planIds.length > 0
+      ? 'Onboarding zurückgesetzt – Vertrag & SEPA erneut zu unterschreiben, und der Marketingplan liegt wieder zur Zustimmung beim Kunden (Inhalt unverändert).'
+      : 'Onboarding zurückgesetzt – der Kunde kann Vertrag & SEPA erneut unterschreiben.',
   );
 }
 
