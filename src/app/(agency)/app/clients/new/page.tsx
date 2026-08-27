@@ -13,6 +13,8 @@ import { OnboardingSetup } from '@/features/onboarding/components/onboarding-set
 import { getClientDocuments } from '@/features/client-documents/queries';
 import { DocumentSlot } from '@/features/client-documents/components/document-slot';
 import { listBillingEntities } from '@/features/billing/queries';
+import { getPlan } from '@/features/marketing-plan/queries';
+import { PlanManager } from '@/features/marketing-plan/components/plan-manager';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +100,10 @@ export default async function NewClientWizardPage({
 
       {step === 4 && company && (
         <Step4 orgId={orgId} clientId={clientId} clientName={company.name} />
+      )}
+
+      {step === 5 && company && (
+        <Step5 clientId={clientId} clientName={company.name} />
       )}
     </div>
   );
@@ -186,7 +192,41 @@ async function Step4({
         />
         <div className="flex justify-end border-t pt-3">
           <Link
-            href={`/app/clients/${clientId}`}
+            href={`/app/clients/new?step=5&client=${clientId}`}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Weiter zum Marketingplan →
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+async function Step5({
+  clientId,
+  clientName,
+}: {
+  clientId: string;
+  clientName: string;
+}) {
+  const plan = await getPlan(clientId);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>5. Marketingplan — {clientName}</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Lass die KI einen Entwurf mit Phasen &amp; Maßnahmen erstellen, prüfe und
+          passe ihn an. Zur Abstimmung an den Kunden gibst du ihn später auf der
+          Kundenseite frei.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <PlanManager clientCompanyId={clientId} plan={plan} />
+        <div className="flex justify-end border-t pt-3">
+          <Link
+            href={`/app/clients/${clientId}?tab=plan`}
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted"
           >
             Fertig – zur Kundenseite
