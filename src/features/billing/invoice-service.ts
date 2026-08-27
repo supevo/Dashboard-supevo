@@ -121,7 +121,13 @@ export async function createDraftInvoice(params: {
   const smallBusiness = settings?.small_business ?? false;
   const amounts = computeAmounts(netCents, taxRate, smallBusiness);
   const period = servicePeriod(refDate, membership.interval_months);
-  const label = membershipLabel(membership, settings);
+  // Legacy-/Bestandskunden erscheinen auf der Rechnung als „supevo Smart".
+  const { data: companyRow } = await supabase
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  const label = membershipLabel(membership, settings, companyRow?.is_legacy ?? false);
 
   const { data: invoice, error } = await supabase
     .from('invoices')

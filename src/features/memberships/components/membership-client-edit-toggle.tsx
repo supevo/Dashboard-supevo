@@ -36,8 +36,8 @@ export function MembershipClientEditToggle({
       <span>
         Kunde darf seine Mitgliedschaft im Portal selbst anpassen
         <span className="block text-xs text-muted-foreground">
-          Nur für Legacy-Kunden sinnvoll. Änderungen des Kunden gelten ab dem
-          Folgemonat; abgewählte Module melden wir dem Team.
+          Nur für „supevo Smart“-Kunden sinnvoll. Änderungen des Kunden gelten ab
+          dem Folgemonat; abgewählte Module melden wir dem Team.
         </span>
       </span>
     </label>

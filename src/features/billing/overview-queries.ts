@@ -1,7 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getBillingSettings } from '@/features/billing/queries';
-import { effectiveMonthlyCents, readRedeemedIds } from '@/features/billing/membership';
+import { effectiveMonthlyCents, readRedeemedIds, SUPEVO_SMART_LABEL } from '@/features/billing/membership';
 import { promoDiscountCents, type PromoDiscount } from '@/features/promotions/discount';
 import type { InvoiceRow } from '@/features/billing/invoice-queries';
 
@@ -68,10 +68,13 @@ export async function getMonthlyBillingOverview(
   const clientIds = [...new Set(memberships.map((m) => m.client_company_id))];
   const { data: companies } = await supabase
     .from('client_companies')
-    .select('id, name')
+    .select('id, name, is_legacy')
     .in('id', clientIds)
     .is('deleted_at', null);
   const nameById = new Map((companies ?? []).map((c) => [c.id, c.name] as const));
+  const legacyById = new Map(
+    (companies ?? []).map((c) => [c.id, c.is_legacy ?? false] as const),
+  );
 
   // Rechnungen, deren Leistungszeitraum im gewählten Monat beginnt.
   const { start, end } = monthBounds(year, month);
@@ -104,10 +107,14 @@ export async function getMonthlyBillingOverview(
       const redeemed = readRedeemedIds(m);
       const net = Math.max(0, base - promoDiscountCents(base, promoRules, redeemed));
       const gross = Math.round((net * (100 + taxRate)) / 100);
-      // Kein „Individuell" – immer der echte Stufenname.
+      // Legacy-/Bestandskunden → „supevo Smart". Sonst: kein „Individuell",
+      // immer der echte Stufenname bzw. der gesetzte Paketname.
       const stageName = m.stage === 2 ? stage2Name : stage1Name;
-      const packageLabel =
-        m.custom_name && m.custom_name !== 'Individuell' ? m.custom_name : stageName;
+      const packageLabel = legacyById.get(m.client_company_id)
+        ? SUPEVO_SMART_LABEL
+        : m.custom_name && m.custom_name !== 'Individuell'
+          ? m.custom_name
+          : stageName;
       return {
         clientCompanyId: m.client_company_id,
         clientName: nameById.get(m.client_company_id) ?? '—',

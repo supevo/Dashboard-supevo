@@ -8,6 +8,14 @@ import { promoDiscountCents, type PromoDiscount } from '@/features/promotions/di
 export type ClientMembership =
   Database['public']['Tables']['client_memberships']['Row'];
 
+/**
+ * Anzeigename der Mitgliedschaft für Legacy-/Bestandskunden. Diese laufen intern
+ * weiter über das Modul-Baukasten-Modell (`is_legacy`), werden aber überall, wo
+ * ein Mensch sie sieht (Rechnung, Vertrag, Portal, Übersicht), als „supevo Smart"
+ * geführt.
+ */
+export const SUPEVO_SMART_LABEL = 'supevo Smart';
+
 /** Loads a client's membership (RLS: agency org or the client itself). */
 export async function getClientMembership(
   clientCompanyId: string,
@@ -91,12 +99,15 @@ export async function netMonthlyAfterPromos(
   return Math.max(0, base - discount);
 }
 
-/** The plan label shown to the client: custom name or the stage package name. */
+/** The plan label shown to the client: custom name or the stage package name.
+ *  Legacy-/Bestandskunden werden einheitlich als „supevo Smart" geführt. */
 export function membershipLabel(
   membership: Pick<ClientMembership, 'stage' | 'custom_name'> | null,
   settings: Pick<BillingSettings, 'stage1_name' | 'stage2_name'> | null,
+  isLegacy = false,
 ): string {
   if (!membership) return '—';
+  if (isLegacy) return SUPEVO_SMART_LABEL;
   if (membership.custom_name) return membership.custom_name;
   if (membership.stage === 2) return settings?.stage2_name ?? 'supevo Mitgliedschaft Stage 2';
   return settings?.stage1_name ?? 'supevo Mitgliedschaft Stage 1';
