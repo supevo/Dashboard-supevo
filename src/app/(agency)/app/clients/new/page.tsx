@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { WizardSteps } from '@/features/onboarding/components/wizard-steps';
 import { ClientWizardStep1 } from '@/features/client-companies/components/client-wizard-step1';
 import { getClientCompany } from '@/features/client-companies/queries';
@@ -27,13 +28,21 @@ export default async function NewClientWizardPage({
 }: {
   searchParams: Promise<{ step?: string; client?: string }>;
 }) {
-  const { orgId } = await requireAgencyPage();
+  const { user, orgId } = await requireAgencyPage();
+  const isAdmin = isOrgAdmin(user, orgId);
   const sp = await searchParams;
   const step = Number(sp.step ?? '1');
   const clientId = sp.client ?? '';
 
   // Steps 2–4 require a created client.
   if (step >= 2 && !clientId) redirect('/app/clients/new?step=1');
+  // Schritte 2–4 sind Mitgliedschaft/Abrechnung/Vertrag – nur für Admins. Ein
+  // Mitarbeiter legt den Kunden in Schritt 1 an; das Kaufmännische ergänzt ein
+  // Admin. Landet ein Mitarbeiter doch auf einem späteren Schritt, zurück zum
+  // (bereits angelegten) Kunden statt einer Fehlerseite.
+  if (step >= 2 && !isAdmin) {
+    redirect(clientId ? `/app/clients/${clientId}` : '/app/clients');
+  }
 
   const company = clientId ? await getClientCompany(orgId, clientId) : null;
   if (step >= 2 && !company) notFound();
@@ -59,7 +68,11 @@ export default async function NewClientWizardPage({
             </p>
           </CardHeader>
           <CardContent>
-            <ClientWizardStep1 orgId={orgId} entities={await billingEntityOptions(orgId)} />
+            <ClientWizardStep1
+              orgId={orgId}
+              entities={await billingEntityOptions(orgId)}
+              isAdmin={isAdmin}
+            />
           </CardContent>
         </Card>
       )}

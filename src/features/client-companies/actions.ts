@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { isAgencyStaffInOrg, isOrgAdmin } from '@/lib/authz/policies';
 import { hasClientAccess } from '@/features/auth/access';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
@@ -202,15 +203,20 @@ export async function updateClientCoreDataAction(
   const { orgId, clientCompanyId, name, notes, customerType } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'clientCompany.manage', orgId });
+  // Stamm-/Kontaktdaten dürfen alle Agentur-Mitarbeiter pflegen (sie legen auch
+  // Kunden an). Der Kundentyp (supevo/Legacy) ist abrechnungsrelevant und bleibt
+  // Admins vorbehalten – für Mitarbeiter wird er nicht verändert. Schreiben über
+  // den Service-Client, da die client_companies-UPDATE-RLS admin-only ist.
+  if (!isAgencyStaffInOrg(user, orgId)) return errorResult(de.errors.FORBIDDEN);
+  const canEditType = isOrgAdmin(user, orgId);
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const service = createSupabaseServiceClient();
+  const { error } = await service
     .from('client_companies')
     .update({
       name,
       notes: notes || null,
-      is_legacy: customerType === 'legacy',
+      ...(canEditType ? { is_legacy: customerType === 'legacy' } : {}),
     })
     .eq('organization_id', orgId)
     .eq('id', clientCompanyId);
@@ -273,10 +279,12 @@ export async function updateClientProfileAction(
   } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'clientCompany.manage', orgId });
+  // Kontakt-/Profildaten dürfen alle Agentur-Mitarbeiter pflegen. Schreiben über
+  // den Service-Client, da die client_companies-UPDATE-RLS admin-only ist.
+  if (!isAgencyStaffInOrg(user, orgId)) return errorResult(de.errors.FORBIDDEN);
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase
+  const service = createSupabaseServiceClient();
+  const { error } = await service
     .from('client_companies')
     .update({
       contact_email: contactEmail || null,

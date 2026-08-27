@@ -22,12 +22,16 @@ export function ClientCoreDataForm({
   name,
   notes,
   isLegacy,
+  canEditType = true,
 }: {
   orgId: string;
   clientCompanyId: string;
   name: string;
   notes: string | null;
   isLegacy: boolean;
+  /** Kundentyp (supevo/Legacy) ist abrechnungsrelevant – nur Admins dürfen ihn
+   *  ändern. Für Mitarbeiter wird der Regler ausgeblendet. */
+  canEditType?: boolean;
 }) {
   const [state, formAction] = useActionState(updateClientCoreDataAction, idleResult);
   const router = useRouter();
@@ -76,6 +80,10 @@ export function ClientCoreDataForm({
         />
       </div>
 
+      {!canEditType ? (
+        // Kundentyp bleibt admin-only: aktuellen Wert unverändert mitsenden.
+        <input type="hidden" name="customerType" value={type} />
+      ) : (
       <fieldset className="space-y-2">
         <Label>Kundentyp</Label>
         <div className="grid gap-2 sm:grid-cols-2">
@@ -117,6 +125,7 @@ export function ClientCoreDataForm({
           im Kundenportal.
         </p>
       </fieldset>
+      )}
 
       <SubmitButton size="sm">Speichern</SubmitButton>
     </form>
