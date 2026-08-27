@@ -6,6 +6,7 @@ import {
   useActionState,
   useCallback,
   useEffect,
+  useOptimistic,
   useRef,
   useState,
 } from 'react';
@@ -21,7 +22,7 @@ import type {
   DmConversation,
   TeamMember,
 } from '@/features/messenger/queries';
-import { idleResult } from '@/lib/action-result';
+import { idleResult, type ActionResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -83,7 +84,42 @@ function ConversationView({
 }) {
   const { typing, notifyTyping } = useChatTyping(channelId, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
-  const [state, action] = useActionState(sendChannelMessageAction, idleResult);
+  // Optimistisches Senden: die eigene Nachricht sofort anzeigen, statt auf zwei
+  // Server-Runden (Insert + komplettes Neuladen) zu warten. Über Cross-Region +
+  // Free-Tier fühlte sich genau diese Wartezeit für die Mitarbeiter träge an.
+  const [optimisticMessages, addOptimistic] = useOptimistic(
+    messages,
+    (cur, body: string): ChannelMessage[] => [
+      ...cur,
+      {
+        id: `optimistic-${Date.now()}`,
+        authorId: meId,
+        authorName: meName,
+        authorHasAvatar: false,
+        authorStatus: null,
+        body,
+        stickerUrl: null,
+        file: null,
+        poll: null,
+        createdAt: new Date().toISOString(),
+        isMine: true,
+      },
+    ],
+  );
+  const loadRef = useRef<() => Promise<void>>(async () => {});
+  const [state, action] = useActionState(
+    async (prev: ActionResult, formData: FormData): Promise<ActionResult> => {
+      const body = (formData.get('body') as string | null)?.trim() ?? '';
+      if (body) addOptimistic(body);
+      const res = await sendChannelMessageAction(prev, formData);
+      // Nach Erfolg im SELBEN Übergang neu laden, damit die optimistische Blase
+      // nahtlos durch die echte Nachricht ersetzt wird (kein Flackern): erst wenn
+      // die Action zurückkehrt, endet der Übergang und useOptimistic setzt zurück.
+      if (res.status === 'success') await loadRef.current();
+      return res;
+    },
+    idleResult,
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -112,32 +148,53 @@ function ConversationView({
       /* transient — next poll retries */
     }
   }, [channelId]);
+  loadRef.current = load;
 
   useEffect(() => {
+    // Nachrichten-Poll pausiert im Hintergrund-Tab (spart unnötige Runden).
+    let t: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (!t) t = setInterval(() => void load(), POLL_MS);
+    };
+    const stop = () => {
+      if (t) clearInterval(t);
+      t = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        void load();
+        start();
+      }
+    };
     void load();
-    const t = setInterval(() => void load(), POLL_MS);
-    return () => clearInterval(t);
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [load]);
 
   useEffect(() => {
-    if (state.status === 'success') {
-      formRef.current?.reset();
-      void load();
-    }
-  }, [state, load]);
+    // Neuladen erfolgt bereits in der Action (optimistisches Senden) – hier nur
+    // das Eingabefeld leeren.
+    if (state.status === 'success') formRef.current?.reset();
+  }, [state]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+  }, [optimisticMessages]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">{title}</div>
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-3">
-        {messages.length === 0 ? (
+        {optimisticMessages.length === 0 ? (
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
-          messages.map((m) => (
+          optimisticMessages.map((m) => (
             <div key={m.id} className={cn('flex gap-2', m.isMine && 'flex-row-reverse')}>
               <Avatar
                 userId={m.authorId ?? ''}

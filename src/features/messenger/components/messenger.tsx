@@ -2,7 +2,14 @@
 
 import { DropZone } from '@/components/ui/drop-zone';
 
-import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useOptimistic,
+  useRef,
+  useState,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,7 +22,7 @@ import type {
   ChannelMessage,
   ChannelFile,
 } from '@/features/messenger/queries';
-import { idleResult } from '@/lib/action-result';
+import { idleResult, type ActionResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -155,7 +162,37 @@ function MessagePane({
 }) {
   const { typing, notifyTyping } = useChatTyping(channel.id, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>(initialMessages);
-  const [state, action] = useActionState(sendChannelMessageAction, idleResult);
+  // Optimistisches Senden – eigene Nachricht sofort anzeigen (siehe chat-dock).
+  const [optimisticMessages, addOptimistic] = useOptimistic(
+    messages,
+    (cur, body: string): ChannelMessage[] => [
+      ...cur,
+      {
+        id: `optimistic-${Date.now()}`,
+        authorId: meId,
+        authorName: meName,
+        authorHasAvatar: false,
+        authorStatus: null,
+        body,
+        stickerUrl: null,
+        file: null,
+        poll: null,
+        createdAt: new Date().toISOString(),
+        isMine: true,
+      },
+    ],
+  );
+  const loadRef = useRef<() => Promise<void>>(async () => {});
+  const [state, action] = useActionState(
+    async (prev: ActionResult, formData: FormData): Promise<ActionResult> => {
+      const body = (formData.get('body') as string | null)?.trim() ?? '';
+      if (body) addOptimistic(body);
+      const res = await sendChannelMessageAction(prev, formData);
+      if (res.status === 'success') await loadRef.current();
+      return res;
+    },
+    idleResult,
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -186,6 +223,7 @@ function MessagePane({
       /* transient network error — next poll retries */
     }
   }, [channel.id]);
+  loadRef.current = load;
 
   const runSearch = useCallback(async () => {
     const q = search.trim();
@@ -214,15 +252,13 @@ function MessagePane({
   }, [load]);
 
   useEffect(() => {
-    if (state.status === 'success') {
-      formRef.current?.reset();
-      void load();
-    }
-  }, [state, load]);
+    // Neuladen erfolgt in der Action (optimistisches Senden) – hier nur leeren.
+    if (state.status === 'success') formRef.current?.reset();
+  }, [state]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+  }, [optimisticMessages]);
 
   return (
     <section className="flex min-w-0 flex-1 flex-col">
@@ -285,10 +321,10 @@ function MessagePane({
       )}
 
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-4">
-        {messages.length === 0 ? (
+        {optimisticMessages.length === 0 ? (
           <p className="text-sm text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
-          messages.map((m) => (
+          optimisticMessages.map((m) => (
             <div key={m.id} className={cn('flex gap-2', m.isMine && 'flex-row-reverse')}>
               <Avatar
                 userId={m.authorId ?? ''}
