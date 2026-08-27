@@ -12,6 +12,8 @@ import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { getMyPulse } from '@/features/pulse/queries';
 import { CoachingCard } from '@/features/coaching/components/coaching-card';
+import { RemindersCard } from '@/features/reminders/components/reminders-card';
+import { listMyReminders } from '@/features/reminders/queries';
 import { formatMinutes, formatBerlinDateTime, berlinWeekday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -28,12 +30,13 @@ export default async function AgencyDashboardPage() {
   const { user, orgId } = await requireAgencyPage();
   // Everyone but the super admin sees their own weekly hours vs. target.
   const showHours = !isSuperAdmin(user);
-  const [d, myPulse, workStatus, weekly, hours] = await Promise.all([
+  const [d, myPulse, workStatus, weekly, hours, reminders] = await Promise.all([
     getAgencyDashboard(user.id),
     getMyPulse(user.id),
     getWorkStatus(user.id),
     getWeeklyChallenges(user.id, orgId),
     showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
+    listMyReminders(),
   ]);
   // Der wöchentliche Stimmungscheck erscheint nur freitags beim Ausstempeln –
   // und nur, wenn er diese Woche noch nicht ausgefüllt wurde.
@@ -70,6 +73,8 @@ export default async function AgencyDashboardPage() {
       </div>
 
       <CoachingCard mode="me" />
+
+      <RemindersCard initialOpen={reminders.open} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />
