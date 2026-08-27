@@ -17,6 +17,8 @@ const schema = z.object({
   projectId: z.string().uuid(),
   taskId: z.string().uuid(),
   userId: z.string().uuid(),
+  // Optionale Notiz an die zugewiesene Person (erscheint in der Benachrichtigung).
+  message: z.string().trim().max(500).optional().or(z.literal('')),
 });
 
 export async function assignTaskAction(
@@ -27,9 +29,10 @@ export async function assignTaskAction(
     projectId: formData.get('projectId'),
     taskId: formData.get('taskId'),
     userId: formData.get('userId'),
+    message: formData.get('message') ?? '',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { projectId, taskId, userId } = parsed.data;
+  const { projectId, taskId, userId, message } = parsed.data;
 
   const actor = await requireUser();
   const supabase = await createSupabaseServerClient();
@@ -48,6 +51,8 @@ export async function assignTaskAction(
   });
   if (error) return errorResult(de.errors.FORBIDDEN);
 
+  // Optionale Notiz in die Benachrichtigung aufnehmen, sonst nur der Aufgabentitel.
+  const note = message?.trim();
   await createNotifications(
     [
       {
@@ -55,7 +60,7 @@ export async function assignTaskAction(
         recipientId: userId,
         type: 'task_assigned',
         title: 'Ihnen wurde eine Aufgabe zugewiesen',
-        body: task.title,
+        body: note ? `„${note}" · ${task.title}` : task.title,
         entityType: 'task',
         entityId: taskId,
       },

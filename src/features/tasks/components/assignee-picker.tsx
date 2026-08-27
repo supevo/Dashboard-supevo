@@ -72,22 +72,31 @@ export function AssigneePicker({
         ))}
       </div>
       {assignable.length > 0 && (
-        <form action={assignAction} className="flex items-center gap-2">
+        <form action={assignAction} className="space-y-2">
           <input type="hidden" name="projectId" value={projectId} />
           <input type="hidden" name="taskId" value={taskId} />
-          <Select name="userId" defaultValue="" className="h-9 w-auto" required>
-            <option value="" disabled>
-              — Person wählen —
-            </option>
-            {assignable.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.name}
+          <div className="flex items-center gap-2">
+            <Select name="userId" defaultValue="" className="h-9 w-auto" required>
+              <option value="" disabled>
+                — Person wählen —
               </option>
-            ))}
-          </Select>
-          <SubmitButton variant="outline" size="sm">
-            Zuweisen
-          </SubmitButton>
+              {assignable.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+            <SubmitButton variant="outline" size="sm">
+              Zuweisen
+            </SubmitButton>
+          </div>
+          <input
+            type="text"
+            name="message"
+            maxLength={500}
+            placeholder="Optionale Notiz an die Person (erscheint in der Benachrichtigung) …"
+            className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+          />
         </form>
       )}
     </div>
