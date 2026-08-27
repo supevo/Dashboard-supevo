@@ -40,7 +40,12 @@ import { playChatPing } from '@/features/messenger/notify-sound';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
-const OVERVIEW_POLL_MS = 12000;
+// Der Ungelesen-Zähler in der angedockten Leiste muss nicht sekundengenau sein.
+// Er lief bisher alle 12 s je Nutzer auf JEDER Seite – und war damit die mit
+// Abstand teuerste DB-Last (chat_unread_counts + Kanal-/Mitglieder-Abfragen,
+// >100k Aufrufe/Tag). 30 s reichen für ein Hintergrund-Badge völlig; zusätzlich
+// pausiert der Poll, wenn der Tab im Hintergrund liegt (siehe unten).
+const OVERVIEW_POLL_MS = 30000;
 const OPEN_KEY = 'chatDockOpen';
 const ACTIVE_KEY = 'chatDockChannel';
 
@@ -353,8 +358,33 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
 
   useEffect(() => {
     void loadOverview();
-    const t = setInterval(() => void loadOverview(), OVERVIEW_POLL_MS);
-    return () => clearInterval(t);
+    // Nur pollen, wenn der Tab sichtbar ist. Mitarbeiter lassen das Dashboard den
+    // ganzen Tag in einem Hintergrund-Tab offen – ohne diese Pause liefen die
+    // teuren Übersichts-Abfragen sinnlos weiter. Beim Zurückkehren zum Tab sofort
+    // einmal aktualisieren, damit das Badge nicht veraltet wirkt.
+    let t: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (t) return;
+      t = setInterval(() => void loadOverview(), OVERVIEW_POLL_MS);
+    };
+    const stop = () => {
+      if (t) clearInterval(t);
+      t = null;
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        void loadOverview();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [loadOverview]);
 
   useEffect(() => {
