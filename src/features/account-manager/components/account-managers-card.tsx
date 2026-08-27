@@ -27,7 +27,7 @@ export function AccountManagersCard({
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-5">
             {people.map((p) => (
-              <div key={p.userId} className="flex items-center gap-2.5">
+              <div key={p.userId} className="flex items-start gap-2.5">
                 <Avatar
                   userId={p.userId}
                   name={p.name}
@@ -36,9 +36,32 @@ export function AccountManagersCard({
                   size="lg"
                 />
                 <div className="min-w-0">
-                  <div className="truncate font-semibold">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Für alle Fragen rund um eure Betreuung.
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-semibold">{p.name}</span>
+                    {p.status === 'online' && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        Online
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 space-y-0.5 text-xs">
+                    {p.phone ? (
+                      <a
+                        href={`tel:${p.phone.replace(/\s+/g, '')}`}
+                        className="block text-muted-foreground hover:text-foreground"
+                      >
+                        📞 {p.phone}
+                      </a>
+                    ) : null}
+                    {p.email ? (
+                      <a
+                        href={`mailto:${p.email}`}
+                        className="block truncate text-muted-foreground hover:text-foreground"
+                      >
+                        ✉️ {p.email}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>
