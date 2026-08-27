@@ -20,6 +20,7 @@ import { listBillingEntities } from '@/features/billing/queries';
 import { getClientMembership } from '@/features/billing/membership';
 import { listClientInvoices } from '@/features/billing/invoice-queries';
 import { MembershipForm } from '@/features/billing/components/membership-form';
+import { MembershipBillingForm } from '@/features/billing/components/membership-billing-form';
 import { MembershipConfiguratorPanel } from '@/features/memberships/components/membership-configurator-panel';
 import { ClientBillingEntityForm } from '@/features/billing/components/client-billing-entity-form';
 import { InvoicesSection } from '@/features/billing/components/invoices-section';
@@ -126,7 +127,7 @@ export default async function ClientDetailPage({
     listMarketingReports(clientCompanyId),
     getOnboarding(clientCompanyId, orgId),
     listClientContacts(orgId, clientCompanyId),
-    isAdmin ? getClientMembership(clientCompanyId) : Promise.resolve(null),
+    getClientMembership(clientCompanyId),
     isAdmin ? getOfferCarryover(clientCompanyId) : Promise.resolve(null),
     isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
     isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
@@ -373,6 +374,47 @@ export default async function ClientDetailPage({
         </>
       ),
     },
+    // Adresse/IBAN/SEPA liegen technisch auf der Mitgliedschaft. Für Admins sind
+    // sie in der „Abrechnung" enthalten; Mitarbeiter bekommen dafür eine eigene
+    // Karte, damit sie beim Onboarding die Adresse & SEPA hinterlegen können.
+    ...(!isAdmin
+      ? [
+          {
+            key: 'address',
+            label: 'Adresse & SEPA',
+            icon: '📍',
+            content: membership ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>📍 Rechnungsadresse & SEPA</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Rechnungsadresse und SEPA-/Bankdaten des Kunden. Paket und
+                    Preis legt die Agenturleitung in der Abrechnung fest.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <MembershipBillingForm
+                    orgId={orgId}
+                    clientCompanyId={clientCompanyId}
+                    membership={membership}
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>📍 Rechnungsadresse & SEPA</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {'Für diesen Kunden ist noch keine Mitgliedschaft angelegt. Adresse und SEPA werden beim Onboarding zusammen mit der Mitgliedschaft erfasst – lege den Kunden über „Neuer Kunde" an oder bitte die Agenturleitung, die Mitgliedschaft einzurichten.'}
+                  </p>
+                </CardContent>
+              </Card>
+            ),
+          } satisfies DrawerSection,
+        ]
+      : []),
     {
       key: 'onboarding',
       label: 'Onboarding',
