@@ -11,6 +11,11 @@ import { WeekWorkCard } from '@/features/recap/components/week-work-card';
 import { getMyAccountManagers } from '@/features/account-manager/queries';
 import { AccountManagersCard } from '@/features/account-manager/components/account-managers-card';
 import { ClientStatTiles } from '@/features/dashboard/components/client-stat-tiles';
+import { getMyPortalTourSeen } from '@/features/onboarding/portal-tour-queries';
+import {
+  PortalTour,
+  TourReplayButton,
+} from '@/features/onboarding/components/portal-tour';
 import { de } from '@/lib/i18n/de';
 
 export default async function ClientDashboardPage() {
@@ -19,7 +24,7 @@ export default async function ClientDashboardPage() {
     getClientDashboard(),
     getMyClientCompany(),
   ]);
-  const [mySatisfaction, news, onboarding, weekWork, accountManagers] =
+  const [mySatisfaction, news, onboarding, weekWork, accountManagers, tourSeen] =
     await Promise.all([
       company ? getMySatisfaction(company.clientCompanyId) : Promise.resolve(null),
       company
@@ -28,47 +33,67 @@ export default async function ClientDashboardPage() {
       getMyOnboarding(),
       getClientWeekWork(),
       getMyAccountManagers(),
+      getMyPortalTourSeen(),
     ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Willkommen</h1>
-        <p className="text-muted-foreground">
-          Schön, dass Sie da sind, {user.fullName ?? user.email}.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Willkommen</h1>
+          <p className="text-muted-foreground">
+            Schön, dass Sie da sind, {user.fullName ?? user.email}.
+          </p>
+        </div>
+        <TourReplayButton />
       </div>
 
       {accountManagers.primary && (
-        <AccountManagersCard
-          primary={accountManagers.primary}
-          secondary={accountManagers.secondary}
-        />
+        <div data-tour="account-managers">
+          <AccountManagersCard
+            primary={accountManagers.primary}
+            secondary={accountManagers.secondary}
+          />
+        </div>
       )}
 
       {onboarding && onboarding.started && !onboarding.complete && (
-        <OnboardingStepper status={onboarding} />
+        <div data-tour="onboarding">
+          <OnboardingStepper status={onboarding} />
+        </div>
       )}
 
       {/* Aufgaben-Übersicht (offen/Bearbeitung/Freigabe) ist ein supevo-Flow –
           Legacy-Kunden haben ihn nicht, daher hier ausgeblendet. */}
       {!company?.isLegacy && (
-        <ClientStatTiles
-          tiles={[
-            { key: 'open', label: de.dashboard.open, tasks: d.openTasks },
-            { key: 'inProgress', label: de.dashboard.inProgress, tasks: d.inProgressTasks },
-            { key: 'toApprove', label: de.dashboard.toApprove, tasks: d.toApproveTasks },
-          ]}
-        />
+        <div data-tour="tasks">
+          <ClientStatTiles
+            tiles={[
+              { key: 'open', label: de.dashboard.open, tasks: d.openTasks },
+              { key: 'inProgress', label: de.dashboard.inProgress, tasks: d.inProgressTasks },
+              { key: 'toApprove', label: de.dashboard.toApprove, tasks: d.toApproveTasks },
+            ]}
+          />
+        </div>
       )}
 
-      <WeekWorkCard data={weekWork} />
+      <div data-tour="week">
+        <WeekWorkCard data={weekWork} />
+      </div>
 
       {news && news.items.length > 0 ? (
-        <NewsTicker items={news.items} topic={news.topic} />
+        <div data-tour="news">
+          <NewsTicker items={news.items} topic={news.topic} />
+        </div>
       ) : null}
 
-      {company ? <SatisfactionWidget initial={mySatisfaction} /> : null}
+      {company ? (
+        <div data-tour="satisfaction">
+          <SatisfactionWidget initial={mySatisfaction} />
+        </div>
+      ) : null}
+
+      <PortalTour autoStart={!tourSeen} />
     </div>
   );
 }

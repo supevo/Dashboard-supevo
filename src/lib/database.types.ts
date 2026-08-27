@@ -1164,6 +1164,7 @@ export interface Database {
           user_id: string;
           is_primary: boolean;
           notify_task_updates: boolean;
+          portal_tour_seen_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -1173,6 +1174,7 @@ export interface Database {
           user_id: string;
           is_primary?: boolean;
           notify_task_updates?: boolean;
+          portal_tour_seen_at?: string | null;
         };
         Update: Partial<
           Database['public']['Tables']['client_contacts']['Insert']
