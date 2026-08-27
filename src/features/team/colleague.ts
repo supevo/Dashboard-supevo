@@ -7,6 +7,7 @@ import { leagueForPoints, withSymbols, type LeagueStanding } from '@/features/ga
 import { getLeagueSymbols } from '@/features/gamification/league-symbols';
 import { livePresence } from '@/features/presence/status';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
+import { isSoftSkill } from '@/features/skills/catalog';
 import {
   resolveActiveBanner,
   type CustomBanner,
@@ -221,7 +222,8 @@ export async function getColleagueProfile(
       helpfulness: received.length,
     },
     skills,
-    preferences: sortByLevel(prefsRes.data),
+    // Soft Skills gehören nicht in die Lieblingsarbeit (Alt-Zeilen ausblenden).
+    preferences: sortByLevel((prefsRes.data ?? []).filter((p) => !isSoftSkill(p.name))),
     badges: badges.filter((b) => b.earned),
     badgeWall: badges,
   };

@@ -1,5 +1,5 @@
 import { SkillBar } from '@/features/skills/components/skill-bar';
-import { SKILL_GROUPS, SKILL_CATALOG, SKILL_EXAMPLES } from '@/features/skills/catalog';
+import { SKILL_GROUPS, SKILL_CATALOG, SKILL_EXAMPLES, isSoftSkill } from '@/features/skills/catalog';
 import type { Skill } from '@/features/skills/queries';
 import type { WorkPreference } from '@/features/preferences/queries';
 
@@ -46,7 +46,11 @@ export function SkillsPrefsSection({
           </div>
         )}
         <SkillBar name={name} variant="skill" label="Fähigkeit" initialLevel={skillByName.get(name) ?? 0} />
-        <SkillBar name={name} variant="preference" label="Lieblingsarbeit" initialLevel={prefByName.get(name) ?? 0} />
+        {/* Soft Skills (persönliche Kompetenzen) sind KEINE Lieblingsarbeit –
+            für sie gibt es nur die Fähigkeits-Bewertung, keinen roten Regler. */}
+        {!isSoftSkill(name) && (
+          <SkillBar name={name} variant="preference" label="Lieblingsarbeit" initialLevel={prefByName.get(name) ?? 0} />
+        )}
       </div>
     );
   };
