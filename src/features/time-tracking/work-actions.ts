@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
@@ -131,17 +132,20 @@ export async function clockInAction(
   if (error) return errorResult('Es läuft bereits eine Arbeitszeitsitzung.');
 
   // Ordnungsdienst: nicht erledigte Aufgaben aus einer vergangenen Periode als
-  // verpasst melden (keine XP, nachholen). Best-effort – blockiert nie.
-  try {
-    await flagMissedChoresOnClockIn(parsed.data.orgId, user.id);
-  } catch {
-    /* optional */
-  }
-  try {
-    await flagMissedBinTasksOnClockIn(user.id);
-  } catch {
-    /* optional */
-  }
+  // verpasst melden – NACH der Antwort (after), damit das Einstempeln sofort
+  // zurückkehrt. Best-effort, eigener Service-Client in den Helfern.
+  after(async () => {
+    try {
+      await flagMissedChoresOnClockIn(parsed.data.orgId, user.id);
+    } catch {
+      /* optional */
+    }
+    try {
+      await flagMissedBinTasksOnClockIn(user.id);
+    } catch {
+      /* optional */
+    }
+  });
 
   revalidatePath('/app/time');
   return successResult('Eingestempelt.');
@@ -174,13 +178,20 @@ export async function clockOutAction(): Promise<ActionResult> {
   if (error) return errorResult(de.errors.INTERNAL);
 
   // Reward a proper (self) clock-out: once today's NET working time from
-  // non-auto-closed sessions qualifies, award the daily work XP + streak.
-  // Best-effort – never blocks the clock-out.
-  try {
-    await awardWorkdayIfQualified(supabase, user.id, open.organization_id);
-  } catch {
-    /* XP is a bonus, not part of the core action */
-  }
+  // non-auto-closed sessions qualifies, award the daily work XP + streak. NACH
+  // der Antwort (after) mit eigenem Service-Client – blockiert das Ausstempeln
+  // nicht mehr. Best-effort.
+  after(async () => {
+    try {
+      await awardWorkdayIfQualified(
+        createSupabaseServiceClient(),
+        user.id,
+        open.organization_id,
+      );
+    } catch {
+      /* XP is a bonus, not part of the core action */
+    }
+  });
 
   // Ordnungsdienst: fällige Aufgaben (persönlich + geteilt) für diesen Ausstempel
   // zuteilen. Best-effort – blockiert das Ausstempeln nie.
@@ -214,7 +225,7 @@ export async function clockOutAction(): Promise<ActionResult> {
  * and, once the workday threshold is reached, grants the work-time XP + streak.
  */
 async function awardWorkdayIfQualified(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
   userId: string,
   orgId: string,
 ): Promise<void> {

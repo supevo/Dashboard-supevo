@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
@@ -86,19 +87,23 @@ export async function completeChoreAction(
       .from('office_chore_assignments')
       .update({ status: 'done', done_at: now } as never)
       .eq('id', row.id);
-    await createNotifications(
-      [
-        {
-          organizationId: row.organization_id,
-          recipientId: verifierId,
-          type: 'chore' as NotificationType,
-          title: 'Ordnungsdienst: Kontrolle nötig',
-          body: 'Bitte prüfe kurz einen erledigten Checkpunkt gegen.',
-          entityType: 'office_chore',
-          entityId: row.id,
-        },
-      ],
-      user.id,
+    // Benachrichtigung an den Prüfer NACH der Antwort – blockiert das Abhaken nicht.
+    const vId = verifierId;
+    after(() =>
+      createNotifications(
+        [
+          {
+            organizationId: row.organization_id,
+            recipientId: vId,
+            type: 'chore' as NotificationType,
+            title: 'Ordnungsdienst: Kontrolle nötig',
+            body: 'Bitte prüfe kurz einen erledigten Checkpunkt gegen.',
+            entityType: 'office_chore',
+            entityId: row.id,
+          },
+        ],
+        user.id,
+      ),
     );
   } else {
     // Solo: nobody to double-check → auto-verify and grant the doer's XP.
@@ -106,12 +111,15 @@ export async function completeChoreAction(
       .from('office_chore_assignments')
       .update({ status: 'verified', done_at: now, verified_at: now } as never)
       .eq('id', row.id);
-    await awardChoreXp({
-      orgId: row.organization_id,
-      assignmentId: row.id,
-      doerId: user.id,
-      verifierId: null,
-    });
+    // XP nachgelagert vergeben – das Abhaken kehrt sofort zurück.
+    after(() =>
+      awardChoreXp({
+        orgId: row.organization_id,
+        assignmentId: row.id,
+        doerId: user.id,
+        verifierId: null,
+      }),
+    );
   }
 
   revalidatePath('/app/time');
