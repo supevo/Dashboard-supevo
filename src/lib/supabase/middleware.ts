@@ -57,9 +57,17 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getUser() ist ein Netzwerk-Call zum Supabase-Auth-Server. Läuft er (Cross-
+  // Region/Free-Tier) in einen Fehler, lassen wir den Request durch – die Seite
+  // selbst prüft die Anmeldung erneut (requireUser/requireClientPage) und leitet
+  // ggf. um. So wird aus einem transienten Auth-Fehler kein harter Timeout.
+  let user: import('@supabase/supabase-js').User | null = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch {
+    return response;
+  }
 
   const { pathname } = request.nextUrl;
 
