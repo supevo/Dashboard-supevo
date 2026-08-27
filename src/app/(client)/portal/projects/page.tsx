@@ -1,12 +1,26 @@
 import Link from 'next/link';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { listProjects } from '@/features/projects/queries';
+import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { ProjectCover } from '@/features/projects/components/project-cover';
+import { ProjectsUpgradeRequired } from '@/features/projects/components/upgrade-required';
 import { EmptyState } from '@/components/ui/empty-state';
 import { de } from '@/lib/i18n/de';
 
 export default async function PortalProjectsPage() {
   const { orgId } = await requireClientPage();
+  const company = await getMyClientCompany();
+
+  // supevo-Smart (Baukasten) hat kein Aufgaben-Board – Upgrade-Hinweis zeigen.
+  if (company?.isLegacy) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">{de.portal.projects}</h1>
+        <ProjectsUpgradeRequired />
+      </div>
+    );
+  }
+
   const projects = await listProjects(orgId);
 
   return (

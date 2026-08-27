@@ -11,6 +11,7 @@ import { ExpressBoard } from '@/features/express/components/express-board';
 import { getExpressStatus } from '@/features/express/queries';
 import { AddClientTask } from '@/features/tasks/components/add-client-task';
 import { SubmitRequestForm } from '@/features/requests/components/submit-request-form';
+import { ProjectsUpgradeRequired } from '@/features/projects/components/upgrade-required';
 import { listClientRecurringTasks } from '@/features/recurring/queries';
 import { de } from '@/lib/i18n/de';
 
@@ -37,8 +38,18 @@ export default async function PortalProjectPage({
       .eq('id', project.clientCompanyId)
       .maybeSingle(),
   ]);
-  // Legacy-Kunden: Board nur ansehen – keine Aufgaben verschieben/hinzufügen.
   const isLegacy = companyRow.data?.is_legacy ?? false;
+  // supevo-Smart (Baukasten) hat kein Aufgaben-Board – Upgrade-Hinweis statt Board.
+  if (isLegacy) {
+    return (
+      <div className="space-y-6">
+        <Link href="/portal" className="text-sm text-muted-foreground hover:underline">
+          ← Zur Übersicht
+        </Link>
+        <ProjectsUpgradeRequired />
+      </div>
+    );
+  }
 
   // Flatten client-visible tasks (RLS already removed internal ones).
   const tasks = (board?.columns ?? []).flatMap((col) =>
