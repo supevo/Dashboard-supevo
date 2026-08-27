@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { livePresence } from '@/features/presence/status';
@@ -45,7 +46,7 @@ async function loadManager(
  * service client because the client cannot see agency profiles through RLS;
  * only the low-sensitivity name/avatar/status is exposed.
  */
-export async function getMyAccountManagers(): Promise<{
+export const getMyAccountManagers = cache(async function getMyAccountManagers(): Promise<{
   primary: AccountManager | null;
   secondary: AccountManager | null;
 }> {
@@ -73,7 +74,7 @@ export async function getMyAccountManagers(): Promise<{
     : null;
 
   return { primary, secondary };
-}
+});
 
 /** The main (primary) account manager only – used where a single name suffices. */
 export async function getMyAccountManager(): Promise<AccountManager | null> {

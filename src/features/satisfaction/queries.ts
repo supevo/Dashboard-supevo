@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { berlinToday } from '@/lib/time';
 
@@ -61,7 +62,7 @@ export async function getSatisfactionSummary(
 }
 
 /** Resolves the current user's client company + org (first membership). */
-export async function getMyClientCompany(): Promise<{
+export const getMyClientCompany = cache(async function getMyClientCompany(): Promise<{
   clientCompanyId: string;
   organizationId: string;
   isLegacy: boolean;
@@ -83,4 +84,4 @@ export async function getMyClientCompany(): Promise<{
     organizationId: data.organization_id,
     isLegacy: company?.is_legacy ?? false,
   };
-}
+});
