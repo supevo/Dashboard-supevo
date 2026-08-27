@@ -62,7 +62,8 @@ export type NotificationType =
   | 'birthday'
   | 'reaction'
   | 'appointment'
-  | 'print_billing';
+  | 'print_billing'
+  | 'reminder';
 export type ActivityAction =
   | 'create'
   | 'update'
@@ -1180,6 +1181,31 @@ export interface Database {
         };
         Update: Partial<
           Database['public']['Tables']['client_contacts']['Insert']
+        >;
+        Relationships: [];
+      };
+      personal_reminders: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string | null;
+          text: string;
+          due_at: string | null;
+          done_at: string | null;
+          notified_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id?: string | null;
+          text: string;
+          due_at?: string | null;
+          done_at?: string | null;
+          notified_at?: string | null;
+        };
+        Update: Partial<
+          Database['public']['Tables']['personal_reminders']['Insert']
         >;
         Relationships: [];
       };

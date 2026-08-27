@@ -11,6 +11,11 @@ import { saveMembershipConfigAction } from '@/features/memberships/configurator-
 import { createTaskAction } from '@/features/tasks/actions';
 import { assignTaskAction, unassignTaskAction } from '@/features/tasks/assignee-actions';
 import { addAssetLinkAction } from '@/features/assets/actions';
+import {
+  createReminderAction,
+  setReminderDoneAction,
+} from '@/features/reminders/actions';
+import { listMyReminders } from '@/features/reminders/queries';
 import { idleResult, type ActionResult } from '@/lib/action-result';
 
 /** Message from any action result (idle has none). */
@@ -214,6 +219,46 @@ export const assistantTools = [
           immediately: { type: 'boolean', description: 'sofort gültig (Standard) statt zum Folgemonat' },
         },
         required: ['clientCompanyId', 'moduleQuery', 'enabled'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_reminder',
+      description:
+        'Legt eine persönliche Erinnerung / ein To-do für den aktuellen Nutzer an. Für „Erinnere mich morgen daran, …". Relative Zeitangaben (morgen, nächste Woche) mithilfe des heutigen Datums (im System-Prompt) in dueAt umrechnen.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Woran erinnert werden soll' },
+          dueAt: {
+            type: 'string',
+            description:
+              'Fälligkeit als ISO-Datum/-Zeit (z. B. 2026-08-28 oder 2026-08-28T09:00). Ohne Termin weglassen (reines To-do).',
+          },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_my_reminders',
+      description: 'Listet die offenen persönlichen Erinnerungen / To-dos des Nutzers.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'complete_reminder',
+      description: 'Hakt eine Erinnerung als erledigt ab (reminderId aus list_my_reminders).',
+      parameters: {
+        type: 'object',
+        properties: { reminderId: { type: 'string' } },
+        required: ['reminderId'],
       },
     },
   },
@@ -472,6 +517,23 @@ export async function executeAssistantTool(
       return res.status === 'success'
         ? `Modul „${mod.label}" ${enabled ? 'aktiviert' : 'entfernt'}.`
         : `Fehler: ${errMsg(res)}`;
+    }
+    case 'create_reminder': {
+      const res = await createReminderAction({
+        text: s('text') ?? '',
+        dueAt: s('dueAt'),
+      });
+      return res.status === 'success' ? 'Erinnerung angelegt.' : `Fehler: ${errMsg(res)}`;
+    }
+    case 'list_my_reminders': {
+      const { open } = await listMyReminders();
+      return JSON.stringify(
+        open.map((r) => ({ reminderId: r.id, text: r.text, dueAt: r.dueAt })),
+      );
+    }
+    case 'complete_reminder': {
+      const res = await setReminderDoneAction(s('reminderId') ?? '', true);
+      return res.status === 'success' ? 'Erinnerung erledigt.' : `Fehler: ${errMsg(res)}`;
     }
     default:
       return `Unbekanntes Werkzeug: ${name}`;

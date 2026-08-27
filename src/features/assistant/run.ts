@@ -36,8 +36,17 @@ export async function runAssistant(history: ChatMsg[]): Promise<{ reply: string 
   const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey });
 
+  // Heutiges Datum (Europe/Berlin) für relative Zeitangaben wie „morgen".
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'long',
+  }).format(new Date());
+
   const messages: any[] = [
-    { role: 'system', content: SYSTEM },
+    { role: 'system', content: `${SYSTEM}\n\nHeutiges Datum (Europe/Berlin): ${today}. Rechne relative Angaben (morgen, übermorgen, nächste Woche) daraus in ein konkretes Datum um.` },
     ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
   ];
 
