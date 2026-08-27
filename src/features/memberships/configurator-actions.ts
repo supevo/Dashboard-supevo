@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { getCurrentUser } from '@/features/auth/session';
 import { de } from '@/lib/i18n/de';
 import {
@@ -77,7 +78,11 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   // Mitgliedschaft gespeichert (Carryover-Marker, keine Folgemonats-Planung).
   const redeemedPromotions = [...new Set(parsed.data.redeemedPromotions ?? [])];
 
-  const supabase = await createSupabaseServerClient();
+  // Onboarding/Mitgliedschaft einrichten dürfen alle Agentur-Mitarbeiter (sie
+  // fahren das Onboarding). Schreiben über den Service-Client, da die
+  // client_memberships-RLS admin-only ist; Autorisierung + Org-Bindung werden
+  // unten explizit geprüft.
+  const supabase = createSupabaseServiceClient();
   const { data: client } = await supabase
     .from('client_companies')
     .select('organization_id, name')
@@ -86,7 +91,9 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
   if (!client) return errorResult(de.errors.FORBIDDEN);
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: client.organization_id });
+  if (!isAgencyStaffInOrg(user, client.organization_id)) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
 
   const ctx = await priceContext(supabase, client.organization_id);
   const catalog = await getModuleCatalog(client.organization_id);
