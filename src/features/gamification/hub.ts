@@ -13,6 +13,7 @@ import {
   type EarnedAchievement,
 } from '@/features/gamification/achievements';
 import { getBadgeWall, type WallBadge } from '@/features/gamification/badge-catalog';
+import { isSoftSkill } from '@/features/skills/catalog';
 import { listLootBadges } from '@/features/loot/queries';
 import {
   resolveActiveBanner,
@@ -204,7 +205,10 @@ export async function getLevelHub(
   // instead of summing all skill points (which produced huge numbers).
   const COMPETENCE_THRESHOLD = 5;
   const competences = skills.filter((s) => (s.level ?? 0) > COMPETENCE_THRESHOLD).length;
+  // Soft Skills gehören nicht in die Lieblingsarbeit – Alt-Zeilen (aus der Zeit,
+  // als der Editor auch für sie einen Regler bot) hier defensiv ausblenden.
   const preferences = (prefsRes.data ?? [])
+    .filter((p) => !isSoftSkill(p.name))
     .slice()
     .sort((a, b) => b.level - a.level);
 
