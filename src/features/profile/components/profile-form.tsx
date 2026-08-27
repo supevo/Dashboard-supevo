@@ -13,9 +13,11 @@ import { SubmitButton } from '@/components/ui/submit-button';
 export function ProfileForm({
   fullName,
   email,
+  phone,
 }: {
   fullName: string;
   email: string;
+  phone?: string | null;
 }) {
   const [state, formAction] = useActionState(updateProfileAction, idleResult);
   const router = useRouter();
@@ -34,6 +36,20 @@ export function ProfileForm({
       <div className="space-y-1">
         <Label htmlFor="fullName">Name</Label>
         <Input id="fullName" name="fullName" defaultValue={fullName} required />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="phone">Telefon</Label>
+        <Input
+          id="phone"
+          name="phone"
+          type="tel"
+          defaultValue={phone ?? ''}
+          placeholder="z. B. +49 170 1234567"
+        />
+        <p className="text-xs text-muted-foreground">
+          Wird Kunden angezeigt, für die du Ansprechpartner bist.
+        </p>
       </div>
 
       <div className="space-y-1">

@@ -10,6 +10,8 @@ export interface AccountManager {
   name: string;
   hasAvatar: boolean;
   status: string | null;
+  email: string | null;
+  phone: string | null;
   role: AccountManagerRole;
 }
 
@@ -23,7 +25,7 @@ async function loadManager(
 ): Promise<AccountManager | null> {
   const { data: p } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url, status, last_seen_at')
+    .select('id, full_name, avatar_url, status, last_seen_at, email, phone')
     .eq('id', managerId)
     .maybeSingle();
   if (!p) return null;
@@ -32,6 +34,8 @@ async function loadManager(
     name: p.full_name ?? fallbackName,
     hasAvatar: Boolean(p.avatar_url),
     status: livePresence(p.status, p.last_seen_at),
+    email: p.email ?? null,
+    phone: p.phone ?? null,
     role,
   };
 }

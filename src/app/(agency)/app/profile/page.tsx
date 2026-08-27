@@ -30,7 +30,7 @@ export default async function ProfilePage() {
   const supabase = await createSupabaseServerClient();
   const { data: profile } = await supabase
     .from('profiles')
-    .select('avatar_url')
+    .select('avatar_url, phone')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -65,6 +65,7 @@ export default async function ProfilePage() {
           <ProfileForm
             fullName={user.fullName ?? ''}
             email={user.email}
+            phone={profile?.phone ?? null}
           />
           <div className="border-t pt-3 text-sm">
             <span className="text-muted-foreground">Rollen: </span>

@@ -114,6 +114,7 @@ export interface Database {
           id: string;
           full_name: string | null;
           email: string | null;
+          phone: string | null;
           avatar_url: string | null;
           locale: string;
           status: string;
@@ -127,6 +128,7 @@ export interface Database {
           id: string;
           full_name?: string | null;
           email?: string | null;
+          phone?: string | null;
           avatar_url?: string | null;
           locale?: string;
           status?: string;
