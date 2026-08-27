@@ -5,6 +5,7 @@ const STEPS = [
   { n: 2, label: 'Mitgliedschaft' },
   { n: 3, label: 'Adresse & SEPA' },
   { n: 4, label: 'Vertrag & Onboarding' },
+  { n: 5, label: 'Marketingplan' },
 ];
 
 /** Progress header for the guided "Neuer Kunde" wizard. */
