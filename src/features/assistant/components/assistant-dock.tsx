@@ -88,15 +88,24 @@ export function AssistantDock() {
     <div className="fixed bottom-[4.75rem] right-4 z-50 flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-sm font-semibold">✨ Assistent</span>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="rounded px-2 text-lg leading-none text-muted-foreground hover:bg-muted"
-          aria-label="Schließen"
-          title="Schließen"
-        >
-          –
-        </button>
+        <div className="flex items-center gap-1">
+          <a
+            href="/app/assistant"
+            className="rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+            title="Im Vollbild öffnen"
+          >
+            ⤢ Vollbild
+          </a>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded px-2 text-lg leading-none text-muted-foreground hover:bg-muted"
+            aria-label="Schließen"
+            title="Schließen"
+          >
+            –
+          </button>
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-muted/10 p-3">
