@@ -257,44 +257,43 @@ export default async function ClientDetailPage({
       icon: '👤',
       content: (
         <>
-          {isAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle>🏢 Stammdaten</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Name, Notizen und Kundentyp – dieselben Angaben wie beim Anlegen.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ClientCoreDataForm
-                  orgId={orgId}
-                  clientCompanyId={clientCompanyId}
-                  name={company.name}
-                  notes={company.notes}
-                  isLegacy={company.isLegacy}
-                />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>🏢 Stammdaten</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {isAdmin
+                  ? 'Name, Notizen und Kundentyp – dieselben Angaben wie beim Anlegen.'
+                  : 'Name und Notizen dieses Kunden.'}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ClientCoreDataForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                name={company.name}
+                notes={company.notes}
+                isLegacy={company.isLegacy}
+                canEditType={isAdmin}
+              />
+            </CardContent>
+          </Card>
 
-          {isAdmin && (
-            <Card>
-              <CardHeader>
-                <CardTitle>{de.clientProfile.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ClientProfileForm
-                  orgId={orgId}
-                  clientCompanyId={clientCompanyId}
-                  contactEmail={company.contactEmail}
-                  industry={company.industry}
-                  brands={company.brands}
-                  interests={company.interests}
-                  expressTicketsPerMonth={company.expressTicketsPerMonth}
-                />
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardHeader>
+              <CardTitle>{de.clientProfile.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ClientProfileForm
+                orgId={orgId}
+                clientCompanyId={clientCompanyId}
+                contactEmail={company.contactEmail}
+                industry={company.industry}
+                brands={company.brands}
+                interests={company.interests}
+                expressTicketsPerMonth={company.expressTicketsPerMonth}
+              />
+            </CardContent>
+          </Card>
 
           {isAdmin && (
             <Card>
