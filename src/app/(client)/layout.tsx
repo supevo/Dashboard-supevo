@@ -73,7 +73,9 @@ export default async function ClientLayout({
     ...(inquiriesVisible
       ? [{ href: '/portal/inquiries', label: 'Kundenanfragen', icon: <Inbox /> }]
       : []),
-    { href: '/portal/projects', label: 'Projekte', icon: <FolderKanban /> },
+    ...(company?.isLegacy
+      ? []
+      : [{ href: '/portal/projects', label: 'Projekte', icon: <FolderKanban /> }]),
     { href: '/portal/reports', label: 'Berichte', icon: <BarChart3 /> },
 
     { href: '#planung', label: 'Planung & Kreativität', heading: true },
