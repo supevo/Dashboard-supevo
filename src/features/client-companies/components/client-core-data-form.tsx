@@ -113,7 +113,7 @@ export function ClientCoreDataForm({
               className="mt-0.5"
             />
             <span>
-              <span className="font-medium">Legacy / Bestandskunde</span>
+              <span className="font-medium">supevo Smart</span>
               <span className="block text-xs text-muted-foreground">
                 Einzelne Module aus dem Baukasten + Custompreis.
               </span>

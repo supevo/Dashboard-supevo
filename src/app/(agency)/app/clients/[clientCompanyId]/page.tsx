@@ -491,7 +491,7 @@ export default async function ClientDetailPage({
                     <div>
                       <CardTitle>
                         {company.isLegacy
-                          ? '🧩 Mitgliedschafts-Baukasten'
+                          ? '🧩 supevo Smart'
                           : '🧩 supevo-Mitgliedschaft'}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">

@@ -76,7 +76,7 @@ export function ClientWizardStep1({
           <label className="flex cursor-pointer items-start gap-2 rounded-lg border p-3 text-sm has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/5">
             <input type="radio" name="customerType" value="legacy" className="mt-0.5" />
             <span>
-              <span className="font-medium">Legacy / Bestandskunde</span>
+              <span className="font-medium">supevo Smart</span>
               <span className="block text-xs text-muted-foreground">
                 Einzelne Module aus dem Baukasten + Custompreis.
               </span>

@@ -15,6 +15,7 @@ import { promoDiscountCents } from '@/features/promotions/discount';
 import { resolveClientEntity, type BillingEntity } from '@/features/billing/invoice-service';
 import { DEFAULT_CONTRACT_TERMS } from '@/features/contracts/terms';
 import { getOrgBranding } from '@/features/branding/queries';
+import { SUPEVO_SMART_LABEL } from '@/features/billing/membership';
 
 export interface ContractLine {
   label: string;
@@ -250,9 +251,10 @@ export async function buildContractFromClient(
   const orgId = membership.organization_id;
   const { data: company } = await supabase
     .from('client_companies')
-    .select('name, contact_email')
+    .select('name, contact_email, is_legacy')
     .eq('id', clientCompanyId)
     .maybeSingle();
+  const isLegacy = company?.is_legacy ?? false;
 
   const [ctx, catalog, terms, entity] = await Promise.all([
     priceContextFor(supabase, orgId),
@@ -273,8 +275,9 @@ export async function buildContractFromClient(
     (membership as { custom_net_cents?: number | null }).custom_net_cents ?? null;
   // Label: den echten Stufennamen zeigen, NICHT „Individuell". Ein eigener
   // custom_name wird nur genutzt, wenn er kein Platzhalter ist.
-  const customLabel =
-    membership.custom_name && membership.custom_name !== 'Individuell'
+  const customLabel = isLegacy
+    ? SUPEVO_SMART_LABEL
+    : membership.custom_name && membership.custom_name !== 'Individuell'
       ? membership.custom_name
       : built.lines[0]?.label || 'supevo Mitgliedschaft';
   // Module immer einzeln auflisten (wie im Lead-Angebot), sobald welche gewählt
@@ -364,9 +367,11 @@ export async function buildContractFromClient(
     smallBusiness: s?.small_business ?? false,
     terms,
     date: todayDe(),
-    reference: membership.custom_name && membership.custom_name !== 'Individuell'
-      ? membership.custom_name
-      : '',
+    reference: isLegacy
+      ? SUPEVO_SMART_LABEL
+      : membership.custom_name && membership.custom_name !== 'Individuell'
+        ? membership.custom_name
+        : '',
     logoDark: (await getOrgBranding(orgId)).logoDark,
   };
 }

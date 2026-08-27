@@ -70,7 +70,7 @@ export default async function NewClientWizardPage({
             <CardTitle>2. Mitgliedschaft — {company.name}</CardTitle>
             <p className="text-sm text-muted-foreground">
               {company.isLegacy
-                ? 'Legacy-Kunde: Module aus dem Baukasten wählen, Preis ergibt sich live.'
+                ? 'supevo Smart: Module aus dem Baukasten wählen, Preis ergibt sich live.'
                 : 'supevo-Kunde: Stage 1 oder Stage 2 wählen.'}
             </p>
           </CardHeader>

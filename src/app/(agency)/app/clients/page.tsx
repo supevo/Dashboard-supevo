@@ -115,7 +115,7 @@ export default async function ClientsPage() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  🏛️ Legacy-Kunden
+                  🏛️ supevo Smart
                 </h2>
                 <span className="text-xs text-muted-foreground">
                   ({legacyCompanies.length})
@@ -151,7 +151,7 @@ export default async function ClientsPage() {
                           {/* Legacy clients are not on the fair-share traffic light. */}
                         </div>
                         <p className="truncate text-xs text-muted-foreground">
-                          Legacy
+                          supevo Smart
                         </p>
                       </div>
                     </Link>

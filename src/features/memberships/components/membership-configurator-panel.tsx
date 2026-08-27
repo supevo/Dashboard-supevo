@@ -57,7 +57,7 @@ export async function MembershipConfiguratorPanel({
             Selbstbedienung der Module ist nur für Baukasten-Kunden möglich.
             supevo-Kunden wechseln im Portal nur ihre Stufe. Soll dieser Kunde
             seine Module selbst anpassen, stelle ihn unter „Stammdaten“ auf den
-            Kundentyp Baukasten (Legacy) um.
+            Kundentyp „supevo Smart“ um.
           </p>
         )}
       </div>

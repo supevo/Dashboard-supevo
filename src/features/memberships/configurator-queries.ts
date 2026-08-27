@@ -5,6 +5,7 @@ import type { Database } from '@/lib/database.types';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import { SUPEVO_SMART_LABEL } from '@/features/billing/membership';
 import {
   getActivePromotions,
   getPromotionsByIds,
@@ -189,6 +190,15 @@ export async function getMembershipConfigurator(
     membership.organization_id,
     redeemedPromotions,
   );
+  // Legacy-/Bestandskunden werden als „supevo Smart" geführt.
+  const { data: legacyRow } = await supabase
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  const planName = legacyRow?.is_legacy
+    ? SUPEVO_SMART_LABEL
+    : membership.custom_name ?? 'Individuell';
 
   return {
     hasMembership: true,
@@ -198,7 +208,7 @@ export async function getMembershipConfigurator(
       netCents:
         membership.custom_net_cents ??
         totalMonthlyCents(modules, activeSelections, priceContext),
-      name: membership.custom_name ?? 'Individuell',
+      name: planName,
       stage: membership.stage,
       customNetCents: membership.custom_net_cents ?? null,
     },
@@ -267,7 +277,9 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
       netCents:
         membership.custom_net_cents ??
         totalMonthlyCents(modules, activeSelections, priceContext),
-      name: membership.custom_name ?? 'Individuell',
+      name: (company?.is_legacy ?? false)
+        ? SUPEVO_SMART_LABEL
+        : membership.custom_name ?? 'Individuell',
       stage: membership.stage,
       customNetCents: membership.custom_net_cents ?? null,
     },
