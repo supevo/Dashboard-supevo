@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser, authorize } from '@/lib/authz/authorize';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 import {
@@ -161,15 +163,18 @@ export async function saveMembershipBillingAction(
   const d = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: d.orgId });
+  // Adresse/IBAN/SEPA gehören zum Onboarding und dürfen von allen Agentur-
+  // Mitarbeitern gepflegt werden. Schreiben über den Service-Client (RLS ist
+  // admin-only); Org-Bindung wird über die Mitgliedschaftszeile geprüft.
+  if (!isAgencyStaffInOrg(user, d.orgId)) return errorResult(de.errors.FORBIDDEN);
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceClient();
   const { data: existing } = await supabase
     .from('client_memberships')
-    .select('id')
+    .select('id, organization_id')
     .eq('client_company_id', d.clientCompanyId)
     .maybeSingle();
-  if (!existing) {
+  if (!existing || existing.organization_id !== d.orgId) {
     return errorResult('Bitte zuerst die Mitgliedschaft (Schritt 2) speichern.');
   }
 

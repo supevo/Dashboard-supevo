@@ -26,13 +26,9 @@ export interface BillingEntityOption {
 export function ClientWizardStep1({
   orgId,
   entities,
-  isAdmin = true,
 }: {
   orgId: string;
   entities: BillingEntityOption[];
-  /** Nur Admins durchlaufen die Abrechnungs-Schritte (2–4). Mitarbeiter landen
-   *  nach dem Anlegen direkt beim Kunden. */
-  isAdmin?: boolean;
 }) {
   const [state, formAction] = useActionState(createClientCompanyAction, idleResult);
   const router = useRouter();
@@ -40,13 +36,9 @@ export function ClientWizardStep1({
   useEffect(() => {
     if (state.status === 'success') {
       const id = (state.data as { id?: string } | undefined)?.id;
-      if (id) {
-        router.push(
-          isAdmin ? `/app/clients/new?step=2&client=${id}` : `/app/clients/${id}`,
-        );
-      }
+      if (id) router.push(`/app/clients/new?step=2&client=${id}`);
     }
-  }, [state, router, isAdmin]);
+  }, [state, router]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -116,13 +108,10 @@ export function ClientWizardStep1({
       )}
 
       <p className="text-xs text-muted-foreground">
-        {isAdmin
-          ? 'Die Rechnungsadresse des Kunden erfasst du im nächsten Schritt bei der Mitgliedschaft – daraus entsteht später der Vertrag.'
-          : 'Mitgliedschaft, Abrechnung und Vertrag ergänzt anschließend ein Administrator.'}
+        Die Rechnungsadresse des Kunden erfasst du im nächsten Schritt bei der
+        Mitgliedschaft – daraus entsteht später der Vertrag.
       </p>
-      <SubmitButton>
-        {isAdmin ? 'Weiter zur Mitgliedschaft →' : 'Kunde anlegen'}
-      </SubmitButton>
+      <SubmitButton>Weiter zur Mitgliedschaft →</SubmitButton>
     </form>
   );
 }
