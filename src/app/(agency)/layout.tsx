@@ -3,6 +3,7 @@ import { AppShell, type NavItem } from '@/components/layout/app-shell';
 import { getOrgBranding } from '@/features/branding/queries';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
+import { AssistantDock } from '@/features/assistant/components/assistant-dock';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { PomodoroTimer } from '@/components/layout/pomodoro-timer';
 import { TeamRail } from '@/features/presence/components/team-rail';
@@ -31,7 +32,6 @@ import {
   Wallet,
   Plug,
   ShieldAlert,
-  Sparkles,
 } from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
@@ -56,7 +56,6 @@ function buildNavItems(
     // (Kanban), Projekte sind weitere Boards innerhalb des Kunden.
     { href: '/app/clients', label: de.nav.clients, icon: <Building2 /> },
     { href: '/app/leads', label: de.nav.leads, icon: <Target /> },
-    { href: '/app/assistant', label: 'Assistent', icon: <Sparkles /> },
 
     // Auswertung & Team/Motivation nur für Admins – Mitarbeiter sehen die
     // gleichen Team-/Kollegen-Infos in der rechten Leiste.
@@ -176,6 +175,7 @@ export default async function AgencyLayout({
     >
       {children}
       <ChatDock meId={user.id} meName={user.fullName ?? user.email} />
+      <AssistantDock />
       <FeedbackWidget />
     </AppShell>
   );
