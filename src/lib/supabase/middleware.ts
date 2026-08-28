@@ -57,14 +57,23 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // getUser() ist ein Netzwerk-Call zum Supabase-Auth-Server. Läuft er (Cross-
-  // Region/Free-Tier) in einen Fehler, lassen wir den Request durch – die Seite
-  // selbst prüft die Anmeldung erneut (requireUser/requireClientPage) und leitet
-  // ggf. um. So wird aus einem transienten Auth-Fehler kein harter Timeout.
+  // getUser() ist ein Auth-Netzwerkcall zu Supabase. Damit ein langsamer Call
+  // NIEMALS das Edge-Limit reißt (504 MIDDLEWARE_INVOCATION_TIMEOUT), wird er
+  // hart gedeckelt: Kommt binnen AUTH_TIMEOUT_MS keine Antwort (oder ein
+  // Fehler), lässt die Middleware den Request durch – die Seite prüft die
+  // Anmeldung selbst erneut (requireUser/requireClientPage) und leitet ggf. um.
+  // So wird aus einem langsamen Call ein schneller Durchlass statt eines
+  // Gateway-Timeouts. Den Netzwerkcall ganz einsparen würde erst das lokale
+  // JWT-Verifizieren (asymmetrische Signing-Keys + getClaims) – separater Schritt.
+  const AUTH_TIMEOUT_MS = 2500;
   let user: import('@supabase/supabase-js').User | null = null;
   try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
+    user = await Promise.race([
+      supabase.auth.getUser().then((r) => r.data.user),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('auth-timeout')), AUTH_TIMEOUT_MS),
+      ),
+    ]);
   } catch {
     return response;
   }

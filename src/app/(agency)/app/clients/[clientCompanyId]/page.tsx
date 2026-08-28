@@ -391,7 +391,7 @@ export default async function ClientDetailPage({
             key: 'address',
             label: 'Adresse & SEPA',
             icon: '📍',
-            content: membership ? (
+            content: (
               <Card>
                 <CardHeader>
                   <CardTitle>📍 Rechnungsadresse & SEPA</CardTitle>
@@ -406,17 +406,6 @@ export default async function ClientDetailPage({
                     clientCompanyId={clientCompanyId}
                     membership={membership}
                   />
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>📍 Rechnungsadresse & SEPA</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    {'Für diesen Kunden ist noch keine Mitgliedschaft angelegt. Adresse und SEPA werden beim Onboarding zusammen mit der Mitgliedschaft erfasst – lege den Kunden über „Neuer Kunde" an oder bitte die Agenturleitung, die Mitgliedschaft einzurichten.'}
-                  </p>
                 </CardContent>
               </Card>
             ),

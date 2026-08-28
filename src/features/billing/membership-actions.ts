@@ -169,39 +169,68 @@ export async function saveMembershipBillingAction(
   if (!isAgencyStaffInOrg(user, d.orgId)) return errorResult(de.errors.FORBIDDEN);
 
   const supabase = createSupabaseServiceClient();
+  const fields = {
+    interval_months: d.interval_months,
+    billing_day: d.billing_day,
+    payment_method: d.payment_method,
+    status: d.status,
+    start_date: d.start_date,
+    next_invoice_date: nextBillingDate(d.billing_day),
+    auto_send: d.auto_send,
+    mandate_reference: d.mandate_reference || null,
+    mandate_date: d.mandate_date || null,
+    debtor_iban: d.debtor_iban || null,
+    debtor_bic: d.debtor_bic || null,
+    billing_name: d.billing_name || null,
+    billing_address_line1: d.billing_address_line1 || null,
+    billing_address_line2: d.billing_address_line2 || null,
+    billing_postal_code: d.billing_postal_code || null,
+    billing_city: d.billing_city || null,
+    billing_country: d.billing_country || 'Deutschland',
+    billing_vat_id: d.billing_vat_id || null,
+  };
+
   const { data: existing } = await supabase
     .from('client_memberships')
     .select('id, organization_id')
     .eq('client_company_id', d.clientCompanyId)
     .maybeSingle();
-  if (!existing || existing.organization_id !== d.orgId) {
-    return errorResult('Bitte zuerst die Mitgliedschaft (Schritt 2) speichern.');
-  }
 
-  const { error } = await supabase
-    .from('client_memberships')
-    .update({
-      interval_months: d.interval_months,
-      billing_day: d.billing_day,
-      payment_method: d.payment_method,
-      status: d.status,
-      start_date: d.start_date,
-      next_invoice_date: nextBillingDate(d.billing_day),
-      auto_send: d.auto_send,
-      mandate_reference: d.mandate_reference || null,
-      mandate_date: d.mandate_date || null,
-      debtor_iban: d.debtor_iban || null,
-      debtor_bic: d.debtor_bic || null,
-      billing_name: d.billing_name || null,
-      billing_address_line1: d.billing_address_line1 || null,
-      billing_address_line2: d.billing_address_line2 || null,
-      billing_postal_code: d.billing_postal_code || null,
-      billing_city: d.billing_city || null,
-      billing_country: d.billing_country || 'Deutschland',
-      billing_vat_id: d.billing_vat_id || null,
-    })
-    .eq('id', existing.id);
-  if (error) return errorResult(de.errors.INTERNAL);
+  if (existing) {
+    if (existing.organization_id !== d.orgId) return errorResult(de.errors.NOT_FOUND);
+    const { error } = await supabase
+      .from('client_memberships')
+      .update(fields)
+      .eq('id', existing.id);
+    if (error) return errorResult(de.errors.INTERNAL);
+  } else {
+    // Noch keine Mitgliedschaft vorhanden: eine anlegen, damit Rechnungsadresse
+    // und Zahlweg auch für Kunden ohne konfiguriertes Paket (z. B. reine
+    // Überweisung) hinterher änderbar sind. Paket/Stufe/Preis setzt die
+    // Agenturleitung wie gewohnt im Baukasten – hier als Default Stufe 1 ohne
+    // Custom-Preis, identisch zum Admin-Formular (upsertMembershipAction).
+    const { data: company } = await supabase
+      .from('client_companies')
+      .select('organization_id')
+      .eq('id', d.clientCompanyId)
+      .maybeSingle();
+    if (!company || company.organization_id !== d.orgId) {
+      return errorResult(de.errors.NOT_FOUND);
+    }
+    const { error } = await supabase.from('client_memberships').insert({
+      organization_id: d.orgId,
+      client_company_id: d.clientCompanyId,
+      stage: 1,
+      custom_name: null,
+      custom_net_cents: null,
+      ...fields,
+      // Kein automatischer Einzug, solange kein Paket konfiguriert ist – sonst
+      // würde das bloße Speichern der Adresse eine Stufe-1-Abrechnung auslösen.
+      // Die Agenturleitung plant die Abrechnung bewusst über den Baukasten.
+      next_invoice_date: null,
+    });
+    if (error) return errorResult(de.errors.INTERNAL);
+  }
 
   revalidatePath(`/app/clients/${d.clientCompanyId}`);
   return successResult('Abrechnung & SEPA gespeichert.');
