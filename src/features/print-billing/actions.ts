@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -43,7 +43,8 @@ export async function setPrintBillingAction(
     .eq('id', clientCompanyId)
     .maybeSingle();
   if (!company) return errorResult(de.errors.NOT_FOUND);
-  if (!isOrgAdmin(user, company.organization_id)) {
+  // Teil der Kunden-Abrechnung → alle Agentur-Mitarbeiter der Organisation.
+  if (!isAgencyStaffInOrg(user, company.organization_id)) {
     return errorResult(de.errors.FORBIDDEN);
   }
 

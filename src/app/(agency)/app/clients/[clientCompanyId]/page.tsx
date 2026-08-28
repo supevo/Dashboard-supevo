@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { isOrgAdmin, isSuperAdmin, can } from '@/lib/authz/policies';
+import {
+  isOrgAdmin,
+  isSuperAdmin,
+  isAgencyStaffInOrg,
+  can,
+} from '@/lib/authz/policies';
 import { PurgeClientButton } from '@/features/admin/components/purge-client-button';
 import {
   getClientCompany,
@@ -87,6 +92,9 @@ export default async function ClientDetailPage({
   const { tab, board: boardParam } = await searchParams;
   const { user, orgId } = await requireAgencyPage();
   const isAdmin = isOrgAdmin(user, orgId);
+  // Die Kunden-Abrechnung (Rechnungssteller, Mitgliedschaft/Preise, Rechnungen,
+  // SEPA) dürfen alle Agentur-Mitarbeiter der Organisation bearbeiten.
+  const canBilling = isAgencyStaffInOrg(user, orgId);
   const canCreateProject = can(user, { type: 'project.create', orgId });
 
   const company = await getClientCompany(orgId, clientCompanyId);
@@ -128,9 +136,9 @@ export default async function ClientDetailPage({
     getOnboarding(clientCompanyId, orgId),
     listClientContacts(orgId, clientCompanyId),
     getClientMembership(clientCompanyId),
-    isAdmin ? getOfferCarryover(clientCompanyId) : Promise.resolve(null),
-    isAdmin ? listBillingEntities(orgId) : Promise.resolve([]),
-    isAdmin ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
+    canBilling ? getOfferCarryover(clientCompanyId) : Promise.resolve(null),
+    canBilling ? listBillingEntities(orgId) : Promise.resolve([]),
+    canBilling ? listClientInvoices(clientCompanyId) : Promise.resolve([]),
     isAdmin ? listTeamMembers(orgId) : Promise.resolve([]),
     isAdmin ? getOneDriveStatus(orgId) : Promise.resolve(null),
     listClientPages(clientCompanyId),
@@ -471,7 +479,7 @@ export default async function ClientDetailPage({
         </>
       ),
     },
-    ...(isAdmin
+    ...(canBilling
       ? [
           {
             key: 'billing',

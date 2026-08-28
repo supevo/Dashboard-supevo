@@ -29,6 +29,7 @@ export type Permission =
   | { type: 'clientContact.manage'; orgId: string }
   | { type: 'invitation.manage'; orgId: string }
   | { type: 'project.create'; orgId: string }
+  | { type: 'billing.manage'; orgId: string }
   | { type: 'label.manage'; orgId: string };
 
 /** True when the user holds the super_admin role in any organization. */
@@ -76,6 +77,13 @@ export function can(user: CurrentUser, permission: Permission): boolean {
 
     case 'clientCompany.create':
       // Any agency staff member may add a new client company.
+      return isAgencyStaffInOrg(user, permission.orgId);
+
+    case 'billing.manage':
+      // Abrechnung eines Kunden (Rechnungssteller, Mitgliedschaft/Preise,
+      // Rechnungen, SEPA) dürfen alle Agentur-Mitarbeiter der Organisation
+      // bearbeiten. Globale Einstellungen (Baukasten-Katalog, Rechnungssteller-
+      // Stammdaten, Billing-Settings) bleiben Admin-only.
       return isAgencyStaffInOrg(user, permission.orgId);
 
     case 'project.create': {

@@ -65,7 +65,7 @@ export async function upsertMembershipAction(
   const d = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: d.orgId });
+  authorize(user, { type: 'billing.manage', orgId: d.orgId });
 
   const supabase = await createSupabaseServerClient();
 

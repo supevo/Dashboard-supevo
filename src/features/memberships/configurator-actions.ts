@@ -231,7 +231,7 @@ export async function setMembershipClientEditAction(
   if (!client) return errorResult(de.errors.FORBIDDEN);
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: client.organization_id });
+  authorize(user, { type: 'billing.manage', orgId: client.organization_id });
 
   const { error } = await supabase
     .from('client_memberships')
@@ -439,7 +439,7 @@ export async function cancelPendingMembershipChangeAction(
   if (!client) return errorResult(de.errors.FORBIDDEN);
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: client.organization_id });
+  authorize(user, { type: 'billing.manage', orgId: client.organization_id });
 
   const { error } = await supabase
     .from('client_memberships')

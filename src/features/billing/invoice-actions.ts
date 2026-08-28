@@ -47,7 +47,7 @@ export async function createDraftInvoiceAction(
   if (!membership) return errorResult('Für diesen Kunden ist keine Mitgliedschaft eingerichtet.');
 
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: membership.organization_id });
+  authorize(user, { type: 'billing.manage', orgId: membership.organization_id });
 
   const entity = await resolveClientEntity(
     supabase,
@@ -92,7 +92,7 @@ export async function generateAllDraftsAction(orgId: string): Promise<ActionResu
     return errorResult(de.errors.VALIDATION);
   }
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId });
+  authorize(user, { type: 'billing.manage', orgId });
 
   const supabase = await createSupabaseServerClient();
   const { data: memberships } = await supabase
@@ -186,7 +186,7 @@ async function loadInvoiceForManage(invoiceId: string): Promise<LoadedInvoice> {
     .maybeSingle();
   if (!invoice) return { ok: false, result: errorResult(de.errors.NOT_FOUND) };
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: invoice.organization_id });
+  authorize(user, { type: 'billing.manage', orgId: invoice.organization_id });
   return { ok: true, supabase, invoice, user };
 }
 
@@ -504,7 +504,7 @@ export async function setInvoiceRecipientAction(
     .maybeSingle();
   if (!company) return errorResult(de.errors.NOT_FOUND);
   const user = await requireUser();
-  authorize(user, { type: 'organization.update', orgId: company.organization_id });
+  authorize(user, { type: 'billing.manage', orgId: company.organization_id });
 
   const { error } = await supabase
     .from('client_companies')

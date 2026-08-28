@@ -360,9 +360,12 @@ export async function assignClientBillingEntityAction(
   const { orgId, clientCompanyId, billingEntityId } = parsed.data;
 
   const user = await requireUser();
-  authorize(user, { type: 'clientCompany.manage', orgId });
+  // Rechnungssteller zuordnen dürfen alle Agentur-Mitarbeiter der Organisation.
+  // Schreiben über den Service-Client (client_companies-RLS ist admin-only);
+  // die Org-Bindung wird hier explizit geprüft.
+  if (!isAgencyStaffInOrg(user, orgId)) return errorResult(de.errors.FORBIDDEN);
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceClient();
   // Verify the target entity belongs to this org before assigning.
   if (billingEntityId) {
     const { data: entity } = await supabase
