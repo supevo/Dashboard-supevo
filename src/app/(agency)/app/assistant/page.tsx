@@ -1,18 +1,23 @@
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isAiEnabled } from '@/lib/ai/complete';
 import { AssistantChat } from '@/features/assistant/components/assistant-chat';
+import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 import { Alert } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AssistantPage() {
-  await requireAgencyPage();
+  const { user } = await requireAgencyPage();
   const aiOn = isAiEnabled();
+  const firstName = (user.fullName ?? '').trim().split(/\s+/)[0] || undefined;
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">✨ Assistent</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <AssistantIcon className="h-7 w-[2rem]" />
+          Assistent
+        </h1>
         <p className="text-sm text-muted-foreground">
           Sag in eigenen Worten, was angelegt oder geändert werden soll – Aufgaben,
           Zuweisungen, Kunden, Kontaktdaten, Zugänge oder Mitgliedschafts-Module.
@@ -27,7 +32,7 @@ export default async function AssistantPage() {
         </Alert>
       )}
 
-      <AssistantChat />
+      <AssistantChat firstName={firstName} />
     </div>
   );
 }

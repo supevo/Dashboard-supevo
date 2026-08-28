@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -17,7 +18,10 @@ const EXAMPLES = [
   'Entferne bei Kunde Müller GmbH das Modul „Social Media" ab sofort.',
 ];
 
-export function AssistantChat() {
+export function AssistantChat({ firstName }: { firstName?: string }) {
+  const greeting = firstName
+    ? `Hallo ${firstName}, wie kann ich dir heute helfen?`
+    : 'Hallo, wie kann ich dir heute helfen?';
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -67,6 +71,10 @@ export function AssistantChat() {
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <AssistantIcon className="h-9 w-[2.6rem] shrink-0" />
+              <p className="text-base font-semibold text-foreground">{greeting}</p>
+            </div>
             <p className="text-sm text-muted-foreground">
               Sag mir einfach in eigenen Worten, was ich anlegen oder ändern soll.
               Ich löse Kunden, Mitarbeiter und Aufgaben selbst auf und frage nach,
