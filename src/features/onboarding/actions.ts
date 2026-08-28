@@ -9,6 +9,7 @@ import { requireUser } from '@/lib/authz/authorize';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { encryptSecret } from '@/lib/crypto/secret-vault';
+import { applyMandateToMembership } from '@/features/onboarding/sepa-mandate';
 import {
   renderContractPdf,
   renderSepaPdf,
@@ -223,6 +224,17 @@ export async function signSepaAction(input: unknown): Promise<ActionResult> {
     { onConflict: 'client_company_id' },
   );
   if (error) return errorResult('Speichern fehlgeschlagen.');
+
+  // Signierte IBAN direkt ins Einzugsfeld der Mitgliedschaft spiegeln, damit die
+  // SEPA-Lastschrift ohne manuelles Nachtragen einziehen kann. Best-effort – das
+  // Mandat selbst ist bereits gespeichert.
+  await applyMandateToMembership(service, {
+    clientCompanyId: company.clientCompanyId,
+    iban,
+    mandateRef,
+    mandateDate: signedAt.slice(0, 10),
+    accountHolder: parsed.data.accountHolder,
+  });
 
   revalidatePath('/portal');
   return successResult('SEPA-Mandat erteilt – danke!');
