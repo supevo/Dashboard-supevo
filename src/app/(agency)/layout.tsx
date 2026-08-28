@@ -175,7 +175,7 @@ export default async function AgencyLayout({
     >
       {children}
       <ChatDock meId={user.id} meName={user.fullName ?? user.email} />
-      <AssistantDock />
+      <AssistantDock firstName={(user.fullName ?? '').trim().split(/\s+/)[0] || undefined} />
       <FeedbackWidget />
     </AppShell>
   );

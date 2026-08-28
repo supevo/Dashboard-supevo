@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -16,7 +17,10 @@ const OPEN_KEY = 'assistantDockOpen';
  * Nutzt denselben Endpoint (/api/assistant) wie die Vollseite; der Assistent
  * handelt mit den Rechten des angemeldeten Nutzers.
  */
-export function AssistantDock() {
+export function AssistantDock({ firstName }: { firstName?: string }) {
+  const greeting = firstName
+    ? `Hallo ${firstName}, wie kann ich dir heute helfen?`
+    : 'Hallo, wie kann ich dir heute helfen?';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
@@ -77,9 +81,11 @@ export function AssistantDock() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[4.75rem] right-4 z-50 flex items-center gap-2 rounded-full bg-violet-600 px-4 py-2.5 text-sm font-medium text-white shadow-lg hover:bg-violet-600/90"
+        title="Assistent"
+        className="fixed bottom-[4.75rem] right-4 z-50 flex items-center gap-2 rounded-full border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-lg transition hover:bg-muted"
       >
-        ✨ Assistent
+        <AssistantIcon className="h-6 w-[1.85rem]" />
+        Assistent
       </button>
     );
   }
@@ -87,7 +93,10 @@ export function AssistantDock() {
   return (
     <div className="fixed bottom-[4.75rem] right-4 z-50 flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
       <div className="flex items-center justify-between border-b px-3 py-2">
-        <span className="text-sm font-semibold">✨ Assistent</span>
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <AssistantIcon className="h-5 w-6" />
+          Assistent
+        </span>
         <div className="flex items-center gap-1">
           <a
             href="/app/assistant"
@@ -110,9 +119,13 @@ export function AssistantDock() {
 
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto bg-muted/10 p-3">
         {messages.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {'Sag mir, was ich anlegen oder ändern soll – z. B. „Trag bei Kunde XY die Aufgabe ‚…‘ ein“ oder „Hinterlege bei Kunde XY dieses Passwort: …“. Ich löse Kunden, Aufgaben und Mitarbeiter selbst auf und frage nach, wenn etwas unklar ist. Ich handle mit deinen Rechten.'}
-          </p>
+          <div className="flex flex-col items-center gap-2 px-2 py-6 text-center">
+            <AssistantIcon className="h-11 w-[3.2rem]" />
+            <p className="text-sm font-medium text-foreground">{greeting}</p>
+            <p className="text-xs text-muted-foreground">
+              {'Sag mir, was ich anlegen oder ändern soll – z. B. „Trag bei Kunde XY die Aufgabe ‚…‘ ein“ oder „Hinterlege bei Kunde XY dieses Passwort: …“. Ich handle mit deinen Rechten.'}
+            </p>
+          </div>
         ) : (
           messages.map((m, i) => (
             <div key={i} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
@@ -161,7 +174,7 @@ export function AssistantDock() {
         <button
           type="submit"
           disabled={busy || !input.trim()}
-          className="rounded-md bg-violet-600 px-3 py-2 text-sm font-medium text-white hover:bg-violet-600/90 disabled:opacity-50"
+          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
           Senden
         </button>
