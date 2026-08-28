@@ -72,19 +72,26 @@ export async function setManualEstimateAction(
     .object({
       taskId: z.string().uuid(),
       projectId: z.string().uuid(),
-      minutes: z.coerce.number().int().min(0).max(4800),
+      // Betrag in der gewählten Einheit (Minuten oder Stunden, Dezimal erlaubt).
+      amount: z.coerce.number().min(0).max(4800),
+      unit: z.enum(['min', 'h']).default('min'),
     })
     .safeParse({
       taskId: formData.get('taskId'),
       projectId: formData.get('projectId'),
-      minutes: formData.get('minutes') || 0,
+      // Rückwärtskompatibel: altes Feld „minutes" weiter akzeptieren.
+      amount: formData.get('amount') ?? formData.get('minutes') ?? 0,
+      unit: formData.get('unit') ?? 'min',
     });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
   await requireUser();
   const supabase = await createSupabaseServerClient();
 
-  const manual = parsed.data.minutes > 0 ? parsed.data.minutes : null;
+  const rawMinutes =
+    parsed.data.unit === 'h' ? parsed.data.amount * 60 : parsed.data.amount;
+  const minutes = Math.min(4800, Math.max(0, Math.round(rawMinutes)));
+  const manual = minutes > 0 ? minutes : null;
   // Effektiver Wert = manuell ∨ (bestehende) KI-Schätzung.
   const { data: task } = await supabase
     .from('tasks')

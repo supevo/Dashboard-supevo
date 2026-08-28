@@ -10,6 +10,7 @@ import { idleResult } from '@/lib/action-result';
 import { formatMinutes } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 
@@ -39,11 +40,20 @@ export function EffortPanel({
   const [estState, estimate] = useActionState(estimateTaskAction, idleResult);
   const [manualState, setManual] = useActionState(setManualEstimateAction, idleResult);
   const router = useRouter();
-  const [manualInput, setManualInput] = useState(
-    manualEstimateMinutes != null ? String(manualEstimateMinutes) : '',
-  );
+  // Einheit der manuellen Eingabe. Ist der gespeicherte Wert ein glattes
+  // Vielfaches von 60, standardmäßig in Stunden anzeigen – sonst in Minuten.
+  const initUnit: 'min' | 'h' =
+    manualEstimateMinutes != null && manualEstimateMinutes % 60 === 0 && manualEstimateMinutes > 0
+      ? 'h'
+      : 'min';
+  const [unit, setUnit] = useState<'min' | 'h'>(initUnit);
+  const toInput = (mins: number | null, u: 'min' | 'h') =>
+    mins == null ? '' : String(u === 'h' ? mins / 60 : mins);
+  const [manualInput, setManualInput] = useState(toInput(manualEstimateMinutes, initUnit));
   useEffect(() => {
-    setManualInput(manualEstimateMinutes != null ? String(manualEstimateMinutes) : '');
+    setUnit(initUnit);
+    setManualInput(toInput(manualEstimateMinutes, initUnit));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manualEstimateMinutes]);
   useEffect(() => {
     if (estState.status === 'success' || manualState.status === 'success') {
@@ -102,15 +112,34 @@ export function EffortPanel({
               <input type="hidden" name="taskId" value={taskId} />
               <input type="hidden" name="projectId" value={projectId} />
               <Input
-                name="minutes"
+                name="amount"
                 type="number"
                 min={0}
-                max={4800}
+                max={unit === 'h' ? 80 : 4800}
+                step={unit === 'h' ? 0.25 : 5}
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                placeholder="Min."
-                className="h-8 w-24 text-sm"
+                placeholder={unit === 'h' ? 'Std.' : 'Min.'}
+                className="h-8 w-20 text-sm"
               />
+              <Select
+                name="unit"
+                value={unit}
+                onChange={(e) => {
+                  const next = e.target.value as 'min' | 'h';
+                  // Angezeigten Wert in die neue Einheit umrechnen.
+                  const cur = parseFloat(manualInput);
+                  if (!Number.isNaN(cur)) {
+                    const mins = unit === 'h' ? cur * 60 : cur;
+                    setManualInput(String(next === 'h' ? mins / 60 : Math.round(mins)));
+                  }
+                  setUnit(next);
+                }}
+                className="h-8 w-auto text-sm"
+              >
+                <option value="min">Min.</option>
+                <option value="h">Std.</option>
+              </Select>
               <SubmitButton size="sm" variant="ghost">
                 Manuell speichern
               </SubmitButton>
