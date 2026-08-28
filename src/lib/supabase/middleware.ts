@@ -57,30 +57,50 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // getUser() ist ein Auth-Netzwerkcall zu Supabase. Damit ein langsamer Call
-  // NIEMALS das Edge-Limit reißt (504 MIDDLEWARE_INVOCATION_TIMEOUT), wird er
-  // hart gedeckelt: Kommt binnen AUTH_TIMEOUT_MS keine Antwort (oder ein
-  // Fehler), lässt die Middleware den Request durch – die Seite prüft die
-  // Anmeldung selbst erneut (requireUser/requireClientPage) und leitet ggf. um.
-  // So wird aus einem langsamen Call ein schneller Durchlass statt eines
-  // Gateway-Timeouts. Den Netzwerkcall ganz einsparen würde erst das lokale
-  // JWT-Verifizieren (asymmetrische Signing-Keys + getClaims) – separater Schritt.
+  // Das Middleware-Gate entscheidet NUR über die Umleitung zu /login – die
+  // eigentliche Sicherheit liegt auf Seitenebene (getCurrentUser/getUser) und in
+  // der DB (RLS). Deshalb reicht hier eine LOKALE Prüfung ohne Netzwerkcall:
+  //
+  //  - Gültiges (nicht abgelaufenes) Access-Token in den Cookies  → eingeloggt,
+  //    KEIN Netzwerkcall. Das ist der Normalfall und macht das System schnell
+  //    und immun gegen Supabase-Latenz/Edge-Timeouts.
+  //  - Abgelaufenes Token  → einmalig getUser() (refresht via Cookie-setAll),
+  //    hart gedeckelt mit AUTH_TIMEOUT_MS, damit kein Gateway-Timeout entsteht.
+  //  - Kein/kaputtes Token → nicht eingeloggt.
+  //
+  // Ein transienter Fehler lässt den Request durch; die Seite prüft selbst erneut.
   const AUTH_TIMEOUT_MS = 2500;
-  let user: import('@supabase/supabase-js').User | null = null;
+  const EXPIRY_SKEW_MS = 10_000; // kurz vor Ablauf schon serverseitig erneuern
+  let authed = false;
   try {
-    user = await Promise.race([
-      supabase.auth.getUser().then((r) => r.data.user),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('auth-timeout')), AUTH_TIMEOUT_MS),
-      ),
-    ]);
+    // getSession() liest die Session lokal aus den Cookies (kein Netzwerk).
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session) {
+      const expiresAtMs = (session.expires_at ?? 0) * 1000;
+      if (expiresAtMs - Date.now() > EXPIRY_SKEW_MS) {
+        // Token noch gültig → rein lokal.
+        authed = true;
+      } else {
+        // Abgelaufen/kurz davor → einmalig serverseitig prüfen + refreshen.
+        const user = await Promise.race([
+          supabase.auth.getUser().then((r) => r.data.user),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('auth-timeout')), AUTH_TIMEOUT_MS),
+          ),
+        ]);
+        authed = Boolean(user);
+      }
+    }
   } catch {
     return response;
   }
 
   const { pathname } = request.nextUrl;
 
-  if (!user && !isPublicPath(pathname)) {
+  if (!authed && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     // Only ever store a relative path to prevent open-redirect attacks.
