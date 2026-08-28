@@ -351,7 +351,7 @@ const acceptSchema = z.object({
   clientCompanyId: z.string().uuid(),
   requestId: z.string().uuid(),
   index: z.coerce.number().int().min(0).max(20),
-  isInternal: z.enum(['true', 'false']).default('true'),
+  isInternal: z.enum(['true', 'false']).default('false'),
 });
 
 /** Agency turns one AI suggestion into a real task in the request's project. */
@@ -363,7 +363,7 @@ export async function acceptSuggestionAction(
     clientCompanyId: formData.get('clientCompanyId'),
     requestId: formData.get('requestId'),
     index: formData.get('index'),
-    isInternal: formData.get('isInternal') ?? 'true',
+    isInternal: formData.get('isInternal') ?? 'false',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
   const { clientCompanyId, requestId, index, isInternal } = parsed.data;
@@ -520,7 +520,7 @@ async function insertTaskInQueue(
 const clarifyTaskSchema = z.object({
   requestId: z.string().uuid(),
   clientCompanyId: z.string().uuid(),
-  isInternal: z.boolean().default(true),
+  isInternal: z.boolean().default(false),
   answers: z
     .array(
       z.object({

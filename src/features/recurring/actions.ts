@@ -23,7 +23,7 @@ const createSchema = z
     frequency: z.enum(['weekly', 'monthly']),
     weekday: z.coerce.number().int().min(0).max(6).optional(),
     dayOfMonth: z.coerce.number().int().min(1).max(28).optional(),
-    isInternal: z.enum(['true', 'false']).default('true'),
+    isInternal: z.enum(['true', 'false']).default('false'),
   })
   .refine(
     (d) =>
@@ -45,7 +45,7 @@ export async function createRecurringTaskAction(
     frequency: formData.get('frequency'),
     weekday: formData.get('weekday') ?? undefined,
     dayOfMonth: formData.get('dayOfMonth') ?? undefined,
-    isInternal: formData.get('isInternal') ?? 'true',
+    isInternal: formData.get('isInternal') ?? 'false',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
   const { projectId, title, description, frequency, isInternal } = parsed.data;

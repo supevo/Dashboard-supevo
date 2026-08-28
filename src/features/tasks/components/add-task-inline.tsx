@@ -149,7 +149,7 @@ export function AddTaskInline({
             )}
             <div className="space-y-1">
               <Label htmlFor="isInternal">{de.task.visibility}</Label>
-              <Select id="isInternal" name="isInternal" defaultValue="true">
+              <Select id="isInternal" name="isInternal" defaultValue="false">
                 <option value="true">{de.task.internal}</option>
                 <option value="false">{de.task.clientVisible}</option>
               </Select>
