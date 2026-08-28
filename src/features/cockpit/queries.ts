@@ -49,6 +49,18 @@ export async function getCockpit(orgId: string): Promise<CockpitRow[]> {
     kudosPts.set(k.to_user_id, (kudosPts.get(k.to_user_id) ?? 0) + k.points);
   }
 
+  // Automatische XP (Aufgaben, Ämtli, Zeit, Loot …) aus dem XP-Ledger. Punkte =
+  // XP-Ledger + Kudos – identisch zur Team-Leiste, Liga und dem Leaderboard,
+  // damit die „Punkte & Level"-Anzeige zu diesen konsistent (aktuell) ist.
+  const { data: xpRows } = await service
+    .from('xp_events')
+    .select('user_id, points')
+    .in('user_id', userIds);
+  const xpPts = new Map<string, number>();
+  for (const x of xpRows ?? []) {
+    xpPts.set(x.user_id, (xpPts.get(x.user_id) ?? 0) + (x.points ?? 0));
+  }
+
   // Objectives + key results per user.
   const { data: objectives } = await service
     .from('objectives')
@@ -67,13 +79,10 @@ export async function getCockpit(orgId: string): Promise<CockpitRow[]> {
     list.push({ done: k.done, points: k.points });
     krByObj.set(k.objective_id, list);
   }
-  const goalPts = new Map<string, number>();
   const activeObj = new Map<string, number>();
   const progressSum = new Map<string, { sum: number; n: number }>();
   for (const o of objectives ?? []) {
     const list = krByObj.get(o.id) ?? [];
-    const donePts = list.filter((k) => k.done).reduce((n, k) => n + k.points, 0);
-    goalPts.set(o.user_id, (goalPts.get(o.user_id) ?? 0) + donePts);
     if (o.status === 'active') {
       activeObj.set(o.user_id, (activeObj.get(o.user_id) ?? 0) + 1);
       const prog = list.length
@@ -115,7 +124,7 @@ export async function getCockpit(orgId: string): Promise<CockpitRow[]> {
   }
 
   return members.map((m) => {
-    const points = (kudosPts.get(m.userId) ?? 0) + (goalPts.get(m.userId) ?? 0);
+    const points = (kudosPts.get(m.userId) ?? 0) + (xpPts.get(m.userId) ?? 0);
     const prog = progressSum.get(m.userId);
     return {
       userId: m.userId,
