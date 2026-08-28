@@ -7,6 +7,8 @@ import { listColleagues } from '@/features/team/colleague';
 export interface RailActivity {
   taskTitle: string;
   projectName: string | null;
+  /** Client company the project belongs to (shown in the rail). */
+  clientName: string | null;
   /** true = live (timer running), false = last worked on. */
   live: boolean;
 }
@@ -81,21 +83,41 @@ async function getTeamActivity(
     ...[...taskById.values()].map((t) => t.projectId),
     ...[...live.values()].map((v) => v.projectId),
   ].filter((x): x is string => !!x);
-  const projById = new Map<string, string>();
+  const projById = new Map<string, { name: string; clientCompanyId: string | null }>();
   if (projectIds.length > 0) {
     const { data: projects } = await service
       .from('projects')
-      .select('id, name')
+      .select('id, name, client_company_id')
       .in('id', [...new Set(projectIds)]);
-    for (const p of projects ?? []) projById.set(p.id, p.name);
+    for (const p of projects ?? [])
+      projById.set(p.id, { name: p.name, clientCompanyId: p.client_company_id });
   }
+
+  const clientIds = [...projById.values()]
+    .map((p) => p.clientCompanyId)
+    .filter((x): x is string => !!x);
+  const clientNameById = new Map<string, string>();
+  if (clientIds.length > 0) {
+    const { data: clients } = await service
+      .from('client_companies')
+      .select('id, name')
+      .in('id', [...new Set(clientIds)]);
+    for (const c of clients ?? []) clientNameById.set(c.id, c.name);
+  }
+
+  const clientNameForProject = (projId: string | null): string | null => {
+    if (!projId) return null;
+    const cid = projById.get(projId)?.clientCompanyId ?? null;
+    return cid ? clientNameById.get(cid) ?? null : null;
+  };
 
   for (const [uid, v] of live) {
     const task = v.taskId ? taskById.get(v.taskId) : null;
     const projId = task?.projectId ?? v.projectId ?? null;
     out.set(uid, {
       taskTitle: task?.title ?? 'Zeiterfassung läuft',
-      projectName: projId ? projById.get(projId) ?? null : null,
+      projectName: projId ? projById.get(projId)?.name ?? null : null,
+      clientName: clientNameForProject(projId),
       live: true,
     });
   }
@@ -104,7 +126,8 @@ async function getTeamActivity(
     if (!task) continue;
     out.set(uid, {
       taskTitle: task.title,
-      projectName: task.projectId ? projById.get(task.projectId) ?? null : null,
+      projectName: task.projectId ? projById.get(task.projectId)?.name ?? null : null,
+      clientName: clientNameForProject(task.projectId),
       live: false,
     });
   }
