@@ -35,6 +35,7 @@ export default async function FinancePage({
     art?: string;
     rerun?: string;
     bill?: string;
+    steller?: string;
   }>;
 }) {
   const { user, orgId } = await requireAgencyPage();
@@ -171,6 +172,7 @@ export default async function FinancePage({
           year={jahr}
           month={monat}
           filter={bill}
+          steller={sp.steller}
           basePath="/app/finance?tab=rechnungen"
         />
       ),

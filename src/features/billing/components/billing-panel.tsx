@@ -17,12 +17,14 @@ export async function BillingPanel({
   year,
   month,
   filter,
+  steller,
   basePath,
 }: {
   orgId: string;
   year: number;
   month: number;
   filter?: 'alle' | 'offen' | 'sepa' | 'unbezahlt';
+  steller?: string;
   basePath: string;
 }) {
   const entities = await listBillingEntities(orgId);
@@ -44,6 +46,7 @@ export async function BillingPanel({
             year={year}
             month={month}
             filter={filter}
+            steller={steller}
             basePath={basePath}
           />
         </CardContent>
