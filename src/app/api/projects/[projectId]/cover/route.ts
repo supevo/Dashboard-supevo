@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import sharp from 'sharp';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
@@ -9,8 +10,15 @@ import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 
+export const runtime = 'nodejs';
+
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+// Zielgröße/Format der ausgelieferten Titelbilder. Teil des ETag, damit ein
+// geänderter Wert alte Browser-Caches gezielt invalidiert.
+const COVER_MAX_DIM = 1600;
+const COVER_VARIANT = 'v1-1600-webp-q80';
 
 /** Deterministic storage key for a project's cover image (one per project). */
 function coverPath(orgId: string, projectId: string): string {
@@ -32,9 +40,15 @@ function isSameOrigin(request: NextRequest): boolean {
   }
 }
 
-/** Streams the project cover image, or 404 when none is set. */
+/**
+ * Streams the project cover image, downscaled on the fly (max COVER_MAX_DIM,
+ * WebP) so pages stay light – this also shrinks covers that were uploaded at
+ * full size before client-side downscaling existed. Animated GIFs are served
+ * unchanged. Uses an ETag (from the stored file's timestamp) so unchanged
+ * covers revalidate with a cheap 304 instead of re-downloading the bytes.
+ */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await params;
@@ -50,12 +64,38 @@ export async function GET(
     .maybeSingle();
   if (!project) return new NextResponse(null, { status: 404 });
 
+  const service = createSupabaseServiceClient();
   const path = coverPath(project.organization_id, projectId);
+  const parent = `org/${project.organization_id}/project/${projectId}`;
+
+  // Validator (Änderungszeit des Objekts) für den ETag ermitteln, OHNE den Blob
+  // zu laden – so kann ein unveränderter Cache mit 304 (ohne Bytes) antworten.
+  let validator = '';
+  try {
+    const { data: items } = await service.storage
+      .from(FILES_BUCKET)
+      .list(parent, { search: 'cover', limit: 100 });
+    const meta = items?.find((i) => i.name === 'cover');
+    validator = meta?.updated_at ?? meta?.created_at ?? '';
+  } catch {
+    /* ohne Validator kein ETag – dann eben ohne 304 */
+  }
+
+  const cacheHeaders: Record<string, string> = {
+    'Cache-Control': 'private, max-age=600, stale-while-revalidate=604800',
+  };
+  let etag: string | undefined;
+  if (validator) {
+    etag = `"${createHash('sha1').update(validator + COVER_VARIANT).digest('hex').slice(0, 16)}"`;
+    cacheHeaders.ETag = etag;
+    if (request.headers.get('if-none-match') === etag) {
+      return new NextResponse(null, { status: 304, headers: cacheHeaders });
+    }
+  }
+
   let blob: Blob | null = null;
   try {
-    const { data } = await createSupabaseServiceClient()
-      .storage.from(FILES_BUCKET)
-      .download(path);
+    const { data } = await service.storage.from(FILES_BUCKET).download(path);
     blob = data;
   } catch (e) {
     logger.warn('cover.download.service_unavailable', {
@@ -68,14 +108,36 @@ export async function GET(
   }
   if (!blob) return new NextResponse(null, { status: 404 });
 
-  const bytes = Buffer.from(await blob.arrayBuffer());
-  return new NextResponse(bytes, {
-    status: 200,
-    headers: {
-      'Content-Type': blob.type || 'image/jpeg',
-      'Cache-Control': 'private, max-age=120',
-    },
-  });
+  const input = Buffer.from(await blob.arrayBuffer());
+
+  // Animierte GIFs unverändert lassen (Verkleinern würde die Animation platten).
+  if ((blob.type || '') === 'image/gif') {
+    return new NextResponse(new Uint8Array(input), {
+      status: 200,
+      headers: { ...cacheHeaders, 'Content-Type': 'image/gif' },
+    });
+  }
+
+  try {
+    const out = await sharp(input)
+      .rotate() // EXIF-Orientierung anwenden
+      .resize(COVER_MAX_DIM, COVER_MAX_DIM, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .webp({ quality: 80 })
+      .toBuffer();
+    return new NextResponse(new Uint8Array(out), {
+      status: 200,
+      headers: { ...cacheHeaders, 'Content-Type': 'image/webp' },
+    });
+  } catch (e) {
+    logger.warn('cover.resize.failed', { error: (e as Error).message });
+    return new NextResponse(new Uint8Array(input), {
+      status: 200,
+      headers: { ...cacheHeaders, 'Content-Type': blob.type || 'image/jpeg' },
+    });
+  }
 }
 
 /** Uploads/replaces the project cover image. Managers only. */

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
 import { de } from '@/lib/i18n/de';
+import { downscaleImage } from '@/lib/images/downscale';
 
 /** Compact cover-image control shown on the project page for managers. */
 export function ProjectCoverUploader({ projectId }: { projectId: string }) {
@@ -20,8 +21,11 @@ export function ProjectCoverUploader({ projectId }: { projectId: string }) {
     setError(null);
     setPending(true);
     try {
+      // Bild schon im Browser verkleinern (max. 1600 px, WebP) – kleinere
+      // Uploads und deutlich schnelleres Laden der Seiten.
+      const optimized = await downscaleImage(file, { maxDim: 1600, quality: 0.82 });
       const fd = new FormData();
-      fd.set('file', file);
+      fd.set('file', optimized);
       const res = await fetch(`/api/projects/${projectId}/cover`, {
         method: 'POST',
         body: fd,
