@@ -23,9 +23,11 @@ function statusText(status: string | null): string {
 
 function activityLine(m: RailMember): string | null {
   if (!m.activity) return null;
-  const { projectName, taskTitle, live } = m.activity;
-  if (live) return projectName ? `▶ ${projectName}` : '▶ Zeiterfassung läuft';
-  return projectName ? `zuletzt: ${projectName}` : `zuletzt: ${taskTitle}`;
+  const { projectName, clientName, taskTitle, live } = m.activity;
+  // Kundennamen bevorzugen, sonst Projekt/Board, sonst Aufgabentitel.
+  const label = clientName ?? projectName ?? taskTitle;
+  if (live) return clientName || projectName ? `▶ ${label}` : '▶ Zeiterfassung läuft';
+  return `zuletzt: ${label}`;
 }
 
 /** Opens the chat dock on a DM with the given user (ChatDock listens). */
@@ -110,6 +112,11 @@ function MemberRow({ m }: { m: RailMember }) {
               <div className="font-medium text-foreground">
                 {m.activity.live ? '▶ Arbeitet gerade' : 'Zuletzt gearbeitet'}
               </div>
+              {m.activity.clientName && (
+                <div className="mt-0.5 truncate text-muted-foreground">
+                  Kunde: {m.activity.clientName}
+                </div>
+              )}
               {m.activity.projectName && (
                 <div className="mt-0.5 truncate text-muted-foreground">
                   Projekt: {m.activity.projectName}
