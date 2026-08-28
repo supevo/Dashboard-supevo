@@ -13,6 +13,10 @@ import {
   releaseSepaAction,
   resetOnboardingProgressAction,
 } from '@/features/onboarding/agency-actions';
+import {
+  revealSignedIbanAction,
+  applySignedIbanToMembershipAction,
+} from '@/features/onboarding/sepa-reveal-actions';
 import type { OnboardingStatus } from '@/features/onboarding/queries';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -41,7 +45,23 @@ export function OnboardingSetup({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [revealedIban, setRevealedIban] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function revealIban() {
+    setError(null);
+    setRevealing(true);
+    startTransition(async () => {
+      const res = await revealSignedIbanAction(clientCompanyId);
+      setRevealing(false);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setRevealedIban(res.iban);
+    });
+  }
 
   async function uploadTemplate(file: File) {
     setError(null);
@@ -276,6 +296,42 @@ export function OnboardingSetup({
               <p className="text-xs text-emerald-600 dark:text-emerald-400">
                 An Kunden gesendet – wartet auf Unterschrift.
               </p>
+            )}
+            {status.sepaSignedAt && (
+              <div className="space-y-1.5 rounded-md border bg-muted/30 p-2.5">
+                <p className="text-xs text-muted-foreground">
+                  Die vom Kunden signierte IBAN
+                  {status.sepaIbanLast4 ? ` (••••${status.sepaIbanLast4})` : ''} ist
+                  verschlüsselt gespeichert. Für den Lastschrift-Einzug muss sie im
+                  Einzugsfeld der Mitgliedschaft stehen.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={revealIban}
+                    disabled={pending || revealing}
+                    className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                  >
+                    {revealing ? '⏳ Lädt…' : '🔓 IBAN anzeigen'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      runSepa(() => applySignedIbanToMembershipAction(clientCompanyId))
+                    }
+                    disabled={pending}
+                    title="Übernimmt die signierte IBAN + Mandat in die Mitgliedschaft, damit der SEPA-Einzug läuft."
+                    className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                  >
+                    ⬇️ Ins Einzugsfeld übernehmen
+                  </button>
+                </div>
+                {revealedIban && (
+                  <p className="select-all break-all font-mono text-sm">
+                    {revealedIban}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
