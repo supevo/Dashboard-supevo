@@ -82,7 +82,11 @@ export async function GET(
   }
 
   const cacheHeaders: Record<string, string> = {
-    'Cache-Control': 'private, max-age=600, stale-while-revalidate=604800',
+    // Titelbilder ändern sich praktisch nie → 1 Tag Browser-Cache. Ändert doch
+    // mal jemand das Cover, greift danach der ETag (unverändert → 304) bzw. für
+    // den Hochladenden sofort der ?v=-Cache-Bust. stale-while-revalidate hält es
+    // danach im Hintergrund frisch, ohne die Anzeige zu blockieren.
+    'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
   };
   let etag: string | undefined;
   if (validator) {

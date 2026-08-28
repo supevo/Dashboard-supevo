@@ -47,12 +47,15 @@ export async function MonthlyBillingOverview({
   year,
   month,
   filter = 'alle',
+  steller,
   basePath,
 }: {
   orgId: string;
   year: number;
   month: number;
   filter?: OverviewFilter;
+  /** Ausgewählter Rechnungssteller (billing_entity id) oder undefined = alle. */
+  steller?: string;
   basePath: string;
 }) {
   const allRows = await getMonthlyBillingOverview(orgId, year, month);
@@ -63,11 +66,27 @@ export async function MonthlyBillingOverview({
   // anbieten, nicht rückwirkend in vergangenen Monaten.
   const isCurrentMonth = year === nowYear && month === now.getMonth() + 1;
 
-  const active = allRows.filter((r) => r.membershipStatus === 'active');
+  // Vorhandene Rechnungssteller (distinct) für die Filterleiste.
+  const stellers = Array.from(
+    new Map(
+      allRows.map((r) => [r.billingEntityId ?? '', r.billingEntityName] as const),
+    ).entries(),
+  ).map(([id, name]) => ({ id, name }));
+  const multiSteller = stellers.length > 1;
+  const selectedSteller =
+    steller && stellers.some((s) => s.id === steller) ? steller : undefined;
+
+  // Erst nach Rechnungssteller einschränken – Zähler + Zeilen beziehen sich dann
+  // auf die gewählte Firma.
+  const scoped = selectedSteller
+    ? allRows.filter((r) => (r.billingEntityId ?? '') === selectedSteller)
+    : allRows;
+
+  const active = scoped.filter((r) => r.membershipStatus === 'active');
   const generated = active.filter((r) => r.invoice).length;
   const open = active.length - generated;
 
-  const rows = allRows.filter((r) => {
+  const rows = scoped.filter((r) => {
     if (filter === 'offen') return r.membershipStatus === 'active' && !r.invoice;
     if (filter === 'sepa') return r.sepaMandateMissing;
     if (filter === 'unbezahlt')
@@ -75,6 +94,13 @@ export async function MonthlyBillingOverview({
     return true;
   });
   const stateQuery = `&jahr=${year}&monat=${month}`;
+  const stellerQuery = selectedSteller ? `&steller=${selectedSteller}` : '';
+  const chipClass = (isActive: boolean) =>
+    `rounded-full border px-2.5 py-1 text-xs ${
+      isActive
+        ? 'border-primary bg-primary/10 text-primary'
+        : 'text-muted-foreground hover:bg-muted'
+    }`;
 
   return (
     <div className="space-y-3">
@@ -92,17 +118,34 @@ export async function MonthlyBillingOverview({
         {FILTERS.map((f) => (
           <Link
             key={f.key}
-            href={`${basePath}${stateQuery}&bill=${f.key}`}
-            className={`rounded-full border px-2.5 py-1 text-xs ${
-              filter === f.key
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-muted'
-            }`}
+            href={`${basePath}${stateQuery}&bill=${f.key}${stellerQuery}`}
+            className={chipClass(filter === f.key)}
           >
             {f.label}
           </Link>
         ))}
       </div>
+
+      {multiSteller && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground">Rechnungssteller:</span>
+          <Link
+            href={`${basePath}${stateQuery}&bill=${filter}`}
+            className={chipClass(!selectedSteller)}
+          >
+            Alle
+          </Link>
+          {stellers.map((s) => (
+            <Link
+              key={s.id}
+              href={`${basePath}${stateQuery}&bill=${filter}&steller=${s.id}`}
+              className={chipClass(selectedSteller === s.id)}
+            >
+              {s.name}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -114,6 +157,9 @@ export async function MonthlyBillingOverview({
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">Kunde</th>
+                {multiSteller && (
+                  <th className="px-3 py-2 font-medium">Rechnungssteller</th>
+                )}
                 <th className="px-3 py-2 font-medium">Paket</th>
                 <th className="px-3 py-2 font-medium">Zahlweg</th>
                 <th className="px-3 py-2 text-right font-medium">Preis inkl. MwSt.</th>
@@ -134,6 +180,11 @@ export async function MonthlyBillingOverview({
                         </span>
                       )}
                     </td>
+                    {multiSteller && (
+                      <td className="px-3 py-2 text-muted-foreground">
+                        {r.billingEntityName}
+                      </td>
+                    )}
                     <td className="px-3 py-2">{r.packageLabel}</td>
                     <td className="px-3 py-2">
                       {r.paymentMethod === 'transfer' ? (

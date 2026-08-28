@@ -461,7 +461,9 @@ export async function createTaskAction(
     title: formData.get('title'),
     description: formData.get('description') ?? '',
     priority: formData.get('priority') ?? 'medium',
-    isInternal: formData.get('isInternal') ?? 'true',
+    // Standard: neue Aufgaben sind für den Kunden sichtbar (nur bei kunden-
+    // sichtbaren Projekten relevant). Interne Aufgaben werden explizit gewählt.
+    isInternal: formData.get('isInternal') ?? 'false',
     dueDate: formData.get('dueDate') ?? '',
   });
   if (!parsed.success) {

@@ -20,6 +20,9 @@ export interface BillingOverviewRow {
   mandateReference: string | null;
   debtorIban: string | null;
   mandateDate: string | null;
+  /** Zugeordneter Rechnungssteller (Firma), inkl. Standard-Fallback. */
+  billingEntityId: string | null;
+  billingEntityName: string;
   /** Rechnung, deren Leistungszeitraum im gewählten Monat startet (oder null). */
   invoice: InvoiceRow | null;
 }
@@ -68,13 +71,28 @@ export async function getMonthlyBillingOverview(
   const clientIds = [...new Set(memberships.map((m) => m.client_company_id))];
   const { data: companies } = await supabase
     .from('client_companies')
-    .select('id, name, is_legacy')
+    .select('id, name, is_legacy, billing_entity_id')
     .in('id', clientIds)
     .is('deleted_at', null);
   const nameById = new Map((companies ?? []).map((c) => [c.id, c.name] as const));
   const legacyById = new Map(
     (companies ?? []).map((c) => [c.id, c.is_legacy ?? false] as const),
   );
+  const entityIdByClient = new Map(
+    (companies ?? []).map((c) => [c.id, c.billing_entity_id ?? null] as const),
+  );
+
+  // Rechnungssteller der Org (für Name + Standard-Fallback bei Kunden ohne Firma).
+  const { data: entities } = await supabase
+    .from('billing_entities')
+    .select('id, name, company_name, is_default')
+    .eq('organization_id', orgId);
+  const entityNameById = new Map(
+    (entities ?? []).map(
+      (e) => [e.id, e.company_name || e.name || 'Rechnungssteller'] as const,
+    ),
+  );
+  const defaultEntityId = (entities ?? []).find((e) => e.is_default)?.id ?? null;
 
   // Rechnungen, deren Leistungszeitraum im gewählten Monat beginnt.
   const { start, end } = monthBounds(year, month);
@@ -115,10 +133,17 @@ export async function getMonthlyBillingOverview(
         : m.custom_name && m.custom_name !== 'Individuell'
           ? m.custom_name
           : stageName;
+      // Effektiver Rechnungssteller: explizit zugeordnet, sonst der Standard.
+      const entityId =
+        entityIdByClient.get(m.client_company_id) ?? defaultEntityId;
       return {
         clientCompanyId: m.client_company_id,
         clientName: nameById.get(m.client_company_id) ?? '—',
         packageLabel,
+        billingEntityId: entityId,
+        billingEntityName: entityId
+          ? entityNameById.get(entityId) ?? 'Rechnungssteller'
+          : 'Standard',
         paymentMethod: m.payment_method ?? 'sepa',
         sepaMandateMissing:
           (m.payment_method ?? 'sepa') === 'sepa' &&

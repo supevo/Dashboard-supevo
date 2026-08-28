@@ -151,6 +151,111 @@ export async function extractBankStatement(input: {
   }
 }
 
+// --- Marketingplan aus PDF auslesen ----------------------------------------
+
+export interface AiPlanPhase {
+  title: string;
+  timeframeHint: string;
+  outcome: string;
+  measures: string[];
+}
+export interface AiPlanExtract {
+  closingNote: string;
+  phases: AiPlanPhase[];
+}
+
+const PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    closingNote: { type: ['string', 'null'] },
+    phases: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          title: { type: 'string' },
+          timeframeHint: { type: ['string', 'null'] },
+          outcome: { type: ['string', 'null'] },
+          measures: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['title', 'timeframeHint', 'outcome', 'measures'],
+      },
+    },
+  },
+  required: ['closingNote', 'phases'],
+} as const;
+
+const PLAN_SYSTEM = [
+  'Du liest einen bestehenden Marketingplan (PDF) einer Werbeagentur und gibst',
+  'ihn STRUKTURIERT zurück. Extrahiere die Phasen in ihrer Reihenfolge. Jede',
+  'Phase hat: title (z. B. "Phase 1 – …"), timeframeHint (vager Zeit-Hinweis,',
+  'falls genannt, sonst leer), outcome (kurzer Ergebnis-/Ziel-Satz der Phase,',
+  'falls vorhanden, sonst leer) und measures (Liste der konkreten Maßnahmen',
+  'dieser Phase). closingNote = abschließender Hinweis/Fließtext am Ende, falls',
+  'vorhanden, sonst leer. Erfinde NICHTS dazu – gib nur wieder, was im Dokument',
+  'steht; übernimm die Formulierungen weitgehend, kürze nur sehr lange Maßnahmen',
+  'sinnvoll. Wenn das Dokument keine klaren Phasen nennt, bilde sinnvolle',
+  'Abschnitte anhand der Überschriften.',
+].join(' ');
+
+/**
+ * Liest einen bestehenden Marketingplan aus einem PDF und gibt ihn als Phasen +
+ * Maßnahmen zurück (für den Import beim Kunden). PDF geht direkt an das Vision-
+ * Modell (input_file) – funktioniert für Text- wie gescannte PDFs. Ohne
+ * OPENAI_API_KEY null. Wirft nie.
+ */
+export async function extractMarketingPlanFromPdf(
+  pdfBytes: Buffer,
+): Promise<AiPlanExtract | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const { default: OpenAI } = await import('openai');
+    const client = new OpenAI({ apiKey });
+
+    const params = {
+      model: visionModel(),
+      max_output_tokens: 16000,
+      input: [
+        { role: 'system', content: PLAN_SYSTEM },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: 'Extrahiere den kompletten Marketingplan aus diesem PDF.',
+            },
+            {
+              type: 'input_file',
+              filename: 'marketingplan.pdf',
+              file_data: `data:application/pdf;base64,${pdfBytes.toString('base64')}`,
+            },
+          ],
+        },
+      ],
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'marketingplan',
+          strict: true,
+          schema: PLAN_SCHEMA,
+        },
+      },
+    } as unknown as Parameters<typeof client.responses.create>[0];
+
+    const res = await client.responses.create(params);
+    const text = (res as { output_text?: string }).output_text;
+    if (!text) return null;
+    return JSON.parse(text) as AiPlanExtract;
+  } catch (e) {
+    logger.warn('vision.plan_extract_failed', { error: (e as Error).message });
+    return null;
+  }
+}
+
 const EXT_MIME: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',

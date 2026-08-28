@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   createPlanAction,
@@ -392,6 +392,36 @@ export function PlanManager({
   plan: MarketingPlan | null;
 }) {
   const { pending, error, run } = useRun();
+  const router = useRouter();
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  async function importPdf(file: File) {
+    setImportError(null);
+    setImporting(true);
+    try {
+      const fd = new FormData();
+      fd.set('file', file);
+      const res = await fetch(
+        `/api/clients/${clientCompanyId}/marketing-plan/import`,
+        { method: 'POST', body: fd },
+      );
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !json.ok) {
+        setImportError(json.error ?? 'Import fehlgeschlagen.');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setImportError('Import fehlgeschlagen.');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   if (!plan) {
     return (
@@ -401,11 +431,13 @@ export function PlanManager({
           einen Entwurf erstellen oder baue ihn leer von Hand auf – ganz ohne
           festen Zeitraum, nur in Phasen.
         </p>
-        {error && <Alert variant="destructive">{error}</Alert>}
+        {(error || importError) && (
+          <Alert variant="destructive">{error || importError}</Alert>
+        )}
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
-            disabled={pending}
+            disabled={pending || importing}
             onClick={() => run(() => applyTemplateAction({ clientCompanyId }))}
           >
             Aus Vorlage anlegen
@@ -413,15 +445,35 @@ export function PlanManager({
           <Button
             size="sm"
             variant="outline"
-            disabled={pending}
+            disabled={pending || importing}
             onClick={() => run(() => aiDraftPlanAction({ clientCompanyId }))}
           >
             🤖 KI-Entwurf erstellen
           </Button>
+          <input
+            ref={importRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importPdf(f);
+              if (importRef.current) importRef.current.value = '';
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending || importing}
+            onClick={() => importRef.current?.click()}
+            title="Bestehenden Marketingplan als PDF hochladen – die KI liest Phasen & Maßnahmen aus."
+          >
+            {importing ? '⏳ Liest PDF…' : '📄 Aus PDF importieren'}
+          </Button>
           <Button
             size="sm"
             variant="ghost"
-            disabled={pending}
+            disabled={pending || importing}
             onClick={() => run(() => createPlanAction({ clientCompanyId }))}
           >
             Leeren Plan anlegen

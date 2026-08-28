@@ -34,7 +34,7 @@ function AcceptForm({
       <input type="hidden" name="clientCompanyId" value={clientCompanyId} />
       <input type="hidden" name="requestId" value={requestId} />
       <input type="hidden" name="index" value={index} />
-      <Select name="isInternal" defaultValue="true" className="h-8 w-auto text-xs">
+      <Select name="isInternal" defaultValue="false" className="h-8 w-auto text-xs">
         <option value="true">{de.task.internal}</option>
         <option value="false">{de.task.clientVisible}</option>
       </Select>
