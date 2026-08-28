@@ -57,25 +57,30 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Anmeldung möglichst LOKAL aus dem JWT prüfen statt per Netzwerk-Call.
-  // getClaims() verifiziert die Signatur lokal, sobald in Supabase asymmetrische
-  // JWT-Signing-Keys aktiv sind (Settings → JWT Keys): dann macht die Middleware
-  // KEINEN Auth-Netzwerkcall mehr pro Request (nur einmalig JWKS, danach
-  // gecacht) und kann nicht mehr in Cross-Region-Timeouts laufen. Ohne
-  // Signing-Keys fällt getClaims intern auf getUser() zurück – also wie bisher,
-  // ohne Regressionsrisiko. Ein transienter Fehler lässt den Request durch; die
-  // Seite prüft selbst erneut (requireUser/requireClientPage).
-  let authed = false;
+  // getUser() ist ein Auth-Netzwerkcall zu Supabase. Damit ein langsamer Call
+  // NIEMALS das Edge-Limit reißt (504 MIDDLEWARE_INVOCATION_TIMEOUT), wird er
+  // hart gedeckelt: Kommt binnen AUTH_TIMEOUT_MS keine Antwort (oder ein
+  // Fehler), lässt die Middleware den Request durch – die Seite prüft die
+  // Anmeldung selbst erneut (requireUser/requireClientPage) und leitet ggf. um.
+  // So wird aus einem langsamen Call ein schneller Durchlass statt eines
+  // Gateway-Timeouts. Den Netzwerkcall ganz einsparen würde erst das lokale
+  // JWT-Verifizieren (asymmetrische Signing-Keys + getClaims) – separater Schritt.
+  const AUTH_TIMEOUT_MS = 2500;
+  let user: import('@supabase/supabase-js').User | null = null;
   try {
-    const { data } = await supabase.auth.getClaims();
-    authed = Boolean(data?.claims?.sub);
+    user = await Promise.race([
+      supabase.auth.getUser().then((r) => r.data.user),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('auth-timeout')), AUTH_TIMEOUT_MS),
+      ),
+    ]);
   } catch {
     return response;
   }
 
   const { pathname } = request.nextUrl;
 
-  if (!authed && !isPublicPath(pathname)) {
+  if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     // Only ever store a relative path to prevent open-redirect attacks.
