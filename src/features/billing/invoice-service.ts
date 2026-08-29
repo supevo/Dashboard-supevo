@@ -178,33 +178,47 @@ export async function assignInvoiceNumber(
   supabase: SupabaseClient<Database>,
   entityId: string,
 ): Promise<{ number: string } | { error: string }> {
-  const { data: s } = await supabase
-    .from('billing_entities')
-    .select(
-      'invoice_prefix, invoice_next_number, invoice_number_padding, invoice_reset_yearly, invoice_number_year',
-    )
-    .eq('id', entityId)
-    .maybeSingle();
-  if (!s) return { error: 'no billing entity' };
+  // Optimistische Nebenläufigkeitskontrolle gegen DOPPELTE Rechnungsnummern:
+  // Der Zähler wird nur hochgezählt, wenn er seit dem Lesen unverändert ist
+  // (.eq auf den gelesenen Wert; count === 1). Finalisieren zwei Rechnungen
+  // gleichzeitig, gewinnt genau eine – die andere liest neu und versucht erneut.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data: s } = await supabase
+      .from('billing_entities')
+      .select(
+        'invoice_prefix, invoice_next_number, invoice_number_padding, invoice_reset_yearly, invoice_number_year',
+      )
+      .eq('id', entityId)
+      .maybeSingle();
+    if (!s) return { error: 'no billing entity' };
 
-  const year = new Date().getFullYear();
-  let next = s.invoice_next_number;
-  if (s.invoice_reset_yearly && s.invoice_number_year !== year) {
-    next = 1; // new year → restart
+    const year = new Date().getFullYear();
+    const stored = s.invoice_next_number;
+    let next = stored;
+    if (s.invoice_reset_yearly && s.invoice_number_year !== year) {
+      next = 1; // new year → restart
+    }
+
+    const seq = String(next).padStart(s.invoice_number_padding, '0');
+    const number = s.invoice_reset_yearly
+      ? `${s.invoice_prefix}${year}-${seq}`
+      : `${s.invoice_prefix}${seq}`;
+
+    const { count, error } = await supabase
+      .from('billing_entities')
+      .update(
+        { invoice_next_number: next + 1, invoice_number_year: year },
+        { count: 'exact' },
+      )
+      .eq('id', entityId)
+      .eq('invoice_next_number', stored); // nur wenn seit dem Lesen unverändert
+    if (error) return { error: error.message };
+    if (count === 1) return { number };
+    // count === 0 → anderer Prozess war schneller → neu lesen und erneut versuchen.
   }
-
-  const seq = String(next).padStart(s.invoice_number_padding, '0');
-  const number = s.invoice_reset_yearly
-    ? `${s.invoice_prefix}${year}-${seq}`
-    : `${s.invoice_prefix}${seq}`;
-
-  const { error } = await supabase
-    .from('billing_entities')
-    .update({ invoice_next_number: next + 1, invoice_number_year: year })
-    .eq('id', entityId);
-  if (error) return { error: error.message };
-
-  return { number };
+  return {
+    error: 'Rechnungsnummer konnte nicht vergeben werden (Kollision). Bitte erneut versuchen.',
+  };
 }
 
 function formatDe(iso: string): string {

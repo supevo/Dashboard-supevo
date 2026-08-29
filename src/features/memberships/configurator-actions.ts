@@ -67,6 +67,15 @@ async function priceContext(
  * month (so the running invoice keeps the old price). Only the agency
  * (org-admin/super-admin) may set it here; client self-service is Phase 2.
  */
+/** Nächster Abrechnungstermin (Tag im Monat) ab heute – wie im Abrechnungsformular. */
+function nextBillingDate(day: number): string {
+  const now = new Date();
+  let month = now.getMonth();
+  if (now.getDate() > day) month += 1;
+  const d = new Date(Date.UTC(now.getFullYear(), month, Math.min(day, 28)));
+  return d.toISOString().slice(0, 10);
+}
+
 export async function saveMembershipConfigAction(input: unknown): Promise<ActionResult> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
@@ -114,7 +123,7 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
 
   const { data: existing } = await supabase
     .from('client_memberships')
-    .select('id, modules')
+    .select('id, modules, next_invoice_date, billing_day')
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
 
@@ -139,10 +148,20 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
       pending_modules: null,
       pending_effective_date: null,
     };
+    // Abrechnungstermin setzen, wenn das Paket abrechenbar ist – sonst würde ein
+    // im Baukasten eingerichteter Kunde nie vom Rechnungs-Cron eingezogen
+    // (next_invoice_date IS NULL wird übersprungen). Bestehende Termine bleiben
+    // unverändert; 0-€-Pakete bekommen keinen Termin (kein 0-€-Einzug).
+    const billable = (hasCustom ? customNetCents ?? 0 : netCents) > 0;
+
     if (existing) {
+      const fill =
+        billable && !existing.next_invoice_date
+          ? { next_invoice_date: nextBillingDate(existing.billing_day ?? 15) }
+          : {};
       const { error } = await supabase
         .from('client_memberships')
-        .update(payload)
+        .update({ ...payload, ...fill })
         .eq('id', existing.id);
       if (error) return errorResult(de.errors.INTERNAL);
     } else {
@@ -150,6 +169,7 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
         organization_id: client.organization_id,
         client_company_id: clientCompanyId,
         ...payload,
+        next_invoice_date: billable ? nextBillingDate(15) : null,
       });
       if (error) return errorResult(de.errors.INTERNAL);
     }
