@@ -17,6 +17,7 @@ import {
 } from '@/features/gamification/banners';
 import { parseFrameKey, customFrameKey } from '@/features/gamification/frames';
 import { getCoinBalance } from '@/features/loot/queries';
+import { logger } from '@/lib/logger';
 
 /**
  * Increments a UI-action counter for the current user (for collectible badges).
@@ -33,9 +34,11 @@ export async function bumpCounter(key: string): Promise<void> {
     if (!orgId) return;
     const supabase = await createSupabaseServerClient();
     const { error } = await supabase.rpc('bump_counter', { p_key: clean, p_org: orgId });
-    if (error) console.error('bumpCounter failed', error);
+    if (error) logger.error('bumpCounter failed', { error });
   } catch (err) {
-    console.error('bumpCounter failed', err);
+    logger.error('bumpCounter failed', {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 

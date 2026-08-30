@@ -91,6 +91,18 @@ export function startOfBerlinWeekUtc(now: Date = new Date()): string {
   return monday.toISOString();
 }
 
+/**
+ * Next billing date (YYYY-MM-DD) on/after today for a given day-of-month.
+ * If today is already past `day`, rolls to next month. Day is capped at 28 so
+ * every month is representable. Used by the membership/Baukasten billing forms.
+ */
+export function nextBillingDate(day: number, now: Date = new Date()): string {
+  let month = now.getMonth();
+  if (now.getDate() > day) month += 1;
+  const d = new Date(Date.UTC(now.getFullYear(), month, Math.min(day, 28)));
+  return d.toISOString().slice(0, 10);
+}
+
 /** Europe/Berlin UTC offset (minutes) for a given instant. */
 function berlinOffsetMinutes(date: Date): number {
   const tzDate = new Date(

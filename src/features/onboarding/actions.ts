@@ -20,6 +20,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { cleanIban as normalizeIban, ibanValid } from '@/lib/iban';
 
 const dataUrlPng = z
   .string()
@@ -138,20 +139,6 @@ const sepaSchema = z.object({
   accountHolder: z.string().trim().min(2).max(140),
   iban: z.string().trim().min(15).max(40),
 });
-
-function normalizeIban(raw: string): string {
-  return raw.replace(/\s+/g, '').toUpperCase();
-}
-
-function ibanValid(iban: string): boolean {
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) return false;
-  const rearranged = iban.slice(4) + iban.slice(0, 4);
-  const numeric = rearranged.replace(/[A-Z]/g, (c) => String(c.charCodeAt(0) - 55));
-  // mod-97 over the long number
-  let rem = 0;
-  for (const ch of numeric) rem = (rem * 10 + Number(ch)) % 97;
-  return rem === 1;
-}
 
 export async function signSepaAction(input: unknown): Promise<ActionResult> {
   const parsed = sepaSchema.safeParse(input);

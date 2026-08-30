@@ -8,6 +8,7 @@ import { requireUser, authorize } from '@/lib/authz/authorize';
 import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
+import { nextBillingDate } from '@/lib/time';
 import {
   type ActionResult,
   errorResult,
@@ -40,16 +41,6 @@ const schema = z.object({
   billing_country: optStr,
   billing_vat_id: optStr,
 });
-
-/** Computes the next billing date on/after today for a given day-of-month. */
-function nextBillingDate(day: number): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  let month = now.getMonth();
-  if (now.getDate() > day) month += 1;
-  const d = new Date(Date.UTC(year, month, Math.min(day, 28)));
-  return d.toISOString().slice(0, 10);
-}
 
 /** Creates or updates a client's membership (org admins only). Keeps the
  *  active-column WIP limit in sync with the chosen Stage. */

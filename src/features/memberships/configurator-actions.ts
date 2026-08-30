@@ -8,6 +8,7 @@ import { requireUser, authorize } from '@/lib/authz/authorize';
 import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { getCurrentUser } from '@/features/auth/session';
 import { de } from '@/lib/i18n/de';
+import { nextBillingDate } from '@/lib/time';
 import {
   type ActionResult,
   errorResult,
@@ -67,15 +68,6 @@ async function priceContext(
  * month (so the running invoice keeps the old price). Only the agency
  * (org-admin/super-admin) may set it here; client self-service is Phase 2.
  */
-/** Nächster Abrechnungstermin (Tag im Monat) ab heute – wie im Abrechnungsformular. */
-function nextBillingDate(day: number): string {
-  const now = new Date();
-  let month = now.getMonth();
-  if (now.getDate() > day) month += 1;
-  const d = new Date(Date.UTC(now.getFullYear(), month, Math.min(day, 28)));
-  return d.toISOString().slice(0, 10);
-}
-
 export async function saveMembershipConfigAction(input: unknown): Promise<ActionResult> {
   const parsed = saveSchema.safeParse(input);
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
