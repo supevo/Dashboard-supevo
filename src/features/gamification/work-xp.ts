@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
 import { berlinToday } from '@/lib/time';
+import { logger } from '@/lib/logger';
 
 function addDaysIso(isoDate: string, days: number): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
@@ -46,7 +47,7 @@ async function insertIgnore(
     .from('xp_events')
     .insert({ ...row, task_id: null });
   if (error && error.code !== '23505') {
-    console.error('work xp_events insert failed', error);
+    logger.error('work xp_events insert failed', { error });
   }
 }
 

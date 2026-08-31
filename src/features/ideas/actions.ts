@@ -13,6 +13,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 const submitSchema = z.object({
   title: z.string().trim().min(1, 'Bitte einen Titel angeben.').max(200),
@@ -51,7 +52,7 @@ export async function submitIdeaAction(
   });
   if (error) {
     // Surface the real cause instead of a blanket "unerwarteter Fehler".
-    console.error('[ideas] submit insert failed', {
+    logger.error('[ideas] submit insert failed', {
       code: error.code,
       message: error.message,
       details: error.details,

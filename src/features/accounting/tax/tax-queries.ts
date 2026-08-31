@@ -13,6 +13,7 @@ import {
   estimateTaxes,
   type TaxEstimate,
 } from '@/features/accounting/tax/estimate';
+import { logger } from '@/lib/logger';
 
 export interface TaxOverview {
   year: number;
@@ -137,7 +138,7 @@ export async function getTaxOverviewSafe(
   try {
     return await getTaxOverview(billingEntityId, year, month);
   } catch (e) {
-    console.error('[tax] getTaxOverview failed', {
+    logger.error('[tax] getTaxOverview failed', {
       billingEntityId,
       year,
       error: e instanceof Error ? e.message : String(e),

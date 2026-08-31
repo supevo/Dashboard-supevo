@@ -10,6 +10,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 /** Speichert den (org-weiten) Vertragskonditionstext. Nur Org-Admins. */
 export async function updateContractTermsAction(
@@ -28,7 +29,7 @@ export async function updateContractTermsAction(
     .from('contract_settings')
     .upsert({ organization_id: orgId, terms }, { onConflict: 'organization_id' });
   if (error) {
-    console.error('[contracts] updateContractTerms failed', {
+    logger.error('[contracts] updateContractTerms failed', {
       code: error.code,
       message: error.message,
     });

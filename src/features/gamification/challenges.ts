@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { weekInfo, hashWeek } from '@/features/gamification/week';
 import { getActiveCustomChallenges } from '@/features/gamification/custom-challenges';
 import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
+import { logger } from '@/lib/logger';
 
 /**
  * Weekly challenges. A fixed pool; each ISO week three are picked
@@ -183,7 +184,8 @@ export async function getWeeklyChallenges(
         points: applyBoost(c.xp, factor),
         task_id: null,
       });
-      if (error && error.code !== '23505') console.error('challenge xp failed', error);
+      if (error && error.code !== '23505')
+        logger.error('challenge xp failed', { error });
       // Rare badge once ever.
       if (c.rare && !ownedRare.has(`rare_${c.rare.key}`)) {
         await supabase

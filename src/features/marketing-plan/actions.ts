@@ -19,6 +19,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 type Service = ReturnType<typeof createSupabaseServiceClient>;
 
@@ -99,7 +100,7 @@ async function ensurePlan(
     .select('id')
     .single();
   if (error || !data) {
-    console.error('[marketing-plan] ensurePlan insert failed', {
+    logger.error('[marketing-plan] ensurePlan insert failed', {
       code: error?.code,
       message: error?.message,
     });

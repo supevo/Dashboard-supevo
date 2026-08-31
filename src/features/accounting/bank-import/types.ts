@@ -80,22 +80,6 @@ export function cleanText(raw: string | null | undefined): string | null {
   return s.length ? s : null;
 }
 
-/** Uppercased IBAN without spaces, if the value looks like one. */
-export function normalizeIban(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const s = raw.replace(/\s+/g, '').toUpperCase();
-  // Rough shape: 2 letters + 2 check digits + 10–30 alphanumerics.
-  return /^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s) ? s : null;
-}
-
-/**
- * Finds a German IBAN embedded in free text (spaced or not). German IBANs have
- * a fixed length (DE + 20 digits = 22 chars), so we match that exactly – this
- * avoids greedily swallowing trailing words that follow the IBAN in the purpose.
- */
-export function extractIban(text: string | null | undefined): string | null {
-  if (!text) return null;
-  const compact = text.toUpperCase().replace(/\s+/g, '');
-  const m = compact.match(/DE\d{20}/);
-  return m ? m[0] : null;
-}
+// IBAN helpers live in the shared module; re-exported here so existing
+// bank-import importers keep working from one canonical implementation.
+export { normalizeIban, extractIban } from '@/lib/iban';

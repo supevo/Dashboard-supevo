@@ -24,6 +24,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 type Service = ReturnType<typeof createSupabaseServiceClient>;
 
@@ -487,7 +488,9 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
       address: lead,
     });
     if (!sync.ok) {
-      console.error('[leads] offer sync to membership failed', sync.error);
+      logger.error('[leads] offer sync to membership failed', {
+        error: sync.error,
+      });
     } else {
       // Onboarding-Vertrag aktualisieren, damit er dem neuen Stand entspricht.
       await regenerateOnboardingContract(lead.converted_client_company_id);

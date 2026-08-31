@@ -10,6 +10,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 /**
  * Verifies the current user is agency staff of the organization that owns the
@@ -336,7 +337,9 @@ export async function generateContractFromMembershipAction(
     const { renderOfferContractPdf } = await import('@/features/onboarding/pdf');
     pdf = await renderOfferContractPdf(data);
   } catch (e) {
-    console.error('[onboarding] contract render failed', (e as Error).message);
+    logger.error('[onboarding] contract render failed', {
+      error: (e as Error).message,
+    });
     return errorResult(`Vertrag konnte nicht erzeugt werden: ${(e as Error).message}`);
   }
 

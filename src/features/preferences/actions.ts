@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
 import { primaryAgencyOrgId } from '@/features/auth/session';
+import { logger } from '@/lib/logger';
 
 /**
  * Sets the current user's preference for a kind of work (1–10 hearts). Level 0
@@ -42,7 +43,7 @@ export async function setPreferenceLevel(
         );
 
   if (error) {
-    console.error('setPreferenceLevel failed', error);
+    logger.error('setPreferenceLevel failed', { error });
     throw new Error(error.message);
   }
 

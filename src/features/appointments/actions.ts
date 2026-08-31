@@ -13,6 +13,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { logger } from '@/lib/logger';
 
 const DATE = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const TIME = z
@@ -63,7 +64,7 @@ export async function requestAppointmentAction(
     opt3_time: v.opt3_time ?? null,
   });
   if (error) {
-    console.error('[appointments] request insert failed', {
+    logger.error('[appointments] request insert failed', {
       code: error.code,
       message: error.message,
       details: error.details,

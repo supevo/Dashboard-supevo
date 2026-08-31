@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
+import { logger } from '@/lib/logger';
 
 export type PlanStatus = 'draft' | 'in_review' | 'accepted';
 export type ItemStatus = 'proposed' | 'change_requested' | 'accepted' | 'embedded';
@@ -128,7 +129,7 @@ export async function getPlan(
     .limit(1)
     .maybeSingle();
   if (error) {
-    console.error('[marketing-plan] getPlan failed', {
+    logger.error('[marketing-plan] getPlan failed', {
       code: error.code,
       message: error.message,
     });

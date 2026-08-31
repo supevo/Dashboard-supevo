@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { xpFactor, applyBoost } from '@/features/gamification/xp-boost';
+import { logger } from '@/lib/logger';
 
 /** Automatic XP awards. Tweak the economy here. */
 export const XP_ONTIME = 5; // bonus when finished on or before the due date
@@ -83,7 +84,7 @@ export async function awardChoreXp(params: {
   for (const row of rows) {
     const { error } = await service.from('xp_events').insert(row as never);
     if (error && error.code !== '23505') {
-      console.error('chore xp insert failed', error);
+      logger.error('chore xp insert failed', { error });
     }
   }
 }
@@ -120,7 +121,7 @@ async function insertIgnore(
   const { error } = await supabase.from('xp_events').insert(row);
   // 23505 = unique_violation → event already exists, which is fine (idempotent).
   if (error && error.code !== '23505') {
-    console.error('xp_events insert failed', error);
+    logger.error('xp_events insert failed', { error });
   }
 }
 
@@ -269,7 +270,7 @@ export async function awardClientResultXp(params: {
     task_id: taskId,
   });
   if (error && error.code !== '23505') {
-    console.error('client_result xp insert failed', error);
+    logger.error('client_result xp insert failed', { error });
   }
 }
 
@@ -295,6 +296,6 @@ export async function awardClientUpdateXp(params: {
     task_id: taskId,
   });
   if (error && error.code !== '23505') {
-    console.error('client_update xp insert failed', error);
+    logger.error('client_update xp insert failed', { error });
   }
 }
