@@ -84,7 +84,7 @@ export function BoardImportForm({ projects }: { projects: ProjectOption[] }) {
             ))}
           </Select>
           <p className="text-xs text-muted-foreground">
-            Die Aufgaben landen in der ersten Spalte („Queue") des Boards.
+            Die Aufgaben landen in der ersten Spalte (Queue) des Boards.
           </p>
         </div>
 
