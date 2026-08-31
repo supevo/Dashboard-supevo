@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { isSuperAdmin } from '@/lib/authz/policies';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
@@ -892,4 +893,70 @@ export async function deleteTaskAction(
   // Action die gerade gelöschte Aufgaben-Route neu rendern → notFound() → 404.
   // redirect() wirft und navigiert, bevor die tote Seite gerendert wird.
   redirect(`/app/projects/${pid}`);
+}
+
+const purgeBoardTasksSchema = z.object({
+  orgId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  // Getippte Bestätigung, damit dieser unwiderrufliche Massenlöschung nicht
+  // aus Versehen ausgelöst wird.
+  confirm: z.string(),
+});
+
+/**
+ * Löscht ALLE Aufgaben eines Projekt-Boards endgültig (aktive, archivierte und
+ * bereits soft-gelöschte). Bewusst nur für super_admin und nur über die
+ * Projekteinstellungen erreichbar – daher der RLS-umgehende Service-Client mit
+ * expliziter App-Autorisierung und Org-/Projekt-Bindung.
+ */
+export async function deleteAllBoardTasksAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = purgeBoardTasksSchema.safeParse({
+    orgId: formData.get('orgId'),
+    projectId: formData.get('projectId'),
+    confirm: formData.get('confirm'),
+  });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const { orgId, projectId, confirm } = parsed.data;
+
+  if (confirm.trim().toUpperCase() !== 'LÖSCHEN') {
+    return errorResult('Bitte zur Bestätigung „LÖSCHEN" eingeben.');
+  }
+
+  const user = await requireUser();
+  if (!isSuperAdmin(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error, count } = await service
+    .from('tasks')
+    .delete({ count: 'exact' })
+    .eq('project_id', projectId)
+    .eq('organization_id', orgId);
+  if (error) {
+    logActivity({
+      actorId: user.id,
+      organizationId: orgId,
+      action: 'delete',
+      entityType: 'project_tasks_purge_failed',
+      entityId: projectId,
+      metadata: { message: error.message },
+    });
+    return errorResult(de.errors.INTERNAL);
+  }
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: orgId,
+    action: 'delete',
+    entityType: 'project_tasks_purge',
+    entityId: projectId,
+    metadata: { count: count ?? 0 },
+  });
+
+  revalidatePath(`/app/projects/${projectId}`);
+  revalidatePath(`/portal/projects/${projectId}`);
+  revalidatePath('/app/clients');
+  return successResult(`${count ?? 0} Aufgaben endgültig gelöscht.`);
 }

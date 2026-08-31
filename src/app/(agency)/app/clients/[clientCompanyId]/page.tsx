@@ -190,7 +190,11 @@ export default async function ClientDetailPage({
             </CardHeader>
             <CardContent className="space-y-4">
               <ProjectCoverUploader projectId={b.project.id} />
-              <ProjectSettingsForm orgId={orgId} project={b.project} />
+              <ProjectSettingsForm
+                orgId={orgId}
+                project={b.project}
+                canPurgeTasks={isSuperAdmin(user)}
+              />
             </CardContent>
           </Card>
         ))}
