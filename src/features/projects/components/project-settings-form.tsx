@@ -5,6 +5,7 @@ import {
   archiveProjectAction,
   updateProjectAction,
 } from '@/features/projects/actions';
+import { deleteAllBoardTasksAction } from '@/features/tasks/actions';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Input } from '@/components/ui/input';
@@ -26,10 +27,13 @@ const STATUSES = [
 export function ProjectSettingsForm({
   orgId,
   project,
+  canPurgeTasks = false,
   onSaved,
 }: {
   orgId: string;
   project: ProjectDetail;
+  /** Super-admin only: show the irreversible "delete all board tasks" action. */
+  canPurgeTasks?: boolean;
   /** Called after a successful save or archive (e.g. to refresh/close). */
   onSaved?: () => void;
 }) {
@@ -38,12 +42,20 @@ export function ProjectSettingsForm({
     archiveProjectAction,
     idleResult,
   );
+  const [purgeState, purgeAction] = useActionState(
+    deleteAllBoardTasksAction,
+    idleResult,
+  );
 
   useEffect(() => {
-    if (state.status === 'success' || archiveState.status === 'success') {
+    if (
+      state.status === 'success' ||
+      archiveState.status === 'success' ||
+      purgeState.status === 'success'
+    ) {
       onSaved?.();
     }
-  }, [state.status, archiveState.status, onSaved]);
+  }, [state.status, archiveState.status, purgeState.status, onSaved]);
 
   return (
     <div className="space-y-4">
@@ -106,6 +118,39 @@ export function ProjectSettingsForm({
           </p>
         )}
       </form>
+
+      {canPurgeTasks && (
+        <div className="mt-2 space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <div className="text-sm font-semibold text-destructive">
+            ⚠️ Gefahrenzone – nur Super-Admin
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Löscht <strong>alle</strong> Aufgaben dieses Boards endgültig –
+            inklusive archivierter Aufgaben. Das kann nicht rückgängig gemacht
+            werden. Zur Bestätigung <strong>LÖSCHEN</strong> eingeben.
+          </p>
+          <form action={purgeAction} className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="orgId" value={orgId} />
+            <input type="hidden" name="projectId" value={project.id} />
+            <Input
+              name="confirm"
+              placeholder="LÖSCHEN"
+              autoComplete="off"
+              className="h-9 w-40"
+              aria-label="Bestätigung"
+            />
+            <SubmitButton variant="destructive" size="sm">
+              Alle Aufgaben löschen
+            </SubmitButton>
+          </form>
+          {purgeState.status === 'error' && (
+            <p className="text-xs text-destructive">{purgeState.message}</p>
+          )}
+          {purgeState.status === 'success' && (
+            <p className="text-xs text-green-600">{purgeState.message}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
