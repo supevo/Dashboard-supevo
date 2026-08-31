@@ -14,6 +14,7 @@ import { completeText, isAiEnabled } from '@/lib/ai/complete';
 import { categorizeTitle, categorizeTitles } from '@/features/passwords/ai';
 import { isPwCategory } from '@/features/passwords/shared';
 import { de } from '@/lib/i18n/de';
+import { logger } from '@/lib/logger';
 import {
   type ActionResult,
   errorResult,
@@ -196,7 +197,17 @@ export async function analyzePasswordImportAction(text: string): Promise<PwAnaly
 
   let raw: { title: string; username: string; password: string; url: string }[] = [];
   if (isAiEnabled()) {
-    const res = await completeText({ system: AI_IMPORT_SYSTEM, prompt: text.slice(0, 12000), maxTokens: 2500 });
+    // Ein AI-Ausfall darf den Import nicht crashen – bei Fehler greift die
+    // Heuristik unten. Sonst würde die Server-Action werfen und der Client zeigt
+    // nur „unerwarteter Fehler".
+    let res: Awaited<ReturnType<typeof completeText>> = null;
+    try {
+      res = await completeText({ system: AI_IMPORT_SYSTEM, prompt: text.slice(0, 12000), maxTokens: 2500 });
+    } catch (e) {
+      logger.error('[passwords] analyze AI parse failed', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
     if (res) {
       try {
         const parsed = JSON.parse(extractJson(res.text)) as {
@@ -218,7 +229,15 @@ export async function analyzePasswordImportAction(text: string): Promise<PwAnaly
   if (raw.length === 0) raw = heuristicRows(text).filter((r) => r.title);
   if (raw.length === 0) return { ok: false, error: 'Keine Einträge erkannt.' };
 
-  const catMap = await categorizeTitles(raw.map((r) => r.title));
+  let catMap: Awaited<ReturnType<typeof categorizeTitles>> = new Map();
+  try {
+    catMap = await categorizeTitles(raw.map((r) => r.title));
+  } catch (e) {
+    // Kategorisierung ist optional – im Zweifel „Sonstiges", Import läuft weiter.
+    logger.error('[passwords] analyze categorize failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
   const rows: PwImportRow[] = raw.slice(0, 500).map((r) => ({
     title: r.title,
     username: r.username || null,
@@ -273,7 +292,23 @@ export async function commitPasswordImportAction(
   }));
 
   const { error } = await supabase.from('password_entries').insert(payload);
-  if (error) return { ok: false, error: de.errors.INTERNAL };
+  if (error) {
+    // Den echten Grund nicht verschlucken – sonst bleibt nur ein
+    // undiagnostizierbares „unerwarteter Fehler" (siehe Muster in ideas/contracts).
+    logger.error('[passwords] import commit failed', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      count: payload.length,
+    });
+    return {
+      ok: false,
+      error:
+        error.code === '42P01'
+          ? 'Passwort-Tabelle fehlt (Migration 0092 nicht ausgeführt).'
+          : `Import fehlgeschlagen: ${error.message}`,
+    };
+  }
   revalidatePath('/app/passwords');
   return { ok: true, inserted: payload.length };
 }
