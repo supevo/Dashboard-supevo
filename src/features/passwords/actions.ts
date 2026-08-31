@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import {
@@ -60,7 +60,7 @@ export async function createPasswordEntryAction(input: unknown): Promise<ActionR
   const category =
     v.category && isPwCategory(v.category) ? v.category : await categorizeTitle(v.title);
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceClient();
   const { error } = await supabase.from('password_entries').insert({
     organization_id: auth.orgId,
     title: v.title,
@@ -104,11 +104,12 @@ export async function updatePasswordEntryAction(input: unknown): Promise<ActionR
     ...(v.secret ? { secret_encrypted: encryptSecret(v.secret) } : {}),
   };
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceClient();
   const { error } = await supabase
     .from('password_entries')
     .update(patch)
-    .eq('id', v.id);
+    .eq('id', v.id)
+    .eq('organization_id', auth.orgId);
   if (error) return errorResult(de.errors.INTERNAL);
 
   revalidatePath('/app/passwords');
@@ -118,8 +119,12 @@ export async function updatePasswordEntryAction(input: unknown): Promise<ActionR
 export async function deletePasswordEntryAction(id: string): Promise<ActionResult> {
   const auth = await requireAgency();
   if ('error' in auth) return errorResult(auth.error);
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('password_entries').delete().eq('id', id);
+  const supabase = createSupabaseServiceClient();
+  const { error } = await supabase
+    .from('password_entries')
+    .delete()
+    .eq('id', id)
+    .eq('organization_id', auth.orgId);
   if (error) return errorResult(de.errors.INTERNAL);
   revalidatePath('/app/passwords');
   return successResult('Gelöscht.');
@@ -132,12 +137,13 @@ export async function revealPasswordAction(id: string): Promise<RevealResult> {
   const auth = await requireAgency();
   if ('error' in auth) return { ok: false, error: auth.error };
 
-  // RLS gate: the caller must be able to see the entry.
-  const supabase = await createSupabaseServerClient();
+  // Org-Scope: der Eintrag muss zur Agentur-Org des Aufrufers gehören.
+  const supabase = createSupabaseServiceClient();
   const { data: entry } = await supabase
     .from('password_entries')
     .select('secret_encrypted')
     .eq('id', id)
+    .eq('organization_id', auth.orgId)
     .maybeSingle();
   if (!entry) return { ok: false, error: de.errors.NOT_FOUND };
   if (!entry.secret_encrypted) return { ok: false, error: 'Kein Passwort hinterlegt.' };
@@ -279,7 +285,7 @@ export async function commitPasswordImportAction(
     return { ok: false, error: 'Passwort-Verschlüsselung ist nicht konfiguriert (SECRET_ENCRYPTION_KEY fehlt).' };
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseServiceClient();
   const user = await getCurrentUser();
   const payload = parsed.data.rows.map((r) => ({
     organization_id: auth.orgId,
