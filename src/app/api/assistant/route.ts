@@ -20,6 +20,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
 
+  // Data-URL of an inline screenshot; cap the base64 length so a huge upload
+  // can't blow up the request (~8 MB of base64 ≈ 6 MB image – the client
+  // downscales well below this before sending).
+  const MAX_IMAGE_CHARS = 8_000_000;
+  const isImageDataUrl = (v: unknown): v is string =>
+    typeof v === 'string' &&
+    v.startsWith('data:image/') &&
+    v.length <= MAX_IMAGE_CHARS;
+
   const raw = Array.isArray(body.messages) ? body.messages : [];
   const messages: ChatMsg[] = raw
     .filter(
@@ -28,6 +37,12 @@ export async function POST(request: Request) {
         typeof (m as ChatMsg).content === 'string' &&
         ((m as ChatMsg).role === 'user' || (m as ChatMsg).role === 'assistant'),
     )
+    .map((m) => {
+      const img = (m as { image?: unknown }).image;
+      return m.role === 'user' && isImageDataUrl(img)
+        ? { role: m.role, content: m.content, image: img }
+        : { role: m.role, content: m.content };
+    })
     .slice(-20);
 
   if (messages.length === 0) {
