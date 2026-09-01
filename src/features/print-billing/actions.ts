@@ -165,6 +165,30 @@ export async function markPrintSelfPaidAction(
   return { ok: true };
 }
 
+/**
+ * Erzeugt die Druck-Sammelrechnungen (Entwürfe) sofort statt auf den Monats-Cron
+ * zu warten – für Test und Ad-hoc-Abrechnung. Nur Super-Admin.
+ */
+export async function runPrintInvoicesNowAction(): Promise<
+  { ok: true; invoicesCreated: number; expensesBilled: number } | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: de.errors.UNAUTHENTICATED };
+  const { isSuperAdmin } = await import('@/lib/authz/policies');
+  if (!isSuperAdmin(user)) return { ok: false, error: de.errors.FORBIDDEN };
+
+  const { runMonthlyPrintInvoices } = await import(
+    '@/features/print-billing/print-invoice-run'
+  );
+  const result = await runMonthlyPrintInvoices();
+  revalidatePath('/app/finance');
+  return {
+    ok: true,
+    invoicesCreated: result.invoicesCreated,
+    expensesBilled: result.expensesBilled,
+  };
+}
+
 /** Deletes a recorded print expense (admin-only; RLS also enforces this). */
 export async function deletePrintExpenseAction(
   expenseId: string,
