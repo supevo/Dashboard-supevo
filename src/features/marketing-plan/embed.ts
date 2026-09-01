@@ -148,6 +148,115 @@ export async function embedItems(
   return count;
 }
 
+/** Offene (noch nicht übernommene) Maßnahmen-Status einer Phase. */
+const OPEN_ITEM_STATUS = ['accepted', 'proposed', 'change_requested'] as const;
+
+/**
+ * Rollt den Marketingplan automatisch weiter: Wird die letzte offene Aufgabe
+ * einer bereits vollständig übernommenen Phase erledigt, wird die NÄCHSTE Phase
+ * (nach Reihenfolge) automatisch ins Kanban des Kunden übernommen – so wie der
+ * manuelle Knopf „Nächste Phase übernehmen", nur ausgelöst durch das Abarbeiten.
+ *
+ * Bedingungen, damit weitergerollt wird:
+ *   1. Die erledigte Aufgabe gehört zu einer Maßnahme (marketing_plan_items).
+ *   2. Ihre Phase hat KEINE offenen (nicht übernommenen) Maßnahmen mehr.
+ *   3. ALLE übernommenen Maßnahmen der Phase sind erledigt (Task completed).
+ * Dann wird die erste spätere Phase mit offenen Maßnahmen übernommen.
+ *
+ * Best-effort und idempotent: sind die Maßnahmen der Folgephase bereits
+ * übernommen (Status != offen), passiert nichts.
+ */
+export async function advanceMarketingPlanOnTaskDone(
+  service: Service,
+  taskId: string,
+  userId: string,
+): Promise<{ advanced: boolean }> {
+  // 1. Gehört die Aufgabe zu einer übernommenen Plan-Maßnahme?
+  const { data: item } = await service
+    .from('marketing_plan_items')
+    .select('id, phase_id')
+    .eq('task_id', taskId)
+    .eq('status', 'embedded')
+    .maybeSingle();
+  if (!item?.phase_id) return { advanced: false };
+
+  const { data: phase } = await service
+    .from('marketing_plan_phases')
+    .select('id, plan_id, position')
+    .eq('id', item.phase_id)
+    .maybeSingle();
+  if (!phase) return { advanced: false };
+
+  // 2. Phase darf keine offenen (nicht übernommenen) Maßnahmen mehr haben.
+  const { count: openInPhase } = await service
+    .from('marketing_plan_items')
+    .select('id', { count: 'exact', head: true })
+    .eq('phase_id', phase.id)
+    .in('status', OPEN_ITEM_STATUS as unknown as string[]);
+  if ((openInPhase ?? 0) > 0) return { advanced: false };
+
+  // 3. Alle übernommenen Maßnahmen der Phase müssen erledigt sein.
+  const { data: embeddedItems } = await service
+    .from('marketing_plan_items')
+    .select('task_id')
+    .eq('phase_id', phase.id)
+    .eq('status', 'embedded');
+  const taskIds = (embeddedItems ?? [])
+    .map((r) => r.task_id)
+    .filter((v): v is string => !!v);
+  if (taskIds.length === 0) return { advanced: false };
+
+  const { data: tasks } = await service
+    .from('tasks')
+    .select('id, completed_at, deleted_at')
+    .in('id', taskIds);
+  const done = (tasks ?? []).filter((t) => !t.deleted_at);
+  const allDone =
+    done.length === taskIds.length && done.every((t) => t.completed_at != null);
+  if (!allDone) return { advanced: false };
+
+  // 4. Nächste spätere Phase mit offenen Maßnahmen übernehmen.
+  const { data: plan } = await service
+    .from('marketing_plans')
+    .select('id, organization_id, client_company_id')
+    .eq('id', phase.plan_id)
+    .maybeSingle();
+  if (!plan) return { advanced: false };
+
+  const { data: laterPhases } = await service
+    .from('marketing_plan_phases')
+    .select('id, title, position')
+    .eq('plan_id', plan.id)
+    .gt('position', phase.position)
+    .order('position', { ascending: true });
+
+  for (const next of laterPhases ?? []) {
+    const { data: openItems } = await service
+      .from('marketing_plan_items')
+      .select('id, title, description, position')
+      .eq('phase_id', next.id)
+      .in('status', OPEN_ITEM_STATUS as unknown as string[])
+      .order('position', { ascending: true });
+    if (!openItems || openItems.length === 0) continue;
+
+    const target = await resolveClientQueue(service, plan.client_company_id);
+    if (!target) return { advanced: false };
+    const labelId = await ensureMarketingLabel(service, plan.organization_id);
+    await embedItems(
+      service,
+      { orgId: plan.organization_id, createdBy: userId, target, labelId },
+      openItems.map((it) => ({
+        id: it.id,
+        title: it.title,
+        description: it.description,
+        phaseTitle: next.title,
+      })),
+    );
+    return { advanced: true };
+  }
+  return { advanced: false };
+}
+
 /**
  * Retired: plans are phase-based and have no fixed timeframe, so there is no
  * monthly auto-embed. Measures flow into the board manually via
