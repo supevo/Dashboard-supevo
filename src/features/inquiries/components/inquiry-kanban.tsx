@@ -6,7 +6,13 @@ import {
   setInquiryStatusAction,
   addInquiryCommentAction,
   setInquirySpamAction,
+  setInquiryRatingAction,
 } from '@/features/inquiries/actions';
+import {
+  RATING_CRITERIA,
+  ratingsAverage,
+  type RatingKey,
+} from '@/features/inquiries/rating';
 import type { WebInquiry } from '@/features/inquiries/queries';
 import {
   inquiryStatusBucket,
@@ -83,11 +89,25 @@ function LeadCard({
 
 /** KI-Signale: Kategorie-Badge + Dringlichkeit/Potenzial (1–10). */
 function LeadSignals({ inquiry }: { inquiry: WebInquiry }) {
-  if (!inquiry.category && inquiry.aiUrgency == null && inquiry.aiPotential == null) {
+  const avg = ratingsAverage(inquiry.ratings);
+  if (
+    !inquiry.category &&
+    inquiry.aiUrgency == null &&
+    inquiry.aiPotential == null &&
+    avg == null
+  ) {
     return null;
   }
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {avg != null && (
+        <span
+          className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+          title="Durchschnittliche Bewertung (1–10)"
+        >
+          ★ {avg}
+        </span>
+      )}
       {inquiry.category && (
         <span
           className={cn(
@@ -114,6 +134,94 @@ function LeadSignals({ inquiry }: { inquiry: WebInquiry }) {
           € {inquiry.aiPotential}
         </span>
       )}
+    </div>
+  );
+}
+
+/** 1–10 Sterne-Reihe für ein Bewertungskriterium. */
+function RatingStars({
+  inquiryId,
+  ratingKey,
+  value,
+}: {
+  inquiryId: string;
+  ratingKey: RatingKey;
+  value: number | undefined;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [hover, setHover] = useState(0);
+  const active = hover || value || 0;
+
+  function set(v: number) {
+    start(async () => {
+      const fd = new FormData();
+      fd.set('id', inquiryId);
+      fd.set('key', ratingKey);
+      fd.set('value', String(v));
+      await setInquiryRatingAction(idleResult, fd);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex items-center gap-1" onMouseLeave={() => setHover(0)}>
+      {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+        <button
+          key={n}
+          type="button"
+          disabled={pending}
+          onMouseEnter={() => setHover(n)}
+          onClick={() => set(n)}
+          className={cn(
+            'text-base leading-none transition disabled:opacity-50',
+            n <= active ? 'text-amber-500' : 'text-muted-foreground/30',
+          )}
+          title={`${n}/10`}
+          aria-label={`${n} von 10`}
+        >
+          ★
+        </button>
+      ))}
+      <span className="ml-1 w-8 text-xs text-muted-foreground">
+        {value ? `${value}/10` : '–'}
+      </span>
+    </div>
+  );
+}
+
+/** Bewertungsblock (mehrere 1–10-Kriterien) im Detail-Dialog. */
+function RatingBlock({ inquiry }: { inquiry: WebInquiry }) {
+  const avg = ratingsAverage(inquiry.ratings);
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-muted-foreground">
+          Bewertung (1–10)
+        </span>
+        {avg != null && (
+          <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            ⌀ {avg}
+          </span>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {RATING_CRITERIA.map((c) => (
+          <div
+            key={c.key}
+            className="flex flex-wrap items-center justify-between gap-1"
+          >
+            <span className="text-sm" title={c.hint}>
+              {c.label}
+            </span>
+            <RatingStars
+              inquiryId={inquiry.id}
+              ratingKey={c.key}
+              value={inquiry.ratings[c.key]}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -218,6 +326,8 @@ function LeadDetail({
             </div>
           </div>
         )}
+
+        {canManage && <RatingBlock inquiry={inquiry} />}
 
         <div className="space-y-2 border-t pt-3">
           <div className="text-xs font-semibold text-muted-foreground">

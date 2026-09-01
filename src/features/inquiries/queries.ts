@@ -5,6 +5,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import type { InquiryStatus } from '@/features/inquiries/status';
 export type { InquiryStatus };
 import { normalizeCategory, type InquiryCategory } from '@/features/inquiries/categories';
+import { parseRatings, type InquiryRatings } from '@/features/inquiries/rating';
 
 export interface InquiryComment {
   id: string;
@@ -29,6 +30,8 @@ export interface WebInquiry {
   aiUrgency: number | null;
   /** KI-Auftragspotenzial 1–10 oder null. */
   aiPotential: number | null;
+  /** Manuelle Bewertungen (1–10 je Kriterium). */
+  ratings: InquiryRatings;
   createdAt: string;
   comments: InquiryComment[];
 }
@@ -146,6 +149,7 @@ export async function listInquiries(
     category: normalizeCategory((i as { category?: unknown }).category),
     aiUrgency: (i as { ai_urgency?: number | null }).ai_urgency ?? null,
     aiPotential: (i as { ai_potential?: number | null }).ai_potential ?? null,
+    ratings: parseRatings((i as { ratings?: unknown }).ratings),
     createdAt: i.created_at,
     comments: commentsByInquiry.get(i.id) ?? [],
   }));
