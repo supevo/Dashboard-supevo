@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { listPrintExpenses, sumExpenseCents } from '@/features/print-billing/queries';
 import { DeleteExpenseButton } from '@/features/print-billing/components/delete-expense-button';
+import { GeneratePrintInvoicesButton } from '@/features/print-billing/components/generate-print-invoices-button';
 import { EmptyState } from '@/components/ui/empty-state';
 
 function euro(cents: number): string {
@@ -53,12 +54,15 @@ export async function ExpensesPanel({
         <p className="text-sm text-muted-foreground">
           Hochgeladene Dienstleister-Rechnungen für abgerechnete Druckprodukte.
         </p>
-        <a
-          href="/api/print-expenses/export"
-          className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
-        >
-          ⬇️ CSV-Export
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <GeneratePrintInvoicesButton />
+          <a
+            href="/api/print-expenses/export"
+            className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+          >
+            ⬇️ CSV-Export
+          </a>
+        </div>
       </div>
 
       {months.length > 1 && (
