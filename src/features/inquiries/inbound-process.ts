@@ -8,7 +8,7 @@ import {
   isImapConfigured,
   type InboundMessage,
 } from '@/lib/inbound/imap';
-import { parseInquiryEmail } from '@/features/inquiries/ai-parse';
+import { parseInquiryEmail, classifyInquiry } from '@/features/inquiries/ai-parse';
 
 export interface InboundResult {
   skipped?: string;
@@ -108,12 +108,16 @@ export async function processInboundEmails(): Promise<InboundResult> {
 
       const target = distinctClients[0]!;
       const parsed = await parseInquiryEmail(msg.subject, msg.text);
+      const cls = await classifyInquiry(parsed.subject, parsed.message);
 
       const { data: inquiry } = await service
         .from('web_inquiries')
         .insert({
           organization_id: target.organization_id,
           client_company_id: target.client_company_id,
+          category: cls.category,
+          ai_urgency: cls.urgency,
+          ai_potential: cls.potential,
           name: parsed.name,
           email: parsed.email,
           phone: parsed.phone,
@@ -128,7 +132,7 @@ export async function processInboundEmails(): Promise<InboundResult> {
           },
           is_spam: parsed.isSpam,
           spam_reason: parsed.spamReason,
-        })
+        } as never)
         .select('id')
         .maybeSingle();
 

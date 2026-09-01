@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
+import { classifyInquiry } from '@/features/inquiries/ai-parse';
 import { rateLimit } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 
@@ -80,6 +81,7 @@ export async function POST(
   const subject = pick(payload, ['subject', 'betreff', 'topic']);
   const message = pick(payload, ['message', 'nachricht', 'text', 'comments', 'body']);
   const source = pick(payload, ['source', 'page', 'url', 'form']);
+  const cls = await classifyInquiry(subject, message);
 
   const { data: inquiry, error } = await service
     .from('web_inquiries')
@@ -92,8 +94,11 @@ export async function POST(
       subject,
       message,
       source,
+      category: cls.category,
+      ai_urgency: cls.urgency,
+      ai_potential: cls.potential,
       payload,
-    })
+    } as never)
     .select('id')
     .maybeSingle();
   if (error) {
