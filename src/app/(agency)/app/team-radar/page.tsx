@@ -22,6 +22,7 @@ import { getOptimizationSettings } from '@/features/optimization/queries';
 import { OptimizationPanel } from '@/features/optimization/components/optimization-panel';
 import { CoachingCard } from '@/features/coaching/components/coaching-card';
 import { formatMinutes, berlinToday } from '@/lib/time';
+import { LATE_EMOJI, LATE_LABEL } from '@/features/time-tracking/lateness';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
 
@@ -113,6 +114,19 @@ function WorkloadRow({
                     .join('.')}`}
                 >
                   🌴 {de.absence.types[absence.type]}
+                </span>
+              )}
+              {m.lateToday && (
+                <span
+                  className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-xs font-medium',
+                    m.lateToday === 'critical' && 'bg-red-100 text-red-700',
+                    m.lateToday === 'major' && 'bg-orange-100 text-orange-700',
+                    m.lateToday === 'minor' && 'bg-amber-100 text-amber-700',
+                  )}
+                  title={`Heute ${LATE_LABEL[m.lateToday]} eingestempelt`}
+                >
+                  {LATE_EMOJI[m.lateToday]} zu spät
                 </span>
               )}
             </div>

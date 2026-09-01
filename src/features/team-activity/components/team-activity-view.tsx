@@ -3,6 +3,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { formatMinutes } from '@/lib/time';
 import type { MemberActivity, TeamActivity, PerfTrend } from '@/features/team-activity/queries';
 import { DayPicker } from '@/features/team-activity/components/day-picker';
+import { LATE_EMOJI, LATE_LABEL } from '@/features/time-tracking/lateness';
 import { cn } from '@/lib/utils';
 
 const ABSENCE_LABEL: Record<string, string> = {
@@ -23,6 +24,28 @@ function ClockBadge({ member }: { member: MemberActivity }) {
   if (member.onBreak)
     return <span className="text-xs text-amber-600 dark:text-amber-400">⏸ Pause</span>;
   return <span className="text-xs text-emerald-600 dark:text-emerald-400">🟢 arbeitet</span>;
+}
+
+/** Clock-in cell for the day timeline: time + a tardiness mark when late. */
+function ClockInCell({ member }: { member: MemberActivity }) {
+  if (!member.dayFirstClockIn) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const tier = member.dayLateTier;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 tabular-nums',
+        tier === 'critical' && 'font-semibold text-red-600 dark:text-red-400',
+        tier === 'major' && 'font-medium text-orange-600 dark:text-orange-400',
+        tier === 'minor' && 'text-amber-600 dark:text-amber-400',
+      )}
+      title={tier ? `Verspätet: ${LATE_LABEL[tier]}` : 'Pünktlich'}
+    >
+      {tier && <span aria-hidden>{LATE_EMOJI[tier]}</span>}
+      {member.dayFirstClockIn}
+    </span>
+  );
 }
 
 function TrendIcon({ trend }: { trend: PerfTrend }) {
@@ -156,6 +179,7 @@ export function TeamActivityView({
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Mitarbeiter</th>
+                  <th className="px-3 py-2 font-medium">Einstempeln</th>
                   <th className="px-3 py-2 font-medium">Erledigt</th>
                   <th className="px-3 py-2 font-medium">Zeit erfasst</th>
                   <th className="px-3 py-2 font-medium">Statuswechsel</th>
@@ -166,6 +190,7 @@ export function TeamActivityView({
                 {members.map((m) => (
                   <tr key={m.userId} className="border-b align-top last:border-0">
                     <td className="py-2 pr-3"><NameCell member={m} /></td>
+                    <td className="px-3 py-2"><ClockInCell member={m} /></td>
                     <td className="px-3 py-2 tabular-nums">{m.dayDoneCount}</td>
                     <td className="px-3 py-2 tabular-nums">{formatMinutes(m.dayMinutes)}</td>
                     <td className="px-3 py-2 tabular-nums">{m.dayStatusChanges}</td>

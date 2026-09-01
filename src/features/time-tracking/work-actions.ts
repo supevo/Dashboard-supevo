@@ -21,7 +21,20 @@ import {
   assignClockOutBinTask,
   flagMissedBinTasksOnClockIn,
 } from '@/features/bins/queries';
-import { startOfBerlinDayUtc, berlinToday } from '@/lib/time';
+import {
+  startOfBerlinDayUtc,
+  berlinToday,
+  berlinMinutesOfDay,
+  berlinWeekday,
+} from '@/lib/time';
+import { createNotifications } from '@/features/notifications/create';
+import {
+  lateTierForMinutes,
+  lateNoticeText,
+  LATE_XP,
+  LATE_LABEL,
+  type LateTier,
+} from '@/features/time-tracking/lateness';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -112,13 +125,29 @@ export async function clockInAction(
     return successResult('Du bist bereits eingestempelt.');
   }
 
+  // Pünktlichkeit wird nur am ERSTEN Stempel des Tages gewertet: ein zweiter
+  // Clock-in nach einer Mittagspause (ausstempeln → wieder ein) darf keinen
+  // Verspätungs-Abzug auslösen. Vor dem Insert prüfen, ob heute schon gestempelt
+  // wurde.
+  const { count: priorToday } = await supabase
+    .from('work_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .gte('clock_in', startOfBerlinDayUtc());
+  const isFirstToday = (priorToday ?? 0) === 0;
+
+  const clockInIso = new Date().toISOString();
   const newSession = {
     organization_id: parsed.data.orgId,
     user_id: user.id,
-    clock_in: new Date().toISOString(),
+    clock_in: clockInIso,
     status: 'active' as const,
   };
-  let { error } = await supabase.from('work_sessions').insert(newSession);
+  let { data: inserted, error } = await supabase
+    .from('work_sessions')
+    .insert(newSession)
+    .select('id')
+    .single();
 
   // If the unique open-session index still rejects the insert, a stale session
   // slipped through the normal recovery (e.g. a schema quirk). Force-close any
@@ -126,15 +155,48 @@ export async function clockInAction(
   // never permanently block the employee.
   if (error) {
     await forceCloseStaleSessions(user.id);
-    ({ error } = await supabase.from('work_sessions').insert(newSession));
+    ({ data: inserted, error } = await supabase
+      .from('work_sessions')
+      .insert(newSession)
+      .select('id')
+      .single());
   }
   // Only a genuine still-open session from TODAY can remain now.
-  if (error) return errorResult('Es läuft bereits eine Arbeitszeitsitzung.');
+  if (error || !inserted) {
+    return errorResult('Es läuft bereits eine Arbeitszeitsitzung.');
+  }
+  const sessionId = inserted.id;
+
+  // Verspätung bewerten: nur der erste Stempel, nur an Werktagen, und nicht bei
+  // genehmigter Abwesenheit (z. B. halber Urlaubstag). Der Abzug/die Meldung
+  // erfolgt in `after`, aber die Stufe wird synchron bestimmt, damit die
+  // Bestätigungsmeldung den Hinweis direkt enthält.
+  const isWeekend = berlinWeekday(new Date(clockInIso)) >= 6;
+  let tier: LateTier | null =
+    isFirstToday && !isWeekend
+      ? lateTierForMinutes(berlinMinutesOfDay(new Date(clockInIso)))
+      : null;
+  if (tier && (await hasApprovedAbsenceToday(supabase, user.id))) {
+    tier = null;
+  }
+  const latePenalty = tier;
 
   // Ordnungsdienst: nicht erledigte Aufgaben aus einer vergangenen Periode als
   // verpasst melden – NACH der Antwort (after), damit das Einstempeln sofort
   // zurückkehrt. Best-effort, eigener Service-Client in den Helfern.
   after(async () => {
+    if (latePenalty) {
+      try {
+        await awardLatePenalty({
+          orgId: parsed.data.orgId,
+          userId: user.id,
+          sessionId,
+          tier: latePenalty,
+        });
+      } catch {
+        /* XP-Abzug ist best-effort – blockiert das Einstempeln nie */
+      }
+    }
     try {
       await flagMissedChoresOnClockIn(parsed.data.orgId, user.id);
     } catch {
@@ -148,7 +210,75 @@ export async function clockInAction(
   });
 
   revalidatePath('/app/time');
-  return successResult('Eingestempelt.');
+  return successResult(
+    latePenalty
+      ? `Eingestempelt. ${lateNoticeText(latePenalty, clockInIso)}`
+      : 'Eingestempelt.',
+  );
+}
+
+/** True when the user has an approved absence covering today (Berlin). */
+async function hasApprovedAbsenceToday(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+): Promise<boolean> {
+  const today = berlinToday();
+  const { data } = await supabase
+    .from('absences')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
+/**
+ * Books the late-clock-in XP penalty into the ledger and notifies the employee.
+ * Idempotent per day via ref_id = the day's first work session (the existing
+ * xp_events (user_id, kind, ref_id) unique index tolerates the retry conflict).
+ * The penalty is a raw negative value – the XP boost factor is deliberately NOT
+ * applied so a boost event can never soften (or inflate) a penalty.
+ */
+async function awardLatePenalty(params: {
+  orgId: string;
+  userId: string;
+  sessionId: string;
+  tier: LateTier;
+}): Promise<void> {
+  const { orgId, userId, sessionId, tier } = params;
+  const service = createSupabaseServiceClient();
+
+  const { error } = await service.from('xp_events').insert({
+    user_id: userId,
+    organization_id: orgId,
+    kind: 'late',
+    points: LATE_XP[tier],
+    task_id: null,
+    ref_id: sessionId,
+  } as never);
+  // 23505 = bereits gebucht (idempotent) → still ignorieren.
+  if (error && error.code !== '23505') {
+    logger.error('late penalty xp insert failed', { error });
+    return;
+  }
+  // Bei bereits gebuchtem Event keine zweite Benachrichtigung erzeugen.
+  if (error?.code === '23505') return;
+
+  await createNotifications([
+    {
+      organizationId: orgId,
+      recipientId: userId,
+      type: 'late',
+      title: `Verspätung – ${LATE_XP[tier]} XP`,
+      body: `Du hast dich ${LATE_LABEL[tier]} eingestempelt. Dafür wurden dir ${Math.abs(
+        LATE_XP[tier],
+      )} XP abgezogen.`,
+      entityType: 'work_session',
+      entityId: sessionId,
+    },
+  ]);
 }
 
 export async function clockOutAction(): Promise<ActionResult> {
