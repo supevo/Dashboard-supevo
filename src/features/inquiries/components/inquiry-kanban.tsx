@@ -7,7 +7,11 @@ import {
   addInquiryCommentAction,
   setInquirySpamAction,
 } from '@/features/inquiries/actions';
-import type { WebInquiry, InquiryStatus } from '@/features/inquiries/queries';
+import type { WebInquiry } from '@/features/inquiries/queries';
+import {
+  inquiryStatusBucket,
+  type InquiryStatus,
+} from '@/features/inquiries/status';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Modal } from '@/components/ui/modal';
@@ -17,9 +21,12 @@ import { cn } from '@/lib/utils';
 
 const COLUMNS: { key: InquiryStatus; accent: string }[] = [
   { key: 'new', accent: 'border-t-blue-500' },
-  { key: 'called', accent: 'border-t-amber-500' },
-  { key: 'mailed', accent: 'border-t-purple-500' },
-  { key: 'done', accent: 'border-t-emerald-500' },
+  { key: 'not_reached', accent: 'border-t-rose-500' },
+  { key: 'reached', accent: 'border-t-amber-500' },
+  { key: 'appointment', accent: 'border-t-purple-500' },
+  { key: 'offer', accent: 'border-t-sky-500' },
+  { key: 'won', accent: 'border-t-emerald-500' },
+  { key: 'lost', accent: 'border-t-muted-foreground/40' },
 ];
 
 function fmtDate(iso: string): string {
@@ -158,7 +165,7 @@ function LeadDetail({
                   onClick={() => onMove(c.key)}
                   className={cn(
                     'rounded-full px-2.5 py-1 text-xs font-medium transition',
-                    inquiry.status === c.key
+                    inquiryStatusBucket(inquiry.status) === c.key
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground hover:bg-muted/70',
                   )}
@@ -244,9 +251,9 @@ export function InquiryKanban({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {COLUMNS.map((col) => {
-          const cards = real.filter((i) => i.status === col.key);
+          const cards = real.filter((i) => inquiryStatusBucket(i.status) === col.key);
           return (
             <div
               key={col.key}

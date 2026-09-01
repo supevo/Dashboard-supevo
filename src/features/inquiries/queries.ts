@@ -2,7 +2,8 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 
-export type InquiryStatus = 'new' | 'called' | 'mailed' | 'done';
+import type { InquiryStatus } from '@/features/inquiries/status';
+export type { InquiryStatus };
 
 export interface InquiryComment {
   id: string;

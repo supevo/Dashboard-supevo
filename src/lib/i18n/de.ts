@@ -1026,6 +1026,13 @@ export const de = {
     inactiveNotice: 'Der Anfragen-Eingang ist für Sie noch nicht aktiviert. Bitte wenden Sie sich an Ihre Agentur.',
     status: {
       new: 'Neu',
+      not_reached: 'Nicht erreicht',
+      reached: 'Erreicht',
+      appointment: 'Termin',
+      offer: 'Angebot',
+      won: 'Auftrag',
+      lost: 'Abgesagt',
+      // Legacy-Bestandsdaten:
       called: 'Angerufen',
       mailed: 'Gemailt',
       done: 'Erledigt',
