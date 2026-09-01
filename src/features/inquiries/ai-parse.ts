@@ -1,5 +1,69 @@
 import 'server-only';
 import { completeText, isAiEnabled } from '@/lib/ai/complete';
+import {
+  INQUIRY_CATEGORIES,
+  normalizeCategory,
+  type InquiryCategory,
+} from '@/features/inquiries/categories';
+
+export interface InquiryClassification {
+  /** Gewerk-Kategorie (Badge) oder null, wenn KI aus / nicht bestimmbar. */
+  category: InquiryCategory | null;
+  /** Dringlichkeit 1–10 („zeitnah umsetzen?") oder null. */
+  urgency: number | null;
+  /** Auftragspotenzial 1–10 (Projektgröße/Wert) oder null. */
+  potential: number | null;
+}
+
+function clamp1to10(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(10, Math.max(1, Math.round(n)));
+}
+
+/**
+ * Ordnet eine Anfrage einer Gewerk-Kategorie zu und schätzt Dringlichkeit und
+ * Auftragspotenzial direkt aus dem Text (1–10). Rein additiv – ändert die
+ * Kunden-/Spam-Zuordnung nicht. Gibt neutrale Nullwerte zurück, wenn keine KI
+ * aktiv ist oder der Aufruf scheitert.
+ */
+export async function classifyInquiry(
+  subject: string | null,
+  message: string | null,
+): Promise<InquiryClassification> {
+  const empty: InquiryClassification = { category: null, urgency: null, potential: null };
+  if (!isAiEnabled()) return empty;
+  const text = `${subject ?? ''}\n${message ?? ''}`.trim();
+  if (!text) return empty;
+
+  const result = await completeText({
+    system:
+      'Du kategorisierst eingehende Endkunden-Anfragen eines Handwerks-/SHK-Betriebs und schätzt zwei Kennzahlen. ' +
+      `Wähle GENAU EINE Kategorie aus dieser Liste: ${INQUIRY_CATEGORIES.join(', ')}. ` +
+      'Passt nichts eindeutig, nimm "sonstiges". ' +
+      'urgency = wie zeitnah die Person umsetzen will (1=unklar/langfristig, 10=sehr dringend). ' +
+      'potential = geschätztes Auftragspotenzial/Projektgröße (1=klein, 10=sehr groß). ' +
+      'Antworte AUSSCHLIESSLICH mit JSON: {"category": string, "urgency": number, "potential": number}. Keine Erklärungen.',
+    prompt: text.slice(0, 6000),
+    maxTokens: 120,
+  });
+  if (!result) return empty;
+
+  try {
+    const s = result.text.indexOf('{');
+    const e = result.text.lastIndexOf('}');
+    const p = JSON.parse(
+      s !== -1 && e > s ? result.text.slice(s, e + 1) : result.text,
+    ) as Record<string, unknown>;
+    return {
+      category: normalizeCategory(p.category),
+      urgency: clamp1to10(p.urgency),
+      potential: clamp1to10(p.potential),
+    };
+  } catch {
+    return empty;
+  }
+}
 
 export interface ParsedInquiry {
   isSpam: boolean;

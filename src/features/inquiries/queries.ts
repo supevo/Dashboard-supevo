@@ -4,6 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 
 import type { InquiryStatus } from '@/features/inquiries/status';
 export type { InquiryStatus };
+import { normalizeCategory, type InquiryCategory } from '@/features/inquiries/categories';
 
 export interface InquiryComment {
   id: string;
@@ -22,6 +23,12 @@ export interface WebInquiry {
   source: string | null;
   status: InquiryStatus;
   isSpam: boolean;
+  /** KI-Gewerk-Kategorie (Badge) oder null. */
+  category: InquiryCategory | null;
+  /** KI-Dringlichkeit 1–10 oder null. */
+  aiUrgency: number | null;
+  /** KI-Auftragspotenzial 1–10 oder null. */
+  aiPotential: number | null;
   createdAt: string;
   comments: InquiryComment[];
 }
@@ -86,7 +93,8 @@ export async function listInquiries(
   const supabase = await createSupabaseServerClient();
   const { data: inquiries } = await supabase
     .from('web_inquiries')
-    .select('id, name, email, phone, subject, message, source, status, is_spam, created_at')
+    // '*' + Cast: category/ai_urgency/ai_potential (0176) noch nicht getypt.
+    .select('*')
     .eq('client_company_id', clientCompanyId)
     .order('created_at', { ascending: false })
     .limit(200);
@@ -135,6 +143,9 @@ export async function listInquiries(
     source: i.source,
     status: i.status,
     isSpam: i.is_spam ?? false,
+    category: normalizeCategory((i as { category?: unknown }).category),
+    aiUrgency: (i as { ai_urgency?: number | null }).ai_urgency ?? null,
+    aiPotential: (i as { ai_potential?: number | null }).ai_potential ?? null,
     createdAt: i.created_at,
     comments: commentsByInquiry.get(i.id) ?? [],
   }));

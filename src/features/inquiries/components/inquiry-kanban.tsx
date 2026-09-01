@@ -12,6 +12,10 @@ import {
   inquiryStatusBucket,
   type InquiryStatus,
 } from '@/features/inquiries/status';
+import {
+  CATEGORY_LABEL,
+  CATEGORY_BADGE,
+} from '@/features/inquiries/categories';
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Modal } from '@/components/ui/modal';
@@ -63,6 +67,7 @@ function LeadCard({
       {inquiry.name && inquiry.subject && (
         <div className="truncate text-xs text-muted-foreground">{inquiry.name}</div>
       )}
+      <LeadSignals inquiry={inquiry} />
       {inquiry.message && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
           {inquiry.message}
@@ -73,6 +78,43 @@ function LeadCard({
         <span className="shrink-0">{fmtDate(inquiry.createdAt)}</span>
       </div>
     </button>
+  );
+}
+
+/** KI-Signale: Kategorie-Badge + Dringlichkeit/Potenzial (1–10). */
+function LeadSignals({ inquiry }: { inquiry: WebInquiry }) {
+  if (!inquiry.category && inquiry.aiUrgency == null && inquiry.aiPotential == null) {
+    return null;
+  }
+  return (
+    <div className="mt-1.5 flex flex-wrap items-center gap-1">
+      {inquiry.category && (
+        <span
+          className={cn(
+            'rounded px-1.5 py-0.5 text-[10px] font-medium',
+            CATEGORY_BADGE[inquiry.category],
+          )}
+        >
+          {CATEGORY_LABEL[inquiry.category]}
+        </span>
+      )}
+      {inquiry.aiUrgency != null && (
+        <span
+          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+          title="KI-Dringlichkeit (1–10): wie zeitnah der Lead umsetzen will"
+        >
+          ⚡ {inquiry.aiUrgency}
+        </span>
+      )}
+      {inquiry.aiPotential != null && (
+        <span
+          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+          title="KI-Auftragspotenzial (1–10): geschätzte Projektgröße"
+        >
+          € {inquiry.aiPotential}
+        </span>
+      )}
+    </div>
   );
 }
 

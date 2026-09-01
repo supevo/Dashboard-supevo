@@ -6,7 +6,7 @@ import { requireUser } from '@/lib/authz/authorize';
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { primaryAgencyOrgId } from '@/features/auth/access';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
-import { parseInquiryEmail } from '@/features/inquiries/ai-parse';
+import { parseInquiryEmail, classifyInquiry } from '@/features/inquiries/ai-parse';
 import { de } from '@/lib/i18n/de';
 
 type Result = { ok: boolean; error?: string };
@@ -66,6 +66,7 @@ export async function assignQuarantineAction(input: {
   }
 
   const fields = await parseInquiryEmail(q.subject ?? '', q.body ?? '');
+  const cls = await classifyInquiry(fields.subject, fields.message);
   const { error: insErr } = await service.from('web_inquiries').insert({
     organization_id: company.organization_id,
     client_company_id: company.id,
@@ -75,8 +76,11 @@ export async function assignQuarantineAction(input: {
     subject: fields.subject,
     message: fields.message,
     source: 'E-Mail (manuell zugeordnet)',
+    category: cls.category,
+    ai_urgency: cls.urgency,
+    ai_potential: cls.potential,
     payload: { channel: 'email', manual: true, from: q.from_address },
-  });
+  } as never);
   if (insErr) return { ok: false, error: de.errors.INTERNAL };
 
   await service
