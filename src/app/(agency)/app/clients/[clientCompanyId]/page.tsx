@@ -569,6 +569,8 @@ export default async function ClientDetailPage({
                     <PrintBillingToggle
                       clientCompanyId={clientCompanyId}
                       billPrint={company.billPrintProducts}
+                      markupPercent={company.printMarkupPercent}
+                      isLegacy={company.isLegacy}
                     />
                   </CardContent>
                 </Card>

@@ -16,6 +16,12 @@ import {
 const toggleSchema = z.object({
   clientCompanyId: z.string().uuid(),
   billPrint: z.enum(['true', 'false']),
+  // Optionaler Aufschlag-Override in Prozent. Leer = Standard (20/100).
+  markupPercent: z
+    .string()
+    .trim()
+    .regex(/^\d{0,4}$/, 'Bitte eine ganze Zahl (0–1000) eingeben.')
+    .optional(),
 });
 
 /**
@@ -29,9 +35,15 @@ export async function setPrintBillingAction(
   const parsed = toggleSchema.safeParse({
     clientCompanyId: formData.get('clientCompanyId'),
     billPrint: formData.get('billPrint'),
+    markupPercent: formData.get('markupPercent') ?? undefined,
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { clientCompanyId, billPrint } = parsed.data;
+  const { clientCompanyId, billPrint, markupPercent } = parsed.data;
+  // Leer → Standard (NULL). Sonst auf 0–1000 begrenzen.
+  const markupValue =
+    markupPercent == null || markupPercent === ''
+      ? null
+      : Math.min(1000, Math.max(0, Number.parseInt(markupPercent, 10)));
 
   const user = await getCurrentUser();
   if (!user) return errorResult(de.errors.UNAUTHENTICATED);
@@ -50,7 +62,10 @@ export async function setPrintBillingAction(
 
   const { error } = await createSupabaseServiceClient()
     .from('client_companies')
-    .update({ bill_print_products: billPrint === 'true' })
+    .update({
+      bill_print_products: billPrint === 'true',
+      print_markup_percent: markupValue,
+    } as never)
     .eq('id', clientCompanyId);
   if (error) return errorResult(de.errors.INTERNAL);
 

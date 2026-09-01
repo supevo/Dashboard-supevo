@@ -109,7 +109,9 @@ export async function ExpensesPanel({
                     <th className="py-2 text-left">Kunde</th>
                     <th className="py-2 text-left">Aufgabe</th>
                     <th className="py-2 text-left">Dienstleister</th>
-                    <th className="py-2 text-right">Betrag</th>
+                    <th className="py-2 text-right">Betrag (brutto)</th>
+                    <th className="py-2 text-right">Aufschlag</th>
+                    <th className="py-2 text-right">Kunde berechnet</th>
                     <th className="py-2 text-left">Hochgeladen von</th>
                     <th className="py-2 text-right">Datei</th>
                     <th className="py-2" />
@@ -128,6 +130,12 @@ export async function ExpensesPanel({
                       <td className="py-2">{e.supplier ?? '—'}</td>
                       <td className="py-2 text-right whitespace-nowrap">
                         {e.amountCents != null ? euro(e.amountCents) : '—'}
+                      </td>
+                      <td className="py-2 text-right whitespace-nowrap">
+                        {e.markupPercent != null ? `${e.markupPercent} %` : '—'}
+                      </td>
+                      <td className="py-2 text-right whitespace-nowrap font-medium">
+                        {e.clientChargeCents != null ? euro(e.clientChargeCents) : '—'}
                       </td>
                       <td className="py-2">{e.uploadedByName ?? '—'}</td>
                       <td className="py-2 text-right">

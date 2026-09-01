@@ -10,6 +10,10 @@ export interface PrintExpense {
   uploadedByName: string | null;
   fileName: string;
   amountCents: number | null;
+  /** Aufschlag in Prozent, zum Upload-Zeitpunkt eingefroren (Migration 0173). */
+  markupPercent: number | null;
+  /** Dem Kunden zu berechnender Betrag (Brutto + Aufschlag), in Cent. */
+  clientChargeCents: number | null;
   supplier: string | null;
   notes: string | null;
   createdAt: string;
@@ -23,9 +27,9 @@ export async function listPrintExpenses(orgId: string): Promise<PrintExpense[]> 
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('print_expenses')
-    .select(
-      'id, client_company_id, task_id, uploaded_by, file_name, amount_cents, supplier, notes, created_at',
-    )
+    // '*' + Cast: markup_percent / client_charge_cents (Migration 0173) stehen
+    // noch nicht in den generierten Typen.
+    .select('*')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
     .limit(500);
@@ -68,6 +72,10 @@ export async function listPrintExpenses(orgId: string): Promise<PrintExpense[]> 
     uploadedByName: r.uploaded_by ? userName.get(r.uploaded_by) ?? null : null,
     fileName: r.file_name,
     amountCents: r.amount_cents,
+    markupPercent:
+      (r as { markup_percent?: number | null }).markup_percent ?? null,
+    clientChargeCents:
+      (r as { client_charge_cents?: number | null }).client_charge_cents ?? null,
     supplier: r.supplier,
     notes: r.notes,
     createdAt: r.created_at,

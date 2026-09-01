@@ -5,6 +5,10 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { FILES_BUCKET } from '@/lib/files/storage';
+import {
+  resolvePrintMarkupPercent,
+  clientChargeCents,
+} from '@/features/print-billing/markup';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
@@ -95,6 +99,21 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const service = createSupabaseServiceClient();
+
+  // Aufschlag (Prozent) zum Upload-Zeitpunkt einfrieren und den dem Kunden zu
+  // berechnenden Betrag (Brutto der Druckerei + Aufschlag) daraus ableiten.
+  let markupPercent: number | null = null;
+  let clientCharge: number | null = null;
+  if (project?.client_company_id) {
+    markupPercent = await resolvePrintMarkupPercent(
+      service,
+      project.client_company_id,
+    );
+    if (amountCents != null) {
+      clientCharge = clientChargeCents(amountCents, markupPercent);
+    }
+  }
+
   const bytes = Buffer.from(await file.arrayBuffer());
   const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(0, 120) || 'rechnung';
   const path = `org/${task.organization_id}/print-expenses/${randomUUID()}-${safeName}`;
@@ -117,9 +136,11 @@ export async function POST(request: NextRequest) {
     file_mime: file.type,
     file_size: file.size,
     amount_cents: amountCents,
+    markup_percent: markupPercent,
+    client_charge_cents: clientCharge,
     supplier,
     notes,
-  });
+  } as never);
   if (insErr) {
     logger.error('print_expense.insert_failed', { error: insErr.message });
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
