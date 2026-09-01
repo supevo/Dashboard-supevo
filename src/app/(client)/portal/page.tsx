@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireClientPage } from '@/lib/authz/page-guards';
 import { getClientDashboard } from '@/features/dashboard/queries';
 import { getMyClientCompany, getMySatisfaction } from '@/features/satisfaction/queries';
@@ -62,6 +64,37 @@ export default async function ClientDashboardPage() {
           <OnboardingStepper status={onboarding} />
         </div>
       )}
+
+      {company ? (
+        <div data-tour="assets">
+          <Card>
+            <CardHeader>
+              <CardTitle>🔑 Zugänge &amp; Logos hinterlegen</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Damit wir direkt loslegen können: Hinterlegen Sie Ihre Login-Daten
+                (verschlüsselt, nur für Ihr Team sichtbar) und laden Sie Ihre
+                Logos &amp; Marken-Dateien hoch.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/portal/access"
+                  className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  🔑 Zugänge hinzufügen
+                </Link>
+                <Link
+                  href="/portal/hub"
+                  className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted"
+                >
+                  🎨 Logos hochladen
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       {/* Aufgaben-Übersicht (offen/Bearbeitung/Freigabe) ist ein supevo-Flow –
           Legacy-Kunden haben ihn nicht, daher hier ausgeblendet. */}
