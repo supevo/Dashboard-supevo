@@ -16,6 +16,8 @@ export interface ClientCompany {
   isActive: boolean;
   isLegacy: boolean;
   billPrintProducts: boolean;
+  /** Optionaler Druck-Aufschlag-Override in Prozent (null = Standard 20/100). */
+  printMarkupPercent: number | null;
   invoiceRecipientEmail: string | null;
   /** Fair-share weight for the health traffic light (default 1). */
   attentionFactor: number;
@@ -50,6 +52,7 @@ export async function listClientCompanies(
     isActive: c.is_active,
     isLegacy: c.is_legacy,
     billPrintProducts: false,
+    printMarkupPercent: null,
     invoiceRecipientEmail: null,
     attentionFactor: 1,
     createdAt: c.created_at,
@@ -87,6 +90,8 @@ export async function getClientCompany(
     isActive: data.is_active,
     isLegacy: data.is_legacy,
     billPrintProducts: data.bill_print_products,
+    printMarkupPercent:
+      (data as { print_markup_percent?: number | null }).print_markup_percent ?? null,
     invoiceRecipientEmail:
       (data as { invoice_recipient_email?: string | null }).invoice_recipient_email ?? null,
     attentionFactor: Number(
