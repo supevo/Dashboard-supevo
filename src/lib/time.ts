@@ -44,6 +44,32 @@ export function formatBerlinDateTime(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** Formats an ISO timestamp as a Europe/Berlin wall-clock time, e.g. "08:47". */
+export function formatBerlinTime(iso: string): string {
+  return new Intl.DateTimeFormat('de-DE', {
+    timeZone: APP_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+/**
+ * Minutes since midnight in Europe/Berlin for the given instant (0…1439).
+ * 08:45 → 525. Used to grade a clock-in against fixed time thresholds without
+ * dragging UTC offsets into the caller.
+ */
+export function berlinMinutesOfDay(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: APP_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now);
+  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+  return hour * 60 + minute;
+}
+
 /** Today's calendar date (YYYY-MM-DD) in Europe/Berlin. */
 export function berlinToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {

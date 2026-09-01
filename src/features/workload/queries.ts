@@ -3,7 +3,13 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { isAgencyRole } from '@/lib/authz/roles';
-import { berlinToday } from '@/lib/time';
+import {
+  berlinToday,
+  berlinMinutesOfDay,
+  berlinWeekday,
+  startOfBerlinDayUtc,
+} from '@/lib/time';
+import { lateTierForMinutes, type LateTier } from '@/features/time-tracking/lateness';
 import type { AppRole } from '@/lib/authz/roles';
 
 export type WorkloadLevel = 'red' | 'yellow' | 'green' | 'idle';
@@ -22,6 +28,8 @@ export interface MemberWorkload {
   dueSoon: number;
   weekMinutes: number;
   level: WorkloadLevel;
+  /** Tardiness tier of today's first clock-in, or null when on time / n.a. */
+  lateToday: LateTier | null;
 }
 
 export interface WorkloadOverview {
@@ -129,12 +137,43 @@ export async function getWorkloadOverview(
     );
   }
 
+  // Today's first clock-in per user + tardiness tier (workdays only, and never
+  // for anyone on an approved absence today).
+  const dayStart = startOfBerlinDayUtc();
+  const isWeekendToday = berlinWeekday() >= 6;
+  const [{ data: clockIns }, { data: absencesToday }] = await Promise.all([
+    service
+      .from('work_sessions')
+      .select('user_id, clock_in')
+      .in('user_id', userIds)
+      .gte('clock_in', dayStart)
+      .order('clock_in', { ascending: true }),
+    service
+      .from('absences')
+      .select('user_id')
+      .in('user_id', userIds)
+      .eq('status', 'approved')
+      .lte('start_date', today)
+      .gte('end_date', today),
+  ]);
+  const firstClockInByUser = new Map<string, string>();
+  for (const r of clockIns ?? []) {
+    if (!firstClockInByUser.has(r.user_id)) firstClockInByUser.set(r.user_id, r.clock_in);
+  }
+  const absentToday = new Set((absencesToday ?? []).map((a) => a.user_id));
+  const lateTodayFor = (id: string): LateTier | null => {
+    if (isWeekendToday || absentToday.has(id)) return null;
+    const iso = firstClockInByUser.get(id);
+    if (!iso) return null;
+    return lateTierForMinutes(berlinMinutesOfDay(new Date(iso)));
+  };
+
   // Initialize per-user accumulators.
   const acc = new Map<
     string,
     Omit<
       MemberWorkload,
-      'userId' | 'fullName' | 'email' | 'hasAvatar' | 'role' | 'level'
+      'userId' | 'fullName' | 'email' | 'hasAvatar' | 'role' | 'level' | 'lateToday'
     >
   >();
   for (const id of userIds) {
@@ -179,6 +218,7 @@ export async function getWorkloadOverview(
       hasAvatar: Boolean(profile?.avatar_url),
       role: roleByUser.get(id)!,
       level,
+      lateToday: lateTodayFor(id),
       ...b,
     };
   });

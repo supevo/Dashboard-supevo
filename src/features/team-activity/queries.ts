@@ -3,7 +3,14 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { isAgencyRole, type AppRole } from '@/lib/authz/roles';
-import { startOfBerlinDayUtc, startOfBerlinWeekUtc, berlinToday } from '@/lib/time';
+import {
+  startOfBerlinDayUtc,
+  startOfBerlinWeekUtc,
+  berlinToday,
+  berlinMinutesOfDay,
+  formatBerlinTime,
+} from '@/lib/time';
+import { lateTierForMinutes, type LateTier } from '@/features/time-tracking/lateness';
 
 export type PerfTrend = 'up' | 'down' | 'flat';
 
@@ -25,6 +32,10 @@ export interface MemberActivity {
   dayDoneTitles: string[];
   dayMinutes: number;
   dayStatusChanges: number;
+  /** First clock-in of the selected day (Berlin HH:MM), or null if none. */
+  dayFirstClockIn: string | null;
+  /** Tardiness tier of that first clock-in, or null when on time/exempt. */
+  dayLateTier: LateTier | null;
   // Performance (30 days)
   done30: number;
   ontimePct: number | null;
@@ -89,6 +100,8 @@ export async function getTeamActivity(
     { data: xpRows },
     { data: dayTime },
     { data: dayStatus },
+    { data: dayClockIns },
+    { data: dayAbsences },
   ] = await Promise.all([
     service.from('profiles').select('id, full_name, avatar_url').in('id', userIds),
     service.from('board_columns').select('id, column_key').eq('organization_id', orgId),
@@ -127,6 +140,23 @@ export async function getTeamActivity(
       .gte('created_at', dayStart)
       .lt('created_at', dayEnd)
       .in('actor_id', userIds),
+    // All clock-ins on the selected day (to derive each person's FIRST stamp).
+    service
+      .from('work_sessions')
+      .select('user_id, clock_in')
+      .in('user_id', userIds)
+      .gte('clock_in', dayStart)
+      .lt('clock_in', dayEnd)
+      .order('clock_in', { ascending: true }),
+    // Approved absences covering the selected day (a late mark is suppressed for
+    // anyone off that day, e.g. a half-day of leave).
+    service
+      .from('absences')
+      .select('user_id')
+      .in('user_id', userIds)
+      .eq('status', 'approved')
+      .lte('start_date', dayIso)
+      .gte('end_date', dayIso),
   ]);
 
   // Currently active approved absences (real today within range).
@@ -278,6 +308,22 @@ export async function getTeamActivity(
     if (r.actor_id) dayStatusByUser.set(r.actor_id, (dayStatusByUser.get(r.actor_id) ?? 0) + 1);
   }
 
+  // First clock-in of the day per user + tardiness tier. Rows are ordered by
+  // clock_in ascending, so the first row seen for a user is the earliest.
+  const firstClockInByUser = new Map<string, string>();
+  for (const r of dayClockIns ?? []) {
+    if (!firstClockInByUser.has(r.user_id)) firstClockInByUser.set(r.user_id, r.clock_in);
+  }
+  const absentThatDay = new Set((dayAbsences ?? []).map((a) => a.user_id));
+  // Weekend clock-ins are never flagged (fixed 08:45 rule applies to workdays).
+  const isWeekendDay = [0, 6].includes(new Date(`${dayIso}T12:00:00Z`).getUTCDay());
+  function lateFor(userId: string): LateTier | null {
+    if (isWeekendDay || absentThatDay.has(userId)) return null;
+    const iso = firstClockInByUser.get(userId);
+    if (!iso) return null;
+    return lateTierForMinutes(berlinMinutesOfDay(new Date(iso)));
+  }
+
   const members: MemberActivity[] = userIds.map((id) => {
     const p = profileById.get(id);
     const a = agg.get(id)!;
@@ -303,6 +349,11 @@ export async function getTeamActivity(
       dayDoneTitles: a.dayTitles,
       dayMinutes: dayMinutesByUser.get(id) ?? 0,
       dayStatusChanges: dayStatusByUser.get(id) ?? 0,
+      dayFirstClockIn: (() => {
+        const iso = firstClockInByUser.get(id);
+        return iso ? formatBerlinTime(iso) : null;
+      })(),
+      dayLateTier: lateFor(id),
       done30: a.done30,
       ontimePct: a.done30 > 0 ? Math.round(((ontimeByUser.get(id) ?? 0) / a.done30) * 100) : null,
       efficientPct: a.done30 > 0 ? Math.round(((efficientByUser.get(id) ?? 0) / a.done30) * 100) : null,

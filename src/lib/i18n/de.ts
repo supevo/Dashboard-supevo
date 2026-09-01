@@ -286,6 +286,7 @@ export const de = {
     appointment: 'Termin',
     print_billing: 'Drucksachen-Abrechnung',
     reminder: 'Erinnerung',
+    late: 'Verspätung',
   } satisfies Record<string, string>,
   dashboard: {
     myActiveTasks: 'Meine aktiven Aufgaben',

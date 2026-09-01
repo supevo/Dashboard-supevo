@@ -63,7 +63,8 @@ export type NotificationType =
   | 'reaction'
   | 'appointment'
   | 'print_billing'
-  | 'reminder';
+  | 'reminder'
+  | 'late';
 export type ActivityAction =
   | 'create'
   | 'update'
