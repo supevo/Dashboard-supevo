@@ -11,6 +11,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { RATING_KEYS, parseRatings } from '@/features/inquiries/rating';
 
 const STATUSES = [
   'new',
@@ -75,6 +76,49 @@ export async function setInquirySpamAction(
   return successResult(
     parsed.data.isSpam === 'true' ? 'Als Spam markiert.' : 'Kein Spam.',
   );
+}
+
+/** Sets one 1–10 rating criterion on an inquiry (agency or client). RLS gates. */
+export async function setInquiryRatingAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = z
+    .object({
+      id: z.string().uuid(),
+      key: z.enum(RATING_KEYS as unknown as [string, ...string[]]),
+      value: z.coerce.number().int().min(1).max(10),
+    })
+    .safeParse({
+      id: formData.get('id'),
+      key: formData.get('key'),
+      value: formData.get('value'),
+    });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  await requireUser();
+  const supabase = await createSupabaseServerClient();
+
+  // Bestehende Bewertungen lesen (RLS gate), Kriterium mergen, zurückschreiben.
+  const { data: row } = await supabase
+    .from('web_inquiries')
+    .select('id, ratings')
+    .eq('id', parsed.data.id)
+    .maybeSingle();
+  if (!row) return errorResult(de.errors.NOT_FOUND);
+
+  const current = parseRatings((row as { ratings?: unknown }).ratings);
+  const next = { ...current, [parsed.data.key]: parsed.data.value };
+
+  const { error } = await supabase
+    .from('web_inquiries')
+    .update({ ratings: next } as never)
+    .eq('id', parsed.data.id);
+  if (error) return errorResult(de.errors.FORBIDDEN);
+
+  revalidatePath('/portal/inquiries');
+  revalidatePath('/app/inquiries');
+  return successResult('Bewertung gespeichert.');
 }
 
 /** Adds a comment to an inquiry (agency or client). */
