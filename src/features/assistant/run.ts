@@ -7,6 +7,13 @@ const MODEL = process.env.AI_MODEL?.trim() || 'gpt-5.4';
 export interface ChatMsg {
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Optional screenshot/photo attached to a USER message, as a data URL
+   * (e.g. "data:image/jpeg;base64,…"). Only honored on the most recent user
+   * message (older images are dropped to bound vision-token cost); by then the
+   * assistant's textual proposal already carries the extracted details.
+   */
+  image?: string;
 }
 
 const SYSTEM = `Du bist der interne Assistent des supevo-Dashboards (Agentur-Software).
@@ -21,7 +28,17 @@ Arbeitsweise:
 - Führe die gewünschte Änderung dann mit dem passenden Werkzeug aus und fasse am Ende in
   einem Satz zusammen, was du getan hast (oder warum nicht).
 - Ein Werkzeug meldet Fehler als "Fehler: ..." – gib den Grund verständlich weiter.
-- Du handelst mit den Rechten des angemeldeten Nutzers; was er nicht darf, kannst auch du nicht.`;
+- Du handelst mit den Rechten des angemeldeten Nutzers; was er nicht darf, kannst auch du nicht.
+
+Bilder/Screenshots (z. B. WhatsApp-Verlauf):
+- Enthält eine Nachricht ein Bild, lies den Text sorgfältig heraus (OCR) und erkenne die
+  gewünschte Aufgabe sowie – falls genannt – den Kunden und ein passendes Projekt.
+- Lege bei einem Screenshot NIEMALS sofort etwas an. Zeige zuerst einen kompakten Vorschlag:
+  Titel, optionale Beschreibung, erkannter Kunde und Zielprojekt. Löse Kunde/Projekt schon per
+  find_client / list_client_projects auf, damit du weißt, ob es sie gibt.
+- Ist der Kunde oder das Projekt unklar oder mehrdeutig, frage kurz nach – rate nicht.
+- Rufe create_task ERST auf, nachdem der Nutzer den Vorschlag ausdrücklich bestätigt hat
+  (z. B. „ok", „passt", „ja, anlegen").`;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -45,9 +62,25 @@ export async function runAssistant(history: ChatMsg[]): Promise<{ reply: string 
     weekday: 'long',
   }).format(new Date());
 
+  const recent = history.slice(-20);
+  // Keep an attached image only on the LAST user message (cost control); by the
+  // confirmation turn the earlier proposal text already holds the details.
+  const lastUserIdx = recent.map((m) => m.role).lastIndexOf('user');
   const messages: any[] = [
     { role: 'system', content: `${SYSTEM}\n\nHeutiges Datum (Europe/Berlin): ${today}. Rechne relative Angaben (morgen, übermorgen, nächste Woche) daraus in ein konkretes Datum um.` },
-    ...history.slice(-20).map((m) => ({ role: m.role, content: m.content })),
+    ...recent.map((m, i) => {
+      if (m.role === 'user' && m.image && i === lastUserIdx) {
+        // Multimodal content part so GPT can read the screenshot.
+        return {
+          role: 'user' as const,
+          content: [
+            { type: 'text', text: m.content || 'Erkenne aus diesem Screenshot die Aufgabe.' },
+            { type: 'image_url', image_url: { url: m.image } },
+          ],
+        };
+      }
+      return { role: m.role, content: m.content };
+    }),
   ];
 
   try {
