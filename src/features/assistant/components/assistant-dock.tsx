@@ -4,10 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
+import { fileToDownscaledDataUrl } from '@/features/assistant/downscale';
 
 interface Msg {
   role: 'user' | 'assistant';
   content: string;
+  /** Optional screenshot the user attached (data URL), shown in the bubble. */
+  image?: string;
 }
 
 const OPEN_KEY = 'assistantDockOpen';
@@ -24,8 +27,10 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -45,12 +50,31 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, busy, open]);
 
+  async function onPickFile(file: File | undefined) {
+    if (!file) return;
+    try {
+      setPendingImage(await fileToDownscaledDataUrl(file));
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: 'assistant', content: 'Das Bild konnte nicht verarbeitet werden. Bitte ein anderes probieren.' },
+      ]);
+    }
+  }
+
   async function send(text: string) {
     const clean = text.trim();
-    if (!clean || busy) return;
-    const next = [...messages, { role: 'user' as const, content: clean }];
+    const image = pendingImage;
+    if ((!clean && !image) || busy) return;
+    const userMsg: Msg = {
+      role: 'user',
+      content: clean || 'Erstelle aus diesem Screenshot eine Aufgabe.',
+      ...(image ? { image } : {}),
+    };
+    const next = [...messages, userMsg];
     setMessages(next);
     setInput('');
+    setPendingImage(null);
     setBusy(true);
     try {
       const res = await fetch('/api/assistant', {
@@ -131,12 +155,20 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
             <div key={i} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div
                 className={cn(
-                  'max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm',
+                  'max-w-[85%] space-y-2 whitespace-pre-wrap rounded-lg px-3 py-2 text-sm',
                   m.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'border bg-background',
                 )}
               >
+                {m.image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.image}
+                    alt="Angehängter Screenshot"
+                    className="max-h-40 rounded border border-white/20"
+                  />
+                )}
                 {m.content}
               </div>
             </div>
@@ -152,32 +184,74 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
       </div>
 
       <form
-        className="flex items-end gap-2 border-t p-2"
+        className="flex flex-col gap-2 border-t p-2"
         onSubmit={(e) => {
           e.preventDefault();
           void send(input);
         }}
       >
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          rows={1}
-          placeholder="z. B. Trag bei Kunde XY folgende Aufgabe ein …"
-          className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void send(input);
-            }
-          }}
-        />
-        <button
-          type="submit"
-          disabled={busy || !input.trim()}
-          className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          Senden
-        </button>
+        {pendingImage && (
+          <div className="flex items-center gap-2 rounded-md border bg-muted/40 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={pendingImage}
+              alt="Vorschau"
+              className="h-10 w-10 rounded object-cover"
+            />
+            <span className="flex-1 text-xs text-muted-foreground">
+              Screenshot angehängt – wird beim Senden ausgewertet.
+            </span>
+            <button
+              type="button"
+              onClick={() => setPendingImage(null)}
+              className="rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Entfernen
+            </button>
+          </div>
+        )}
+        <div className="flex items-end gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              void onPickFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            title="Screenshot anhängen"
+            aria-label="Screenshot anhängen"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+            className="rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+          >
+            📎
+          </button>
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            rows={1}
+            placeholder="Aufgabe eintragen … oder Screenshot anhängen"
+            className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void send(input);
+              }
+            }}
+          />
+          <button
+            type="submit"
+            disabled={busy || (!input.trim() && !pendingImage)}
+            className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            Senden
+          </button>
+        </div>
       </form>
     </div>
   );
