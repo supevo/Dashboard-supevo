@@ -540,9 +540,17 @@ export function KanbanBoard({
                       {!isPortal && task.printBillingStatus === 'required' && (
                         <span
                           className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
-                          title="Drucksachen-Abrechnung offen – Rechnung hochladen"
+                          title="Druckprodukt erkannt – bitte „Druckprodukt bestellt?“ beantworten"
                         >
-                          💶 Abrechnung
+                          🖨️ Druckprodukt?
+                        </span>
+                      )}
+                      {!isPortal && task.printBillingStatus === 'ordered' && (
+                        <span
+                          className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
+                          title="Druckprodukt bestellt – Eingangsrechnung der Druckerei fehlt"
+                        >
+                          💶 Rechnung fehlt
                         </span>
                       )}
                       {/* In der Fertig-Spalte die Label-Chips ausblenden (die

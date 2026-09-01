@@ -88,6 +88,68 @@ export async function dismissPrintBillingAction(
   return { ok: true };
 }
 
+/**
+ * Employee confirms the detected print product WAS ordered → status 'ordered'.
+ * The task then shows the "supplier invoice missing" prompt until uploaded.
+ * Agency staff only (RLS read gate, service-client write). Only advances from
+ * the open 'required' state.
+ */
+export async function confirmPrintOrderedAction(
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false };
+
+  const { error } = await createSupabaseServiceClient()
+    .from('tasks')
+    .update({ print_billing_status: 'ordered' })
+    .eq('id', taskId)
+    .eq('print_billing_status', 'required');
+  if (error) return { ok: false };
+
+  revalidatePath('/app/projects');
+  return { ok: true };
+}
+
+/**
+ * Employee marks that the CLIENT settles the printer's invoice themselves →
+ * status 'self_paid'. No outgoing invoice is created for this job; a supplier
+ * invoice may still be uploaded as an internal record. Agency staff only.
+ * Allowed from the open states ('required'/'ordered').
+ */
+export async function markPrintSelfPaidAction(
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false };
+
+  const { error } = await createSupabaseServiceClient()
+    .from('tasks')
+    .update({ print_billing_status: 'self_paid' })
+    .eq('id', taskId)
+    .in('print_billing_status', ['required', 'ordered']);
+  if (error) return { ok: false };
+
+  revalidatePath('/app/projects');
+  return { ok: true };
+}
+
 /** Deletes a recorded print expense (admin-only; RLS also enforces this). */
 export async function deletePrintExpenseAction(
   expenseId: string,
