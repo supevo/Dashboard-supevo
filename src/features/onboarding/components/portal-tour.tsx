@@ -29,6 +29,12 @@ const STEPS: Step[] = [
     place: 'bottom',
   },
   {
+    selector: '[data-tour="assets"]',
+    title: 'Zugänge & Logos hinterlegen',
+    body: 'Hinterlegen Sie hier Ihre Login-Daten (verschlüsselt gespeichert) und laden Sie Ihre Logos & Marken-Dateien hoch – so können wir sofort für Sie arbeiten.',
+    place: 'bottom',
+  },
+  {
     selector: '[data-tour="tasks"]',
     title: 'Ihre Aufgaben auf einen Blick',
     body: 'Offen, in Bearbeitung und zur Freigabe: So sehen Sie jederzeit den aktuellen Stand Ihrer Themen.',
