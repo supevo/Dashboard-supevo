@@ -12,7 +12,19 @@ import {
   successResult,
 } from '@/lib/action-result';
 
-const STATUSES = ['new', 'called', 'mailed', 'done'] as const;
+const STATUSES = [
+  'new',
+  'not_reached',
+  'reached',
+  'appointment',
+  'offer',
+  'won',
+  'lost',
+  // Legacy weiterhin zulässig (Bestandsdaten).
+  'called',
+  'mailed',
+  'done',
+] as const;
 
 /** Sets an inquiry's status (agency or client). RLS gates access. */
 export async function setInquiryStatusAction(
@@ -31,7 +43,9 @@ export async function setInquiryStatusAction(
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase
     .from('web_inquiries')
-    .update({ status: parsed.data.status })
+    // Cast: die neuen Enum-Werte (Migration 0175) stehen noch nicht in den
+    // generierten DB-Typen.
+    .update({ status: parsed.data.status } as never)
     .eq('id', parsed.data.id);
   if (error) return errorResult(de.errors.FORBIDDEN);
 

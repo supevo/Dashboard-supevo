@@ -15,10 +15,25 @@ import { Textarea } from '@/components/ui/textarea';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { cn } from '@/lib/utils';
 
-const STATUSES: InquiryStatus[] = ['new', 'called', 'mailed', 'done'];
+const STATUSES: InquiryStatus[] = [
+  'new',
+  'not_reached',
+  'reached',
+  'appointment',
+  'offer',
+  'won',
+  'lost',
+];
 
 const STATUS_STYLE: Record<InquiryStatus, string> = {
   new: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  not_reached: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',
+  reached: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+  appointment: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
+  offer: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300',
+  won: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  lost: 'bg-muted text-muted-foreground',
+  // Legacy-Bestandsdaten:
   called: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   mailed: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
   done: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
