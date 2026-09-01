@@ -15,6 +15,7 @@ import { awardTaskXp } from '@/features/gamification/xp';
 import { checkAndAwardAchievements } from '@/features/gamification/achievements';
 import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
 import { detectPrintProduct } from '@/features/print-billing/detect';
+import { advanceMarketingPlanOnTaskDone } from '@/features/marketing-plan/embed';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -651,6 +652,22 @@ async function afterTaskMoved(
     // If the client bills print products and this task is a print job, flag it
     // so the completer is asked to upload the supplier invoice (→ Ausgaben).
     await maybeFlagPrintBilling(supabase, userId, targetColumn.organization_id, taskId);
+
+    // Marketingplan: ist mit dieser Aufgabe die aktuelle Phase vollständig
+    // abgearbeitet, die nächste Phase automatisch ins Kanban übernehmen. NACH
+    // der Antwort (after), da das Übernehmen KI-Schätzungen auslöst und den
+    // Statuswechsel nicht blockieren soll. Best-effort.
+    after(async () => {
+      try {
+        await advanceMarketingPlanOnTaskDone(
+          createSupabaseServiceClient(),
+          taskId,
+          userId,
+        );
+      } catch {
+        /* Auto-Weiterrollen ist optional – nie den Statuswechsel stören */
+      }
+    });
   }
 
   // Log the move for the task's internal activity feed.
