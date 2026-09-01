@@ -529,6 +529,22 @@ export async function createTaskAction(
     autoEstimateTaskMinutes(task.id, title, description ? description : null),
   );
 
+  // Drucksachen-Erkennung bereits beim Anlegen (nicht erst bei „Fertig"), damit
+  // auch per Assistent/Screenshot erstellte Aufgaben sofort die Frage
+  // „Druckprodukt bestellt?" tragen. Best-effort im Hintergrund (Service-Client).
+  after(async () => {
+    try {
+      await maybeFlagPrintBilling(
+        createSupabaseServiceClient(),
+        user.id,
+        column.organization_id,
+        task.id,
+      );
+    } catch {
+      /* Drucksachen-Hinweis ist optional – nie das Anlegen stören */
+    }
+  });
+
   revalidatePath(`/app/projects/${projectId}`);
   return successResult('Aufgabe erstellt.');
 }
