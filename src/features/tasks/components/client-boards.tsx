@@ -29,6 +29,7 @@ export function ClientBoards({
   bundles,
   canCreate,
   initialProjectId,
+  currentUserId,
 }: {
   orgId: string;
   clientCompanyId: string;
@@ -37,6 +38,8 @@ export function ClientBoards({
   /** Whether the viewer may create boards (project.create – PMs/Admins only). */
   canCreate: boolean;
   initialProjectId?: string;
+  /** Aktueller Nutzer (für den zuweisungs-abhängigen Drucksachen-Hinweis). */
+  currentUserId?: string;
 }) {
   const initialIndex = Math.max(
     0,
@@ -123,6 +126,7 @@ export function ClientBoards({
           board={current.board}
           members={current.members}
           canManage={current.project.canManage}
+          currentUserId={currentUserId}
           canAddTask
           canMove
           activeColumnFooter={

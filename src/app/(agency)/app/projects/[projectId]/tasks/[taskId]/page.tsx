@@ -145,15 +145,18 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      {(task.printBillingStatus === 'required' ||
-        task.printBillingStatus === 'ordered' ||
-        task.printBillingStatus === 'settled' ||
-        task.printBillingStatus === 'self_paid') && (
-        <PrintBillingCard
-          taskId={taskId}
-          status={task.printBillingStatus as PrintBillingCardStatus}
-        />
-      )}
+      {/* Drucksachen-Abrechnung nur der zugewiesenen Person zeigen – vorher
+          (ohne Zuweisung) macht der Hinweis keinen Sinn. */}
+      {task.assignees.some((a) => a.userId === user.id) &&
+        (task.printBillingStatus === 'required' ||
+          task.printBillingStatus === 'ordered' ||
+          task.printBillingStatus === 'settled' ||
+          task.printBillingStatus === 'self_paid') && (
+          <PrintBillingCard
+            taskId={taskId}
+            status={task.printBillingStatus as PrintBillingCardStatus}
+          />
+        )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Main column: content work */}

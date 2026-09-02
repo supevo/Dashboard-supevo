@@ -535,12 +535,9 @@ export async function createTaskAction(
   // „Druckprodukt bestellt?" tragen. Best-effort im Hintergrund (Service-Client).
   after(async () => {
     try {
-      await maybeFlagPrintBilling(
-        createSupabaseServiceClient(),
-        user.id,
-        column.organization_id,
-        task.id,
-      );
+      // Nur erkennen/flaggen (der Hinweis wird erst bei „Fertig" verschickt und
+      // nur der zugewiesenen Person angezeigt).
+      await detectAndFlagPrintBilling(createSupabaseServiceClient(), task.id);
     } catch {
       /* Drucksachen-Hinweis ist optional – nie das Anlegen stören */
     }
@@ -649,9 +646,13 @@ async function afterTaskMoved(
       });
       await checkAndAwardAchievements(userId, orgId);
     }
-    // If the client bills print products and this task is a print job, flag it
-    // so the completer is asked to upload the supplier invoice (→ Ausgaben).
-    await maybeFlagPrintBilling(supabase, userId, targetColumn.organization_id, taskId);
+    // If the client bills print products and this task is a print job, flag it.
+    // Die Benachrichtigung („Rechnung hochladen") geht ERST hier beim Verschieben
+    // nach „Fertig" raus – und NUR an die zugewiesene(n) Person(en).
+    const pbStatus = await detectAndFlagPrintBilling(supabase, taskId);
+    if (pbStatus === 'required' || pbStatus === 'ordered') {
+      await notifyPrintBillingAssignees(supabase, targetColumn.organization_id, taskId);
+    }
 
     // Marketingplan: ist mit dieser Aufgabe die aktuelle Phase vollständig
     // abgearbeitet, die nächste Phase automatisch ins Kanban übernehmen. NACH
@@ -682,60 +683,85 @@ async function afterTaskMoved(
 }
 
 /**
- * When a task is completed, flag it for print billing if the task's client bills
- * print products and the task looks like a physical print job. Idempotent: only
- * sets the flag when it is not already set, and never overrides a settled task.
+ * Flags a task for print billing if its client bills print products and it looks
+ * like a physical print job. Idempotent (only sets the flag from null) and sends
+ * NO notification – the nudge happens separately, only when the task is moved to
+ * "Fertig". Returns the resulting print_billing_status (or null if not a print
+ * job / client doesn't bill print).
  */
-async function maybeFlagPrintBilling(
+async function detectAndFlagPrintBilling(
   supabase: MoveSupabase,
-  userId: string,
-  orgId: string | null,
   taskId: string,
-): Promise<void> {
+): Promise<string | null> {
   const { data: task } = await supabase
     .from('tasks')
     .select('id, title, description, project_id, print_billing_status')
     .eq('id', taskId)
     .maybeSingle();
-  if (!task || task.print_billing_status) return; // already required/settled/dismissed
+  if (!task) return null;
+  // Bereits gesetzt (required/ordered/settled/dismissed/self_paid) → so lassen.
+  if (task.print_billing_status) return task.print_billing_status;
 
   const { data: project } = await supabase
     .from('projects')
     .select('client_company_id')
     .eq('id', task.project_id)
     .maybeSingle();
-  if (!project?.client_company_id) return;
+  if (!project?.client_company_id) return null;
 
   const { data: company } = await supabase
     .from('client_companies')
     .select('bill_print_products')
     .eq('id', project.client_company_id)
     .maybeSingle();
-  if (!company?.bill_print_products) return;
+  if (!company?.bill_print_products) return null;
 
   const isPrint = await detectPrintProduct(task.title, task.description);
-  if (!isPrint) return;
+  if (!isPrint) return null;
 
   await supabase
     .from('tasks')
     .update({ print_billing_status: 'required' })
     .eq('id', taskId);
+  return 'required';
+}
 
-  // Nudge the person who finished it to upload the supplier invoice. No
-  // excludeUserId here: the completer IS the intended recipient.
-  if (orgId) {
-    await createNotifications([
-      {
-        organizationId: orgId,
-        recipientId: userId,
-        type: 'print_billing' as const,
-        title: '💶 Abrechnung: Druckprodukt',
-        body: `Bitte lade die Dienstleister-Rechnung für „${task.title}" hoch.`,
-        entityType: 'task',
-        entityId: taskId,
-      },
-    ]);
-  }
+/**
+ * Notifies the task's ASSIGNEE(S) that a print job needs billing – called only
+ * when the task is moved to "Fertig". If nobody is assigned, no notification is
+ * sent (the print-billing prompt is meant only for the responsible person).
+ */
+async function notifyPrintBillingAssignees(
+  supabase: MoveSupabase,
+  orgId: string | null,
+  taskId: string,
+): Promise<void> {
+  if (!orgId) return;
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('title')
+    .eq('id', taskId)
+    .maybeSingle();
+  const { data: assignees } = await supabase
+    .from('task_assignees')
+    .select('user_id')
+    .eq('task_id', taskId);
+  const recipients = [
+    ...new Set((assignees ?? []).map((a) => a.user_id).filter((v): v is string => !!v)),
+  ];
+  if (recipients.length === 0) return; // niemand zugewiesen → kein Hinweis
+
+  await createNotifications(
+    recipients.map((recipientId) => ({
+      organizationId: orgId,
+      recipientId,
+      type: 'print_billing' as const,
+      title: '💶 Abrechnung: Druckprodukt',
+      body: `Bitte lade die Dienstleister-Rechnung für „${task?.title ?? 'die Aufgabe'}" hoch.`,
+      entityType: 'task',
+      entityId: taskId,
+    })),
+  );
 }
 
 const setTaskStatusSchema = z.object({

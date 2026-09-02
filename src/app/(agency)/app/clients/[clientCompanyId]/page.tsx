@@ -639,6 +639,7 @@ export default async function ClientDetailPage({
           bundles={boardBundles}
           canCreate={canCreateProject}
           initialProjectId={boardParam}
+          currentUserId={user.id}
         />
       ),
     },
