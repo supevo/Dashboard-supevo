@@ -51,11 +51,15 @@ export function KanbanBoard({
   expressPickMode = false,
   onExpressPick,
   activeColumnFooter,
+  currentUserId,
 }: {
   projectId: string;
   board: BoardView;
   members: Member[];
   canManage: boolean;
+  /** Aktueller Nutzer – der Drucksachen-Hinweis erscheint nur auf eigenen
+   *  (zugewiesenen) Karten. */
+  currentUserId?: string;
   /** Allow adding tasks (quick-add per column) without full project management –
    *  any agency staff member may create tasks. */
   canAddTask?: boolean;
@@ -537,22 +541,30 @@ export function KanbanBoard({
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                       {/* Drucksachen-Abrechnung offen (nur Mitarbeiterseite):
                           Rechnung des Dienstleisters muss noch hochgeladen werden. */}
-                      {!isPortal && task.printBillingStatus === 'required' && (
-                        <span
-                          className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
-                          title="Druckprodukt erkannt – bitte „Druckprodukt bestellt?“ beantworten"
-                        >
-                          🖨️ Druckprodukt?
-                        </span>
-                      )}
-                      {!isPortal && task.printBillingStatus === 'ordered' && (
-                        <span
-                          className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
-                          title="Druckprodukt bestellt – Eingangsrechnung der Druckerei fehlt"
-                        >
-                          💶 Rechnung fehlt
-                        </span>
-                      )}
+                      {/* Drucksachen-Hinweis nur auf eigenen (zugewiesenen)
+                          Karten – vorher/ohne Zuweisung wird nichts angezeigt. */}
+                      {!isPortal &&
+                        !!currentUserId &&
+                        task.assignees.some((a) => a.userId === currentUserId) &&
+                        task.printBillingStatus === 'required' && (
+                          <span
+                            className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
+                            title="Druckprodukt erkannt – bitte „Druckprodukt bestellt?“ beantworten"
+                          >
+                            🖨️ Druckprodukt?
+                          </span>
+                        )}
+                      {!isPortal &&
+                        !!currentUserId &&
+                        task.assignees.some((a) => a.userId === currentUserId) &&
+                        task.printBillingStatus === 'ordered' && (
+                          <span
+                            className="rounded bg-amber-200 px-1 py-0.5 font-medium text-amber-800"
+                            title="Druckprodukt bestellt – Eingangsrechnung der Druckerei fehlt"
+                          >
+                            💶 Rechnung fehlt
+                          </span>
+                        )}
                       {/* In der Fertig-Spalte die Label-Chips ausblenden (die
                           Karte bleibt sauber, nur der Mitarbeiter bleibt sichtbar).
                           Die Labels bleiben an der Aufgabe gespeichert. */}
