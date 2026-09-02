@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
@@ -81,12 +81,15 @@ export async function GET(
     /* ohne Validator kein ETag – dann eben ohne 304 */
   }
 
+  // Trägt die URL eine Version (?v=<cover_updated_at>), ist sie inhalts-eindeutig:
+  // ein geändertes Titelbild bekommt eine neue Version → neue URL. Dann darf der
+  // Browser das Bild „immutable" ein Jahr cachen und lädt es NIE neu, bis sich das
+  // Cover ändert. Ohne Version bleibt das konservative 1-Tag-Cache + ETag-Revalidieren.
+  const versioned = request.nextUrl.searchParams.has('v');
   const cacheHeaders: Record<string, string> = {
-    // Titelbilder ändern sich praktisch nie → 1 Tag Browser-Cache. Ändert doch
-    // mal jemand das Cover, greift danach der ETag (unverändert → 304) bzw. für
-    // den Hochladenden sofort der ?v=-Cache-Bust. stale-while-revalidate hält es
-    // danach im Hintergrund frisch, ohne die Anzeige zu blockieren.
-    'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
+    'Cache-Control': versioned
+      ? 'private, max-age=31536000, immutable'
+      : 'private, max-age=86400, stale-while-revalidate=604800',
   };
   let etag: string | undefined;
   if (validator) {
@@ -227,9 +230,21 @@ export async function POST(
     }
   }
 
+  // Versions-Zeitstempel setzen: Bild-URLs tragen ihn als ?v=… und dürfen so
+  // „immutable" gecacht werden – neu geladen wird erst beim nächsten Cover-Wechsel.
+  const coverVersion = new Date().toISOString();
+  try {
+    await createSupabaseServiceClient()
+      .from('projects')
+      .update({ cover_updated_at: coverVersion } as never)
+      .eq('id', projectId);
+  } catch (e) {
+    logger.warn('cover.version_update_failed', { error: (e as Error).message });
+  }
+
   // Collectible badge "Ach wie hübsch": count project-cover swaps.
   await bumpCounter('cover_swap');
 
-  // A random token invalidates any cached image so the new cover shows.
-  return NextResponse.json({ ok: true, token: randomUUID() });
+  // Token = neue Version; der Uploader nutzt ihn sofort als ?v=-Cache-Bust.
+  return NextResponse.json({ ok: true, token: coverVersion });
 }

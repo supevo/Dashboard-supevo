@@ -10,11 +10,18 @@ import { de } from '@/lib/i18n/de';
 import { downscaleImage } from '@/lib/images/downscale';
 
 /** Compact cover-image control shown on the project page for managers. */
-export function ProjectCoverUploader({ projectId }: { projectId: string }) {
+export function ProjectCoverUploader({
+  projectId,
+  coverVersion,
+}: {
+  projectId: string;
+  /** Aktuelle Cover-Version (cover_updated_at) für unveränderliches Caching. */
+  coverVersion?: string | null;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [version, setVersion] = useState(0);
+  const [version, setVersion] = useState<string>(coverVersion ?? '0');
   const [failed, setFailed] = useState(false);
 
   async function upload(file: File) {
@@ -30,12 +37,16 @@ export function ProjectCoverUploader({ projectId }: { projectId: string }) {
         method: 'POST',
         body: fd,
       });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        token?: string;
+      };
       if (!res.ok || !json.ok) {
         setError(json.error ?? de.task.uploadError);
       } else {
         setFailed(false);
-        setVersion((v) => v + 1);
+        setVersion(json.token ?? String(Date.now()));
         router.refresh();
       }
     } catch {
@@ -59,7 +70,7 @@ export function ProjectCoverUploader({ projectId }: { projectId: string }) {
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`/api/projects/${projectId}/cover?v=${version}`}
+            src={`/api/projects/${projectId}/cover?v=${encodeURIComponent(version)}`}
             alt=""
             className="h-full w-full object-cover"
             onError={() => setFailed(true)}
