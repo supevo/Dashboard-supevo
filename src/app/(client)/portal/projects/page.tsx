@@ -41,7 +41,12 @@ export default async function PortalProjectsPage() {
               href={`/portal/projects/${p.id}`}
               className="group overflow-hidden rounded-lg border bg-card transition hover:shadow-md"
             >
-              <ProjectCover projectId={p.id} name={p.name} className="h-32 w-full" />
+              <ProjectCover
+                projectId={p.id}
+                name={p.name}
+                version={p.coverUpdatedAt}
+                className="h-32 w-full"
+              />
               <div className="p-3">
                 <p className="font-medium group-hover:text-primary">{p.name}</p>
                 <p className="text-xs text-muted-foreground">

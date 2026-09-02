@@ -20,9 +20,16 @@ export default async function ClientsPage() {
 
   // Cover per client = its primary (oldest) board's cover. listProjects is
   // ordered newest-first, so overwriting leaves the oldest project per client.
-  const primaryProject = new Map<string, { id: string; name: string }>();
+  const primaryProject = new Map<
+    string,
+    { id: string; name: string; coverUpdatedAt: string | null }
+  >();
   for (const p of projects) {
-    primaryProject.set(p.clientCompanyId, { id: p.id, name: p.name });
+    primaryProject.set(p.clientCompanyId, {
+      id: p.id,
+      name: p.name,
+      coverUpdatedAt: p.coverUpdatedAt,
+    });
   }
 
   // Legacy clients (Bestandskunden) get their own compact section below the
@@ -74,6 +81,7 @@ export default async function ClientsPage() {
                       <ProjectCover
                         projectId={cover.id}
                         name={c.name}
+                        version={cover.coverUpdatedAt}
                         className="h-32 w-full rounded-none"
                       />
                     ) : (
@@ -134,6 +142,7 @@ export default async function ClientsPage() {
                         <ProjectCover
                           projectId={cover.id}
                           name={c.name}
+                          version={cover.coverUpdatedAt}
                           className="h-10 w-14 shrink-0 rounded"
                         />
                       ) : (

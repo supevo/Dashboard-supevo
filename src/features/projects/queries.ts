@@ -10,6 +10,8 @@ export interface ProjectListItem {
   clientCompanyId: string;
   isClientVisible: boolean;
   dueDate: string | null;
+  /** Versions-Zeitstempel des Titelbilds (für unveränderliches Caching). */
+  coverUpdatedAt: string | null;
 }
 
 /** Lists projects the current user can access (RLS enforced). */
@@ -17,7 +19,8 @@ export async function listProjects(orgId: string): Promise<ProjectListItem[]> {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('projects')
-    .select('id, name, status, client_company_id, is_client_visible, due_date')
+    // '*' + Cast: cover_updated_at (Migration 0178) noch nicht in den DB-Typen.
+    .select('*')
     .eq('organization_id', orgId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false });
@@ -29,6 +32,8 @@ export async function listProjects(orgId: string): Promise<ProjectListItem[]> {
     clientCompanyId: p.client_company_id,
     isClientVisible: p.is_client_visible,
     dueDate: p.due_date,
+    coverUpdatedAt:
+      (p as { cover_updated_at?: string | null }).cover_updated_at ?? null,
   }));
 }
 
@@ -44,7 +49,7 @@ export async function listClientProjects(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('projects')
-    .select('id, name, status, client_company_id, is_client_visible, due_date')
+    .select('*')
     .eq('organization_id', orgId)
     .eq('client_company_id', clientCompanyId)
     .is('deleted_at', null)
@@ -57,6 +62,8 @@ export async function listClientProjects(
     clientCompanyId: p.client_company_id,
     isClientVisible: p.is_client_visible,
     dueDate: p.due_date,
+    coverUpdatedAt:
+      (p as { cover_updated_at?: string | null }).cover_updated_at ?? null,
   }));
 }
 
@@ -73,9 +80,7 @@ export async function getProject(
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('projects')
-    .select(
-      'id, organization_id, name, description, status, client_company_id, is_client_visible, due_date',
-    )
+    .select('*')
     .eq('id', projectId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -95,6 +100,8 @@ export async function getProject(
     clientCompanyId: data.client_company_id,
     isClientVisible: data.is_client_visible,
     dueDate: data.due_date,
+    coverUpdatedAt:
+      (data as { cover_updated_at?: string | null }).cover_updated_at ?? null,
     canManage: canManage === true,
   };
 }

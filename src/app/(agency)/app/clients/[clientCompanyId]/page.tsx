@@ -189,7 +189,10 @@ export default async function ClientDetailPage({
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ProjectCoverUploader projectId={b.project.id} />
+              <ProjectCoverUploader
+                projectId={b.project.id}
+                coverVersion={b.project.coverUpdatedAt}
+              />
               <ProjectSettingsForm
                 orgId={orgId}
                 project={b.project}
