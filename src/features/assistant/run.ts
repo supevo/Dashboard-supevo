@@ -1,6 +1,7 @@
 import 'server-only';
 import { logger } from '@/lib/logger';
 import { assistantTools, executeAssistantTool } from './tools';
+import { assistantMemoryPromptBlock } from '@/features/assistant/memory';
 
 const MODEL = process.env.AI_MODEL?.trim() || 'gpt-5.4';
 
@@ -46,7 +47,10 @@ Bilder/Screenshots (z. B. WhatsApp-Verlauf):
  * Runs the OpenAI tool-calling loop until the model produces a final answer.
  * Tools execute the app's existing server actions, so authorization/RLS apply.
  */
-export async function runAssistant(history: ChatMsg[]): Promise<{ reply: string }> {
+export async function runAssistant(
+  history: ChatMsg[],
+  opts: { orgId?: string | null } = {},
+): Promise<{ reply: string }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { reply: 'Die KI ist nicht aktiviert (OPENAI_API_KEY fehlt).' };
 
@@ -62,12 +66,23 @@ export async function runAssistant(history: ChatMsg[]): Promise<{ reply: string 
     weekday: 'long',
   }).format(new Date());
 
+  // Dauerhaftes Gedächtnis (agenturweite Fakten/Vorlieben) in den Prompt laden.
+  let memoryText = '';
+  if (opts.orgId) {
+    try {
+      const block = await assistantMemoryPromptBlock(opts.orgId);
+      if (block) memoryText = `\n\nDauerhaftes Wissen & Vorlieben (immer beachten):\n${block}`;
+    } catch {
+      /* Gedächtnis ist optional */
+    }
+  }
+
   const recent = history.slice(-20);
   // Keep an attached image only on the LAST user message (cost control); by the
   // confirmation turn the earlier proposal text already holds the details.
   const lastUserIdx = recent.map((m) => m.role).lastIndexOf('user');
   const messages: any[] = [
-    { role: 'system', content: `${SYSTEM}\n\nHeutiges Datum (Europe/Berlin): ${today}. Rechne relative Angaben (morgen, übermorgen, nächste Woche) daraus in ein konkretes Datum um.` },
+    { role: 'system', content: `${SYSTEM}\n\nHeutiges Datum (Europe/Berlin): ${today}. Rechne relative Angaben (morgen, übermorgen, nächste Woche) daraus in ein konkretes Datum um.${memoryText}` },
     ...recent.map((m, i) => {
       if (m.role === 'user' && m.image && i === lastUserIdx) {
         // Multimodal content part so GPT can read the screenshot.

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/features/auth/session';
-import { hasAgencyAccess } from '@/features/auth/access';
+import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { runAssistant, type ChatMsg } from '@/features/assistant/run';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +49,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'no messages' }, { status: 400 });
   }
 
-  const { reply } = await runAssistant(messages);
+  const { reply } = await runAssistant(messages, {
+    orgId: primaryAgencyOrgId(user),
+  });
   return NextResponse.json({ reply });
 }

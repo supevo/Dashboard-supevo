@@ -2,14 +2,17 @@ import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { isAiEnabled } from '@/lib/ai/complete';
 import { AssistantChat } from '@/features/assistant/components/assistant-chat';
 import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
+import { MemoryManager } from '@/features/assistant/components/memory-manager';
+import { listAssistantMemory } from '@/features/assistant/memory';
 import { Alert } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AssistantPage() {
-  const { user } = await requireAgencyPage();
+  const { user, orgId } = await requireAgencyPage();
   const aiOn = isAiEnabled();
   const firstName = (user.fullName ?? '').trim().split(/\s+/)[0] || undefined;
+  const memory = orgId ? await listAssistantMemory(orgId) : [];
 
   return (
     <div className="space-y-4">
@@ -33,6 +36,8 @@ export default async function AssistantPage() {
       )}
 
       <AssistantChat firstName={firstName} />
+
+      <MemoryManager items={memory} />
     </div>
   );
 }

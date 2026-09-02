@@ -245,6 +245,21 @@ export const assistantTools = [
   {
     type: 'function',
     function: {
+      name: 'remember',
+      description:
+        'Merkt sich eine dauerhafte Tatsache oder Vorliebe für die ganze Agentur (agenturweites Gedächtnis), die künftig bei jeder Anfrage beachtet wird. Für „merk dir …", „ab jetzt immer …", Standard-Vorgaben, Tonfall, Namenskonventionen. Nur bleibende Regeln speichern, keine einmaligen Aufgaben.',
+      parameters: {
+        type: 'object',
+        properties: {
+          fact: { type: 'string', description: 'Die zu merkende Regel/Vorliebe in einem kurzen Satz.' },
+        },
+        required: ['fact'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_my_reminders',
       description: 'Listet die offenen persönlichen Erinnerungen / To-dos des Nutzers.',
       parameters: { type: 'object', properties: {} },
@@ -524,6 +539,14 @@ export async function executeAssistantTool(
         dueAt: s('dueAt'),
       });
       return res.status === 'success' ? 'Erinnerung angelegt.' : `Fehler: ${errMsg(res)}`;
+    }
+    case 'remember': {
+      const fact = s('fact');
+      if (!fact) return 'Bitte gib an, was gemerkt werden soll.';
+      const { addAssistantMemory } = await import('@/features/assistant/memory');
+      const user = await requireUser();
+      const ok = await addAssistantMemory(orgId, user.id, fact);
+      return ok ? `Gemerkt: „${fact}"` : 'Konnte nicht gespeichert werden.';
     }
     case 'list_my_reminders': {
       const { open } = await listMyReminders();
