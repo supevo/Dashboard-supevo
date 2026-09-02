@@ -245,6 +245,21 @@ export const assistantTools = [
   {
     type: 'function',
     function: {
+      name: 'search_knowledge',
+      description:
+        'Durchsucht die interne Wissensbasis der Agentur (eingepflegte Dokumente: Prozesse, Preislisten, FAQs, Richtlinien) semantisch und liefert die relevantesten Abschnitte. Nutze es, wenn die Frage internes Wissen/Vorgaben betrifft, und stütze die Antwort auf die Treffer.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Wonach gesucht werden soll (Frage/Stichworte).' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'remember',
       description:
         'Merkt sich eine dauerhafte Tatsache oder Vorliebe für die ganze Agentur (agenturweites Gedächtnis), die künftig bei jeder Anfrage beachtet wird. Für „merk dir …", „ab jetzt immer …", Standard-Vorgaben, Tonfall, Namenskonventionen. Nur bleibende Regeln speichern, keine einmaligen Aufgaben.',
@@ -539,6 +554,14 @@ export async function executeAssistantTool(
         dueAt: s('dueAt'),
       });
       return res.status === 'success' ? 'Erinnerung angelegt.' : `Fehler: ${errMsg(res)}`;
+    }
+    case 'search_knowledge': {
+      const query = s('query');
+      if (!query) return 'Bitte gib an, wonach gesucht werden soll.';
+      const { searchKnowledge } = await import('@/features/assistant/knowledge');
+      const hits = await searchKnowledge(orgId, query, 5);
+      if (hits.length === 0) return 'Keine passenden Einträge in der Wissensbasis.';
+      return JSON.stringify(hits);
     }
     case 'remember': {
       const fact = s('fact');

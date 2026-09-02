@@ -3,7 +3,10 @@ import { isAiEnabled } from '@/lib/ai/complete';
 import { AssistantChat } from '@/features/assistant/components/assistant-chat';
 import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 import { MemoryManager } from '@/features/assistant/components/memory-manager';
+import { KnowledgeManager } from '@/features/assistant/components/knowledge-manager';
 import { listAssistantMemory } from '@/features/assistant/memory';
+import { listKnowledgeDocs, isKnowledgeEnabled } from '@/features/assistant/knowledge';
+import { isSuperAdmin } from '@/lib/authz/policies';
 import { Alert } from '@/components/ui/alert';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +16,8 @@ export default async function AssistantPage() {
   const aiOn = isAiEnabled();
   const firstName = (user.fullName ?? '').trim().split(/\s+/)[0] || undefined;
   const memory = orgId ? await listAssistantMemory(orgId) : [];
+  const superAdmin = isSuperAdmin(user);
+  const knowledgeDocs = superAdmin && orgId ? await listKnowledgeDocs(orgId) : [];
 
   return (
     <div className="space-y-4">
@@ -38,6 +43,10 @@ export default async function AssistantPage() {
       <AssistantChat firstName={firstName} />
 
       <MemoryManager items={memory} />
+
+      {superAdmin && (
+        <KnowledgeManager docs={knowledgeDocs} enabled={isKnowledgeEnabled()} />
+      )}
     </div>
   );
 }
