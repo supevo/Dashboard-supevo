@@ -1,6 +1,8 @@
 import { requireSuperAdminPage } from '@/lib/authz/page-guards';
+import { isAiEnabled } from '@/lib/ai/complete';
 import { listCeoTasks } from '@/features/ceo/queries';
 import { CeoBoard } from '@/features/ceo/components/ceo-board';
+import { CoachPanel } from '@/features/ceo/components/coach-panel';
 import { Briefcase } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +16,7 @@ export default async function GfCockpitPage() {
   const { user } = await requireSuperAdminPage();
   const firstName = (user.fullName ?? '').trim().split(/\s+/)[0] || undefined;
   const tasks = await listCeoTasks();
+  const aiOn = isAiEnabled();
 
   return (
     <div className="space-y-4">
@@ -29,6 +32,8 @@ export default async function GfCockpitPage() {
           du in deinem 8-Stunden-Rahmen bleibst.
         </p>
       </div>
+
+      {aiOn && <CoachPanel firstName={firstName} />}
 
       <CeoBoard tasks={tasks} />
     </div>
