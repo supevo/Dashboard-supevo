@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Paperclip } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 import { fileToDownscaledDataUrl } from '@/features/assistant/downscale';
+
+/** Erstes Bild aus einer FileList herausziehen. */
+function firstImageFile(files: FileList | null | undefined): File | undefined {
+  if (!files) return undefined;
+  return Array.from(files).find((f) => f.type.startsWith('image/'));
+}
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -29,8 +36,33 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function onPaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const it of Array.from(items)) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        const file = it.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void onPickFile(file);
+          return;
+        }
+      }
+    }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    const file = firstImageFile(e.dataTransfer?.files);
+    if (file) {
+      e.preventDefault();
+      setDragOver(false);
+      void onPickFile(file);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -115,7 +147,21 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
   }
 
   return (
-    <div className="fixed bottom-[4.75rem] right-4 z-50 flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl">
+    <div
+      className={cn(
+        'fixed bottom-[4.75rem] right-4 z-50 flex h-[min(70vh,520px)] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl',
+        dragOver && 'ring-2 ring-primary',
+      )}
+      onPaste={onPaste}
+      onDrop={onDrop}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+    >
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="flex items-center gap-2 text-sm font-semibold">
           <AssistantIcon className="h-5 w-6" />
@@ -223,13 +269,13 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
           />
           <button
             type="button"
-            title="Screenshot anhängen"
-            aria-label="Screenshot anhängen"
+            title="Bild/Screenshot anhängen (auch per Einfügen oder Ziehen)"
+            aria-label="Bild anhängen"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
+            className="flex items-center rounded-md border px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
           >
-            📎
+            <Paperclip className="h-4 w-4" />
           </button>
           <Textarea
             value={input}
