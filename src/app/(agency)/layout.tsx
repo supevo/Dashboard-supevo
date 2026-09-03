@@ -32,6 +32,7 @@ import {
   Wallet,
   Plug,
   ShieldAlert,
+  Briefcase,
 } from 'lucide-react';
 import { de } from '@/lib/i18n/de';
 
@@ -56,6 +57,10 @@ function buildNavItems(
     // (Kanban), Projekte sind weitere Boards innerhalb des Kunden.
     { href: '/app/clients', label: de.nav.clients, icon: <Building2 /> },
     { href: '/app/leads', label: de.nav.leads, icon: <Target /> },
+    // Privates Geschäftsführer-Board (GF-Cockpit) – nur Super-Admin.
+    ...(superAdmin
+      ? [{ href: '/app/gf', label: 'GF-Cockpit', icon: <Briefcase /> }]
+      : []),
 
     // Auswertung & Team/Motivation nur für Admins – Mitarbeiter sehen die
     // gleichen Team-/Kollegen-Infos in der rechten Leiste.

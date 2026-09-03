@@ -6,7 +6,7 @@ import {
   primaryClientOrgId,
 } from '@/features/auth/session';
 import type { CurrentUser } from '@/features/auth/access';
-import { isOrgAdmin } from './policies';
+import { isOrgAdmin, isSuperAdmin } from './policies';
 
 /**
  * Resolves the current user and their agency organization for internal pages.
@@ -30,6 +30,16 @@ export async function requireOrgAdminPage(): Promise<{
 }> {
   const { user, orgId } = await requireAgencyPage();
   if (!isOrgAdmin(user, orgId)) redirect('/forbidden');
+  return { user, orgId };
+}
+
+/** Like requireAgencyPage but additionally requires super-admin (CEO) rights. */
+export async function requireSuperAdminPage(): Promise<{
+  user: CurrentUser;
+  orgId: string;
+}> {
+  const { user, orgId } = await requireAgencyPage();
+  if (!isSuperAdmin(user)) redirect('/forbidden');
   return { user, orgId };
 }
 

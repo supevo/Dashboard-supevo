@@ -1210,6 +1210,43 @@ export interface Database {
         >;
         Relationships: [];
       };
+      ceo_tasks: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string | null;
+          title: string;
+          notes: string | null;
+          status: string;
+          quadrant: number | null;
+          energy: string | null;
+          area: string | null;
+          estimate_min: number | null;
+          due_date: string | null;
+          position: number;
+          done_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id?: string | null;
+          title: string;
+          notes?: string | null;
+          status?: string;
+          quadrant?: number | null;
+          energy?: string | null;
+          area?: string | null;
+          estimate_min?: number | null;
+          due_date?: string | null;
+          position?: number;
+          done_at?: string | null;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['ceo_tasks']['Insert']>;
+        Relationships: [];
+      };
       activity_log: {
         Row: {
           id: string;
