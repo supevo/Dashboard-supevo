@@ -2482,6 +2482,7 @@ export interface Database {
           is_blocked: boolean;
           is_express: boolean;
           is_archived: boolean;
+          is_idea: boolean;
           lock_version: number;
           column_entered_at: string;
           reopen_count: number;
@@ -2514,6 +2515,7 @@ export interface Database {
           is_blocked?: boolean;
           is_express?: boolean;
           is_archived?: boolean;
+          is_idea?: boolean;
           client_notified_at?: string | null;
           print_billing_status?: string | null;
         };

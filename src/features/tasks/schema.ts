@@ -8,6 +8,9 @@ export const createTaskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high', 'urgent']).default('medium'),
   // Standard: neue Board-Aufgaben sind kundensichtbar.
   isInternal: z.enum(['true', 'false']).default('false'),
+  // „Idee": unverbindliche Notiz, zählt nicht als Arbeit und ist nie
+  // kundensichtbar (intern gespeichert wie archiviert, bis übernommen).
+  isIdea: z.enum(['true', 'false']).default('false'),
   dueDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)

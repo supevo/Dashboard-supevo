@@ -466,13 +466,15 @@ export async function createTaskAction(
     // Standard: neue Aufgaben sind für den Kunden sichtbar (nur bei kunden-
     // sichtbaren Projekten relevant). Interne Aufgaben werden explizit gewählt.
     isInternal: formData.get('isInternal') ?? 'false',
+    isIdea: formData.get('isIdea') ?? 'false',
     dueDate: formData.get('dueDate') ?? '',
   });
   if (!parsed.success) {
     return errorResult(de.errors.VALIDATION, fieldErrorsOf(parsed.error));
   }
-  const { projectId, columnId, title, description, priority, isInternal, dueDate } =
+  const { projectId, columnId, title, description, priority, isInternal, isIdea, dueDate } =
     parsed.data;
+  const asIdea = isIdea === 'true';
 
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
@@ -505,6 +507,10 @@ export async function createTaskAction(
       description: description ? description : null,
       priority,
       is_internal: isInternal === 'true',
+      // Ideen werden intern wie archiviert abgelegt → fallen aus allen aktiven
+      // Ansichten/Zählungen heraus, bis sie übernommen werden.
+      is_idea: asIdea,
+      is_archived: asIdea,
       due_date: dueDate ? dueDate : null,
       created_by: user.id,
       position: nextPosition,
@@ -523,28 +529,32 @@ export async function createTaskAction(
     metadata: { title },
   });
 
-  // KI-Aufwandsschätzung NACH der Antwort laufen lassen (after), damit das
-  // Anlegen sofort zurückkehrt und die Aufgabe ohne Verzögerung erscheint. Die
-  // Schätzung (Service-Client, wirft nie) füllt estimated_minutes im Hintergrund.
-  after(() =>
-    autoEstimateTaskMinutes(task.id, title, description ? description : null),
-  );
+  // Für Ideen entfällt beides (unverbindlich → keine Aufwandsschätzung, keine
+  // Drucksachen-Erkennung), bis die Idee übernommen wird.
+  if (!asIdea) {
+    // KI-Aufwandsschätzung NACH der Antwort laufen lassen (after), damit das
+    // Anlegen sofort zurückkehrt und die Aufgabe ohne Verzögerung erscheint. Die
+    // Schätzung (Service-Client, wirft nie) füllt estimated_minutes im Hintergrund.
+    after(() =>
+      autoEstimateTaskMinutes(task.id, title, description ? description : null),
+    );
 
-  // Drucksachen-Erkennung bereits beim Anlegen (nicht erst bei „Fertig"), damit
-  // auch per Assistent/Screenshot erstellte Aufgaben sofort die Frage
-  // „Druckprodukt bestellt?" tragen. Best-effort im Hintergrund (Service-Client).
-  after(async () => {
-    try {
-      // Nur erkennen/flaggen (der Hinweis wird erst bei „Fertig" verschickt und
-      // nur der zugewiesenen Person angezeigt).
-      await detectAndFlagPrintBilling(createSupabaseServiceClient(), task.id);
-    } catch {
-      /* Drucksachen-Hinweis ist optional – nie das Anlegen stören */
-    }
-  });
+    // Drucksachen-Erkennung bereits beim Anlegen (nicht erst bei „Fertig"), damit
+    // auch per Assistent/Screenshot erstellte Aufgaben sofort die Frage
+    // „Druckprodukt bestellt?" tragen. Best-effort im Hintergrund (Service-Client).
+    after(async () => {
+      try {
+        // Nur erkennen/flaggen (der Hinweis wird erst bei „Fertig" verschickt und
+        // nur der zugewiesenen Person angezeigt).
+        await detectAndFlagPrintBilling(createSupabaseServiceClient(), task.id);
+      } catch {
+        /* Drucksachen-Hinweis ist optional – nie das Anlegen stören */
+      }
+    });
+  }
 
   revalidatePath(`/app/projects/${projectId}`);
-  return successResult('Aufgabe erstellt.');
+  return successResult(asIdea ? 'Idee gespeichert.' : 'Aufgabe erstellt.');
 }
 
 /** Moves a task to another column. WIP limits and optimistic locking are
@@ -896,6 +906,78 @@ async function setArchived(
   return successResult(
     archived ? 'Aufgabe archiviert.' : 'Aufgabe wiederhergestellt.',
   );
+}
+
+/**
+ * Wandelt eine bestehende Aufgabe in eine unverbindliche „Idee" um: raus aus den
+ * aktiven Spalten/Zählungen und nicht kundensichtbar (intern wie archiviert
+ * abgelegt, zusätzlich als Idee markiert). Nur Agentur-intern.
+ */
+export async function markTaskAsIdeaAction(
+  taskId: string,
+  projectId?: string,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  if (!z.string().uuid().safeParse(taskId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ is_idea: true, is_archived: true }, { count: 'exact' })
+    .eq('id', taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { isIdea: true },
+  });
+
+  if (projectId) revalidatePath(`/app/projects/${projectId}`);
+  revalidatePath('/app/clients');
+  return successResult('Als Idee verschoben.');
+}
+
+/**
+ * Übernimmt eine Idee als echte Aufgabe: is_idea=false und is_archived=false,
+ * damit sie in ihrer Spalte (i. d. R. Warteschlange) wieder als aktive Arbeit
+ * erscheint und normal mitzählt. Nur Agentur-intern.
+ */
+export async function promoteIdeaAction(
+  taskId: string,
+  projectId?: string,
+): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  if (!z.string().uuid().safeParse(taskId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { error, count } = await supabase
+    .from('tasks')
+    .update({ is_idea: false, is_archived: false }, { count: 'exact' })
+    .eq('id', taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: null,
+    action: 'update',
+    entityType: 'task',
+    entityId: taskId,
+    metadata: { isIdea: false },
+  });
+
+  if (projectId) revalidatePath(`/app/projects/${projectId}`);
+  revalidatePath('/app/clients');
+  return successResult('In Warteschlange übernommen.');
 }
 
 /**

@@ -156,6 +156,19 @@ export function AddTaskInline({
             </div>
           </div>
 
+          {!recurring && (
+            <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+              <input type="checkbox" name="isIdea" value="true" className="mt-0.5 h-4 w-4" />
+              <span>
+                <span className="font-medium">Als Idee (unverbindlich)</span>
+                <span className="block text-xs text-muted-foreground">
+                  Landet im Ideen-Bereich statt in der Warteschlange – zählt
+                  nicht als offene Arbeit und ist für Kunden nicht sichtbar.
+                </span>
+              </span>
+            </label>
+          )}
+
           <div className="rounded-md border p-3">
             <label className="flex items-center gap-2 text-sm">
               <input

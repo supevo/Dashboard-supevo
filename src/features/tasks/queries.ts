@@ -14,6 +14,7 @@ export interface TaskDetail {
   isBlocked: boolean;
   isExpress: boolean;
   isArchived: boolean;
+  isIdea: boolean;
   dueDate: string | null;
   estimatedMinutes: number | null;
   aiEstimateMinutes: number | null;
@@ -33,7 +34,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, is_idea, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -79,6 +80,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     isBlocked: task.is_blocked,
     isExpress: task.is_express,
     isArchived: task.is_archived,
+    isIdea: task.is_idea,
     dueDate: task.due_date,
     estimatedMinutes: task.estimated_minutes,
     aiEstimateMinutes: task.ai_estimate_minutes,
@@ -151,6 +153,8 @@ export interface BoardView {
   columns: BoardColumn[];
   /** Archived tasks, shown in a read-only "Archiv" column. */
   archived: BoardTask[];
+  /** Unverbindliche Ideen (is_idea), im agentur-internen „Ideen"-Bereich. */
+  ideas: BoardTask[];
 }
 
 /** Loads the first board of a project with its columns and active tasks.
@@ -177,30 +181,44 @@ export async function getBoardView(
     .eq('board_id', board.id)
     .order('position', { ascending: true });
 
+  const TASK_SELECT =
+    'id, title, priority, is_internal, is_blocked, is_express, is_idea, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at, print_billing_status';
+
   const { data: tasks } = await supabase
     .from('tasks')
-    .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at, print_billing_status',
-    )
+    .select(TASK_SELECT)
     .eq('board_id', board.id)
     .eq('is_archived', false)
+    // Sicherheitsnetz: Ideen tauchen nie in den aktiven Spalten auf.
+    .eq('is_idea', false)
     .is('deleted_at', null)
     .order('position', { ascending: true });
 
   const { data: archivedRows } = await supabase
     .from('tasks')
-    .select(
-      'id, title, priority, is_internal, is_blocked, is_express, due_date, column_id, position, lock_version, column_entered_at, completed_by, client_notified_at, print_billing_status',
-    )
+    .select(TASK_SELECT)
     .eq('board_id', board.id)
     .eq('is_archived', true)
+    // Echtes Archiv ohne Ideen (die werden separat geladen).
+    .eq('is_idea', false)
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(100);
 
+  // Ideen (unverbindlich) – separat, für den „Ideen"-Bereich der Agentur.
+  const { data: ideaRows } = await supabase
+    .from('tasks')
+    .select(TASK_SELECT)
+    .eq('board_id', board.id)
+    .eq('is_idea', true)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(200);
+
   const taskIds = [
     ...(tasks ?? []).map((t) => t.id),
     ...(archivedRows ?? []).map((t) => t.id),
+    ...(ideaRows ?? []).map((t) => t.id),
   ];
   const assigneesByTask = new Map<string, TaskAssignee[]>();
   if (taskIds.length > 0) {
@@ -347,6 +365,7 @@ export async function getBoardView(
   }));
 
   const archived = (archivedRows ?? []).map((t) => toBoardTask(t, false));
+  const ideas = (ideaRows ?? []).map((t) => toBoardTask(t, false));
 
-  return { boardId: board.id, columns: columnsOut, archived };
+  return { boardId: board.id, columns: columnsOut, archived, ideas };
 }

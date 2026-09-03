@@ -9,7 +9,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { moveTaskAction, archiveTaskAction } from '@/features/tasks/actions';
+import { moveTaskAction, archiveTaskAction, promoteIdeaAction } from '@/features/tasks/actions';
 import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
 import { idleResult } from '@/lib/action-result';
@@ -95,6 +95,8 @@ export function KanbanBoard({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [archiveCollapsed, setArchiveCollapsed] = useState(true);
   const [archiveHover, setArchiveHover] = useState(false);
+  // Agentur-interner „Ideen"-Bereich (unverbindlich, zählt nicht als Arbeit).
+  const [ideasOpen, setIdeasOpen] = useState(false);
   // Id of an archived card currently being dragged OUT of the archive.
   const [dragArchivedId, setDragArchivedId] = useState<string | null>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
@@ -339,6 +341,18 @@ export function KanbanBoard({
     setArchiveHover(false);
     if (!taskId || !canArchive) return;
     void archiveTask(taskId);
+  }
+
+  /** Übernimmt eine Idee als echte Aufgabe in die Warteschlange. */
+  async function promoteIdea(taskId: string) {
+    setError(null);
+    setNotice(null);
+    const result = await promoteIdeaAction(taskId, projectId);
+    if (result.status === 'error') setError(result.message);
+    else {
+      setNotice('In die Warteschlange übernommen.');
+      router.refresh();
+    }
   }
 
   /** Drop over the column background: append to the end of the column. */
@@ -783,6 +797,71 @@ export function KanbanBoard({
           </div>
         )}
       </div>
+
+      {/* Ideen-Bereich – nur agentur-intern. Unverbindliche Notizen, die NICHT
+          als „muss gemacht werden" mitzählen und nie kundensichtbar sind. Per
+          „Übernehmen" wird daraus eine echte Aufgabe in der Warteschlange. */}
+      {!isPortal && (
+        <div className="rounded-lg border border-dashed bg-muted/10">
+          <button
+            type="button"
+            onClick={() => setIdeasOpen((o) => !o)}
+            className="flex w-full items-center justify-between px-3 py-2 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              💡 Ideen
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                {board.ideas.length}
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {ideasOpen ? 'einklappen' : 'ausklappen'}
+            </span>
+          </button>
+          {ideasOpen && (
+            <div className="border-t p-2">
+              <p className="mb-2 px-1 text-xs text-muted-foreground">
+                Unverbindliche Ideen – zählen nicht als offene Arbeit und sind
+                für Kunden nicht sichtbar. „Übernehmen“ macht daraus eine echte
+                Aufgabe in der Warteschlange.
+              </p>
+              {board.ideas.length === 0 ? (
+                <p className="px-1 py-3 text-center text-xs text-muted-foreground">
+                  Noch keine Ideen. Beim Anlegen einer Aufgabe „Als Idee“ wählen.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {board.ideas.map((idea) => (
+                    <div
+                      key={idea.id}
+                      className="flex items-start justify-between gap-2 rounded-lg border bg-card p-2.5 text-sm shadow-sm"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`${basePath}/${projectId}/tasks/${idea.id}`)
+                        }
+                        className="min-w-0 flex-1 text-left font-medium hover:underline"
+                        title="Idee öffnen"
+                      >
+                        {idea.title}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void promoteIdea(idea.id)}
+                        className="shrink-0 rounded-md border px-2 py-1 text-xs font-medium hover:bg-muted"
+                        title="Als Aufgabe in die Warteschlange übernehmen"
+                      >
+                        Übernehmen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
