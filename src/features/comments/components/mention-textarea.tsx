@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 
 export interface MentionMember {
   userId: string;
@@ -50,6 +51,20 @@ export function MentionTextarea({
         .slice(0, 6)
     : [];
 
+  /** Fügt ein Emoji an der aktuellen Cursorposition ein. */
+  function insertEmoji(emoji: string) {
+    const el = ref.current;
+    const start = el?.selectionStart ?? value.length;
+    const end = el?.selectionEnd ?? start;
+    const next = value.slice(0, start) + emoji + value.slice(end);
+    setValue(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      const pos = start + emoji.length;
+      el?.setSelectionRange(pos, pos);
+    });
+  }
+
   function pick(mem: MentionMember) {
     const el = ref.current;
     if (!query || !el) return;
@@ -75,6 +90,7 @@ export function MentionTextarea({
         placeholder={placeholder}
         required={required}
         value={value}
+        className="pr-11"
         onChange={(e) => {
           setValue(e.target.value);
           refresh(e.target.value, e.target.selectionStart ?? 0);
@@ -87,6 +103,9 @@ export function MentionTextarea({
         }
         onBlur={() => setTimeout(() => setQuery(null), 150)}
       />
+      <div className="absolute bottom-1.5 right-1.5">
+        <EmojiPicker onPick={insertEmoji} />
+      </div>
       {suggestions.length > 0 && (
         <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-card shadow-lg">
           {suggestions.map((mem) => (
