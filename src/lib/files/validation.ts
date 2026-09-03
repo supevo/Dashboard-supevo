@@ -13,6 +13,16 @@ export const DEFAULT_ALLOWED_MIME = [
   'image/webp',
   'application/pdf',
   'video/mp4',
+  // Audio (Sprachnachrichten, Musik, Podcasts …)
+  'audio/mpeg', // .mp3
+  'audio/mp3', // manche Browser melden mp3 so
+  'audio/mp4', // .m4a
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/ogg',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/webm',
   'application/zip',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',

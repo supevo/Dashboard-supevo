@@ -34,6 +34,7 @@ export function FilePreviewModal({
   const isImage = mimeType.startsWith('image/');
   const isPdf = mimeType === 'application/pdf';
   const isVideo = mimeType.startsWith('video/');
+  const isAudio = mimeType.startsWith('audio/');
 
   return (
     <div
@@ -82,6 +83,16 @@ export function FilePreviewModal({
             onError={() => setError(true)}
             className="max-h-full max-w-full"
           />
+        ) : isAudio ? (
+          <div className="flex w-full max-w-md flex-col items-center gap-3 p-6">
+            <span className="text-sm font-medium">{fileName}</span>
+            <audio
+              src={src}
+              controls
+              onError={() => setError(true)}
+              className="w-full"
+            />
+          </div>
         ) : (
           <p className="p-6 text-sm text-muted-foreground">
             {de.task.previewUnavailable}

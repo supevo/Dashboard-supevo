@@ -2,7 +2,7 @@
  * Pure preview helpers safe to import from both client and server code.
  */
 
-const PREVIEWABLE_PREFIXES = ['image/', 'video/'];
+const PREVIEWABLE_PREFIXES = ['image/', 'video/', 'audio/'];
 
 /** Whether a MIME type can be shown inline in the preview popup. */
 export function isPreviewable(mime: string): boolean {
