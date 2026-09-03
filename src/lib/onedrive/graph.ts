@@ -356,8 +356,11 @@ export async function getDownloadUrl(
 ): Promise<{ url: string; name: string; mime: string } | null> {
   const token = await getAccessToken(orgId);
   if (!token) return null;
+  // WICHTIG: '@microsoft.graph.downloadUrl' ist eine transiente Annotation, die
+  // Graph NICHT zurückgibt, sobald man $select verwendet. Deshalb das Item OHNE
+  // $select laden – dann ist die Download-URL im Standard-Payload enthalten.
   const res = await fetch(
-    `${GRAPH}/me/drive/items/${encodeURIComponent(itemId)}?$select=id,name,file,@microsoft.graph.downloadUrl`,
+    `${GRAPH}/me/drive/items/${encodeURIComponent(itemId)}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!res.ok) return null;
@@ -365,8 +368,9 @@ export async function getDownloadUrl(
     name?: string;
     file?: { mimeType?: string };
     '@microsoft.graph.downloadUrl'?: string;
+    '@content.downloadUrl'?: string;
   };
-  const url = j['@microsoft.graph.downloadUrl'];
+  const url = j['@microsoft.graph.downloadUrl'] ?? j['@content.downloadUrl'];
   if (!url) return null;
   return {
     url,

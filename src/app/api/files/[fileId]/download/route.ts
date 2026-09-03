@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { FILES_BUCKET, readOneDriveItemId } from '@/lib/files/storage';
-import { getDownloadUrl } from '@/lib/onedrive/graph';
+import { getDownloadUrl, downloadItem } from '@/lib/onedrive/graph';
 import { logActivity } from '@/lib/audit';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
@@ -57,6 +57,26 @@ export async function GET(
       return NextResponse.redirect(dl.url);
     }
     logger.warn('files.download.onedrive_failed', { fileId });
+
+    // Notfalls die Bytes über unseren Server streamen (kein redirect nötig).
+    const streamed = await downloadItem(file.organization_id, onedriveItemId);
+    if (streamed) {
+      await logActivity({
+        actorId: user.id,
+        organizationId: file.organization_id,
+        action: 'file_download',
+        entityType: file.task_id ? 'task' : 'file',
+        entityId: file.task_id ?? fileId,
+        metadata: { fileName: file.file_name, fileId, source: 'onedrive-stream' },
+      });
+      return new NextResponse(new Uint8Array(streamed.bytes), {
+        status: 200,
+        headers: {
+          'Content-Type': file.mime_type || streamed.mime || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(file.file_name)}"`,
+        },
+      });
+    }
   }
 
   if (!file.storage_path) {

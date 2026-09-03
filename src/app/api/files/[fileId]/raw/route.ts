@@ -3,7 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { FILES_BUCKET, readOneDriveItemId } from '@/lib/files/storage';
-import { getDownloadUrl } from '@/lib/onedrive/graph';
+import { getDownloadUrl, downloadItem } from '@/lib/onedrive/graph';
 import { logger } from '@/lib/logger';
 
 /**
@@ -39,6 +39,19 @@ export async function GET(
     const dl = await getDownloadUrl(file.organization_id, onedriveItemId);
     if (dl) return NextResponse.redirect(dl.url);
     logger.warn('files.raw.onedrive_failed', { fileId });
+
+    // Notfalls die Bytes über unseren Server inline streamen.
+    const streamed = await downloadItem(file.organization_id, onedriveItemId);
+    if (streamed) {
+      return new NextResponse(new Uint8Array(streamed.bytes), {
+        status: 200,
+        headers: {
+          'Content-Type': file.mime_type || streamed.mime || 'application/octet-stream',
+          'Content-Disposition': `inline; filename="${encodeURIComponent(file.file_name)}"`,
+          'Cache-Control': 'private, max-age=120',
+        },
+      });
+    }
   }
   if (!file.storage_path) return new NextResponse(null, { status: 404 });
 
