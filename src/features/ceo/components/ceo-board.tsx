@@ -1,18 +1,19 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition, type DragEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { computeInsertPosition } from '@/features/tasks/reorder';
 import {
   createCeoTaskAction,
   updateCeoTaskAction,
-  moveCeoTaskAction,
+  reorderCeoTaskAction,
   deleteCeoTaskAction,
 } from '@/features/ceo/actions';
 import {
@@ -204,12 +205,22 @@ function CardForm({
 function TaskCard({
   task,
   pending,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onDragOverCard,
+  onDropCard,
   onMove,
   onEdit,
   onDelete,
 }: {
   task: CeoTask;
   pending: boolean;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOverCard: (e: DragEvent) => void;
+  onDropCard: (e: DragEvent) => void;
   onMove: (dir: -1 | 1) => void;
   onEdit: (v: FormValues) => void;
   onDelete: () => void;
@@ -245,15 +256,25 @@ function TaskCard({
 
   return (
     <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOverCard}
+      onDrop={onDropCard}
       className={cn(
         'group space-y-2 rounded-lg border bg-background p-3 text-sm shadow-sm',
+        'cursor-grab active:cursor-grabbing',
         task.status === 'done' && 'opacity-60',
+        dragging && 'opacity-40 ring-2 ring-primary',
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={cn('font-medium leading-snug', task.status === 'done' && 'line-through')}>
-          {task.title}
-        </p>
+        <div className="flex min-w-0 items-start gap-1.5">
+          <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+          <p className={cn('font-medium leading-snug', task.status === 'done' && 'line-through')}>
+            {task.title}
+          </p>
+        </div>
         <div className="flex shrink-0 gap-0.5 opacity-0 transition group-hover:opacity-100">
           <button
             type="button"
@@ -309,7 +330,8 @@ function TaskCard({
         {due && <span className={cn('px-0.5 font-medium', due.tone)}>{due.label}</span>}
       </div>
 
-      <div className="flex items-center justify-between pt-0.5">
+      {/* Pfeil-Buttons als Touch-Fallback (Drag&Drop am Desktop). */}
+      <div className="flex items-center justify-between pt-0.5 md:opacity-0 md:transition md:group-hover:opacity-100">
         <button
           type="button"
           title="Nach links"
@@ -336,7 +358,13 @@ function TaskCard({
 export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
   const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
+  const [items, setItems] = useState<CeoTask[]>(tasks);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<CeoStatus | null>(null);
   const router = useRouter();
+
+  // Serverstand übernehmen, wenn sich die Props ändern (nach refresh).
+  useEffect(() => setItems(tasks), [tasks]);
 
   const byStatus = useMemo(() => {
     const map: Record<CeoStatus, CeoTask[]> = {
@@ -345,9 +373,10 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
       doing: [],
       done: [],
     };
-    for (const t of tasks) map[t.status]?.push(t);
+    for (const t of items) map[t.status]?.push(t);
+    for (const k of CEO_STATUSES) map[k].sort((a, b) => a.position - b.position);
     return map;
-  }, [tasks]);
+  }, [items]);
 
   // Für heute geplant = Spalten „Heute" + „In Arbeit".
   const plannedMin = useMemo(
@@ -380,14 +409,38 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
     });
   }
 
-  function move(task: CeoTask, dir: -1 | 1) {
+  /** Karte in Spalte `status` an Index `index` einsortieren (optimistisch). */
+  function moveTo(taskId: string, status: CeoStatus, index: number) {
+    const others = byStatus[status].filter((t) => t.id !== taskId);
+    const position = computeInsertPosition(
+      others.map((t) => t.position),
+      index,
+    );
+    const previous = items;
+    setItems((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              status,
+              position,
+              doneAt: status === 'done' ? new Date().toISOString() : null,
+            }
+          : t,
+      ),
+    );
+    start(async () => {
+      const r = await reorderCeoTaskAction(taskId, status, position);
+      if (r.status === 'error') setItems(previous);
+      else router.refresh();
+    });
+  }
+
+  function moveByArrow(task: CeoTask, dir: -1 | 1) {
     const idx = CEO_STATUSES.indexOf(task.status) + dir;
     const next = CEO_STATUSES[idx];
     if (!next) return;
-    start(async () => {
-      await moveCeoTaskAction(task.id, next);
-      router.refresh();
-    });
+    moveTo(task.id, next, byStatus[next].filter((t) => t.id !== task.id).length);
   }
 
   function edit(task: CeoTask, v: FormValues) {
@@ -406,10 +459,41 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
   }
 
   function remove(task: CeoTask) {
+    const previous = items;
+    setItems((prev) => prev.filter((t) => t.id !== task.id));
     start(async () => {
-      await deleteCeoTaskAction(task.id);
-      router.refresh();
+      const r = await deleteCeoTaskAction(task.id);
+      if (r.status === 'error') setItems(previous);
+      else router.refresh();
     });
+  }
+
+  /** Drop auf eine Karte: davor/danach einfügen, je nach Cursor-Höhe. */
+  function dropOnCard(e: DragEvent, status: CeoStatus, targetId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const taskId = dragId;
+    setDragId(null);
+    setDragOverCol(null);
+    if (!taskId || taskId === targetId) return;
+    const others = byStatus[status].filter((t) => t.id !== taskId);
+    const baseIndex = others.findIndex((t) => t.id === targetId);
+    if (baseIndex === -1) {
+      moveTo(taskId, status, others.length);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY - rect.top > rect.height / 2;
+    moveTo(taskId, status, after ? baseIndex + 1 : baseIndex);
+  }
+
+  /** Drop auf den Spalten-Hintergrund: ans Ende der Spalte. */
+  function dropOnColumn(status: CeoStatus) {
+    const taskId = dragId;
+    setDragId(null);
+    setDragOverCol(null);
+    if (!taskId) return;
+    moveTo(taskId, status, byStatus[status].filter((t) => t.id !== taskId).length);
   }
 
   return (
@@ -452,29 +536,58 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
       {/* Board */}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {CEO_COLUMNS.map((col) => {
-          const items = byStatus[col.key];
-          const colMin = items.reduce((s, t) => s + (t.estimateMin ?? 0), 0);
+          const colItems = byStatus[col.key];
+          const colMin = colItems.reduce((s, t) => s + (t.estimateMin ?? 0), 0);
           return (
-            <div key={col.key} className="flex flex-col rounded-lg border bg-muted/20">
+            <div
+              key={col.key}
+              onDragOver={(e) => {
+                if (dragId) {
+                  e.preventDefault();
+                  setDragOverCol(col.key);
+                }
+              }}
+              onDragLeave={(e) => {
+                if (e.currentTarget === e.target) setDragOverCol(null);
+              }}
+              onDrop={() => dropOnColumn(col.key)}
+              className={cn(
+                'flex flex-col rounded-lg border bg-muted/20 transition',
+                dragOverCol === col.key && 'ring-2 ring-primary',
+              )}
+            >
               <div className="flex items-center justify-between border-b px-3 py-2 text-sm font-semibold">
                 <span>{col.label}</span>
                 <span className="text-xs font-normal text-muted-foreground">
-                  {items.length}
+                  {colItems.length}
                   {colMin > 0 && ` · ${formatMinutes(colMin)}`}
                 </span>
               </div>
               <div className="flex-1 space-y-2 p-2">
-                {items.length === 0 ? (
+                {colItems.length === 0 ? (
                   <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-                    Keine Karten
+                    Hierher ziehen
                   </p>
                 ) : (
-                  items.map((t) => (
+                  colItems.map((t) => (
                     <TaskCard
                       key={t.id}
                       task={t}
                       pending={pending}
-                      onMove={(dir) => move(t, dir)}
+                      dragging={dragId === t.id}
+                      onDragStart={() => setDragId(t.id)}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setDragOverCol(null);
+                      }}
+                      onDragOverCard={(e) => {
+                        if (dragId) {
+                          e.preventDefault();
+                          setDragOverCol(col.key);
+                        }
+                      }}
+                      onDropCard={(e) => dropOnCard(e, col.key, t.id)}
+                      onMove={(dir) => moveByArrow(t, dir)}
                       onEdit={(v) => edit(t, v)}
                       onDelete={() => remove(t)}
                     />

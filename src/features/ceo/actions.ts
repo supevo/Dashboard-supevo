@@ -140,6 +140,39 @@ export async function moveCeoTaskAction(
   return successResult();
 }
 
+/**
+ * Verschiebt + sortiert eine Karte per Drag&Drop: setzt Spalte (Status) und die
+ * numerische Position innerhalb der Spalte in einem Rutsch.
+ */
+export async function reorderCeoTaskAction(
+  taskId: string,
+  status: string,
+  position: number,
+): Promise<ActionResult> {
+  const user = await requireCeo();
+  if (!user) return errorResult(de.errors.FORBIDDEN);
+  if (!idSchema.safeParse(taskId).success) return errorResult(de.errors.VALIDATION);
+  if (!CEO_STATUSES.includes(status as (typeof CEO_STATUSES)[number])) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  if (!Number.isFinite(position)) return errorResult(de.errors.VALIDATION);
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('ceo_tasks')
+    .update({
+      status,
+      position,
+      done_at: status === 'done' ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/gf');
+  return successResult();
+}
+
 /** Löscht eine Karte. */
 export async function deleteCeoTaskAction(taskId: string): Promise<ActionResult> {
   const user = await requireCeo();
