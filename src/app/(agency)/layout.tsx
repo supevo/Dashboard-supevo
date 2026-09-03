@@ -4,6 +4,8 @@ import { getOrgBranding } from '@/features/branding/queries';
 import type { UserMenuItem } from '@/components/layout/user-menu';
 import { ChatDock } from '@/features/messenger/components/chat-dock';
 import { AssistantDock } from '@/features/assistant/components/assistant-dock';
+import { CoachDock } from '@/features/ceo/components/coach-dock';
+import { isAiEnabled } from '@/lib/ai/complete';
 import { FeedbackWidget } from '@/features/feedback/components/feedback-widget';
 import { PomodoroTimer } from '@/components/layout/pomodoro-timer';
 import { TeamRail } from '@/features/presence/components/team-rail';
@@ -181,6 +183,9 @@ export default async function AgencyLayout({
       {children}
       <ChatDock meId={user.id} meName={user.fullName ?? user.email} />
       <AssistantDock firstName={(user.fullName ?? '').trim().split(/\s+/)[0] || undefined} />
+      {superAdmin && isAiEnabled() && (
+        <CoachDock firstName={(user.fullName ?? '').trim().split(/\s+/)[0] || undefined} />
+      )}
       <FeedbackWidget />
     </AppShell>
   );
