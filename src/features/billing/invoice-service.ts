@@ -169,6 +169,84 @@ export async function createDraftInvoice(params: {
   return { invoiceId: invoice.id };
 }
 
+export interface ManualInvoiceItem {
+  description: string;
+  quantity: number;
+  unitNetCents: number;
+}
+
+/**
+ * Creates a DRAFT invoice from FREE line items (no membership) – für manuell
+ * erstellte Rechnungen. Ein einheitlicher Steuersatz gilt für die ganze
+ * Rechnung (Kleinunternehmer => 0 %). Keine Nummer – die wird erst beim
+ * Finalisieren vergeben (lückenlos). Läuft danach durch denselben Ablauf
+ * (finalisieren → PDF → senden → bezahlt) wie jede andere Rechnung.
+ */
+export async function createManualDraftInvoice(params: {
+  supabase: SupabaseClient<Database>;
+  orgId: string;
+  clientCompanyId: string;
+  billingEntityId: string | null;
+  createdBy: string | null;
+  items: ManualInvoiceItem[];
+  taxRate: number;
+  smallBusiness: boolean;
+  servicePeriodStart?: string | null;
+  servicePeriodEnd?: string | null;
+  dueDate?: string | null;
+}): Promise<{ invoiceId: string } | { error: string }> {
+  const { supabase, orgId, clientCompanyId, createdBy } = params;
+
+  const clean = params.items
+    .map((it) => ({
+      description: it.description.trim(),
+      quantity: Math.max(1, Math.round(it.quantity)),
+      unitNetCents: Math.round(it.unitNetCents),
+    }))
+    .filter((it) => it.description.length > 0);
+  if (clean.length === 0) return { error: 'Bitte mindestens eine Position angeben.' };
+
+  const netCents = clean.reduce((n, it) => n + it.quantity * it.unitNetCents, 0);
+  const amounts = computeAmounts(netCents, params.taxRate, params.smallBusiness);
+
+  const { data: invoice, error } = await supabase
+    .from('invoices')
+    .insert({
+      organization_id: orgId,
+      client_company_id: clientCompanyId,
+      membership_id: null,
+      billing_entity_id: params.billingEntityId,
+      status: 'draft',
+      service_period_start: params.servicePeriodStart ?? null,
+      service_period_end: params.servicePeriodEnd ?? null,
+      due_date: params.dueDate ?? null,
+      currency: 'EUR',
+      net_cents: amounts.netCents,
+      tax_rate: amounts.taxRate,
+      tax_cents: amounts.taxCents,
+      gross_cents: amounts.grossCents,
+      payment_method: null,
+      created_by: createdBy,
+    })
+    .select('id')
+    .single();
+  if (error || !invoice) return { error: error?.message ?? 'insert failed' };
+
+  const rows = clean.map((it, i) => ({
+    invoice_id: invoice.id,
+    position: i + 1,
+    description: it.description,
+    quantity: it.quantity,
+    unit_net_cents: it.unitNetCents,
+    tax_rate: amounts.taxRate,
+    net_cents: it.quantity * it.unitNetCents,
+  }));
+  const { error: itemsError } = await supabase.from('invoice_items').insert(rows);
+  if (itemsError) return { error: itemsError.message };
+
+  return { invoiceId: invoice.id };
+}
+
 /**
  * Assigns the next gapless invoice number for the org from billing_settings,
  * honouring prefix, zero-padding and optional yearly reset. Advances the

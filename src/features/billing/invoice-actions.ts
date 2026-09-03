@@ -16,6 +16,7 @@ import {
 import { getClientMembership } from '@/features/billing/membership';
 import {
   createDraftInvoice,
+  createManualDraftInvoice,
   assignInvoiceNumber,
   resolveClientEntity,
   resolveInvoiceEntity,
@@ -70,6 +71,103 @@ export async function createDraftInvoiceAction(
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
   return successResult('Rechnungsentwurf erstellt.');
+}
+
+const manualInvoiceSchema = z.object({
+  clientCompanyId: z.string().uuid(),
+  items: z
+    .array(
+      z.object({
+        description: z.string().trim().min(1).max(500),
+        quantity: z.coerce.number().int().min(1).max(100000),
+        // Einzelpreis netto in Cent (Client rechnet Euro → Cent um).
+        unitNetCents: z.coerce.number().int().min(0).max(100_000_000),
+      }),
+    )
+    .min(1)
+    .max(50),
+  taxRate: z.coerce.number().min(0).max(100),
+  // Gewählter Rechnungssteller (bestimmt Absender + Nummernkreis bei Finalisierung).
+  billingEntityId: z.string().uuid().optional().nullable(),
+  dueDate: z.string().trim().max(20).optional().nullable(),
+  servicePeriodStart: z.string().trim().max(20).optional().nullable(),
+  servicePeriodEnd: z.string().trim().max(20).optional().nullable(),
+});
+
+/**
+ * Erstellt eine MANUELLE Rechnung (freie Positionen, ohne Mitgliedschaft) als
+ * Entwurf. Danach greift der normale Ablauf (finalisieren → PDF → senden →
+ * bezahlt). Funktioniert auch für Kunden ohne Mitgliedschaft. Rechte:
+ * billing.manage (alle Agentur-Mitarbeiter der Org).
+ */
+export async function createManualInvoiceAction(
+  input: z.infer<typeof manualInvoiceSchema>,
+): Promise<ActionResult> {
+  const parsed = manualInvoiceSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const d = parsed.data;
+
+  const supabase = await createSupabaseServerClient();
+  const { data: client } = await supabase
+    .from('client_companies')
+    .select('organization_id')
+    .eq('id', d.clientCompanyId)
+    .maybeSingle();
+  if (!client) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'billing.manage', orgId: client.organization_id });
+
+  // Rechnungssteller: der explizit gewählte (muss zur Org gehören), sonst der
+  // dem Kunden zugeordnete bzw. der Standard-Rechnungssteller.
+  let entity = null as Awaited<ReturnType<typeof resolveClientEntity>>;
+  if (d.billingEntityId) {
+    const { data: chosen } = await supabase
+      .from('billing_entities')
+      .select('*')
+      .eq('id', d.billingEntityId)
+      .eq('organization_id', client.organization_id)
+      .maybeSingle();
+    entity = chosen ?? null;
+  }
+  if (!entity) {
+    entity = await resolveClientEntity(
+      supabase,
+      client.organization_id,
+      d.clientCompanyId,
+    );
+  }
+
+  const result = await createManualDraftInvoice({
+    supabase,
+    orgId: client.organization_id,
+    clientCompanyId: d.clientCompanyId,
+    billingEntityId: entity?.id ?? null,
+    createdBy: user.id,
+    items: d.items,
+    taxRate: d.taxRate,
+    smallBusiness: entity?.small_business ?? false,
+    dueDate: d.dueDate || null,
+    servicePeriodStart: d.servicePeriodStart || null,
+    servicePeriodEnd: d.servicePeriodEnd || null,
+  });
+  if ('error' in result) {
+    logger.warn('invoice.manual.failed', { error: result.error });
+    return errorResult(result.error || de.errors.INTERNAL);
+  }
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: client.organization_id,
+    action: 'create',
+    entityType: 'invoice',
+    entityId: result.invoiceId,
+    metadata: { manual: true },
+  });
+
+  revalidatePath(`/app/clients/${d.clientCompanyId}`);
+  revalidatePath('/app/finance');
+  return successResult('Rechnungsentwurf erstellt.', { invoiceId: result.invoiceId });
 }
 
 /** Erster/letzter Tag des laufenden Monats (ISO). */

@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { Button } from '@/components/ui/button';
+import { ManualInvoiceForm } from '@/features/billing/components/manual-invoice-form';
 import type { InvoiceRow } from '@/features/billing/invoice-queries';
 
 const STATUS_LABEL: Record<string, string> = {
@@ -261,10 +262,17 @@ export function InvoicesSection({
   clientCompanyId,
   invoices,
   recipientEmail,
+  entities = [],
 }: {
   clientCompanyId: string;
   invoices: InvoiceRow[];
   recipientEmail: string | null;
+  entities?: {
+    id: string;
+    name: string;
+    defaultTaxRate: number;
+    smallBusiness: boolean;
+  }[];
 }) {
   const [state, formAction] = useActionState(
     createDraftInvoiceAction,
@@ -287,6 +295,9 @@ export function InvoicesSection({
         {state.status === 'success' && <Alert>{state.message}</Alert>}
         <SubmitButton size="sm">Rechnungsentwurf erstellen</SubmitButton>
       </form>
+
+      {/* Manuelle Rechnung mit freien Positionen (unabhängig von der Mitgliedschaft). */}
+      <ManualInvoiceForm clientCompanyId={clientCompanyId} entities={entities} />
 
       {invoices.length === 0 ? (
         <p className="text-sm text-muted-foreground">Noch keine Rechnungen.</p>

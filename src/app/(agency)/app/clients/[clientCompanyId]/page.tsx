@@ -557,6 +557,12 @@ export default async function ClientDetailPage({
                       clientCompanyId={clientCompanyId}
                       invoices={invoices}
                       recipientEmail={company.invoiceRecipientEmail}
+                      entities={billingEntities.map((e) => ({
+                        id: e.id,
+                        name: e.company_name || e.name,
+                        defaultTaxRate: Number(e.default_tax_rate),
+                        smallBusiness: e.small_business,
+                      }))}
                     />
                   </CardContent>
                 </Card>

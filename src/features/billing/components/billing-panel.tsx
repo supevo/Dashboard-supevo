@@ -1,11 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { buttonVariants } from '@/components/ui/button';
 import { listBillingEntities } from '@/features/billing/queries';
+import { listClientCompanies } from '@/features/client-companies/queries';
 import {
   BillingEntityCard,
   AddBillingEntity,
 } from '@/features/billing/components/billing-entity-form';
 import { MonthlyBillingOverview } from '@/features/billing/components/monthly-billing-overview';
+import { ManualInvoiceForm } from '@/features/billing/components/manual-invoice-form';
 
 /**
  * Rechnungen: billing entities (Rechnungssteller) and the SEPA export. Extracted
@@ -27,10 +29,36 @@ export async function BillingPanel({
   steller?: string;
   basePath: string;
 }) {
-  const entities = await listBillingEntities(orgId);
+  const [entities, clients] = await Promise.all([
+    listBillingEntities(orgId),
+    listClientCompanies(orgId),
+  ]);
+  const entityOptions = entities.map((e) => ({
+    id: e.id,
+    name: e.company_name || e.name,
+    defaultTaxRate: Number(e.default_tax_rate),
+    smallBusiness: e.small_business,
+  }));
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>➕ Einzelrechnung erstellen</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Manuelle Rechnung mit freien Positionen für einen Kunden – unabhängig
+            von der Mitgliedschaft. Landet als Entwurf; Nummer, PDF und Versand
+            laufen dann wie gewohnt.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ManualInvoiceForm
+            clients={clients.map((c) => ({ id: c.id, name: c.name }))}
+            entities={entityOptions}
+          />
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>🧾 Monatsabrechnung Kunden</CardTitle>
