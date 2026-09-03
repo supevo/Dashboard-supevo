@@ -2631,6 +2631,8 @@ export interface Database {
           task_id: string;
           author_id: string;
           body: string;
+          body_source: string | null;
+          original_body: string | null;
           is_internal: boolean;
           parent_comment_id: string | null;
           edited_at: string | null;
@@ -2644,12 +2646,16 @@ export interface Database {
           task_id: string;
           author_id: string;
           body: string;
+          body_source?: string | null;
+          original_body?: string | null;
           is_internal?: boolean;
           parent_comment_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['comments']['Insert']> & {
           edited_at?: string | null;
           deleted_at?: string | null;
+          body_source?: string | null;
+          original_body?: string | null;
         };
         Relationships: [];
       };

@@ -6,13 +6,16 @@ import { deleteCommentAction, editCommentAction } from '@/features/comments/acti
 import { idleResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { SubmitButton } from '@/components/ui/submit-button';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert } from '@/components/ui/alert';
 import { Avatar } from '@/components/ui/avatar';
+import {
+  MentionTextarea,
+  type MentionMember,
+} from '@/features/comments/components/mention-textarea';
 import type { CommentView } from '@/features/comments/queries';
 
-/** Gespeicherte Kommentare sind HTML (sanitisiert). Für das Bearbeiten-Feld in
- *  eine schlichte Textform bringen (Tags raus, ein paar Entities zurück). */
+/** Fallback für Alt-Kommentare ohne gespeicherten Rohtext: gespeichertes HTML
+ *  grob in schlichten Text bringen (Tags raus, ein paar Entities zurück). */
 function toEditableText(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -28,14 +31,18 @@ function toEditableText(html: string): string {
 export function CommentItem({
   comment,
   hidePresence = false,
+  members = [],
 }: {
   comment: CommentView;
   /** Im Kundenportal wird der Anwesenheitsstatus der Mitarbeiter nicht gezeigt. */
   hidePresence?: boolean;
+  /** Für die @Erwähnungs-Autovervollständigung beim Bearbeiten. */
+  members?: MentionMember[];
 }) {
   const [deleteState, deleteAction] = useActionState(deleteCommentAction, idleResult);
   const [editState, editAction] = useActionState(editCommentAction, idleResult);
   const [editing, setEditing] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -48,6 +55,8 @@ export function CommentItem({
       router.refresh();
     }
   }, [editState, router]);
+
+  const editedLabel = comment.editedAt ? 'bearbeitet' : null;
 
   return (
     <div className="rounded-md border p-3">
@@ -65,7 +74,22 @@ export function CommentItem({
               {comment.authorName}
             </span>{' '}
             · {new Date(comment.createdAt).toLocaleString('de-DE')}
-            {comment.editedAt ? ' · bearbeitet' : ''}
+            {editedLabel &&
+              (comment.originalBody ? (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={() => setShowOriginal((v) => !v)}
+                    className="underline decoration-dotted hover:text-foreground"
+                    title="Originalnachricht anzeigen"
+                  >
+                    {editedLabel}
+                  </button>
+                </>
+              ) : (
+                <> · {editedLabel}</>
+              ))}
             {comment.isInternal && (
               <span className="ml-2 rounded bg-slate-200 px-1 text-slate-700">
                 {de.task.internalComment}
@@ -92,19 +116,30 @@ export function CommentItem({
         )}
       </div>
 
+      {/* Originalfassung (vor der ersten Bearbeitung), einklappbar. */}
+      {showOriginal && comment.originalBody && (
+        <div className="mb-2 rounded-md border border-dashed bg-muted/30 p-2">
+          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Original
+          </p>
+          <div
+            className="prose prose-sm max-w-none text-sm text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: comment.originalBody }}
+          />
+        </div>
+      )}
+
       {editing ? (
         <form action={editAction} className="space-y-2">
           {editState.status === 'error' && (
             <Alert variant="destructive">{editState.message}</Alert>
           )}
           <input type="hidden" name="commentId" value={comment.id} />
-          <Textarea
+          <MentionTextarea
             name="body"
-            defaultValue={toEditableText(comment.body)}
-            rows={3}
-            required
+            members={members}
+            initialValue={comment.bodySource ?? toEditableText(comment.body)}
             autoFocus
-            className="text-sm"
           />
           <div className="flex items-center gap-2">
             <SubmitButton size="sm">Speichern</SubmitButton>

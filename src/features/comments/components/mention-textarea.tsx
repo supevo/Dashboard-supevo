@@ -20,14 +20,19 @@ export function MentionTextarea({
   placeholder,
   required,
   members = [],
+  initialValue = '',
+  autoFocus = false,
 }: {
   name: string;
   placeholder?: string;
   required?: boolean;
   members?: MentionMember[];
+  /** Vorbelegung (Rohtext mit @[Name](id)-Tokens), z. B. beim Bearbeiten. */
+  initialValue?: string;
+  autoFocus?: boolean;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState(initialValue);
   const [query, setQuery] = useState<{ text: string; start: number } | null>(
     null,
   );
@@ -89,6 +94,7 @@ export function MentionTextarea({
         name={name}
         placeholder={placeholder}
         required={required}
+        autoFocus={autoFocus}
         value={value}
         className="pr-11"
         onChange={(e) => {

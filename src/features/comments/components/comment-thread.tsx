@@ -59,12 +59,17 @@ export function CommentThread({
             const replies = repliesByParent.get(c.id) ?? [];
             return (
               <div key={c.id} className="space-y-2">
-                <CommentItem comment={c} hidePresence={hidePresence} />
+                <CommentItem comment={c} hidePresence={hidePresence} members={members} />
 
                 {(replies.length > 0 || replyTo === c.id) && (
                   <div className="ml-4 space-y-2 border-l pl-4">
                     {replies.map((r) => (
-                      <CommentItem key={r.id} comment={r} hidePresence={hidePresence} />
+                      <CommentItem
+                        key={r.id}
+                        comment={r}
+                        hidePresence={hidePresence}
+                        members={members}
+                      />
                     ))}
                     {replyTo === c.id && (
                       <CommentForm

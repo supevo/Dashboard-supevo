@@ -71,6 +71,8 @@ export async function addCommentAction(
       task_id: taskId,
       author_id: user.id,
       body: storedBody,
+      // Rohtext mit @[Name](id)-Tokens für spätere Bearbeitung aufheben.
+      body_source: body,
       is_internal: isInternal === 'true',
       parent_comment_id: rootParentId,
     })
@@ -143,19 +145,77 @@ export async function editCommentAction(
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
-  await requireUser();
-  const cleanBody = sanitizeRichText(parsed.data.body);
+  const user = await requireUser();
+  const rawBody = parsed.data.body;
+  const cleanBody = sanitizeRichText(rawBody);
   if (!cleanBody) return errorResult(de.errors.VALIDATION);
   const storedBody = renderMentions(cleanBody);
+  const mentionedIds = extractMentionUserIds(rawBody);
 
   const supabase = await createSupabaseServerClient();
+
+  // Bestehenden Kommentar laden (Kontext + für die Originalfassung). RLS lässt
+  // nur eigene Kommentare durch; ein fremder Treffer wäre hier ohnehin null.
+  const { data: existing } = await supabase
+    .from('comments')
+    .select(
+      'id, organization_id, task_id, author_id, body, body_source, original_body',
+    )
+    .eq('id', parsed.data.commentId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (!existing || existing.author_id !== user.id) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
+
+  // Erste Fassung EINMALIG festhalten (für „Original lesen").
+  const originalBody = existing.original_body ?? existing.body;
+  // Wer war vorher schon erwähnt? Nur NEU Erwähnte benachrichtigen.
+  const previouslyMentioned = new Set(
+    existing.body_source ? extractMentionUserIds(existing.body_source) : [],
+  );
+
   const { error, count } = await supabase
     .from('comments')
-    .update({ body: storedBody, edited_at: new Date().toISOString() }, { count: 'exact' })
+    .update(
+      {
+        body: storedBody,
+        body_source: rawBody,
+        original_body: originalBody,
+        edited_at: new Date().toISOString(),
+      },
+      { count: 'exact' },
+    )
     .eq('id', parsed.data.commentId);
 
   if (error) return errorResult(de.errors.INTERNAL);
   if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  // Neu hinzugekommene @Erwähnungen benachrichtigen (nie sich selbst).
+  const newlyMentioned = mentionedIds.filter(
+    (uid) => uid !== user.id && !previouslyMentioned.has(uid),
+  );
+  if (newlyMentioned.length > 0) {
+    await supabase.from('comment_mentions').insert(
+      newlyMentioned.map((uid) => ({
+        comment_id: existing.id,
+        mentioned_user_id: uid,
+        organization_id: existing.organization_id,
+      })),
+    );
+    await createNotifications(
+      newlyMentioned.map((uid) => ({
+        organizationId: existing.organization_id,
+        recipientId: uid,
+        type: 'comment_mention' as const,
+        title: 'Sie wurden in einem Kommentar erwähnt',
+        entityType: 'task',
+        entityId: existing.task_id,
+      })),
+      user.id,
+    );
+  }
+
   return successResult('Kommentar aktualisiert.');
 }
 
