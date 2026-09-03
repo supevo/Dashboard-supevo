@@ -39,20 +39,24 @@ export async function GET(
 
   const onedriveItemId = await readOneDriveItemId(supabase, fileId);
 
-  // OneDrive-backed file: log the download, then redirect to the short-lived
-  // pre-authenticated URL (no bytes through our server).
+  // OneDrive-mirrored file: log the download, then redirect to the short-lived
+  // pre-authenticated URL (no bytes through our server). If OneDrive is
+  // unavailable (token expired / integration disconnected), fall back to
+  // streaming the Supabase copy below instead of hard-failing the download.
   if (onedriveItemId) {
     const dl = await getDownloadUrl(file.organization_id, onedriveItemId);
-    if (!dl) return NextResponse.json({ error: de.errors.INTERNAL }, { status: 502 });
-    await logActivity({
-      actorId: user.id,
-      organizationId: file.organization_id,
-      action: 'file_download',
-      entityType: file.task_id ? 'task' : 'file',
-      entityId: file.task_id ?? fileId,
-      metadata: { fileName: file.file_name, fileId, source: 'onedrive' },
-    });
-    return NextResponse.redirect(dl.url);
+    if (dl) {
+      await logActivity({
+        actorId: user.id,
+        organizationId: file.organization_id,
+        action: 'file_download',
+        entityType: file.task_id ? 'task' : 'file',
+        entityId: file.task_id ?? fileId,
+        metadata: { fileName: file.file_name, fileId, source: 'onedrive' },
+      });
+      return NextResponse.redirect(dl.url);
+    }
+    logger.warn('files.download.onedrive_failed', { fileId });
   }
 
   if (!file.storage_path) {

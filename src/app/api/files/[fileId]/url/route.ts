@@ -46,14 +46,16 @@ export async function GET(
 
   const onedriveItemId = await readOneDriveItemId(supabase, fileId);
 
-  let url: string | null;
+  // Prefer the OneDrive URL when the file is mirrored; on failure fall back to a
+  // signed URL for the Supabase copy so preview/download survives an OneDrive
+  // outage (expired token / disconnected integration).
+  let url: string | null = null;
   if (onedriveItemId) {
     const dl = await getDownloadUrl(file.organization_id, onedriveItemId);
     url = dl?.url ?? null;
-  } else if (file.storage_path) {
+  }
+  if (!url && file.storage_path) {
     url = await createSignedFileUrl(supabase, file.storage_path, disposition);
-  } else {
-    url = null;
   }
   if (!url) {
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });

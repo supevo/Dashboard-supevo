@@ -32,11 +32,13 @@ export async function GET(
 
   const onedriveItemId = await readOneDriveItemId(supabase, fileId);
 
-  // OneDrive-backed file: redirect to the pre-authenticated URL for inline view.
+  // OneDrive-mirrored file: prefer the pre-authenticated URL for inline view.
+  // If OneDrive is unavailable (token expired / integration disconnected), fall
+  // back to the Supabase copy below instead of hard-failing the preview.
   if (onedriveItemId) {
     const dl = await getDownloadUrl(file.organization_id, onedriveItemId);
-    if (!dl) return new NextResponse(null, { status: 502 });
-    return NextResponse.redirect(dl.url);
+    if (dl) return NextResponse.redirect(dl.url);
+    logger.warn('files.raw.onedrive_failed', { fileId });
   }
   if (!file.storage_path) return new NextResponse(null, { status: 404 });
 
