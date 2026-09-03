@@ -1,11 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Paperclip } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { AssistantIcon } from '@/features/assistant/components/assistant-icon';
 import { fileToDownscaledDataUrl } from '@/features/assistant/downscale';
+
+/** Erstes Bild aus einer FileList herausziehen. */
+function firstImageFile(files: FileList | null | undefined): File | undefined {
+  if (!files) return undefined;
+  return Array.from(files).find((f) => f.type.startsWith('image/'));
+}
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -29,12 +36,39 @@ export function AssistantChat({ firstName }: { firstName?: string }) {
   const [input, setInput] = useState('');
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages, busy]);
+
+  // Bild per Einfügen (Strg/Cmd+V).
+  function onPaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const it of Array.from(items)) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) {
+        const file = it.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void onPickFile(file);
+          return;
+        }
+      }
+    }
+  }
+
+  // Bild per Drag&Drop.
+  function onDrop(e: React.DragEvent) {
+    const file = firstImageFile(e.dataTransfer?.files);
+    if (file) {
+      e.preventDefault();
+      setDragOver(false);
+      void onPickFile(file);
+    }
+  }
 
   async function onPickFile(file: File | undefined) {
     if (!file) return;
@@ -91,7 +125,21 @@ export function AssistantChat({ firstName }: { firstName?: string }) {
   }
 
   return (
-    <div className="flex h-[calc(100vh-12rem)] min-h-[420px] flex-col rounded-lg border bg-card">
+    <div
+      className={cn(
+        'flex h-[calc(100vh-12rem)] min-h-[420px] flex-col rounded-lg border bg-card',
+        dragOver && 'ring-2 ring-primary ring-offset-2',
+      )}
+      onPaste={onPaste}
+      onDrop={onDrop}
+      onDragOver={(e) => {
+        if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) {
+          e.preventDefault();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+    >
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
         {messages.length === 0 ? (
           <div className="space-y-3">
@@ -196,12 +244,12 @@ export function AssistantChat({ firstName }: { firstName?: string }) {
             type="button"
             variant="outline"
             size="icon"
-            title="Screenshot anhängen"
-            aria-label="Screenshot anhängen"
+            title="Bild/Screenshot anhängen (auch per Einfügen oder Ziehen)"
+            aria-label="Bild anhängen"
             disabled={busy}
             onClick={() => fileRef.current?.click()}
           >
-            📎
+            <Paperclip className="h-4 w-4" />
           </Button>
           <Textarea
             value={input}
