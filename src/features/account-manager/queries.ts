@@ -2,7 +2,6 @@ import 'server-only';
 import { cache } from 'react';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getMyClientCompany } from '@/features/satisfaction/queries';
-import { livePresence } from '@/features/presence/status';
 
 export type AccountManagerRole = 'primary' | 'secondary';
 
@@ -17,7 +16,7 @@ export interface AccountManager {
 }
 
 /** Loads a single agency profile as a client-facing AccountManager (low-
- *  sensitivity name/avatar/status only), or null if the profile is gone. */
+ *  sensitivity name/avatar only; presence status is withheld from clients), or null if the profile is gone. */
 async function loadManager(
   service: ReturnType<typeof createSupabaseServiceClient>,
   managerId: string,
@@ -26,7 +25,7 @@ async function loadManager(
 ): Promise<AccountManager | null> {
   const { data: p } = await service
     .from('profiles')
-    .select('id, full_name, avatar_url, status, last_seen_at, email, phone')
+    .select('id, full_name, avatar_url, email, phone')
     .eq('id', managerId)
     .maybeSingle();
   if (!p) return null;
@@ -34,7 +33,9 @@ async function loadManager(
     userId: p.id,
     name: p.full_name ?? fallbackName,
     hasAvatar: Boolean(p.avatar_url),
-    status: livePresence(p.status, p.last_seen_at),
+    // Der Anwesenheits-/Aktivitätsstatus der Mitarbeiter wird Kunden bewusst
+    // NICHT angezeigt (nur Name/Avatar/Kontakt sind für sie sichtbar).
+    status: null,
     email: p.email ?? null,
     phone: p.phone ?? null,
     role,
@@ -44,7 +45,7 @@ async function loadManager(
 /**
  * The main + deputy account managers for the logged-in client. Read via the
  * service client because the client cannot see agency profiles through RLS;
- * only the low-sensitivity name/avatar/status is exposed.
+ * only the low-sensitivity name/avatar/contact is exposed (no presence status).
  */
 export const getMyAccountManagers = cache(async function getMyAccountManagers(): Promise<{
   primary: AccountManager | null;

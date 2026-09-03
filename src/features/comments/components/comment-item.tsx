@@ -9,7 +9,14 @@ import { SubmitButton } from '@/components/ui/submit-button';
 import { Avatar } from '@/components/ui/avatar';
 import type { CommentView } from '@/features/comments/queries';
 
-export function CommentItem({ comment }: { comment: CommentView }) {
+export function CommentItem({
+  comment,
+  hidePresence = false,
+}: {
+  comment: CommentView;
+  /** Im Kundenportal wird der Anwesenheitsstatus der Mitarbeiter nicht gezeigt. */
+  hidePresence?: boolean;
+}) {
   const [state, formAction] = useActionState(deleteCommentAction, idleResult);
   const router = useRouter();
 
@@ -25,7 +32,7 @@ export function CommentItem({ comment }: { comment: CommentView }) {
             userId={comment.authorId}
             name={comment.authorName}
             hasAvatar={comment.authorHasAvatar}
-            status={comment.authorStatus}
+            status={hidePresence ? null : comment.authorStatus}
             size="md"
           />
           <span>

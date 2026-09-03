@@ -159,7 +159,7 @@ export default async function PortalTaskPage({
           ) : (
             <div className="space-y-2">
               {comments.map((c) => (
-                <CommentItem key={c.id} comment={c} />
+                <CommentItem key={c.id} comment={c} hidePresence />
               ))}
             </div>
           )}
