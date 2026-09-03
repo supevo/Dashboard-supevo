@@ -19,12 +19,21 @@ export function CommentForm({
   taskId,
   allowInternal = true,
   members = [],
+  parentCommentId,
+  compact = false,
+  onDone,
 }: {
   orgId: string;
   projectId: string;
   taskId: string;
   allowInternal?: boolean;
   members?: MentionMember[];
+  /** Gesetzt, wenn dies eine Antwort auf einen Kommentar ist. */
+  parentCommentId?: string;
+  /** Kompakte Darstellung für Inline-Antworten (kleinere Buttons, kein Hinweis). */
+  compact?: boolean;
+  /** Nach erfolgreichem Absenden aufgerufen (z. B. Antwort-Feld schließen). */
+  onDone?: () => void;
 }) {
   const [state, formAction] = useActionState(addCommentAction, idleResult);
   const router = useRouter();
@@ -37,8 +46,9 @@ export function CommentForm({
       formRef.current?.reset();
       setResetKey((k) => k + 1);
       router.refresh();
+      onDone?.();
     }
-  }, [state, router]);
+  }, [state, router, onDone]);
 
   return (
     <form ref={formRef} action={formAction} className="space-y-2">
@@ -48,17 +58,20 @@ export function CommentForm({
       <input type="hidden" name="orgId" value={orgId} />
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="taskId" value={taskId} />
+      {parentCommentId && (
+        <input type="hidden" name="parentCommentId" value={parentCommentId} />
+      )}
       <MentionTextarea
         key={resetKey}
         name="body"
-        placeholder={de.task.addComment}
+        placeholder={parentCommentId ? 'Antwort schreiben …' : de.task.addComment}
         required
         members={members}
       />
-      {members.length > 0 && (
+      {!compact && members.length > 0 && (
         <p className="text-xs text-muted-foreground">{de.task.mentionHintShort}</p>
       )}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         {allowInternal ? (
           <Select name="isInternal" defaultValue="true" className="h-9 w-auto">
             <option value="true">{de.task.internalComment}</option>
@@ -67,7 +80,20 @@ export function CommentForm({
         ) : (
           <input type="hidden" name="isInternal" value="false" />
         )}
-        <SubmitButton size="sm">{de.task.addComment}</SubmitButton>
+        <div className="flex items-center gap-2">
+          {compact && onDone && (
+            <button
+              type="button"
+              onClick={onDone}
+              className="rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted"
+            >
+              Abbrechen
+            </button>
+          )}
+          <SubmitButton size="sm">
+            {parentCommentId ? 'Antworten' : de.task.addComment}
+          </SubmitButton>
+        </div>
       </div>
     </form>
   );

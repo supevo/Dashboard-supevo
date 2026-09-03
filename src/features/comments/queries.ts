@@ -13,6 +13,8 @@ export interface CommentView {
   createdAt: string;
   editedAt: string | null;
   canEdit: boolean;
+  /** null = Top-Level-Kommentar; sonst die id des beantworteten Kommentars. */
+  parentCommentId: string | null;
 }
 
 /** Lists comments for a task. RLS hides internal comments from clients. */
@@ -23,7 +25,7 @@ export async function listTaskComments(
   const supabase = await createSupabaseServerClient();
   const { data: comments } = await supabase
     .from('comments')
-    .select('id, body, is_internal, author_id, created_at, edited_at')
+    .select('id, body, is_internal, author_id, created_at, edited_at, parent_comment_id')
     .eq('task_id', taskId)
     .is('deleted_at', null)
     .order('created_at', { ascending: true });
@@ -60,5 +62,6 @@ export async function listTaskComments(
     createdAt: c.created_at,
     editedAt: c.edited_at,
     canEdit: c.author_id === currentUserId,
+    parentCommentId: c.parent_comment_id ?? null,
   }));
 }

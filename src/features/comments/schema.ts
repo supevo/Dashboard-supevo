@@ -6,6 +6,8 @@ export const addCommentSchema = z.object({
   taskId: z.string().uuid(),
   body: z.string().min(1, 'Kommentar darf nicht leer sein.').max(10000),
   isInternal: z.enum(['true', 'false']).default('true'),
+  // Antwort auf einen bestehenden Kommentar (nur eine Ebene).
+  parentCommentId: z.string().uuid().optional().or(z.literal('')),
 });
 export type AddCommentInput = z.infer<typeof addCommentSchema>;
 

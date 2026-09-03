@@ -261,6 +261,7 @@ export const de = {
   notificationType: {
     task_assigned: 'Aufgabe zugewiesen',
     comment_mention: 'Erwähnung',
+    comment_reply: 'Antwort auf Kommentar',
     client_comment: 'Kundenkommentar',
     internal_question: 'Interne Rückfrage',
     task_in_review: 'Zur Überprüfung',

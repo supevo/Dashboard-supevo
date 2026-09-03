@@ -8,8 +8,7 @@ import { listTaskFiles } from '@/features/files/queries';
 import { listTaskLabels } from '@/features/labels/queries';
 import { LabelChip } from '@/components/ui/label-chip';
 import { listProjectApprovals } from '@/features/approvals/queries';
-import { CommentForm } from '@/features/comments/components/comment-form';
-import { CommentItem } from '@/features/comments/components/comment-item';
+import { CommentThread } from '@/features/comments/components/comment-thread';
 import { FileUploader } from '@/features/files/components/file-uploader';
 import { FileItem } from '@/features/files/components/file-item';
 import { DecideApprovalForm } from '@/features/approvals/components/decide-approval-form';
@@ -148,21 +147,14 @@ export default async function PortalTaskPage({
           <CardTitle>{de.portal.feedback}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <CommentForm
+          <CommentThread
             orgId={task.organizationId}
             projectId={projectId}
             taskId={taskId}
+            comments={comments}
             allowInternal={false}
+            hidePresence
           />
-          {comments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{de.task.noComments}</p>
-          ) : (
-            <div className="space-y-2">
-              {comments.map((c) => (
-                <CommentItem key={c.id} comment={c} hidePresence />
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

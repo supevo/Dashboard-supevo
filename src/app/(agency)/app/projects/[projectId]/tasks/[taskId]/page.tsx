@@ -10,8 +10,7 @@ import { AutoAssignButton } from '@/features/tasks/components/auto-assign-button
 import { listTaskComments } from '@/features/comments/queries';
 import { listTaskFiles } from '@/features/files/queries';
 import { listTaskChecklists } from '@/features/checklists/queries';
-import { CommentForm } from '@/features/comments/components/comment-form';
-import { CommentItem } from '@/features/comments/components/comment-item';
+import { CommentThread } from '@/features/comments/components/comment-thread';
 import { FileUploader } from '@/features/files/components/file-uploader';
 import { FileItem } from '@/features/files/components/file-item';
 import { getOneDriveStatus } from '@/features/onedrive/queries';
@@ -227,23 +226,13 @@ export default async function TaskDetailPage({
               <CardTitle>{de.task.comments}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <CommentForm
+              <CommentThread
                 orgId={task.organizationId}
                 projectId={projectId}
                 taskId={taskId}
+                comments={comments}
                 members={members}
               />
-              {comments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {de.task.noComments}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {comments.map((c) => (
-                    <CommentItem key={c.id} comment={c} />
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>

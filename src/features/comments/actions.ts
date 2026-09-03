@@ -32,9 +32,10 @@ export async function addCommentAction(
     taskId: formData.get('taskId'),
     body: formData.get('body'),
     isInternal: formData.get('isInternal') ?? 'true',
+    parentCommentId: formData.get('parentCommentId') ?? '',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
-  const { orgId, projectId, taskId, body, isInternal } = parsed.data;
+  const { orgId, projectId, taskId, body, isInternal, parentCommentId } = parsed.data;
 
   const user = await requireUser();
   const cleanBody = sanitizeRichText(body);
@@ -44,6 +45,24 @@ export async function addCommentAction(
   const storedBody = renderMentions(cleanBody);
 
   const supabase = await createSupabaseServerClient();
+
+  // Antwort? Eltern-Kommentar auflösen und auf EINE Ebene begrenzen: eine
+  // Antwort auf eine Antwort wird an den Wurzel-Kommentar gehängt.
+  let rootParentId: string | null = null;
+  let parentAuthorId: string | null = null;
+  if (parentCommentId) {
+    const { data: parent } = await supabase
+      .from('comments')
+      .select('id, author_id, parent_comment_id, task_id')
+      .eq('id', parentCommentId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (parent && parent.task_id === taskId) {
+      rootParentId = parent.parent_comment_id ?? parent.id;
+      parentAuthorId = parent.author_id;
+    }
+  }
+
   const { data: comment, error } = await supabase
     .from('comments')
     .insert({
@@ -53,11 +72,30 @@ export async function addCommentAction(
       author_id: user.id,
       body: storedBody,
       is_internal: isInternal === 'true',
+      parent_comment_id: rootParentId,
     })
     .select('id')
     .single();
 
   if (error || !comment) return errorResult(de.errors.FORBIDDEN);
+
+  // Verfasser:in des beantworteten Kommentars benachrichtigen (nie sich selbst,
+  // und nicht doppelt, wenn die Person ohnehin per @Erwähnung dran ist).
+  if (parentAuthorId && parentAuthorId !== user.id && !mentionedIds.includes(parentAuthorId)) {
+    await createNotifications(
+      [
+        {
+          organizationId: orgId,
+          recipientId: parentAuthorId,
+          type: 'comment_reply' as const,
+          title: 'Neue Antwort auf Ihren Kommentar',
+          entityType: 'task',
+          entityId: taskId,
+        },
+      ],
+      user.id,
+    );
+  }
 
   // Mentions -> mention rows + notifications (never notify self).
   if (mentionedIds.length > 0) {
@@ -91,6 +129,7 @@ export async function addCommentAction(
   });
 
   revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
+  revalidatePath(`/portal/projects/${projectId}/tasks/${taskId}`);
   return successResult('Kommentar hinzugefügt.');
 }
 

@@ -39,6 +39,7 @@ export type ApprovalStatus =
 export type NotificationType =
   | 'task_assigned'
   | 'comment_mention'
+  | 'comment_reply'
   | 'client_comment'
   | 'internal_question'
   | 'task_in_review'
@@ -2631,6 +2632,7 @@ export interface Database {
           author_id: string;
           body: string;
           is_internal: boolean;
+          parent_comment_id: string | null;
           edited_at: string | null;
           created_at: string;
           deleted_at: string | null;
@@ -2643,6 +2645,7 @@ export interface Database {
           author_id: string;
           body: string;
           is_internal?: boolean;
+          parent_comment_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['comments']['Insert']> & {
           edited_at?: string | null;
