@@ -10,6 +10,8 @@ export interface ChatChannel {
   isPrivate: boolean;
   /** 'channel' | 'dm' | 'client'. Client channels hide stickers. */
   kind: string;
+  /** Bei kind === 'client': die zugehörige Kundenfirma (für den Chat-Digest). */
+  clientCompanyId?: string | null;
 }
 
 export interface DmConversation {
@@ -259,6 +261,7 @@ export async function listClientChannels(orgId: string): Promise<ChatChannel[]> 
       description: c.description,
       isPrivate: c.is_private,
       kind: 'client',
+      clientCompanyId: c.client_company_id,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
+import { ChatDigestButton } from '@/features/chat-digest/components/chat-digest-button';
 import { PollBlock } from '@/features/messenger/components/poll-block';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
@@ -271,6 +272,12 @@ function MessagePane({
             )}
           </div>
           <div className="flex items-center gap-1">
+            {channel.kind === 'client' && channel.clientCompanyId && (
+              <ChatDigestButton
+                clientCompanyId={channel.clientCompanyId}
+                channelId={channel.id}
+              />
+            )}
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
