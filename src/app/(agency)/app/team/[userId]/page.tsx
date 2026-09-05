@@ -213,17 +213,20 @@ export default async function ColleagueProfilePage({
           <CardTitle>{t.skillsTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {p.skills.length + p.preferences.length >= 3 && (
+          {/* Radar NUR mit fachlichen Fähigkeiten – gleiche Achsen wie die
+              Lieblingsarbeit. Soft Skills haben ihren eigenen Radar darunter. */}
+          {p.skills.filter((s) => !isSoftSkill(s.name)).length + p.preferences.length >= 3 && (
             <SkillRadar
-              skills={p.skills.map((s) => ({ label: s.name, level: s.level }))}
+              skills={p.skills
+                .filter((s) => !isSoftSkill(s.name))
+                .map((s) => ({ label: s.name, level: s.level }))}
               preferences={p.preferences.map((pref) => ({
                 label: pref.name,
                 level: pref.level,
               }))}
             />
           )}
-          {/* Nur fachliche Fähigkeiten hier; Soft Skills in eigener Karte darunter.
-              Das Radar zeigt weiterhin beides. */}
+          {/* Nur fachliche Fähigkeiten hier; Soft Skills in eigener Karte darunter. */}
           {p.skills.some((s) => !isSoftSkill(s.name)) ? (
             <ul className="space-y-2">
               {p.skills
@@ -283,7 +286,15 @@ export default async function ColleagueProfilePage({
           <CardHeader>
             <CardTitle>{t.skillsSoft}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {/* Eigener Radar für die persönlichen Kompetenzen (ohne Lieblingsarbeit). */}
+            {p.skills.filter((s) => isSoftSkill(s.name)).length >= 3 && (
+              <SkillRadar
+                skills={p.skills
+                  .filter((s) => isSoftSkill(s.name))
+                  .map((s) => ({ label: s.name, level: s.level }))}
+              />
+            )}
             <ul className="space-y-2">
               {p.skills
                 .filter((s) => isSoftSkill(s.name))

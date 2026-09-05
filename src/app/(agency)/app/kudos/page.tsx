@@ -441,9 +441,15 @@ export default async function KudosPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {hub.skills.length + hub.preferences.length >= 3 && (
+              {/* Radar NUR mit fachlichen Fähigkeiten – so teilen sich Fähigkeiten
+                  und Lieblingsarbeit dieselben Achsen. Soft Skills haben ihren
+                  eigenen Radar (Karte „Persönliche Kompetenzen"), sonst würde die
+                  Lieblingsarbeit auf den Soft-Skill-Achsen zur Mitte einbrechen. */}
+              {hub.skills.filter((s) => !isSoftSkill(s.name)).length + hub.preferences.length >= 3 && (
                 <SkillRadar
-                  skills={hub.skills.map((s) => ({ label: s.name, level: s.level }))}
+                  skills={hub.skills
+                    .filter((s) => !isSoftSkill(s.name))
+                    .map((s) => ({ label: s.name, level: s.level }))}
                   preferences={hub.preferences.map((p) => ({
                     label: p.name,
                     level: p.level,
@@ -451,7 +457,7 @@ export default async function KudosPage() {
                 />
               )}
               {/* Nur fachliche Fähigkeiten hier; Soft Skills stehen in einer
-                  eigenen Karte darunter. Das Radar zeigt weiterhin beides. */}
+                  eigenen Karte darunter. */}
               {hub.skills.some((s) => !isSoftSkill(s.name)) ? (
                 <ul className="space-y-2">
                   {hub.skills
@@ -511,7 +517,16 @@ export default async function KudosPage() {
               <CardHeader>
                 <CardTitle>{t.skillsSoft}</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                {/* Eigener Radar für die persönlichen Kompetenzen (ohne
+                    Lieblingsarbeit – die gibt es hier nicht). */}
+                {hub.skills.filter((s) => isSoftSkill(s.name)).length >= 3 && (
+                  <SkillRadar
+                    skills={hub.skills
+                      .filter((s) => isSoftSkill(s.name))
+                      .map((s) => ({ label: s.name, level: s.level }))}
+                  />
+                )}
                 <ul className="space-y-2">
                   {hub.skills
                     .filter((s) => isSoftSkill(s.name))
