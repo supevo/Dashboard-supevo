@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, type TabDef } from '@/components/ui/tabs';
 import { requireOrgAdminPage } from '@/lib/authz/page-guards';
-import { isOrgAdmin } from '@/lib/authz/policies';
+import { isOrgAdmin, isSuperAdmin } from '@/lib/authz/policies';
+import { ResetGamificationPanel } from '@/features/gamification/components/reset-gamification-panel';
 import { getCurrentUser } from '@/features/auth/session';
 import { listOrgChallenges } from '@/features/gamification/custom-challenges';
 import { METRIC_OPTIONS } from '@/features/gamification/challenge-metrics';
@@ -135,6 +136,20 @@ export default async function MotivationPage({
               />
             </CardContent>
           </Card>
+          {user && isSuperAdmin(user) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>♻️ XP, Ränge &amp; Coins zurücksetzen</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Setzt XP/Level und Coins zurück (alle oder eine Person). Badges,
+                  Titelbilder und Inventar bleiben erhalten. Nur Super-Admin.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ResetGamificationPanel orgId={orgId} colleagues={colleagues} />
+              </CardContent>
+            </Card>
+          )}
         </>
       ),
     },
