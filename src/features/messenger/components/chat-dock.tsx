@@ -185,7 +185,11 @@ function ConversationView({
   useEffect(() => {
     // Neuladen erfolgt bereits in der Action (optimistisches Senden) – hier nur
     // das Eingabefeld leeren.
-    if (state.status === 'success') formRef.current?.reset();
+    if (state.status === 'success') {
+      formRef.current?.reset();
+      // Auto-Grow-Höhe wieder auf Standard zurücksetzen.
+      if (inputRef.current) inputRef.current.style.height = '';
+    }
   }, [state]);
 
   useEffect(() => {
@@ -265,10 +269,16 @@ function ConversationView({
           ref={inputRef}
           name="body"
           required
-          rows={1}
+          rows={2}
           placeholder={de.messenger.messagePlaceholder}
-          className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
-          onChange={notifyTyping}
+          className="max-h-60 min-h-[56px] flex-1 resize-none text-sm leading-relaxed"
+          onChange={(e) => {
+            notifyTyping();
+            // Mitwachsen wie in Slack: Höhe an den Inhalt anpassen (bis max-h-60).
+            const el = e.currentTarget;
+            el.style.height = 'auto';
+            el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+          }}
           onPaste={(e) => {
             const f = pastedImageFile(e.clipboardData?.items);
             if (!f) return;
