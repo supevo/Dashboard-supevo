@@ -50,6 +50,14 @@ const POLL_MS = 5000;
 const OVERVIEW_POLL_MS = 30000;
 const OPEN_KEY = 'chatDockOpen';
 const ACTIVE_KEY = 'chatDockChannel';
+const SIDEBAR_KEY = 'chatDockSidebarCollapsed';
+
+/** Kürzel aus einem Namen (2 Buchstaben) für die eingeklappte Sidebar. */
+function abbrev(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return ((parts[0]![0] ?? '') + (parts[1]![0] ?? '')).toUpperCase();
+  return name.trim().slice(0, 2).toUpperCase() || '–';
+}
 
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
@@ -537,11 +545,24 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [creating, setCreating] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     setOpen(localStorage.getItem(OPEN_KEY) === '1');
     setActiveId(localStorage.getItem(ACTIVE_KEY));
+    try {
+      setSidebarCollapsed(localStorage.getItem(SIDEBAR_KEY) === '1');
+    } catch {
+      /* ignore */
+    }
   }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed]);
   useEffect(() => {
     localStorage.setItem(OPEN_KEY, open ? '1' : '0');
     // Andere schwebende Docks (Assistent/Coach) blenden ihre Buttons aus,
@@ -772,28 +793,50 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-44 shrink-0 flex-col overflow-y-auto border-r sm:w-52">
-          {/* Direct messages */}
-          <div className="flex items-center justify-between px-2 pt-2">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">
-              {de.messenger.directMessages}
-            </span>
+        <aside
+          className={cn(
+            'flex shrink-0 flex-col overflow-y-auto border-r transition-[width]',
+            sidebarCollapsed ? 'w-[3.25rem]' : 'w-44 sm:w-52',
+          )}
+        >
+          {/* Ein-/Ausklappen */}
+          <div className={cn('flex px-2 pt-2', sidebarCollapsed ? 'justify-center' : 'justify-end')}>
             <button
               type="button"
-              onClick={() => setStartingDm((v) => !v)}
-              className="rounded px-1.5 text-base leading-none text-muted-foreground hover:bg-muted"
-              title={de.messenger.newDm}
-              aria-label={de.messenger.newDm}
+              onClick={() => setSidebarCollapsed((v) => !v)}
+              title={sidebarCollapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'}
+              aria-label="Seitenleiste ein- oder ausklappen"
+              className="rounded px-1.5 py-0.5 text-sm leading-none text-muted-foreground hover:bg-muted"
             >
-              +
+              {sidebarCollapsed ? '»' : '«'}
             </button>
           </div>
-          {dmError && (
+
+          {/* Direct messages */}
+          {!sidebarCollapsed ? (
+            <div className="flex items-center justify-between px-2 pt-1">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
+                {de.messenger.directMessages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setStartingDm((v) => !v)}
+                className="rounded px-1.5 text-base leading-none text-muted-foreground hover:bg-muted"
+                title={de.messenger.newDm}
+                aria-label={de.messenger.newDm}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <div className="mx-2 mt-1 border-t" title={de.messenger.directMessages} />
+          )}
+          {dmError && !sidebarCollapsed && (
             <Alert variant="destructive" className="mx-1.5 mb-1 text-[11px]">
               {dmError}
             </Alert>
           )}
-          {startingDm && (
+          {startingDm && !sidebarCollapsed && (
             <div className="mx-1.5 mb-1 max-h-28 space-y-0.5 overflow-y-auto rounded border p-1">
               {members.filter((m) => !dmMemberIds.has(m.userId)).length === 0 ? (
                 <p className="px-1 py-0.5 text-[11px] text-muted-foreground">–</p>
@@ -814,42 +857,53 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               )}
             </div>
           )}
-          <div className="space-y-0.5 px-1.5 pb-1">
+          <div className={cn('space-y-0.5 pb-1', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
             {dms.map((d) => (
               <button
                 key={d.id}
                 type="button"
                 onClick={() => setActiveId(d.id)}
+                title={sidebarCollapsed ? d.otherName : undefined}
                 className={cn(
-                  'flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                  'flex w-full items-center rounded hover:bg-muted',
+                  sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1.5 px-2 py-1.5 text-left text-sm',
                   activeId === d.id
                     ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground',
                 )}
               >
-                <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
-                <span className="truncate">{d.otherName}</span>
-                {activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
+                <span className="relative">
+                  <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
+                  {sidebarCollapsed && activeId !== d.id && (unread[d.id] ?? 0) > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
+                  )}
+                </span>
+                {!sidebarCollapsed && <span className="truncate">{d.otherName}</span>}
+                {!sidebarCollapsed && activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
               </button>
             ))}
           </div>
 
           {/* Channels */}
-          <div className="mt-1 flex items-center justify-between px-2 pt-1">
-            <span className="text-xs font-semibold uppercase text-muted-foreground">
-              {de.messenger.channels}
-            </span>
-            <button
-              type="button"
-              onClick={() => setCreating((v) => !v)}
-              className="rounded px-1.5 text-base leading-none text-muted-foreground hover:bg-muted"
-              title={de.messenger.newChannel}
-              aria-label={de.messenger.newChannel}
-            >
-              +
-            </button>
-          </div>
-          {creating && (
+          {!sidebarCollapsed ? (
+            <div className="mt-1 flex items-center justify-between px-2 pt-1">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">
+                {de.messenger.channels}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCreating((v) => !v)}
+                className="rounded px-1.5 text-base leading-none text-muted-foreground hover:bg-muted"
+                title={de.messenger.newChannel}
+                aria-label={de.messenger.newChannel}
+              >
+                +
+              </button>
+            </div>
+          ) : (
+            <div className="mx-2 mt-1 border-t" title={de.messenger.channels} />
+          )}
+          {creating && !sidebarCollapsed && (
             <CreateChannel
               members={members}
               onCreated={() => {
@@ -858,28 +912,43 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               }}
             />
           )}
-          <nav className="space-y-0.5 px-1.5 pb-2">
+          <nav className={cn('space-y-0.5 pb-2', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
             {channels.length === 0 ? (
-              <p className="px-2 py-2 text-[11px] text-muted-foreground">
-                {de.messenger.noChannels}
-              </p>
+              !sidebarCollapsed && (
+                <p className="px-2 py-2 text-[11px] text-muted-foreground">
+                  {de.messenger.noChannels}
+                </p>
+              )
             ) : (
               channels.map((c) => (
                 <button
                   key={c.id}
                   type="button"
                   onClick={() => setActiveId(c.id)}
+                  title={sidebarCollapsed ? c.name : undefined}
                   className={cn(
-                    'flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                    'flex w-full items-center rounded hover:bg-muted',
+                    sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
                     activeId === c.id
                       ? 'bg-muted font-medium text-foreground'
                       : 'text-muted-foreground',
                   )}
                 >
-                  <span className="truncate">
-                    {c.isPrivate ? '🔒' : '#'} {c.name}
-                  </span>
-                  {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
+                  {sidebarCollapsed ? (
+                    <span className="relative flex h-8 w-8 items-center justify-center rounded-md border text-[10px] font-semibold uppercase">
+                      {c.isPrivate ? '🔒' : abbrev(c.name)}
+                      {activeId !== c.id && (unread[c.id] ?? 0) > 0 && (
+                        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
+                      )}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="truncate">
+                        {c.isPrivate ? '🔒' : '#'} {c.name}
+                      </span>
+                      {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
+                    </>
+                  )}
                 </button>
               ))
             )}
@@ -888,26 +957,43 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           {/* Client chats (Kunde ↔ Ansprechpartner) */}
           {clientChannels.length > 0 && (
             <>
-              <div className="mt-1 px-2 pt-1">
-                <span className="text-xs font-semibold uppercase text-muted-foreground">
-                  {de.messenger.clients}
-                </span>
-              </div>
-              <nav className="space-y-0.5 px-1.5 pb-2">
+              {!sidebarCollapsed ? (
+                <div className="mt-1 px-2 pt-1">
+                  <span className="text-xs font-semibold uppercase text-muted-foreground">
+                    {de.messenger.clients}
+                  </span>
+                </div>
+              ) : (
+                <div className="mx-2 mt-1 border-t" title={de.messenger.clients} />
+              )}
+              <nav className={cn('space-y-0.5 pb-2', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
                 {clientChannels.map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => setActiveId(c.id)}
+                    title={sidebarCollapsed ? c.name : undefined}
                     className={cn(
-                      'flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-sm hover:bg-muted',
+                      'flex w-full items-center rounded hover:bg-muted',
+                      sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
                       activeId === c.id
                         ? 'bg-muted font-medium text-foreground'
                         : 'text-muted-foreground',
                     )}
                   >
-                    <span className="truncate">👤 {c.name}</span>
-                    {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
+                    {sidebarCollapsed ? (
+                      <span className="relative flex h-8 w-8 items-center justify-center rounded-md border bg-primary/5 text-[10px] font-semibold uppercase">
+                        {abbrev(c.name)}
+                        {activeId !== c.id && (unread[c.id] ?? 0) > 0 && (
+                          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
+                        )}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="truncate">👤 {c.name}</span>
+                        {activeId !== c.id && <UnreadBadge count={unread[c.id] ?? 0} />}
+                      </>
+                    )}
                   </button>
                 ))}
               </nav>
