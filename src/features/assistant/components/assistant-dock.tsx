@@ -37,8 +37,16 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
   const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [teamchatOpen, setTeamchatOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Button ausblenden, solange der Team-Chat offen ist (sonst Überlappung).
+  useEffect(() => {
+    const h = (e: Event) => setTeamchatOpen(Boolean((e as CustomEvent).detail));
+    window.addEventListener('supevo:teamchat', h);
+    return () => window.removeEventListener('supevo:teamchat', h);
+  }, []);
 
   function onPaste(e: React.ClipboardEvent) {
     const items = e.clipboardData?.items;
@@ -133,6 +141,7 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
   }
 
   if (!open) {
+    if (teamchatOpen) return null;
     return (
       <button
         type="button"

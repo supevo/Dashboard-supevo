@@ -32,6 +32,8 @@ import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
+import { uploadChatFile, pastedImageFile } from '@/features/messenger/upload-chat-file';
+import { ChatSoundPicker } from '@/features/messenger/components/chat-sound-picker';
 import { PollBlock } from '@/features/messenger/components/poll-block';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { FileBlock } from '@/features/messenger/components/messenger';
@@ -122,6 +124,9 @@ function ConversationView({
   );
   const formRef = useRef<HTMLFormElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Nur automatisch nach unten scrollen, wenn man ohnehin (fast) unten ist –
+  // beim Nachlesen weiter oben nicht mehr wegspringen.
+  const stickToBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -184,13 +189,23 @@ function ConversationView({
   }, [state]);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    if (stickToBottom.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    }
   }, [optimisticMessages]);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">{title}</div>
-      <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-3">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stickToBottom.current =
+            el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+        className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-3"
+      >
         {optimisticMessages.length === 0 ? (
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
@@ -254,6 +269,15 @@ function ConversationView({
           placeholder={de.messenger.messagePlaceholder}
           className="max-h-24 min-h-[38px] flex-1 resize-none text-sm"
           onChange={notifyTyping}
+          onPaste={(e) => {
+            const f = pastedImageFile(e.clipboardData?.items);
+            if (!f) return;
+            e.preventDefault();
+            setUploadError(null);
+            void uploadChatFile(channelId, f).then((r) =>
+              r.ok ? void load() : setUploadError(r.error ?? 'Upload fehlgeschlagen.'),
+            );
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -366,6 +390,9 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   }, []);
   useEffect(() => {
     localStorage.setItem(OPEN_KEY, open ? '1' : '0');
+    // Andere schwebende Docks (Assistent/Coach) blenden ihre Buttons aus,
+    // solange der Team-Chat offen ist, damit sie sich nicht überlappen.
+    window.dispatchEvent(new CustomEvent('supevo:teamchat', { detail: open }));
   }, [open]);
   useEffect(() => {
     if (activeId) localStorage.setItem(ACTIVE_KEY, activeId);
@@ -576,15 +603,18 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       </div>
       <div className="flex items-center justify-between border-b px-3 py-2 pl-5">
         <span className="text-sm font-semibold">{de.messenger.title}</span>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="rounded px-2 text-lg leading-none text-muted-foreground hover:bg-muted"
-          aria-label={de.common.close}
-          title={de.common.close}
-        >
-          –
-        </button>
+        <div className="flex items-center gap-1">
+          <ChatSoundPicker />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="rounded px-2 text-lg leading-none text-muted-foreground hover:bg-muted"
+            aria-label={de.common.close}
+            title={de.common.close}
+          >
+            –
+          </button>
+        </div>
       </div>
 
       <div className="flex min-h-0 flex-1">

@@ -33,8 +33,16 @@ export function CoachDock({ firstName }: { firstName?: string }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [teamchatOpen, setTeamchatOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  // Button ausblenden, solange der Team-Chat offen ist (sonst Überlappung).
+  useEffect(() => {
+    const h = (e: Event) => setTeamchatOpen(Boolean((e as CustomEvent).detail));
+    window.addEventListener('supevo:teamchat', h);
+    return () => window.removeEventListener('supevo:teamchat', h);
+  }, []);
 
   useEffect(() => {
     try {
@@ -87,6 +95,7 @@ export function CoachDock({ firstName }: { firstName?: string }) {
   }
 
   if (!open) {
+    if (teamchatOpen) return null;
     return (
       <button
         type="button"

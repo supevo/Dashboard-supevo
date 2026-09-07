@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { uploadChatFile } from '@/features/messenger/upload-chat-file';
 
 /**
  * 📎 attachment button + hidden file input encapsulating the direct-to-storage
@@ -27,61 +28,14 @@ export function ChatAttachButton({
   async function uploadFile(file: File) {
     onError?.(null);
     setUploading(true);
-    try {
-      const createRes = await fetch('/api/chat-files/create-upload-url', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          channelId,
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-        }),
-      });
-      const created = (await createRes.json()) as {
-        path?: string;
-        token?: string;
-        storagePath?: string;
-        error?: string;
-      };
-      if (!createRes.ok || !created.path || !created.token || !created.storagePath) {
-        onError?.(created.error ?? 'Upload fehlgeschlagen.');
-        return;
-      }
-      const { createSupabaseBrowserClient } = await import('@/lib/supabase/client');
-      const supabase = createSupabaseBrowserClient();
-      const { error: upErr } = await supabase.storage
-        .from('files')
-        .uploadToSignedUrl(created.path, created.token, file, {
-          contentType: file.type,
-        });
-      if (upErr) {
-        onError?.('Upload fehlgeschlagen.');
-        return;
-      }
-      const finRes = await fetch('/api/chat-files/finalize', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          channelId,
-          storagePath: created.storagePath,
-          fileName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-        }),
-      });
-      const fin = (await finRes.json()) as { ok?: boolean; error?: string };
-      if (!finRes.ok || !fin.ok) {
-        onError?.(fin.error ?? 'Upload fehlgeschlagen.');
-        return;
-      }
-      onUploaded();
-    } catch {
-      onError?.('Upload fehlgeschlagen.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    const res = await uploadChatFile(channelId, file);
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!res.ok) {
+      onError?.(res.error ?? 'Upload fehlgeschlagen.');
+      return;
     }
+    onUploaded();
   }
 
   return (
