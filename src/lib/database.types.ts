@@ -3427,6 +3427,8 @@ export interface Database {
           payment_method: MembershipPaymentMethod;
           status: MembershipBillingStatus;
           start_date: string;
+          /** Vertragliche Mindestlaufzeit in Monaten (NULL = ohne feste Laufzeit). */
+          term_months: number | null;
           next_invoice_date: string | null;
           auto_send: boolean;
           mandate_reference: string | null;

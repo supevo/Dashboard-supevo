@@ -32,6 +32,7 @@ import {
   MessageSquare,
   KeyRound,
   Wallet,
+  BadgeEuro,
   Plug,
   ShieldAlert,
   Briefcase,
@@ -85,6 +86,7 @@ function buildNavItems(
     ...(superAdmin
       ? [
           { href: '/app/finance', label: 'Finanzen', icon: <Wallet /> },
+          { href: '/app/memberships', label: 'Mitgliedschaften', icon: <BadgeEuro /> },
           { href: '/app/integrations', label: 'Integrationen', icon: <Plug /> },
           // Quarantäne nur zeigen, wenn wirklich etwas drin ist.
           ...(quarantineCount > 0

@@ -16,6 +16,11 @@ import {
 } from '@/lib/action-result';
 
 const optStr = z.string().trim().max(300).optional().or(z.literal(''));
+// Mindestlaufzeit in Monaten; leeres Feld → keine feste Laufzeit (null).
+const optTerm = z.preprocess(
+  (v) => (v === '' || v == null ? null : Number(v)),
+  z.number().int().min(0).max(120).nullable(),
+);
 
 // Stufe & Preis werden ausschließlich im Baukasten oben gesetzt
 // (saveMembershipConfigAction), damit sich beide Bereiche nicht überschreiben.
@@ -28,6 +33,7 @@ const schema = z.object({
   payment_method: z.enum(['sepa', 'transfer']),
   status: z.enum(['active', 'paused', 'canceled']),
   start_date: z.string().min(1),
+  term_months: optTerm,
   auto_send: z.coerce.boolean(),
   mandate_reference: optStr,
   mandate_date: optStr,
@@ -68,6 +74,7 @@ export async function upsertMembershipAction(
     payment_method: d.payment_method,
     status: d.status,
     start_date: d.start_date,
+    term_months: d.term_months ?? null,
     next_invoice_date: nextBillingDate(d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,
@@ -126,6 +133,7 @@ const billingSchema = z.object({
   payment_method: z.enum(['sepa', 'transfer']),
   status: z.enum(['active', 'paused', 'canceled']),
   start_date: z.string().min(1),
+  term_months: optTerm,
   auto_send: z.coerce.boolean(),
   mandate_reference: optStr,
   mandate_date: optStr,
@@ -166,6 +174,7 @@ export async function saveMembershipBillingAction(
     payment_method: d.payment_method,
     status: d.status,
     start_date: d.start_date,
+    term_months: d.term_months ?? null,
     next_invoice_date: nextBillingDate(d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,

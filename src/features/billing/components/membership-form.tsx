@@ -87,6 +87,20 @@ export function MembershipForm({
           />
         </div>
         <div className="space-y-1">
+          <Label htmlFor="term_months">Laufzeit (Monate)</Label>
+          <Input
+            id="term_months"
+            name="term_months"
+            type="number"
+            min={0}
+            max={120}
+            placeholder="z. B. 12 – leer = ohne feste Laufzeit"
+            defaultValue={
+              membership?.term_months != null ? String(membership.term_months) : ''
+            }
+          />
+        </div>
+        <div className="space-y-1">
           <Label htmlFor="status">Status</Label>
           <Select
             id="status"

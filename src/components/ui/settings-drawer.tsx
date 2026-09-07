@@ -22,12 +22,26 @@ export interface DrawerSection {
 export function SettingsDrawer({
   sections,
   label = 'Einstellungen',
+  paramKey = 'settings',
 }: {
   sections: DrawerSection[];
   label?: string;
+  /** URL-Query-Parameter, der den Drawer öffnet: `?<paramKey>=<sectionKey>`. */
+  paramKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(sections[0]?.key ?? '');
+
+  // Deep-Link: `?settings=<key>` öffnet den Drawer direkt beim passenden
+  // Abschnitt (z. B. „Ändern"-Links aus der Mitgliedschafts-Übersicht).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = new URLSearchParams(window.location.search).get(paramKey);
+    if (!target) return;
+    if (!sections.some((s) => s.key === target)) return;
+    setActive(target);
+    setOpen(true);
+  }, [paramKey, sections]);
 
   // `visible` mountet das Popup, `shown` steuert die Ein-/Ausblende-Animation.
   const [visible, setVisible] = useState(false);
