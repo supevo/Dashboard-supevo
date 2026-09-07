@@ -40,6 +40,7 @@ export type NotificationType =
   | 'task_assigned'
   | 'comment_mention'
   | 'comment_reply'
+  | 'gf_coach'
   | 'client_comment'
   | 'internal_question'
   | 'task_in_review'

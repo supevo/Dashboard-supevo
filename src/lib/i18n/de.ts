@@ -262,6 +262,7 @@ export const de = {
     task_assigned: 'Aufgabe zugewiesen',
     comment_mention: 'Erwähnung',
     comment_reply: 'Antwort auf Kommentar',
+    gf_coach: 'GF-Coach',
     client_comment: 'Kundenkommentar',
     internal_question: 'Interne Rückfrage',
     task_in_review: 'Zur Überprüfung',

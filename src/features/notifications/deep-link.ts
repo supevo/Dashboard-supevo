@@ -17,6 +17,8 @@ export function notificationHref(
   switch (entityType) {
     case 'task':
       return entityId ? `/${area}/tasks/${entityId}` : null;
+    case 'gf_coach':
+      return '/app/gf';
     case 'chat':
       return portal ? '/portal' : entityId ? `/app/chat/${entityId}` : '/app';
     case 'onboarding':

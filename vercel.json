@@ -3,6 +3,22 @@
   "regions": ["dub1"],
   "crons": [
     {
+      "path": "/api/cron/gf-coach",
+      "schedule": "0 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron/gf-coach",
+      "schedule": "0 8 * * 1-5"
+    },
+    {
+      "path": "/api/cron/gf-coach",
+      "schedule": "0 16 * * 1-5"
+    },
+    {
+      "path": "/api/cron/gf-coach",
+      "schedule": "0 17 * * 1-5"
+    },
+    {
       "path": "/api/cron/invoices",
       "schedule": "0 6 * * *"
     },
