@@ -1,9 +1,81 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/lib/database.types';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import {
   listTeamBirthdays,
   type CalendarBirthday,
 } from '@/features/birthday/queries';
+
+export interface MyAppointment {
+  id: string;
+  title: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  location: string | null;
+  /** Geschätzte Dauer in Minuten (ohne Zeiten: Standardannahme). */
+  minutes: number;
+}
+
+/** Minuten zwischen zwei "HH:MM"-Zeiten; ohne/ungültig → Default (60). */
+function minutesBetween(start: string | null, end: string | null): number {
+  const DEFAULT = 60;
+  if (!start || !end) return DEFAULT;
+  const [sh, sm] = start.split(':');
+  const [eh, em] = end.split(':');
+  const startMin = Number(sh) * 60 + Number(sm);
+  const endMin = Number(eh) * 60 + Number(em);
+  if (Number.isNaN(startMin) || Number.isNaN(endMin)) return DEFAULT;
+  const diff = endMin - startMin;
+  return diff > 0 ? diff : DEFAULT;
+}
+
+/**
+ * Termine einer Person an einem Tag: alle Kalender-Termine, bei denen sie
+ * Teilnehmer:in ODER Ersteller:in ist. Nimmt den Client als Parameter, damit
+ * sowohl RLS-Seiten (Server-Client) als auch Crons (Service-Client) ihn nutzen.
+ */
+export async function listAppointmentsForUserOnDate(
+  client: SupabaseClient<Database>,
+  userId: string,
+  dateIso: string,
+): Promise<MyAppointment[]> {
+  const { data: att } = await client
+    .from('calendar_event_attendees')
+    .select('event_id')
+    .eq('user_id', userId);
+  const attendeeEventIds = (att ?? []).map((r) => r.event_id);
+
+  const { data: events } = await client
+    .from('calendar_events')
+    .select('id, title, event_date, start_time, end_time, location, created_by')
+    .eq('event_date', dateIso)
+    .order('start_time', { ascending: true, nullsFirst: true });
+
+  const mine = (events ?? []).filter(
+    (e) => e.created_by === userId || attendeeEventIds.includes(e.id),
+  );
+  return mine.map((e) => ({
+    id: e.id,
+    title: e.title,
+    date: e.event_date,
+    startTime: e.start_time,
+    endTime: e.end_time,
+    location: e.location,
+    minutes: minutesBetween(e.start_time, e.end_time),
+  }));
+}
+
+/** Summe der Termin-Minuten einer Person an einem Tag (für die Kapazität). */
+export async function appointmentMinutesForUser(
+  client: SupabaseClient<Database>,
+  userId: string,
+  dateIso: string,
+): Promise<number> {
+  const appts = await listAppointmentsForUserOnDate(client, userId, dateIso);
+  return appts.reduce((sum, a) => sum + a.minutes, 0);
+}
 
 export interface CalendarEvent {
   id: string;

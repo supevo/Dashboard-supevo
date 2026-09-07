@@ -8,6 +8,9 @@ import {
   type DueBucket,
 } from '@/features/agenda/queries';
 import { listTeamAbsences } from '@/features/absences/queries';
+import { listAppointmentsForUserOnDate } from '@/features/calendar/queries';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { berlinToday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
 
@@ -63,10 +66,12 @@ const BUCKET_ACCENT: Record<DueBucket, string> = {
 
 export default async function MyTasksPage() {
   const { user } = await requireAgencyPage();
-  const [mine, upcoming, teamAbsences] = await Promise.all([
+  const supabase = await createSupabaseServerClient();
+  const [mine, upcoming, teamAbsences, appointments] = await Promise.all([
     getMyTasks(user.id),
     getUpcomingDeadlines(),
     listTeamAbsences(),
+    listAppointmentsForUserOnDate(supabase, user.id, berlinToday()),
   ]);
   // Absences overlapping the next 14 days, for the deadline column.
   const horizon = new Date();
@@ -82,6 +87,33 @@ export default async function MyTasksPage() {
         <h1 className="text-2xl font-bold">{de.agenda.title}</h1>
         <p className="text-sm text-muted-foreground">{de.agenda.subtitle}</p>
       </div>
+
+      {appointments.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>📅 Termine heute</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {appointments.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate">
+                  {a.title}
+                  {a.location ? (
+                    <span className="text-muted-foreground"> · {a.location}</span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {a.startTime ? a.startTime.slice(0, 5) : 'ganztägig'}
+                  {a.endTime ? `–${a.endTime.slice(0, 5)}` : ''}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

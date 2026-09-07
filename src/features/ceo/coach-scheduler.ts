@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { createNotifications } from '@/features/notifications/create';
 import { completeText, isAiEnabled } from '@/lib/ai/complete';
+import { listAppointmentsForUserOnDate } from '@/features/calendar/queries';
 import { FOCUS_TARGET_MIN, formatMinutes, quadrantMeta } from './types';
 
 interface Gf {
@@ -101,17 +102,23 @@ export async function runGfCoachMorning(): Promise<{ notified: number }> {
     const tasks = await loadCeoTasks(service, gf.userId);
     const open = tasks.filter((t) => t.status !== 'done');
 
+    // Termine des Tages belegen Zeit → weniger freier Fokus für Aufgaben.
+    const appts = await listAppointmentsForUserOnDate(service, gf.userId, today);
+    const apptMin = appts.reduce((n, a) => n + a.minutes, 0);
+    const focusForTasks = Math.max(0, FOCUS_TARGET_MIN - apptMin);
+
     // Bereits für heute geplant (Heute + In Arbeit).
     const planned = open.filter((t) => t.status === 'today' || t.status === 'doing');
     let plannedMin = planned.reduce((n, t) => n + estOf(t), 0);
 
-    // Kandidaten aus dem Backlog nach Priorität; bis Fokus-Ziel (max. 6 neue).
+    // Kandidaten aus dem Backlog nach Priorität; bis zum (um Termine gekürzten)
+    // Fokus-Ziel (max. 6 neue).
     const backlog = open
       .filter((t) => t.status === 'backlog')
       .sort((a, b) => priorityScore(a, today) - priorityScore(b, today) || a.position - b.position);
     const toMove: CeoRow[] = [];
     for (const t of backlog) {
-      if (plannedMin >= FOCUS_TARGET_MIN || toMove.length >= 6) break;
+      if (plannedMin >= focusForTasks || toMove.length >= 6) break;
       toMove.push(t);
       plannedMin += estOf(t);
     }
@@ -130,16 +137,21 @@ export async function runGfCoachMorning(): Promise<{ notified: number }> {
         return `• ${t.title}${q ? ` (${q.short})` : ''}`;
       })
       .join('\n');
+    const apptLines = appts
+      .slice(0, 8)
+      .map((a) => `📅 ${a.startTime ? a.startTime.slice(0, 5) + ' ' : ''}${a.title}`)
+      .join('\n');
+    const apptBlock = appts.length > 0 ? `\nTermine (${formatMinutes(apptMin)}):\n${apptLines}` : '';
 
     const hi = gf.firstName ? ` ${gf.firstName}` : '';
     const fallback =
-      todayList.length > 0
-        ? `Guten Morgen${hi}! Dein Fokus heute (~${formatMinutes(plannedMin)}):\n${lines}\n\nWas kommt sonst noch auf deine Agenda? Öffne den GF-Coach, um anzupassen oder „Plane meinen Tag" zu nutzen.`
-        : `Guten Morgen${hi}! Dein GF-Board ist leer. Was steht heute an? Trag es kurz ein oder frag den Coach.`;
+      todayList.length > 0 || appts.length > 0
+        ? `Guten Morgen${hi}!${apptBlock}\n\nFokus-Aufgaben heute (~${formatMinutes(plannedMin)}):\n${lines || '• (keine – die Termine füllen den Tag)'}\n\nWas kommt sonst noch auf deine Agenda? Öffne den GF-Coach, um anzupassen oder „Plane meinen Tag" zu nutzen.`
+        : `Guten Morgen${hi}! Dein GF-Board ist leer und keine Termine heute. Was steht an? Trag es kurz ein oder frag den Coach.`;
 
     const body = await coachMessage(
-      `Du bist der persönliche Geschäftsführer-Coach. Formuliere eine kurze, motivierende Morgen-Nachricht auf Deutsch (max. 6 Zeilen). Nenne die geplanten Fokus-Aufgaben als Liste und stelle GENAU EINE Rückfrage, was sonst noch auf die Agenda kommt. Keine Anrede-Floskeln übertreiben, kein Markdown außer • für die Liste.`,
-      `Vorname: ${gf.firstName ?? '—'}\nGeplanter Fokus heute (~${formatMinutes(plannedMin)}):\n${lines || '(nichts geplant)'}`,
+      `Du bist der persönliche Geschäftsführer-Coach. Formuliere eine kurze, motivierende Morgen-Nachricht auf Deutsch (max. 7 Zeilen). Nenne zuerst die heutigen Termine (falls vorhanden), dann die geplanten Fokus-Aufgaben als Liste, und stelle GENAU EINE Rückfrage, was sonst noch auf die Agenda kommt. Termine belegen Zeit – berücksichtige das im Ton. Kein Markdown außer • und 📅 für die Listen.`,
+      `Vorname: ${gf.firstName ?? '—'}${apptBlock}\nGeplanter Fokus (Aufgaben, ~${formatMinutes(plannedMin)}):\n${lines || '(nichts geplant)'}`,
       fallback,
     );
 

@@ -52,19 +52,39 @@ export async function createEventAction(
   const orgId = primaryAgencyOrgId(user);
   if (!orgId) return errorResult(de.errors.FORBIDDEN);
 
+  // Zugeordnete Mitarbeiter (Teilnehmer) – Mehrfachauswahl aus dem Formular.
+  const attendeeIds = [
+    ...new Set(
+      formData
+        .getAll('attendeeIds')
+        .filter((v): v is string => typeof v === 'string')
+        .filter((v) => /^[0-9a-fA-F-]{36}$/.test(v)),
+    ),
+  ];
+
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('calendar_events').insert({
-    organization_id: orgId,
-    title: d.title,
-    event_date: d.eventDate,
-    start_time: d.startTime ? d.startTime : null,
-    end_time: d.endTime ? d.endTime : null,
-    client_company_id: d.clientCompanyId ? d.clientCompanyId : null,
-    location: d.location ? d.location : null,
-    note: d.note ? d.note : null,
-    created_by: user.id,
-  });
-  if (error) return errorResult(de.errors.FORBIDDEN);
+  const { data: event, error } = await supabase
+    .from('calendar_events')
+    .insert({
+      organization_id: orgId,
+      title: d.title,
+      event_date: d.eventDate,
+      start_time: d.startTime ? d.startTime : null,
+      end_time: d.endTime ? d.endTime : null,
+      client_company_id: d.clientCompanyId ? d.clientCompanyId : null,
+      location: d.location ? d.location : null,
+      note: d.note ? d.note : null,
+      created_by: user.id,
+    })
+    .select('id')
+    .single();
+  if (error || !event) return errorResult(de.errors.FORBIDDEN);
+
+  if (attendeeIds.length > 0) {
+    await supabase
+      .from('calendar_event_attendees')
+      .insert(attendeeIds.map((uid) => ({ event_id: event.id, user_id: uid })));
+  }
 
   revalidatePath('/app/calendar');
   return successResult('Termin angelegt.');

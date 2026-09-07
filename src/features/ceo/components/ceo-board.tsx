@@ -355,7 +355,22 @@ function TaskCard({
   );
 }
 
-export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
+interface BoardAppointment {
+  id: string;
+  title: string;
+  startTime: string | null;
+  endTime: string | null;
+  minutes: number;
+}
+
+export function CeoBoard({
+  tasks,
+  appointments = [],
+}: {
+  tasks: CeoTask[];
+  /** Heutige Termine des GF – zählen in die Tages-Kapazität. */
+  appointments?: BoardAppointment[];
+}) {
   const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
   const [items, setItems] = useState<CeoTask[]>(tasks);
@@ -378,8 +393,13 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
     return map;
   }, [items]);
 
-  // Für heute geplant = Spalten „Heute" + „In Arbeit".
-  const plannedMin = useMemo(
+  // Termine belegen den Tag mit – zählen wie geplante Arbeit in die Kapazität.
+  const appointmentMin = useMemo(
+    () => appointments.reduce((sum, a) => sum + a.minutes, 0),
+    [appointments],
+  );
+  // Für heute geplant = Aufgaben in „Heute" + „In Arbeit" PLUS Termine.
+  const taskMin = useMemo(
     () =>
       [...byStatus.today, ...byStatus.doing].reduce(
         (sum, t) => sum + (t.estimateMin ?? 0),
@@ -387,6 +407,7 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
       ),
     [byStatus],
   );
+  const plannedMin = taskMin + appointmentMin;
   const pct = Math.min(100, Math.round((plannedMin / FOCUS_TARGET_MIN) * 100));
   const over = plannedMin > FOCUS_TARGET_MIN;
   const near = !over && plannedMin >= FOCUS_TARGET_MIN * 0.85;
@@ -516,6 +537,24 @@ export function CeoBoard({ tasks }: { tasks: CeoTask[] }) {
               ? 'Fast voll – der Tag ist gut gefüllt.'
               : '~5 h fokussierte Arbeit, der Rest deines 8-h-Tages ist Puffer für Meetings & Rückfragen.'}
         </p>
+        {appointments.length > 0 && (
+          <div className="mt-2 border-t pt-2">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">
+              📅 Termine heute ({formatMinutes(appointmentMin)})
+            </p>
+            <ul className="space-y-0.5 text-xs">
+              {appointments.map((a) => (
+                <li key={a.id} className="flex justify-between gap-2">
+                  <span className="truncate">{a.title}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {a.startTime ? a.startTime.slice(0, 5) : '—'}
+                    {a.endTime ? `–${a.endTime.slice(0, 5)}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Neue Karte */}

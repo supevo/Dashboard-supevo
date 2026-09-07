@@ -2262,6 +2262,21 @@ export interface Database {
         >;
         Relationships: [];
       };
+      calendar_event_attendees: {
+        Row: {
+          event_id: string;
+          user_id: string;
+          created_at: string;
+        };
+        Insert: {
+          event_id: string;
+          user_id: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['calendar_event_attendees']['Insert']
+        >;
+        Relationships: [];
+      };
       calendar_events: {
         Row: {
           id: string;

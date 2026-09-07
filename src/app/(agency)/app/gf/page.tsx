@@ -1,6 +1,9 @@
 import { requireSuperAdminPage } from '@/lib/authz/page-guards';
 import { isAiEnabled } from '@/lib/ai/complete';
 import { listCeoTasks } from '@/features/ceo/queries';
+import { listAppointmentsForUserOnDate } from '@/features/calendar/queries';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { berlinToday } from '@/lib/time';
 import { CeoBoard } from '@/features/ceo/components/ceo-board';
 import { CoachPanel } from '@/features/ceo/components/coach-panel';
 import { Briefcase } from 'lucide-react';
@@ -15,7 +18,11 @@ export const dynamic = 'force-dynamic';
 export default async function GfCockpitPage() {
   const { user } = await requireSuperAdminPage();
   const firstName = (user.fullName ?? '').trim().split(/\s+/)[0] || undefined;
-  const tasks = await listCeoTasks();
+  const supabase = await createSupabaseServerClient();
+  const [tasks, appointments] = await Promise.all([
+    listCeoTasks(),
+    listAppointmentsForUserOnDate(supabase, user.id, berlinToday()),
+  ]);
   const aiOn = isAiEnabled();
 
   return (
@@ -35,7 +42,7 @@ export default async function GfCockpitPage() {
 
       {aiOn && <CoachPanel firstName={firstName} />}
 
-      <CeoBoard tasks={tasks} />
+      <CeoBoard tasks={tasks} appointments={appointments} />
     </div>
   );
 }

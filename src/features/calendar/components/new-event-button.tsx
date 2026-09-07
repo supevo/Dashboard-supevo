@@ -15,12 +15,16 @@ import { Alert } from '@/components/ui/alert';
 
 export function NewEventButton({
   clients,
+  members = [],
   defaultDate,
 }: {
   clients: { id: string; name: string }[];
+  /** Agentur-Mitarbeiter, die dem Termin zugeordnet werden können. */
+  members?: { userId: string; name: string }[];
   defaultDate: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
   const [state, action] = useActionState(createEventAction, idleResult);
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -28,10 +32,15 @@ export function NewEventButton({
   useEffect(() => {
     if (state.status === 'success') {
       formRef.current?.reset();
+      setSelected([]);
       setOpen(false);
       router.refresh();
     }
   }, [state, router]);
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
 
   return (
     <>
@@ -83,6 +92,31 @@ export function NewEventButton({
               ))}
             </Select>
           </div>
+          {members.length > 0 && (
+            <div className="space-y-1">
+              <Label>Zugeordnete Mitarbeiter</Label>
+              {selected.map((id) => (
+                <input key={id} type="hidden" name="attendeeIds" value={id} />
+              ))}
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                {members.map((m) => (
+                  <label key={m.userId} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(m.userId)}
+                      onChange={() => toggle(m.userId)}
+                      className="h-4 w-4"
+                    />
+                    {m.name}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Zugeordnete Mitarbeiter sehen den Termin in ihrem Tagesablauf; er
+                zählt in die Tages-/Kapazitätsplanung.
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
             <Label htmlFor="ev-loc">{de.calendar.location}</Label>
             <Input id="ev-loc" name="location" />
