@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/features/auth/session';
 import { hasAgencyAccess } from '@/features/auth/access';
-import { listChannelMessages } from '@/features/messenger/queries';
+import { listChannelMessages, listChannelReads } from '@/features/messenger/queries';
 
 /** Returns a channel's messages (agency only). Polled by the messenger UI. */
 export async function GET(
@@ -14,6 +14,9 @@ export async function GET(
     return new NextResponse(null, { status: 401 });
   }
 
-  const messages = await listChannelMessages(channelId, user.id);
-  return NextResponse.json({ messages });
+  const [messages, reads] = await Promise.all([
+    listChannelMessages(channelId, user.id),
+    listChannelReads(channelId, user.id),
+  ]);
+  return NextResponse.json({ messages, reads });
 }

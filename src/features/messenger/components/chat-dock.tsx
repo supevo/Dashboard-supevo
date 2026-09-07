@@ -86,6 +86,8 @@ function ConversationView({
 }) {
   const { typing, notifyTyping } = useChatTyping(channelId, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
+  // Lesestand der anderen Teilnehmer (für „Gesendet/Gelesen" unter Nachrichten).
+  const [reads, setReads] = useState<{ userId: string; lastReadAt: string }[]>([]);
   // Optimistisches Senden: die eigene Nachricht sofort anzeigen, statt auf zwei
   // Server-Runden (Insert + komplettes Neuladen) zu warten. Über Cross-Region +
   // Free-Tier fühlte sich genau diese Wartezeit für die Mitarbeiter träge an.
@@ -147,8 +149,12 @@ function ConversationView({
         cache: 'no-store',
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { messages: ChannelMessage[] };
+      const data = (await res.json()) as {
+        messages: ChannelMessage[];
+        reads?: { userId: string; lastReadAt: string }[];
+      };
       setMessages(data.messages);
+      setReads(data.reads ?? []);
     } catch {
       /* transient — next poll retries */
     }
@@ -198,6 +204,26 @@ function ConversationView({
     }
   }, [optimisticMessages]);
 
+  // „Gesendet" / „Gelesen" unter einer eigenen Nachricht. Ist genau eine andere
+  // Person beteiligt (DM), zeigen wir die Uhrzeit; sonst „Gelesen von N/M".
+  function readStatus(createdAt: string): { text: string; read: boolean } | null {
+    const at = new Date(createdAt).getTime();
+    const readers = reads.filter((r) => new Date(r.lastReadAt).getTime() >= at);
+    if (reads.length <= 1) {
+      const first = readers[0];
+      if (first) {
+        const t = new Date(first.lastReadAt).toLocaleTimeString('de-DE', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        return { text: `Gelesen · ${t}`, read: true };
+      }
+      return { text: 'Gesendet', read: false };
+    }
+    if (readers.length === 0) return { text: 'Gesendet', read: false };
+    return { text: `Gelesen von ${readers.length}/${reads.length}`, read: readers.length === reads.length };
+  }
+
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="border-b px-3 py-2 text-sm font-semibold">{title}</div>
@@ -214,7 +240,8 @@ function ConversationView({
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
           optimisticMessages.map((m) => (
-            <div key={m.id} className={cn('flex gap-2', m.isMine && 'flex-row-reverse')}>
+            <div key={m.id} className="space-y-0.5">
+            <div className={cn('flex gap-2', m.isMine && 'flex-row-reverse')}>
               <Avatar
                 userId={m.authorId ?? ''}
                 name={m.authorName}
@@ -250,6 +277,22 @@ function ConversationView({
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
               </div>
+            </div>
+            {m.isMine &&
+              (() => {
+                const s = readStatus(m.createdAt);
+                return s ? (
+                  <div
+                    className={cn(
+                      'px-9 text-right text-[10px]',
+                      s.read ? 'text-sky-500 dark:text-sky-400' : 'text-muted-foreground',
+                    )}
+                  >
+                    {s.read ? '✓✓ ' : '✓ '}
+                    {s.text}
+                  </div>
+                ) : null;
+              })()}
             </div>
           ))
         )}

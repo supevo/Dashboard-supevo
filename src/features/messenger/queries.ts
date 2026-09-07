@@ -419,6 +419,37 @@ export async function listChannelMessages(
   return mapMessages((data ?? []) as RawMessage[], currentUserId);
 }
 
+export interface ChannelRead {
+  userId: string;
+  lastReadAt: string;
+}
+
+/**
+ * Lesestand der ANDEREN Teilnehmer eines Kanals (für Lesebestätigungen). Der
+ * eigene Lesestand ist per RLS sichtbar, fremde nicht – daher Service-Client,
+ * aber erst nachdem die RLS-Sicht bestätigt hat, dass der Aufrufer den Kanal
+ * überhaupt sehen darf. Liefert nur Nutzer, die den Kanal schon geöffnet haben.
+ */
+export async function listChannelReads(
+  channelId: string,
+  currentUserId: string,
+): Promise<ChannelRead[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data: chan } = await supabase
+    .from('chat_channels')
+    .select('id')
+    .eq('id', channelId)
+    .maybeSingle();
+  if (!chan) return []; // Kanal für den Aufrufer nicht sichtbar
+
+  const { data } = await createSupabaseServiceClient()
+    .from('chat_reads')
+    .select('user_id, last_read_at')
+    .eq('channel_id', channelId)
+    .neq('user_id', currentUserId);
+  return (data ?? []).map((r) => ({ userId: r.user_id, lastReadAt: r.last_read_at }));
+}
+
 /**
  * Full-text-ish search within a channel: matches message text OR file name
  * (case-insensitive). RLS restricts to channels the user may see. Newest first.
