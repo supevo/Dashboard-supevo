@@ -83,6 +83,7 @@ function ConversationView({
   meId,
   meName,
   isClient = false,
+  onBack,
 }: {
   channelId: string;
   title: string;
@@ -90,6 +91,8 @@ function ConversationView({
   meName: string;
   /** Client chat: hide team-only tools (stickers, polls). */
   isClient?: boolean;
+  /** Mobil: „‹"-Zurück-Button zur Kanalliste (nur wenn gesetzt). */
+  onBack?: () => void;
 }) {
   const { typing, notifyTyping } = useChatTyping(channelId, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
@@ -287,7 +290,20 @@ function ConversationView({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div className="border-b px-3 py-2 text-sm font-semibold">{title}</div>
+      <div className="flex items-center gap-1 border-b px-3 py-2 text-sm font-semibold">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="-ml-1.5 rounded px-1.5 py-0.5 text-base leading-none text-muted-foreground hover:bg-muted"
+            aria-label="Zurück zur Kanalliste"
+            title="Zurück"
+          >
+            ‹
+          </button>
+        )}
+        <span className="min-w-0 truncate">{title}</span>
+      </div>
       <div
         ref={scrollRef}
         onScroll={(e) => {
@@ -546,6 +562,25 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [startingDm, setStartingDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Mobil: nur EINE Ebene sichtbar (Liste ODER Chat) statt nebeneinander.
+  const [mobile, setMobile] = useState(false);
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  // Eingeklappte (Avatar-only) Darstellung nur am Desktop; mobil immer voll.
+  const collapsed = !mobile && sidebarCollapsed;
+
+  // Kanal/DM öffnen – auf dem Handy zusätzlich in die Chat-Ansicht wechseln.
+  const openChannel = useCallback((id: string) => {
+    setActiveId(id);
+    setMobileView('chat');
+  }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   useEffect(() => {
     setOpen(localStorage.getItem(OPEN_KEY) === '1');
@@ -657,7 +692,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     setDmError(null);
     const res = await openDmAction(userId);
     if ('channelId' in res) {
-      setActiveId(res.channelId);
+      openChannel(res.channelId);
       setStartingDm(false);
       void loadOverview();
     } else {
@@ -762,20 +797,27 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
 
   return (
     <div
-      style={{ width: size.w, height: size.h }}
-      className="fixed bottom-4 right-4 z-50 flex max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border bg-card shadow-2xl"
+      style={mobile ? undefined : { width: size.w, height: size.h }}
+      className={cn(
+        'fixed z-50 flex flex-col overflow-hidden border bg-card shadow-2xl',
+        mobile
+          ? 'inset-2 rounded-xl'
+          : 'bottom-4 right-4 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] rounded-xl',
+      )}
     >
-      {/* Ziehgriff oben links – zieht das Fenster größer/kleiner */}
-      <div
-        onPointerDown={onResizeDown}
-        onPointerMove={onResizeMove}
-        onPointerUp={onResizeUp}
-        title="Größe ändern"
-        className="absolute left-0 top-0 z-20 h-4 w-4 cursor-nwse-resize"
-        style={{ touchAction: 'none' }}
-      >
-        <span className="absolute left-1 top-1 h-2 w-2 border-l-2 border-t-2 border-muted-foreground/50" />
-      </div>
+      {/* Ziehgriff oben links – nur am Desktop (mobil füllt das Fenster). */}
+      {!mobile && (
+        <div
+          onPointerDown={onResizeDown}
+          onPointerMove={onResizeMove}
+          onPointerUp={onResizeUp}
+          title="Größe ändern"
+          className="absolute left-0 top-0 z-20 h-4 w-4 cursor-nwse-resize"
+          style={{ touchAction: 'none' }}
+        >
+          <span className="absolute left-1 top-1 h-2 w-2 border-l-2 border-t-2 border-muted-foreground/50" />
+        </div>
+      )}
       <div className="flex items-center justify-between border-b px-3 py-2 pl-5">
         <span className="text-sm font-semibold">{de.messenger.title}</span>
         <div className="flex items-center gap-1">
@@ -795,25 +837,35 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       <div className="flex min-h-0 flex-1">
         <aside
           className={cn(
-            'flex shrink-0 flex-col overflow-y-auto border-r transition-[width]',
-            sidebarCollapsed ? 'w-[3.25rem]' : 'w-44 sm:w-52',
+            'flex flex-col overflow-y-auto border-r transition-[width]',
+            mobile
+              ? mobileView === 'chat'
+                ? 'hidden'
+                : 'w-full shrink border-r-0'
+              : cn('shrink-0', collapsed ? 'w-[3.25rem]' : 'w-44 sm:w-52'),
           )}
         >
-          {/* Ein-/Ausklappen */}
-          <div className={cn('flex px-2 pt-2', sidebarCollapsed ? 'justify-center' : 'justify-end')}>
+          {/* Ein-/Ausklappen – am Handy sinnlos (Vollbild-Liste). */}
+          <div
+            className={cn(
+              'px-2 pt-2',
+              mobile ? 'hidden' : 'flex',
+              collapsed ? 'justify-center' : 'justify-end',
+            )}
+          >
             <button
               type="button"
               onClick={() => setSidebarCollapsed((v) => !v)}
-              title={sidebarCollapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'}
+              title={collapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'}
               aria-label="Seitenleiste ein- oder ausklappen"
               className="rounded px-1.5 py-0.5 text-sm leading-none text-muted-foreground hover:bg-muted"
             >
-              {sidebarCollapsed ? '»' : '«'}
+              {collapsed ? '»' : '«'}
             </button>
           </div>
 
           {/* Direct messages */}
-          {!sidebarCollapsed ? (
+          {!collapsed ? (
             <div className="flex items-center justify-between px-2 pt-1">
               <span className="text-xs font-semibold uppercase text-muted-foreground">
                 {de.messenger.directMessages}
@@ -831,12 +883,12 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="mx-2 mt-1 border-t" title={de.messenger.directMessages} />
           )}
-          {dmError && !sidebarCollapsed && (
+          {dmError && !collapsed && (
             <Alert variant="destructive" className="mx-1.5 mb-1 text-[11px]">
               {dmError}
             </Alert>
           )}
-          {startingDm && !sidebarCollapsed && (
+          {startingDm && !collapsed && (
             <div className="mx-1.5 mb-1 max-h-28 space-y-0.5 overflow-y-auto rounded border p-1">
               {members.filter((m) => !dmMemberIds.has(m.userId)).length === 0 ? (
                 <p className="px-1 py-0.5 text-[11px] text-muted-foreground">–</p>
@@ -857,16 +909,16 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               )}
             </div>
           )}
-          <div className={cn('space-y-0.5 pb-1', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
+          <div className={cn('space-y-0.5 pb-1', collapsed ? 'px-1' : 'px-1.5')}>
             {dms.map((d) => (
               <button
                 key={d.id}
                 type="button"
-                onClick={() => setActiveId(d.id)}
-                title={sidebarCollapsed ? d.otherName : undefined}
+                onClick={() => openChannel(d.id)}
+                title={collapsed ? d.otherName : undefined}
                 className={cn(
                   'flex w-full items-center rounded hover:bg-muted',
-                  sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1.5 px-2 py-1.5 text-left text-sm',
+                  collapsed ? 'justify-center px-0 py-1' : 'gap-1.5 px-2 py-1.5 text-left text-sm',
                   activeId === d.id
                     ? 'bg-muted font-medium text-foreground'
                     : 'text-muted-foreground',
@@ -874,18 +926,18 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               >
                 <span className="relative">
                   <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
-                  {sidebarCollapsed && activeId !== d.id && (unread[d.id] ?? 0) > 0 && (
+                  {collapsed && activeId !== d.id && (unread[d.id] ?? 0) > 0 && (
                     <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
                   )}
                 </span>
-                {!sidebarCollapsed && <span className="truncate">{d.otherName}</span>}
-                {!sidebarCollapsed && activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
+                {!collapsed && <span className="truncate">{d.otherName}</span>}
+                {!collapsed && activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
               </button>
             ))}
           </div>
 
           {/* Channels */}
-          {!sidebarCollapsed ? (
+          {!collapsed ? (
             <div className="mt-1 flex items-center justify-between px-2 pt-1">
               <span className="text-xs font-semibold uppercase text-muted-foreground">
                 {de.messenger.channels}
@@ -903,7 +955,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           ) : (
             <div className="mx-2 mt-1 border-t" title={de.messenger.channels} />
           )}
-          {creating && !sidebarCollapsed && (
+          {creating && !collapsed && (
             <CreateChannel
               members={members}
               onCreated={() => {
@@ -912,9 +964,9 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               }}
             />
           )}
-          <nav className={cn('space-y-0.5 pb-2', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
+          <nav className={cn('space-y-0.5 pb-2', collapsed ? 'px-1' : 'px-1.5')}>
             {channels.length === 0 ? (
-              !sidebarCollapsed && (
+              !collapsed && (
                 <p className="px-2 py-2 text-[11px] text-muted-foreground">
                   {de.messenger.noChannels}
                 </p>
@@ -924,17 +976,17 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setActiveId(c.id)}
-                  title={sidebarCollapsed ? c.name : undefined}
+                  onClick={() => openChannel(c.id)}
+                  title={collapsed ? c.name : undefined}
                   className={cn(
                     'flex w-full items-center rounded hover:bg-muted',
-                    sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
+                    collapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
                     activeId === c.id
                       ? 'bg-muted font-medium text-foreground'
                       : 'text-muted-foreground',
                   )}
                 >
-                  {sidebarCollapsed ? (
+                  {collapsed ? (
                     <span className="relative flex h-8 w-8 items-center justify-center rounded-md border text-[10px] font-semibold uppercase">
                       {c.isPrivate ? '🔒' : abbrev(c.name)}
                       {activeId !== c.id && (unread[c.id] ?? 0) > 0 && (
@@ -957,7 +1009,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           {/* Client chats (Kunde ↔ Ansprechpartner) */}
           {clientChannels.length > 0 && (
             <>
-              {!sidebarCollapsed ? (
+              {!collapsed ? (
                 <div className="mt-1 px-2 pt-1">
                   <span className="text-xs font-semibold uppercase text-muted-foreground">
                     {de.messenger.clients}
@@ -966,22 +1018,22 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
               ) : (
                 <div className="mx-2 mt-1 border-t" title={de.messenger.clients} />
               )}
-              <nav className={cn('space-y-0.5 pb-2', sidebarCollapsed ? 'px-1' : 'px-1.5')}>
+              <nav className={cn('space-y-0.5 pb-2', collapsed ? 'px-1' : 'px-1.5')}>
                 {clientChannels.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => setActiveId(c.id)}
-                    title={sidebarCollapsed ? c.name : undefined}
+                    onClick={() => openChannel(c.id)}
+                    title={collapsed ? c.name : undefined}
                     className={cn(
                       'flex w-full items-center rounded hover:bg-muted',
-                      sidebarCollapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
+                      collapsed ? 'justify-center px-0 py-1' : 'gap-1 px-2 py-1.5 text-left text-sm',
                       activeId === c.id
                         ? 'bg-muted font-medium text-foreground'
                         : 'text-muted-foreground',
                     )}
                   >
-                    {sidebarCollapsed ? (
+                    {collapsed ? (
                       <span className="relative flex h-8 w-8 items-center justify-center rounded-md border bg-primary/5 text-[10px] font-semibold uppercase">
                         {abbrev(c.name)}
                         {activeId !== c.id && (unread[c.id] ?? 0) > 0 && (
@@ -1001,20 +1053,22 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           )}
         </aside>
 
-        {activeId && activeTitle ? (
-          <ConversationView
-            key={activeId}
-            channelId={activeId}
-            title={activeTitle}
-            meId={meId}
-            meName={meName}
-            isClient={Boolean(activeClient)}
-          />
-        ) : (
-          <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
-            {de.messenger.selectChannel}
-          </div>
-        )}
+        {(!mobile || mobileView === 'chat') &&
+          (activeId && activeTitle ? (
+            <ConversationView
+              key={activeId}
+              channelId={activeId}
+              title={activeTitle}
+              meId={meId}
+              meName={meName}
+              isClient={Boolean(activeClient)}
+              onBack={mobile ? () => setMobileView('list') : undefined}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-muted-foreground">
+              {de.messenger.selectChannel}
+            </div>
+          ))}
       </div>
     </div>
   );
