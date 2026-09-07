@@ -22,7 +22,7 @@ import type {
   DmConversation,
   TeamMember,
 } from '@/features/messenger/queries';
-import { idleResult, type ActionResult } from '@/lib/action-result';
+import { idleResult, successResult, errorResult, type ActionResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { Avatar } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -31,8 +31,7 @@ import { Alert } from '@/components/ui/alert';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
 import { StickerPicker } from '@/features/messenger/components/sticker-picker';
-import { ChatAttachButton } from '@/features/messenger/components/chat-attach-button';
-import { uploadChatFile, pastedImageFile } from '@/features/messenger/upload-chat-file';
+import { uploadChatFile } from '@/features/messenger/upload-chat-file';
 import { ChatSoundPicker } from '@/features/messenger/components/chat-sound-picker';
 import { PollBlock } from '@/features/messenger/components/poll-block';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
@@ -88,6 +87,32 @@ function ConversationView({
   const [messages, setMessages] = useState<ChannelMessage[]>([]);
   // Lesestand der anderen Teilnehmer (für „Gesendet/Gelesen" unter Nachrichten).
   const [reads, setReads] = useState<{ userId: string; lastReadAt: string }[]>([]);
+  // Angehängte, noch NICHT gesendete Dateien (Vorschau im Composer, mit X).
+  const [pending, setPending] = useState<{ id: string; file: File; url: string }[]>([]);
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
+  const stagingRef = useRef<HTMLInputElement>(null);
+
+  function addFiles(list: FileList | File[] | null | undefined) {
+    if (!list) return;
+    const arr = Array.from(list).filter((f) => f.size > 0);
+    if (arr.length === 0) return;
+    setPending((prev) => [
+      ...prev,
+      ...arr.map((f) => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        file: f,
+        url: URL.createObjectURL(f),
+      })),
+    ]);
+  }
+  function removePending(id: string) {
+    setPending((prev) => {
+      const t = prev.find((p) => p.id === id);
+      if (t) URL.revokeObjectURL(t.url);
+      return prev.filter((p) => p.id !== id);
+    });
+  }
   // Optimistisches Senden: die eigene Nachricht sofort anzeigen, statt auf zwei
   // Server-Runden (Insert + komplettes Neuladen) zu warten. Über Cross-Region +
   // Free-Tier fühlte sich genau diese Wartezeit für die Mitarbeiter träge an.
@@ -114,13 +139,34 @@ function ConversationView({
   const [state, action] = useActionState(
     async (prev: ActionResult, formData: FormData): Promise<ActionResult> => {
       const body = (formData.get('body') as string | null)?.trim() ?? '';
-      if (body) addOptimistic(body);
-      const res = await sendChannelMessageAction(prev, formData);
-      // Nach Erfolg im SELBEN Übergang neu laden, damit die optimistische Blase
-      // nahtlos durch die echte Nachricht ersetzt wird (kein Flackern): erst wenn
-      // die Action zurückkehrt, endet der Übergang und useOptimistic setzt zurück.
-      if (res.status === 'success') await loadRef.current();
-      return res;
+      // 1) Angehängte Dateien hochladen (jede wird eine eigene Nachricht).
+      const files = pendingRef.current;
+      if (files.length > 0) {
+        setUploadError(null);
+        for (const p of files) {
+          const r = await uploadChatFile(channelId, p.file);
+          if (!r.ok) {
+            setUploadError(r.error ?? 'Upload fehlgeschlagen.');
+            return errorResult(r.error ?? 'Upload fehlgeschlagen.');
+          }
+        }
+        files.forEach((p) => URL.revokeObjectURL(p.url));
+        setPending([]);
+      }
+      // 2) Textnachricht (nur wenn vorhanden) senden.
+      if (body) {
+        addOptimistic(body);
+        const res = await sendChannelMessageAction(prev, formData);
+        // Nach Erfolg im SELBEN Übergang neu laden (kein Flackern der Blase).
+        if (res.status === 'success') await loadRef.current();
+        return res;
+      }
+      // Nur Dateien: neu laden, damit die Datei-Nachrichten erscheinen.
+      if (files.length > 0) {
+        await loadRef.current();
+        return successResult();
+      }
+      return prev;
     },
     idleResult,
   );
@@ -306,56 +352,101 @@ function ConversationView({
       )}
 
       <DropZone overlayLabel="Datei hier ablegen">
-      <form ref={formRef} action={action} className="flex items-end gap-2 border-t p-2">
+      <form ref={formRef} action={action} className="flex flex-col gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
-        <Textarea
-          ref={inputRef}
-          name="body"
-          required
-          rows={2}
-          placeholder={de.messenger.messagePlaceholder}
-          className="max-h-60 min-h-[56px] flex-1 resize-none text-sm leading-relaxed"
+        <input
+          ref={stagingRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
           onChange={(e) => {
-            notifyTyping();
-            // Mitwachsen wie in Slack: Höhe an den Inhalt anpassen (bis max-h-60).
-            const el = e.currentTarget;
-            el.style.height = 'auto';
-            el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
-          }}
-          onPaste={(e) => {
-            const f = pastedImageFile(e.clipboardData?.items);
-            if (!f) return;
-            e.preventDefault();
-            setUploadError(null);
-            void uploadChatFile(channelId, f).then((r) =>
-              r.ok ? void load() : setUploadError(r.error ?? 'Upload fehlgeschlagen.'),
-            );
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.form?.requestSubmit();
-            }
+            addFiles(e.target.files);
+            e.target.value = '';
           }}
         />
-        <ChatAttachButton
-          channelId={channelId}
-          onUploaded={() => void load()}
-          onError={setUploadError}
-          className="h-9 w-9 text-lg"
-        />
-        <EmojiPicker onPick={insertEmoji} />
-        {!isClient && (
-          <>
-            <StickerPicker channelId={channelId} onSent={() => void load()} />
-            <PollComposer
-              channelId={channelId}
-              onCreated={() => void load()}
-              className="h-9 w-9 text-lg"
-            />
-          </>
+
+        {/* Anhang-Vorschau: eingefügte/gewählte Bilder werden erst beim Senden
+            hochgeladen; jedes lässt sich per ✕ wieder entfernen. */}
+        {pending.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {pending.map((p) => (
+              <div key={p.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.url}
+                  alt={p.file.name}
+                  className="h-16 w-16 rounded-md border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePending(p.id)}
+                  aria-label="Anhang entfernen"
+                  className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background text-xs shadow ring-1 ring-border hover:bg-muted"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
         )}
-        <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
+
+        <div className="flex items-end gap-2">
+          <Textarea
+            ref={inputRef}
+            name="body"
+            required={pending.length === 0}
+            rows={2}
+            placeholder={de.messenger.messagePlaceholder}
+            className="max-h-60 min-h-[56px] flex-1 resize-none text-sm leading-relaxed"
+            onChange={(e) => {
+              notifyTyping();
+              // Mitwachsen wie in Slack: Höhe an den Inhalt anpassen (bis max-h-60).
+              const el = e.currentTarget;
+              el.style.height = 'auto';
+              el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+            }}
+            onPaste={(e) => {
+              // Bilder aus der Zwischenablage NICHT sofort senden, sondern als
+              // Anhang vormerken (mehrere möglich).
+              const imgs = Array.from(e.clipboardData?.items ?? [])
+                .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+                .map((it) => it.getAsFile())
+                .filter((f): f is File => !!f);
+              if (imgs.length > 0) {
+                e.preventDefault();
+                addFiles(imgs);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.form?.requestSubmit();
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => stagingRef.current?.click()}
+            aria-label="Bild anhängen"
+            title="Bild anhängen (auch per Einfügen oder Ziehen)"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted"
+          >
+            📎
+          </button>
+          <EmojiPicker onPick={insertEmoji} />
+          {!isClient && (
+            <>
+              <StickerPicker channelId={channelId} onSent={() => void load()} />
+              <PollComposer
+                channelId={channelId}
+                onCreated={() => void load()}
+                className="h-9 w-9 text-lg"
+              />
+            </>
+          )}
+          <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
+        </div>
       </form>
       </DropZone>
     </div>
