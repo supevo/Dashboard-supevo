@@ -136,7 +136,7 @@ function ConversationView({
     ],
   );
   const loadRef = useRef<() => Promise<void>>(async () => {});
-  const [state, action] = useActionState(
+  const [state, action, isPending] = useActionState(
     async (prev: ActionResult, formData: FormData): Promise<ActionResult> => {
       const body = (formData.get('body') as string | null)?.trim() ?? '';
       // 1) Angehängte Dateien hochladen (jede wird eine eigene Nachricht).
@@ -171,6 +171,8 @@ function ConversationView({
     idleResult,
   );
   const formRef = useRef<HTMLFormElement>(null);
+  // Synchrone Sperre gegen Doppel-Absenden bei schnellem mehrfachem Enter.
+  const submittingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Nur automatisch nach unten scrollen, wenn man ohnehin (fast) unten ist –
   // beim Nachlesen weiter oben nicht mehr wegspringen.
@@ -249,6 +251,11 @@ function ConversationView({
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
     }
   }, [optimisticMessages]);
+
+  // Sende-Sperre wieder freigeben, sobald die Aktion durch ist.
+  useEffect(() => {
+    if (!isPending) submittingRef.current = false;
+  }, [isPending]);
 
   // „Gesendet" / „Gelesen" unter einer eigenen Nachricht. Ist genau eine andere
   // Person beteiligt (DM), zeigen wir die Uhrzeit; sonst „Gelesen von N/M".
@@ -421,6 +428,9 @@ function ConversationView({
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                // Mehrfaches Enter während des Sendens ignorieren (kein Doppel-Post).
+                if (isPending || submittingRef.current) return;
+                submittingRef.current = true;
                 e.currentTarget.form?.requestSubmit();
               }
             }}

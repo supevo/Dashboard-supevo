@@ -260,6 +260,21 @@ export const assistantTools = [
   {
     type: 'function',
     function: {
+      name: 'search_chat',
+      description:
+        'Durchsucht die Team-Chats, Direktnachrichten und Kundenchats nach einem Stichwort und liefert die passenden Nachrichten (mit Chat, Absender:in und Datum). Nutze es, wenn gefragt wird, wo/ob etwas im Chat geschrieben wurde. Findet nur Nachrichten aus Chats, die der/die angemeldete Nutzer:in sehen darf.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Suchbegriff (Stichworte).' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'remember',
       description:
         'Merkt sich eine dauerhafte Tatsache oder Vorliebe für die ganze Agentur (agenturweites Gedächtnis), die künftig bei jeder Anfrage beachtet wird. Für „merk dir …", „ab jetzt immer …", Standard-Vorgaben, Tonfall, Namenskonventionen. Nur bleibende Regeln speichern, keine einmaligen Aufgaben.',
@@ -562,6 +577,53 @@ export async function executeAssistantTool(
       const hits = await searchKnowledge(orgId, query, 5);
       if (hits.length === 0) return 'Keine passenden Einträge in der Wissensbasis.';
       return JSON.stringify(hits);
+    }
+    case 'search_chat': {
+      const query = (s('query') ?? '').trim();
+      if (query.length < 2) return 'Bitte einen Suchbegriff mit mindestens 2 Zeichen angeben.';
+      // RLS-Client: liefert NUR Nachrichten aus Chats, die der/die Nutzer:in
+      // sehen darf – fremde DMs bleiben ausgeschlossen.
+      const { data: msgs } = await supabase
+        .from('chat_channel_messages')
+        .select('id, channel_id, author_id, body, created_at')
+        .ilike('body', `%${query}%`)
+        .not('body', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      const rows = (msgs ?? []).filter((m) => (m.body ?? '').trim().length > 0);
+      if (rows.length === 0) {
+        return 'Keine Chat-Nachrichten zu diesem Begriff gefunden (in den für dich sichtbaren Chats).';
+      }
+      const chIds = [...new Set(rows.map((m) => m.channel_id))];
+      const auIds = [...new Set(rows.map((m) => m.author_id).filter((v): v is string => !!v))];
+      const [{ data: chans }, { data: profs }] = await Promise.all([
+        supabase.from('chat_channels').select('id, name, kind').in('id', chIds),
+        supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', auIds.length ? auIds : ['00000000-0000-0000-0000-000000000000']),
+      ]);
+      const chanLabel = new Map(
+        (chans ?? []).map((c) => {
+          const label =
+            (c.name && c.name.trim()) ||
+            (c.kind === 'dm' ? 'Direktnachricht' : c.kind === 'client' ? 'Kundenchat' : 'Kanal');
+          return [c.id, label] as const;
+        }),
+      );
+      const nameById = new Map((profs ?? []).map((p) => [p.id, p.full_name ?? 'Unbekannt'] as const));
+      const lines = rows.map((m) => {
+        const when = new Date(m.created_at).toLocaleString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+        const who = m.author_id ? (nameById.get(m.author_id) ?? 'Unbekannt') : 'Unbekannt';
+        const snippet = (m.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+        return `- [${chanLabel.get(m.channel_id) ?? 'Chat'}] ${who} (${when}): „${snippet}"`;
+      });
+      return `Gefundene Nachrichten (neueste zuerst):\n${lines.join('\n')}`;
     }
     case 'remember': {
       const fact = s('fact');
