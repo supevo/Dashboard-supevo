@@ -101,6 +101,22 @@ export function MembershipForm({
           />
         </div>
         <div className="space-y-1">
+          <Label htmlFor="notice_period_months">Kündigungsfrist (Monate)</Label>
+          <Input
+            id="notice_period_months"
+            name="notice_period_months"
+            type="number"
+            min={0}
+            max={24}
+            placeholder="z. B. 3 – leer = keine feste Frist"
+            defaultValue={
+              membership?.notice_period_months != null
+                ? String(membership.notice_period_months)
+                : ''
+            }
+          />
+        </div>
+        <div className="space-y-1">
           <Label htmlFor="status">Status</Label>
           <Select
             id="status"
@@ -124,6 +140,14 @@ export function MembershipForm({
           </Select>
         </div>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="auto_renew"
+          defaultChecked={membership?.auto_renew ?? false}
+        />
+        Verlängert sich nach Ablauf der Mindestlaufzeit automatisch um die Laufzeit
+      </label>
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"

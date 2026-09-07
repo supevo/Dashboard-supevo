@@ -24,8 +24,16 @@ export interface MembershipListRow {
   intervalMonths: number;
   /** Vertragliche Mindestlaufzeit in Monaten (null = ohne feste Laufzeit). */
   termMonths: number | null;
-  /** Vertragsende = Startdatum + Laufzeit (null, wenn eines fehlt). */
+  /** Verlängert sich der Vertrag nach Ablauf automatisch. */
+  autoRenew: boolean;
+  /** Kündigungsfrist in Monaten (null = keine feste Frist). */
+  noticePeriodMonths: number | null;
+  /** Aktuelles Laufzeitende (bei Auto-Verlängerung fortgeschrieben). */
   contractEndIso: string | null;
+  /** Spätester Kündigungstermin = Laufzeitende − Kündigungsfrist. */
+  cancelDeadlineIso: string | null;
+  /** Zahlung für den betrachteten Monat als abgebucht markiert. */
+  collected: boolean;
   /** Ansprechpartner:in (Primär-Kontakt) – Name und E-Mail, soweit vorhanden. */
   contactName: string | null;
   contactEmail: string | null;
@@ -48,6 +56,33 @@ function addMonths(iso: string, months: number): string {
 }
 
 /**
+ * Laufzeitende + spätester Kündigungstermin. Bei Auto-Verlängerung wird das
+ * Ende über heute hinaus fortgeschrieben (nächste Verlängerungsperiode).
+ */
+export function contractDates(
+  startDate: string | null,
+  termMonths: number | null,
+  autoRenew: boolean,
+  noticeMonths: number | null,
+  todayIso: string,
+): { end: string | null; cancelDeadline: string | null } {
+  if (!startDate || !termMonths || termMonths <= 0) {
+    return { end: null, cancelDeadline: null };
+  }
+  let end = addMonths(startDate, termMonths);
+  if (autoRenew) {
+    // Bis zur laufenden Periode fortschreiben (Deckel gegen Endlosschleifen).
+    let guard = 0;
+    while (end < todayIso && guard < 600) {
+      end = addMonths(end, termMonths);
+      guard += 1;
+    }
+  }
+  const cancelDeadline = noticeMonths && noticeMonths > 0 ? addMonths(end, -noticeMonths) : end;
+  return { end, cancelDeadline };
+}
+
+/**
  * Alle Kundenmitgliedschaften der Org als flache Liste für die
  * Mitgliedschafts-Übersicht: Paket, Zahlweg, Preis (netto + brutto), Start,
  * Laufzeit/Vertragsende, Ansprechpartner:in und Status. RLS beschränkt auf die
@@ -55,6 +90,8 @@ function addMonths(iso: string, months: number): string {
  */
 export async function listMembershipsForOverview(
   orgId: string,
+  period: string,
+  todayIso: string,
 ): Promise<MembershipListRow[]> {
   const supabase = await createSupabaseServerClient();
   const settings = await getBillingSettings(orgId);
@@ -62,10 +99,18 @@ export async function listMembershipsForOverview(
   const { data: memberships } = await supabase
     .from('client_memberships')
     .select(
-      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, status, start_date, interval_months, term_months',
+      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, status, start_date, interval_months, term_months, auto_renew, notice_period_months',
     )
     .eq('organization_id', orgId);
   if (!memberships || memberships.length === 0) return [];
+
+  // Für den betrachteten Monat abgehakte Zahlungseingänge.
+  const { data: marks } = await supabase
+    .from('membership_payment_marks')
+    .select('client_company_id')
+    .eq('organization_id', orgId)
+    .eq('period', period);
+  const collectedSet = new Set((marks ?? []).map((m) => m.client_company_id));
 
   const { data: promoRows } = await supabase
     .from('promotions')
@@ -138,8 +183,15 @@ export async function listMembershipsForOverview(
           : stageName;
       const contact = contactByClient.get(m.client_company_id);
       const term = m.term_months ?? null;
-      const contractEndIso =
-        m.start_date && term && term > 0 ? addMonths(m.start_date, term) : null;
+      const autoRenew = m.auto_renew ?? false;
+      const notice = m.notice_period_months ?? null;
+      const { end, cancelDeadline } = contractDates(
+        m.start_date ?? null,
+        term,
+        autoRenew,
+        notice,
+        todayIso,
+      );
       return {
         clientCompanyId: m.client_company_id,
         clientName: company.name,
@@ -154,7 +206,11 @@ export async function listMembershipsForOverview(
         startDate: m.start_date ?? null,
         intervalMonths: m.interval_months ?? 1,
         termMonths: term,
-        contractEndIso,
+        autoRenew,
+        noticePeriodMonths: notice,
+        contractEndIso: end,
+        cancelDeadlineIso: cancelDeadline,
+        collected: collectedSet.has(m.client_company_id),
         contactName: contact?.name ?? null,
         contactEmail: contact?.email ?? company.contact_email ?? null,
         netCents: net,

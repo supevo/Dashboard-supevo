@@ -21,6 +21,11 @@ const optTerm = z.preprocess(
   (v) => (v === '' || v == null ? null : Number(v)),
   z.number().int().min(0).max(120).nullable(),
 );
+// Kündigungsfrist in Monaten; leeres Feld → keine feste Frist (null).
+const optNotice = z.preprocess(
+  (v) => (v === '' || v == null ? null : Number(v)),
+  z.number().int().min(0).max(24).nullable(),
+);
 
 // Stufe & Preis werden ausschließlich im Baukasten oben gesetzt
 // (saveMembershipConfigAction), damit sich beide Bereiche nicht überschreiben.
@@ -34,6 +39,8 @@ const schema = z.object({
   status: z.enum(['active', 'paused', 'canceled']),
   start_date: z.string().min(1),
   term_months: optTerm,
+  notice_period_months: optNotice,
+  auto_renew: z.coerce.boolean(),
   auto_send: z.coerce.boolean(),
   mandate_reference: optStr,
   mandate_date: optStr,
@@ -57,6 +64,7 @@ export async function upsertMembershipAction(
   const parsed = schema.safeParse({
     ...Object.fromEntries(formData.entries()),
     auto_send: formData.get('auto_send') === 'on',
+    auto_renew: formData.get('auto_renew') === 'on',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
   const d = parsed.data;
@@ -75,6 +83,8 @@ export async function upsertMembershipAction(
     status: d.status,
     start_date: d.start_date,
     term_months: d.term_months ?? null,
+    notice_period_months: d.notice_period_months ?? null,
+    auto_renew: d.auto_renew,
     next_invoice_date: nextBillingDate(d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,
@@ -134,6 +144,8 @@ const billingSchema = z.object({
   status: z.enum(['active', 'paused', 'canceled']),
   start_date: z.string().min(1),
   term_months: optTerm,
+  notice_period_months: optNotice,
+  auto_renew: z.coerce.boolean(),
   auto_send: z.coerce.boolean(),
   mandate_reference: optStr,
   mandate_date: optStr,
@@ -175,6 +187,8 @@ export async function saveMembershipBillingAction(
     status: d.status,
     start_date: d.start_date,
     term_months: d.term_months ?? null,
+    notice_period_months: d.notice_period_months ?? null,
+    auto_renew: d.auto_renew,
     next_invoice_date: nextBillingDate(d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,

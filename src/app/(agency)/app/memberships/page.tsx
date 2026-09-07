@@ -29,31 +29,40 @@ function daysUntil(iso: string | null, todayIso: string): number | null {
  */
 export default async function MembershipsPage() {
   const { orgId } = await requireSuperAdminPage();
-  const rows = await listMembershipsForOverview(orgId);
   const today = berlinToday();
+  const period = today.slice(0, 7); // 'YYYY-MM'
+  const rows = await listMembershipsForOverview(orgId, period, today);
 
   const active = rows.filter((r) => r.status === 'active');
   const mrrGross = active.reduce((n, r) => n + r.grossCents, 0);
   const mrrNet = active.reduce((n, r) => n + r.netCents, 0);
+  const openPayments = active.filter((r) => !r.collected).length;
   const attention = rows.filter((r) => {
     if (r.status === 'canceled') return false;
     if (r.sepaMandateMissing) return true;
     if (!r.startDate) return true;
-    const d = daysUntil(r.contractEndIso, today);
+    const d = daysUntil(r.cancelDeadlineIso, today);
     return d != null && d >= 0 && d <= 60;
   }).length;
+
+  const monthLabel = new Date(`${today}T00:00:00Z`).toLocaleDateString('de-DE', {
+    month: 'long',
+    year: 'numeric',
+  });
 
   const kpis: { label: string; value: string; sub?: string; tone?: string }[] = [
     { label: 'Aktive Mitgliedschaften', value: String(active.length), sub: `${rows.length} gesamt` },
     { label: 'Wiederkehrend / Monat', value: formatEuroCents(mrrGross), sub: `${formatEuroCents(mrrNet)} netto` },
     {
-      label: 'Ø pro aktivem Abo',
-      value: active.length ? formatEuroCents(Math.round(mrrGross / active.length)) : '—',
+      label: `Offene Zahlungen (${monthLabel})`,
+      value: String(openPayments),
+      sub: 'noch nicht abgehakt',
+      tone: openPayments > 0 ? 'text-amber-600 dark:text-amber-400' : undefined,
     },
     {
       label: 'Handlungsbedarf',
       value: String(attention),
-      sub: 'Mandat fehlt / läuft aus',
+      sub: 'Mandat fehlt / kündbar',
       tone: attention > 0 ? 'text-amber-600 dark:text-amber-400' : undefined,
     },
   ];
@@ -89,7 +98,7 @@ export default async function MembershipsPage() {
           du bei einem Kunden ein Paket in der Abrechnung konfigurierst.
         </p>
       ) : (
-        <MembershipsTable rows={rows} todayIso={today} />
+        <MembershipsTable rows={rows} todayIso={today} period={period} />
       )}
     </div>
   );

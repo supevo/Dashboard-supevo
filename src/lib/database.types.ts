@@ -3429,6 +3429,10 @@ export interface Database {
           start_date: string;
           /** Vertragliche Mindestlaufzeit in Monaten (NULL = ohne feste Laufzeit). */
           term_months: number | null;
+          /** Automatische Verlängerung nach Ablauf der Mindestlaufzeit. */
+          auto_renew: boolean;
+          /** Kündigungsfrist in Monaten vor Laufzeitende (NULL = keine). */
+          notice_period_months: number | null;
           next_invoice_date: string | null;
           auto_send: boolean;
           mandate_reference: string | null;
@@ -3463,6 +3467,30 @@ export interface Database {
         >;
         Update: Partial<
           Database['public']['Tables']['client_memberships']['Insert']
+        >;
+        Relationships: [];
+      };
+      membership_payment_marks: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          period: string;
+          collected_at: string;
+          collected_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          period: string;
+          collected_at?: string;
+          collected_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['membership_payment_marks']['Insert']
         >;
         Relationships: [];
       };

@@ -11,6 +11,8 @@ import {
   resolveClientEntity,
   type BillingEntity,
 } from '@/features/billing/invoice-service';
+import { createNotifications } from '@/features/notifications/create';
+import { contractDates } from '@/features/billing/memberships-list-queries';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import { getOrgBranding } from '@/features/branding/queries';
 import { promoteIfDue } from '@/features/memberships/configurator-queries';
@@ -236,4 +238,97 @@ export async function runDueInvoices(): Promise<CronResult> {
 
   logger.info('cron.invoices.done', { ...result });
   return result;
+}
+
+/** Ganze Tage zwischen zwei ISO-Daten (b − a). */
+function daysBetween(aIso: string, bIso: string): number {
+  const a = Date.UTC(Number(aIso.slice(0, 4)), Number(aIso.slice(5, 7)) - 1, Number(aIso.slice(8, 10)));
+  const b = Date.UTC(Number(bIso.slice(0, 4)), Number(bIso.slice(5, 7)) - 1, Number(bIso.slice(8, 10)));
+  return Math.round((b - a) / 86_400_000);
+}
+
+/**
+ * Erinnert die Geschäftsführung, wenn bei einem aktiven Vertrag der späteste
+ * Kündigungstermin näher rückt (30 / 14 / 3 Tage vorher). Läuft täglich mit dem
+ * Rechnungs-Cron; feste Schwellen vermeiden Mehrfach-Benachrichtigungen.
+ */
+export async function runMembershipRenewalReminders(): Promise<{ notified: number }> {
+  const service = createSupabaseServiceClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const THRESHOLDS = new Set([30, 14, 3]);
+
+  const { data: rows } = await service
+    .from('client_memberships')
+    .select('organization_id, client_company_id, start_date, term_months, auto_renew, notice_period_months')
+    .eq('status', 'active')
+    .not('term_months', 'is', null);
+  if (!rows || rows.length === 0) return { notified: 0 };
+
+  interface Due {
+    orgId: string;
+    clientCompanyId: string;
+    deadline: string;
+    days: number;
+  }
+  const due: Due[] = [];
+  for (const r of rows as Membership[]) {
+    const { cancelDeadline } = contractDates(
+      r.start_date ?? null,
+      r.term_months ?? null,
+      r.auto_renew ?? false,
+      r.notice_period_months ?? null,
+      today,
+    );
+    if (!cancelDeadline) continue;
+    const days = daysBetween(today, cancelDeadline);
+    if (!THRESHOLDS.has(days)) continue;
+    due.push({ orgId: r.organization_id, clientCompanyId: r.client_company_id, deadline: cancelDeadline, days });
+  }
+  if (due.length === 0) return { notified: 0 };
+
+  // Kundennamen auflösen.
+  const clientIds = [...new Set(due.map((d) => d.clientCompanyId))];
+  const { data: companies } = await service
+    .from('client_companies')
+    .select('id, name')
+    .in('id', clientIds);
+  const nameById = new Map((companies ?? []).map((c) => [c.id, c.name] as const));
+
+  // Super-Admins (GF) je Org.
+  const orgIds = [...new Set(due.map((d) => d.orgId))];
+  const { data: admins } = await service
+    .from('memberships')
+    .select('user_id, organization_id')
+    .eq('role', 'super_admin')
+    .eq('status', 'active')
+    .in('organization_id', orgIds);
+  const adminsByOrg = new Map<string, string[]>();
+  for (const a of admins ?? []) {
+    const list = adminsByOrg.get(a.organization_id) ?? [];
+    list.push(a.user_id);
+    adminsByOrg.set(a.organization_id, list);
+  }
+
+  const entries = [];
+  for (const d of due) {
+    const recipients = adminsByOrg.get(d.orgId) ?? [];
+    const name = nameById.get(d.clientCompanyId) ?? 'Kunde';
+    const when = d.days <= 0 ? 'heute' : `in ${d.days} Tagen`;
+    for (const recipientId of recipients) {
+      entries.push({
+        organizationId: d.orgId,
+        recipientId,
+        type: 'reminder' as const,
+        title: `Vertrag läuft aus: ${name}`,
+        body: `Der späteste Kündigungstermin ist ${when} (${d.deadline.split('-').reverse().join('.')}). Prüfe Verlängerung oder Kündigung in den Mitgliedschaften.`,
+        entityType: 'membership_overview',
+        entityId: d.clientCompanyId,
+      });
+    }
+  }
+  if (entries.length === 0) return { notified: 0 };
+
+  await createNotifications(entries);
+  logger.info('cron.membership_reminders.done', { count: entries.length });
+  return { notified: entries.length };
 }

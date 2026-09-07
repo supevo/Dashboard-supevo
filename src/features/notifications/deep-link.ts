@@ -19,6 +19,8 @@ export function notificationHref(
       return entityId ? `/${area}/tasks/${entityId}` : null;
     case 'gf_coach':
       return '/app/gf';
+    case 'membership_overview':
+      return portal ? '/portal/membership' : '/app/memberships';
     case 'chat':
       return portal ? '/portal' : entityId ? `/app/chat/${entityId}` : '/app';
     case 'onboarding':
