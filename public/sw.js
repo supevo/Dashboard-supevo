@@ -32,7 +32,19 @@ self.addEventListener('push', (event) => {
     // (das würde sonst einen Fehler werfen).
     ...(data.tag ? { tag: data.tag, renotify: true } : {}),
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Chat-Push (tag "chat:…") NICHT anzeigen, wenn ein App-Fenster gerade den
+  // Fokus hat – dann übernimmt das In-Tab-Popup, sonst gäbe es zwei Meldungen.
+  // Andere Benachrichtigungstypen poppen immer auf.
+  const isChat = typeof data.tag === 'string' && data.tag.indexOf('chat:') === 0;
+  event.waitUntil(
+    (async () => {
+      if (isChat) {
+        const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (wins.some((c) => c.focused)) return;
+      }
+      await self.registration.showNotification(title, options);
+    })(),
+  );
 });
 
 // Klick auf die Benachrichtigung → passende Seite fokussieren/öffnen.

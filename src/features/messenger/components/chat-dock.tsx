@@ -39,7 +39,21 @@ import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { playChatPing } from '@/features/messenger/notify-sound';
+import {
+  savePushSubscriptionAction,
+  deletePushSubscriptionAction,
+} from '@/features/push/actions';
 import { cn } from '@/lib/utils';
+
+/** base64url (VAPID-Public-Key) → Uint8Array für die PushManager-API. */
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(b64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
 
 const POLL_MS = 5000;
 // Der Ungelesen-Zähler in der angedockten Leiste muss nicht sekundengenau sein.
@@ -49,7 +63,6 @@ const POLL_MS = 5000;
 // pausiert der Poll, wenn der Tab im Hintergrund liegt (siehe unten).
 const OVERVIEW_POLL_MS = 30000;
 const OPEN_KEY = 'chatDockOpen';
-const NOTIFY_KEY = 'chatNotifyEnabled';
 const ACTIVE_KEY = 'chatDockChannel';
 const SIDEBAR_KEY = 'chatDockSidebarCollapsed';
 
@@ -626,9 +639,11 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   // Ungelesen je Konversation beim letzten Poll – um zu erkennen, WELCHE
   // gestiegen ist (für das Desktop-Popup mit Kanal-/Absendername).
   const prevUnreadByIdRef = useRef<Record<string, number>>({});
-  // Desktop-Benachrichtigung (Notification API) bei neuer Nachricht, wenn der
-  // Tab offen ist. Per Kopf-Button aktivierbar; Ref für den Poll (stabile cb).
+  // Browser-Push für den Chat: Das 🔔 im Kopf abonniert echtes Web-Push (wie
+  // unter „Benachrichtigungen"), damit Nachrichten auch bei geschlossenem Tab
+  // aufpoppen. notifyEnabled = Abo aktiv; Ref für den Poll (stabile cb).
   const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState(false);
   const notifyEnabledRef = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -660,44 +675,85 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     setActiveId(localStorage.getItem(ACTIVE_KEY));
     try {
       setSidebarCollapsed(localStorage.getItem(SIDEBAR_KEY) === '1');
-      // Nur aktiv lassen, wenn der Browser die Erlaubnis (noch) hat.
-      const wanted = localStorage.getItem(NOTIFY_KEY) === '1';
-      setNotifyEnabled(
-        wanted && typeof Notification !== 'undefined' && Notification.permission === 'granted',
-      );
     } catch {
       /* ignore */
     }
+  }, []);
+
+  // Push-Abo dieses Browsers ermitteln (steuert den 🔔-Zustand im Kopf).
+  useEffect(() => {
+    if (
+      typeof navigator === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    ) {
+      return;
+    }
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => setNotifyEnabled(!!sub))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
     notifyEnabledRef.current = notifyEnabled;
   }, [notifyEnabled]);
 
-  function toggleDesktopNotify() {
-    if (typeof Notification === 'undefined') {
-      alert('Dieser Browser unterstützt keine Benachrichtigungen.');
+  async function togglePush() {
+    if (
+      typeof navigator === 'undefined' ||
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window)
+    ) {
+      alert('Dieser Browser unterstützt keine Push-Benachrichtigungen.');
       return;
     }
-    if (notifyEnabled) {
-      setNotifyEnabled(false);
-      try {
-        localStorage.setItem(NOTIFY_KEY, '0');
-      } catch {
-        /* ignore */
-      }
+    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapid) {
+      alert('Push ist serverseitig nicht konfiguriert (VAPID-Schlüssel fehlen).');
       return;
     }
-    void Notification.requestPermission().then((perm) => {
-      const on = perm === 'granted';
-      setNotifyEnabled(on);
-      try {
-        localStorage.setItem(NOTIFY_KEY, on ? '1' : '0');
-      } catch {
-        /* ignore */
+    setNotifyBusy(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const existing = await reg.pushManager.getSubscription();
+      // Aktiv → deaktivieren (Abo lösen).
+      if (notifyEnabled || existing) {
+        if (existing) {
+          await deletePushSubscriptionAction(existing.endpoint);
+          await existing.unsubscribe();
+        }
+        setNotifyEnabled(false);
+        return;
       }
-      if (!on) alert('Bitte Benachrichtigungen für diese Seite im Browser erlauben.');
-    });
+      // Inaktiv → Erlaubnis holen + abonnieren + serverseitig speichern.
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        alert(
+          perm === 'denied'
+            ? 'Benachrichtigungen sind im Browser blockiert. Bitte in den Website-Einstellungen erlauben.'
+            : 'Bitte Benachrichtigungen für diese Seite erlauben.',
+        );
+        return;
+      }
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
+      });
+      const json = sub.toJSON();
+      const res = await savePushSubscriptionAction({
+        endpoint: sub.endpoint,
+        p256dh: json.keys?.p256dh ?? '',
+        auth: json.keys?.auth ?? '',
+        userAgent: navigator.userAgent,
+      });
+      setNotifyEnabled(res.ok);
+      if (!res.ok) alert('Aktivieren fehlgeschlagen. Bitte erneut versuchen.');
+    } catch {
+      alert('Aktivieren fehlgeschlagen. Bitte erneut versuchen.');
+    } finally {
+      setNotifyBusy(false);
+    }
   }
 
   /** Zeigt eine Desktop-Benachrichtigung für gestiegene Konversationen. */
@@ -978,18 +1034,19 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            onClick={toggleDesktopNotify}
+            onClick={() => void togglePush()}
+            disabled={notifyBusy}
             className={cn(
-              'rounded px-1.5 py-0.5 text-base leading-none hover:bg-muted',
+              'rounded px-1.5 py-0.5 text-base leading-none hover:bg-muted disabled:opacity-50',
               notifyEnabled ? 'text-primary' : 'text-muted-foreground',
             )}
             aria-pressed={notifyEnabled}
             title={
               notifyEnabled
-                ? 'Desktop-Benachrichtigungen an'
-                : 'Desktop-Benachrichtigungen aktivieren'
+                ? 'Push-Benachrichtigungen an – klicken zum Deaktivieren'
+                : 'Push-Benachrichtigungen aktivieren (auch bei geschlossenem Tab)'
             }
-            aria-label="Desktop-Benachrichtigungen umschalten"
+            aria-label="Push-Benachrichtigungen umschalten"
           >
             {notifyEnabled ? '🔔' : '🔕'}
           </button>
