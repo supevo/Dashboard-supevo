@@ -127,7 +127,10 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
   const [config, walletRes, itemsRes, invRes, grantsRes, points] = await Promise.all([
     getLootConfig(orgId),
     service.from('loot_wallets').select('coins_spent').eq('user_id', userId).maybeSingle(),
-    service.from('loot_items').select('box_tier').eq('organization_id', orgId),
+    // '*' statt nur box_tier: die Box-Zugehörigkeit richtet sich – wie beim
+    // Öffnen – nach den PRO-BOX-GEWICHTEN (weight_* > 0), NICHT nach box_tier.
+    // Sonst gilt eine per Wahrscheinlichkeiten gefüllte Box fälschlich als leer.
+    service.from('loot_items').select('*').eq('organization_id', orgId),
     service
       .from('loot_inventory')
       .select('id, name, description, type, badge_emoji, badge_name, box_tier, image_path, banner_image_id, frame_image_id, status, won_at')
@@ -145,8 +148,14 @@ export async function getShopData(userId: string, orgId: string): Promise<ShopDa
   const spent = walletRes.data?.coins_spent ?? 0;
   const earned = Math.floor(points / Math.max(1, config.xpPerCoin));
   const counts = { common: 0, rare: 0, super: 0 } as Record<BoxTier, number>;
-  for (const it of itemsRes.data ?? []) {
-    if (it.box_tier in counts) counts[it.box_tier as BoxTier] += 1;
+  for (const it of (itemsRes.data ?? []) as unknown as {
+    weight_common?: number | null;
+    weight_rare?: number | null;
+    weight_super?: number | null;
+  }[]) {
+    if (Number(it.weight_common ?? 0) > 0) counts.common += 1;
+    if (Number(it.weight_rare ?? 0) > 0) counts.rare += 1;
+    if (Number(it.weight_super ?? 0) > 0) counts.super += 1;
   }
   const free = { common: 0, rare: 0, super: 0 } as Record<BoxTier, number>;
   for (const g of grantsRes.data ?? []) {
