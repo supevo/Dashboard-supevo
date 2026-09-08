@@ -74,7 +74,8 @@ export default async function TaskDetailPage({
     taskViewStats,
     oneDrive,
   ] = await Promise.all([
-    listTaskComments(taskId, user.id),
+    // Agentur-Mitarbeiter dürfen jeden Kommentar der Aufgabe löschen (moderieren).
+    listTaskComments(taskId, user.id, true),
     listTaskFiles(taskId, user.id),
     listTaskChecklists(taskId),
     listLabels(task.organizationId),

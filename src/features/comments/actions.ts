@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { createNotifications } from '@/features/notifications/create';
 import {
@@ -228,14 +230,40 @@ export async function deleteCommentAction(
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
-  await requireUser();
-  const supabase = await createSupabaseServerClient();
-  const { error, count } = await supabase
-    .from('comments')
-    .update({ deleted_at: new Date().toISOString() }, { count: 'exact' })
-    .eq('id', parsed.data.commentId);
+  const user = await requireUser();
 
+  // Kommentar laden (Autor + Org) über den Service-Client, um Autor ODER
+  // Agentur-Mitarbeiter der Org das Löschen zu erlauben (Moderation). RLS würde
+  // sonst nur den Autor durchlassen.
+  const service = createSupabaseServiceClient();
+  const { data: existing } = await service
+    .from('comments')
+    .select('id, organization_id, author_id, task_id')
+    .eq('id', parsed.data.commentId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (!existing) return errorResult(de.errors.NOT_FOUND);
+
+  const isAuthor = existing.author_id === user.id;
+  const canModerate = isAgencyStaffInOrg(user, existing.organization_id);
+  if (!isAuthor && !canModerate) return errorResult(de.errors.FORBIDDEN);
+
+  const { error } = await service
+    .from('comments')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', parsed.data.commentId);
   if (error) return errorResult(de.errors.INTERNAL);
-  if (!count) return errorResult(de.errors.FORBIDDEN);
+
+  await logActivity({
+    actorId: user.id,
+    organizationId: existing.organization_id,
+    action: 'delete',
+    entityType: 'comment',
+    entityId: parsed.data.commentId,
+    metadata: { moderated: !isAuthor },
+  });
+
+  // Die Kommentarliste aktualisiert der Client via router.refresh(); ein
+  // pfadgenaues revalidate ist hier mangels projectId nicht nötig.
   return successResult('Kommentar gelöscht.');
 }

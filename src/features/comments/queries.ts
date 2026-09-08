@@ -13,6 +13,8 @@ export interface CommentView {
   createdAt: string;
   editedAt: string | null;
   canEdit: boolean;
+  /** Löschen erlaubt: eigener Kommentar ODER Agentur-Mitarbeiter (Moderation). */
+  canDelete: boolean;
   /** null = Top-Level-Kommentar; sonst die id des beantworteten Kommentars. */
   parentCommentId: string | null;
   /** Rohtext mit @[Name](id)-Tokens (zum Vorbefüllen beim Bearbeiten). */
@@ -25,6 +27,8 @@ export interface CommentView {
 export async function listTaskComments(
   taskId: string,
   currentUserId: string,
+  /** Agentur-Mitarbeiter dürfen jeden Kommentar der Aufgabe löschen (moderieren). */
+  canModerate = false,
 ): Promise<CommentView[]> {
   const supabase = await createSupabaseServerClient();
   const { data: comments } = await supabase
@@ -68,6 +72,7 @@ export async function listTaskComments(
     createdAt: c.created_at,
     editedAt: c.edited_at,
     canEdit: c.author_id === currentUserId,
+    canDelete: canModerate || c.author_id === currentUserId,
     parentCommentId: c.parent_comment_id ?? null,
     bodySource: c.body_source ?? null,
     originalBody: c.original_body ?? null,

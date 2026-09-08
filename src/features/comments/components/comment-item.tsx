@@ -97,21 +97,25 @@ export function CommentItem({
             )}
           </span>
         </span>
-        {comment.canEdit && !editing && (
+        {(comment.canEdit || comment.canDelete) && !editing && (
           <span className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              Bearbeiten
-            </button>
-            <form action={deleteAction}>
-              <input type="hidden" name="commentId" value={comment.id} />
-              <SubmitButton variant="ghost" size="sm">
-                {de.task.delete}
-              </SubmitButton>
-            </form>
+            {comment.canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                Bearbeiten
+              </button>
+            )}
+            {comment.canDelete && (
+              <form action={deleteAction}>
+                <input type="hidden" name="commentId" value={comment.id} />
+                <SubmitButton variant="ghost" size="sm">
+                  {de.task.delete}
+                </SubmitButton>
+              </form>
+            )}
           </span>
         )}
       </div>
