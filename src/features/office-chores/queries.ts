@@ -1,6 +1,6 @@
 import 'server-only';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
-import { berlinToday, berlinWeekday } from '@/lib/time';
+import { berlinToday, berlinWeekday, startOfBerlinDayUtc } from '@/lib/time';
 import type { NotificationType } from '@/lib/database.types';
 
 export type ChoreFrequency = 'daily' | 'weekly' | 'monthly';
@@ -100,8 +100,24 @@ export async function assignClockOutChores(args: {
         (m as { user_id: string }).user_id !== userId,
     )
     .map((m) => (m as { user_id: string }).user_id);
+
+  // Nur Kolleg:innen, die HEUTE anwesend waren (eingestempelt), kommen als
+  // Prüfer infrage. So stapeln sich keine Kontrollen bei Leuten, die im Urlaub,
+  // krank oder an dem Tag gar nicht online waren. Ist niemand da → kein Prüfer
+  // (die Aufgabe wird dann solo direkt verifiziert).
+  const { data: sessionsToday } = await service
+    .from('work_sessions')
+    .select('user_id')
+    .eq('organization_id', orgId)
+    .gte('clock_in', startOfBerlinDayUtc());
+  const presentToday = new Set(
+    (sessionsToday ?? []).map((s) => (s as { user_id: string }).user_id),
+  );
+  const eligibleVerifiers = others.filter((id) => presentToday.has(id));
   const pickVerifier = () =>
-    others.length ? others[Math.floor(Math.random() * others.length)]! : null;
+    eligibleVerifiers.length
+      ? eligibleVerifiers[Math.floor(Math.random() * eligibleVerifiers.length)]!
+      : null;
 
   for (const chore of rows) {
     const frequency = chore.frequency ?? 'daily';
