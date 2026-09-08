@@ -49,6 +49,7 @@ const POLL_MS = 5000;
 // pausiert der Poll, wenn der Tab im Hintergrund liegt (siehe unten).
 const OVERVIEW_POLL_MS = 30000;
 const OPEN_KEY = 'chatDockOpen';
+const NOTIFY_KEY = 'chatNotifyEnabled';
 const ACTIVE_KEY = 'chatDockChannel';
 const SIDEBAR_KEY = 'chatDockSidebarCollapsed';
 
@@ -557,6 +558,13 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
   const prevUnreadRef = useRef<number | null>(null);
+  // Ungelesen je Konversation beim letzten Poll – um zu erkennen, WELCHE
+  // gestiegen ist (für das Desktop-Popup mit Kanal-/Absendername).
+  const prevUnreadByIdRef = useRef<Record<string, number>>({});
+  // Desktop-Benachrichtigung (Notification API) bei neuer Nachricht, wenn der
+  // Tab offen ist. Per Kopf-Button aktivierbar; Ref für den Poll (stabile cb).
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const notifyEnabledRef = useRef(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [startingDm, setStartingDm] = useState(false);
@@ -587,10 +595,71 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     setActiveId(localStorage.getItem(ACTIVE_KEY));
     try {
       setSidebarCollapsed(localStorage.getItem(SIDEBAR_KEY) === '1');
+      // Nur aktiv lassen, wenn der Browser die Erlaubnis (noch) hat.
+      const wanted = localStorage.getItem(NOTIFY_KEY) === '1';
+      setNotifyEnabled(
+        wanted && typeof Notification !== 'undefined' && Notification.permission === 'granted',
+      );
     } catch {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    notifyEnabledRef.current = notifyEnabled;
+  }, [notifyEnabled]);
+
+  function toggleDesktopNotify() {
+    if (typeof Notification === 'undefined') {
+      alert('Dieser Browser unterstützt keine Benachrichtigungen.');
+      return;
+    }
+    if (notifyEnabled) {
+      setNotifyEnabled(false);
+      try {
+        localStorage.setItem(NOTIFY_KEY, '0');
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    void Notification.requestPermission().then((perm) => {
+      const on = perm === 'granted';
+      setNotifyEnabled(on);
+      try {
+        localStorage.setItem(NOTIFY_KEY, on ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      if (!on) alert('Bitte Benachrichtigungen für diese Seite im Browser erlauben.');
+    });
+  }
+
+  /** Zeigt eine Desktop-Benachrichtigung für gestiegene Konversationen. */
+  const notifyDesktop = useCallback(
+    (risen: { id: string; label: string }[]) => {
+      if (!notifyEnabledRef.current || risen.length === 0) return;
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const first = risen[0]!;
+      const title = risen.length === 1 ? first.label : 'Team-Chat';
+      const body =
+        risen.length === 1
+          ? 'Neue Nachricht'
+          : `Neue Nachrichten in ${risen.map((r) => r.label).join(', ')}`;
+      try {
+        const n = new Notification(title, { body, tag: 'supevo-chat' });
+        n.onclick = () => {
+          window.focus();
+          setOpen(true);
+          openChannel(first.id);
+          n.close();
+        };
+      } catch {
+        /* ignore */
+      }
+    },
+    [openChannel],
+  );
   useEffect(() => {
     try {
       localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0');
@@ -608,7 +677,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     if (activeId) localStorage.setItem(ACTIVE_KEY, activeId);
   }, [activeId]);
 
-  const loadOverview = useCallback(async () => {
+  const loadOverview = useCallback(async (notify = false) => {
     try {
       const res = await fetch('/api/chat/overview', { cache: 'no-store' });
       if (!res.ok) return;
@@ -631,15 +700,36 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
           (c) => c.id,
         ),
       );
-      const total = Object.entries(data.unread ?? {}).reduce(
+      const nextUnread = data.unread ?? {};
+      const total = Object.entries(nextUnread).reduce(
         (a, [id, n]) => (listedIds.has(id) ? a + n : a),
         0,
       );
+      // Welche Konversationen sind gestiegen? (für Sound + Desktop-Popup)
+      const prevById = prevUnreadByIdRef.current;
+      const risen: { id: string; label: string }[] = [];
+      if (prevUnreadRef.current !== null) {
+        const labelFor = (id: string): string => {
+          const ch = data.channels.find((c) => c.id === id);
+          if (ch) return `${ch.isPrivate ? '🔒' : '#'} ${ch.name}`;
+          const cl = (data.clientChannels ?? []).find((c) => c.id === id);
+          if (cl) return cl.name;
+          const dm = data.dms.find((d) => d.id === id);
+          return dm ? dm.otherName : 'Team-Chat';
+        };
+        for (const [id, n] of Object.entries(nextUnread)) {
+          if (listedIds.has(id) && n > (prevById[id] ?? 0)) {
+            risen.push({ id, label: labelFor(id) });
+          }
+        }
+      }
+      prevUnreadByIdRef.current = nextUnread;
       if (prevUnreadRef.current !== null && total > prevUnreadRef.current) {
         playChatPing();
+        if (notify) notifyDesktop(risen);
       }
       prevUnreadRef.current = total;
-      setUnread(data.unread ?? {});
+      setUnread(nextUnread);
       setActiveId((cur) => {
         const all = [...data.channels, ...(data.clientChannels ?? []), ...data.dms];
         const known = all.some((c) => c.id === cur);
@@ -648,7 +738,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [notifyDesktop]);
 
   useEffect(() => {
     void loadOverview();
@@ -659,7 +749,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     let t: ReturnType<typeof setInterval> | null = null;
     const start = () => {
       if (t) return;
-      t = setInterval(() => void loadOverview(), OVERVIEW_POLL_MS);
+      t = setInterval(() => void loadOverview(true), OVERVIEW_POLL_MS);
     };
     const stop = () => {
       if (t) clearInterval(t);
@@ -821,6 +911,23 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       <div className="flex items-center justify-between border-b px-3 py-2 pl-5">
         <span className="text-sm font-semibold">{de.messenger.title}</span>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleDesktopNotify}
+            className={cn(
+              'rounded px-1.5 py-0.5 text-base leading-none hover:bg-muted',
+              notifyEnabled ? 'text-primary' : 'text-muted-foreground',
+            )}
+            aria-pressed={notifyEnabled}
+            title={
+              notifyEnabled
+                ? 'Desktop-Benachrichtigungen an'
+                : 'Desktop-Benachrichtigungen aktivieren'
+            }
+            aria-label="Desktop-Benachrichtigungen umschalten"
+          >
+            {notifyEnabled ? '🔔' : '🔕'}
+          </button>
           <ChatSoundPicker />
           <button
             type="button"
