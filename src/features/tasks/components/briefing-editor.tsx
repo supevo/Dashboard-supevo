@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { SubmitButton } from '@/components/ui/submit-button';
 import { Alert } from '@/components/ui/alert';
+import { renderMarkdown } from '@/lib/markdown';
 
 export function BriefingEditor({
   projectId,
@@ -36,7 +37,10 @@ export function BriefingEditor({
     return (
       <div className="space-y-2">
         {description ? (
-          <div className="whitespace-pre-wrap text-sm">{description}</div>
+          <div
+            className="prose prose-sm max-w-none text-sm [&_ol]:list-decimal [&_ul]:list-disc [&_li]:ml-4 [&_a]:text-primary [&_a]:underline"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(description) }}
+          />
         ) : (
           <p className="text-sm text-muted-foreground">
             Noch kein Briefing hinterlegt.
