@@ -24,7 +24,13 @@ self.addEventListener('push', (event) => {
     icon: '/supevo-logo-dark.svg',
     badge: '/supevo-logo-dark.svg',
     data: { url: data.url || '/app' },
-    tag: data.tag || undefined,
+    // Vibration (Android) + Ton: silent bleibt aus, damit der System-Ton spielt.
+    vibrate: [120, 60, 120],
+    // Mit Tag fasst der Browser Folgemeldungen desselben Kanals zusammen –
+    // renotify sorgt dafür, dass eine ersetzte Meldung TROTZDEM erneut alarmiert
+    // (Ton/Vibration), statt still ausgetauscht zu werden. Ohne Tag kein renotify
+    // (das würde sonst einen Fehler werfen).
+    ...(data.tag ? { tag: data.tag, renotify: true } : {}),
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
