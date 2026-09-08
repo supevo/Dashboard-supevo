@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { requireSuperAdminPage } from '@/lib/authz/page-guards';
 import { listMembershipsForOverview } from '@/features/billing/memberships-list-queries';
 import { MembershipsTable } from '@/features/billing/components/memberships-table';
+import { MembershipsProfitEstimate } from '@/features/billing/components/memberships-profit-estimate';
 import { berlinToday } from '@/lib/time';
 import { formatEuroCents } from '@/lib/money';
 
@@ -100,6 +101,8 @@ export default async function MembershipsPage() {
       ) : (
         <MembershipsTable rows={rows} todayIso={today} period={period} />
       )}
+
+      {rows.length > 0 && <MembershipsProfitEstimate netMonthlyCents={mrrNet} />}
     </div>
   );
 }
