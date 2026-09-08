@@ -7,6 +7,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
 import { createNotifications } from '@/features/notifications/create';
+import { sendPushToUsers } from '@/lib/push/send';
+import { env } from '@/lib/env';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -217,7 +219,7 @@ export async function sendChannelMessageAction(
   // Resolve the channel's org (RLS-scoped read) so the message carries it.
   const { data: channel } = await supabase
     .from('chat_channels')
-    .select('organization_id, kind, client_company_id')
+    .select('organization_id, kind, client_company_id, name, is_private')
     .eq('id', parsed.data.channelId)
     .maybeSingle();
   if (!channel) return errorResult(de.errors.FORBIDDEN);
@@ -253,9 +255,90 @@ export async function sendChannelMessageAction(
       user.id,
       user.fullName ?? user.email,
     );
+    // Chatnachrichten poppen jetzt wie andere Benachrichtigungen im Browser auf:
+    // Push an alle Kanal-/DM-Empfänger (nicht nur @Erwähnungen).
+    await pushChannelMessage(
+      channel.organization_id,
+      parsed.data.channelId,
+      channel.kind ?? 'channel',
+      channel.is_private ?? false,
+      parsed.data.body,
+      user.id,
+      user.fullName ?? user.email,
+      channel.name ?? null,
+    );
   }
 
   return successResult('');
+}
+
+/**
+ * Push-Benachrichtigung an alle Empfänger eines Team-Kanals bzw. einer DM
+ * (außer dem Autor), damit Chatnachrichten wie jede andere Benachrichtigung im
+ * Browser aufpoppen – auch bei geschlossenem Tab. Bewusst NUR Push (kein Bell-
+ * Eintrag, keine E-Mail): der Chat hat sein eigenes Ungelesen-Badge, alles
+ * andere wäre Spam. Wer den Kanal gerade offen hat, wird nicht angepingt.
+ */
+async function pushChannelMessage(
+  orgId: string,
+  channelId: string,
+  kind: string,
+  isPrivate: boolean,
+  body: string,
+  authorId: string,
+  authorName: string,
+  channelName: string | null,
+): Promise<void> {
+  const service = createSupabaseServiceClient();
+
+  let recipientIds: string[] = [];
+  if (kind === 'channel' && !isPrivate) {
+    // Öffentlicher Team-Kanal: alle aktiven Agentur-Mitarbeiter der Org.
+    const { data: members } = await service
+      .from('memberships')
+      .select('user_id, role')
+      .eq('organization_id', orgId)
+      .eq('status', 'active');
+    recipientIds = (members ?? [])
+      .filter((m) => m.role !== 'client' && m.user_id !== authorId)
+      .map((m) => m.user_id);
+  } else {
+    // Private Kanäle + DMs: explizit hinterlegte Mitglieder.
+    const { data: members } = await service
+      .from('chat_channel_members')
+      .select('user_id')
+      .eq('channel_id', channelId);
+    recipientIds = (members ?? [])
+      .map((m) => m.user_id)
+      .filter((id) => id !== authorId);
+  }
+  if (recipientIds.length === 0) return;
+
+  // Wer den Kanal in den letzten 30 s gelesen hat (also gerade offen), nicht anpingen.
+  const cutoff = new Date(Date.now() - 30_000).toISOString();
+  const { data: recentReads } = await service
+    .from('chat_reads')
+    .select('user_id')
+    .eq('channel_id', channelId)
+    .gte('last_read_at', cutoff);
+  const active = new Set((recentReads ?? []).map((r) => r.user_id));
+  const targets = recipientIds.filter((id) => !active.has(id));
+  if (targets.length === 0) return;
+
+  const preview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
+  const title =
+    kind === 'dm'
+      ? authorName
+      : channelName
+        ? `${authorName} · #${channelName}`
+        : authorName;
+  const appUrl = env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
+  await sendPushToUsers(targets, {
+    title,
+    body: preview,
+    url: `${appUrl}/app`,
+    tag: `chat:${channelId}`,
+  });
 }
 
 const createPollSchema = z.object({
