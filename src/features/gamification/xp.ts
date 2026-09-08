@@ -34,8 +34,8 @@ export function clientResultXp(rating: number): number {
 }
 
 /** Ordnungsdienst: XP fürs Erledigen bzw. Gegenprüfen eines Checkpunkts. */
-export const XP_CHORE_DONE = 6;
-export const XP_CHORE_VERIFY = 3;
+export const XP_CHORE_DONE = 1;
+export const XP_CHORE_VERIFY = 1;
 
 /**
  * Grants the office-chore XP once a chore assignment is verified: the doer for
