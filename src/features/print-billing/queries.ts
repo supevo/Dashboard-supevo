@@ -20,6 +20,25 @@ export interface PrintExpense {
 }
 
 /**
+ * Welche Druck-Rechnungen für eine Aufgabe schon hochgeladen sind: Proforma
+ * und/oder Endrechnung. Alt-Belege ohne `kind` gelten als Endrechnung.
+ */
+export async function getPrintInvoiceKinds(
+  taskId: string,
+): Promise<{ hasProforma: boolean; hasFinal: boolean }> {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase
+    .from('print_expenses')
+    .select('kind')
+    .eq('task_id', taskId);
+  const rows = (data ?? []) as { kind?: string | null }[];
+  return {
+    hasProforma: rows.some((r) => r.kind === 'proforma'),
+    hasFinal: rows.some((r) => r.kind !== 'proforma'),
+  };
+}
+
+/**
  * Lists the org's print-product expenses (uploaded supplier invoices) for the
  * internal „Ausgaben" area. RLS restricts reads to org admins / super admins.
  */

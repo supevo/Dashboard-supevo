@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const file = form.get('file');
   const taskId = String(form.get('taskId') ?? '');
+  // Art der Rechnung: Proforma (sofort) oder Endrechnung (nachträglich).
+  const kind = form.get('kind') === 'proforma' ? 'proforma' : 'final';
   const supplier = String(form.get('supplier') ?? '').trim().slice(0, 200) || null;
   const notes = String(form.get('notes') ?? '').trim().slice(0, 2000) || null;
   const amountCents = euroToCents(String(form.get('amount') ?? ''));
@@ -140,17 +142,22 @@ export async function POST(request: NextRequest) {
     client_charge_cents: clientCharge,
     supplier,
     notes,
+    kind,
   } as never);
   if (insErr) {
     logger.error('print_expense.insert_failed', { error: insErr.message });
     return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
   }
 
-  // Mark the task's print billing as settled.
-  await service
-    .from('tasks')
-    .update({ print_billing_status: 'settled' })
-    .eq('id', task.id);
+  // Nur die ENDRECHNUNG schließt die Abrechnung ab ('settled'); die Proforma
+  // wird nur erfasst (Status bleibt 'required'/'ordered', bis die Endrechnung da
+  // ist). So nagt die Erinnerung weiter, bis auch die Endrechnung vorliegt.
+  if (kind === 'final') {
+    await service
+      .from('tasks')
+      .update({ print_billing_status: 'settled' })
+      .eq('id', task.id);
+  }
 
   return NextResponse.json({ ok: true });
 }

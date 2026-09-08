@@ -39,6 +39,7 @@ import {
   PrintBillingCard,
   type PrintBillingCardStatus,
 } from '@/features/print-billing/components/print-billing-card';
+import { getPrintInvoiceKinds } from '@/features/print-billing/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -91,6 +92,11 @@ export default async function TaskDetailPage({
     getOneDriveStatus(orgId),
   ]);
   const taskApprovals = approvals.filter((a) => a.taskId === taskId);
+
+  // Welche Druck-Rechnungen (Proforma/Endrechnung) sind schon hochgeladen?
+  const printInvoices = task.printBillingStatus
+    ? await getPrintInvoiceKinds(taskId)
+    : { hasProforma: false, hasFinal: false };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -163,6 +169,8 @@ export default async function TaskDetailPage({
           <PrintBillingCard
             taskId={taskId}
             status={task.printBillingStatus as PrintBillingCardStatus}
+            hasProforma={printInvoices.hasProforma}
+            hasFinal={printInvoices.hasFinal}
           />
         )}
 

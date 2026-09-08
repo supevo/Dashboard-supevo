@@ -4,8 +4,10 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { DropZone } from '@/components/ui/drop-zone';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 import {
   dismissPrintBillingAction,
   confirmPrintOrderedAction,
@@ -18,26 +20,31 @@ export type PrintBillingCardStatus =
   | 'settled'
   | 'self_paid';
 
+type Kind = 'proforma' | 'final';
+
 /**
- * „Abrechnung"-Hinweis auf der Aufgabe für Druckprodukte. Ablauf:
- *   required   → Frage „Druckprodukt bestellt?" (Ja / Kunde zahlt selbst / Nein)
- *   ordered    → Eingangsrechnung der Druckerei hochladen (→ Ausgaben)
- *   settled    → erledigt (Rechnung liegt in „Ausgaben")
- *   self_paid  → Kunde begleicht selbst; Beleg-Upload optional
- * Der Mitarbeiter handelt mit seinen Rechten (RLS).
+ * „Abrechnung"-Hinweis auf der Aufgabe für Druckprodukte. Es müssen ZWEI
+ * Rechnungen hochgeladen werden: die Proforma (sofort) und die nachträgliche
+ * Endrechnung (~10 Tage später). Der Mitarbeiter handelt mit seinen Rechten (RLS).
  */
 export function PrintBillingCard({
   taskId,
   status,
+  hasProforma = false,
+  hasFinal = false,
 }: {
   taskId: string;
   status: PrintBillingCardStatus;
+  hasProforma?: boolean;
+  hasFinal?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [amount, setAmount] = useState('');
   const [supplier, setSupplier] = useState('');
+  // Vorauswahl: was noch fehlt (erst Proforma, dann Endrechnung).
+  const [kind, setKind] = useState<Kind>(hasProforma ? 'final' : 'proforma');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, startAction] = useTransition();
@@ -55,6 +62,7 @@ export function PrintBillingCard({
       fd.set('taskId', taskId);
       fd.set('amount', amount);
       fd.set('supplier', supplier);
+      fd.set('kind', kind);
       const res = await fetch('/api/print-expenses', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -71,24 +79,28 @@ export function PrintBillingCard({
     }
   }
 
-  // --- erledigt -------------------------------------------------------------
-  if (status === 'settled') {
-    return (
-      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] p-3 text-sm">
-        <span className="font-medium text-emerald-700 dark:text-emerald-300">
-          💶 Abrechnung erledigt
-        </span>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Die Dienstleister-Rechnung wurde hochgeladen und liegt im Bereich
-          &bdquo;Ausgaben&ldquo;.
-        </p>
-      </div>
-    );
-  }
+  const StatusLine = () => (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+      <span className={cn(hasProforma ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300')}>
+        {hasProforma ? '✓' : '⏳'} Proforma
+      </span>
+      <span className={cn(hasFinal ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-300')}>
+        {hasFinal ? '✓' : '⏳'} Endrechnung
+      </span>
+    </div>
+  );
 
-  // Wiederverwendbarer Upload-Block (Eingangsrechnung der Druckerei).
+  // Upload-Block mit Auswahl Proforma/Endrechnung.
   const uploadBlock = (
     <>
+      <Select
+        value={kind}
+        onChange={(e) => setKind(e.target.value as Kind)}
+        className="h-9 text-sm"
+      >
+        <option value="proforma">Proforma-Rechnung (sofort)</option>
+        <option value="final">Endrechnung (nachträglich)</option>
+      </Select>
       <DropZone overlayLabel="Rechnung hier ablegen">
         <input
           ref={inputRef}
@@ -113,10 +125,29 @@ export function PrintBillingCard({
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}
       <Button size="sm" type="button" onClick={upload} disabled={pending}>
-        {pending ? 'Wird hochgeladen …' : 'Rechnung hochladen'}
+        {pending
+          ? 'Wird hochgeladen …'
+          : kind === 'proforma'
+            ? 'Proforma hochladen'
+            : 'Endrechnung hochladen'}
       </Button>
     </>
   );
+
+  // --- beide Rechnungen da → erledigt --------------------------------------
+  if (hasProforma && hasFinal) {
+    return (
+      <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/[0.06] p-3 text-sm">
+        <span className="font-medium text-emerald-700 dark:text-emerald-300">
+          💶 Abrechnung erledigt
+        </span>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Proforma und Endrechnung sind hochgeladen und liegen im Bereich
+          &bdquo;Ausgaben&ldquo;.
+        </p>
+      </div>
+    );
+  }
 
   // --- Kunde zahlt selbst ---------------------------------------------------
   if (status === 'self_paid') {
@@ -128,7 +159,7 @@ export function PrintBillingCard({
           </div>
           <p className="text-xs text-muted-foreground">
             Es wird keine Ausgangsrechnung an den Kunden erzeugt. Du kannst die
-            Rechnung der Druckerei bei Bedarf trotzdem als Beleg hochladen.
+            Rechnung(en) der Druckerei bei Bedarf trotzdem als Beleg hochladen.
           </p>
         </div>
         {uploadBlock}
@@ -136,20 +167,22 @@ export function PrintBillingCard({
     );
   }
 
-  // --- bestellt: Eingangsrechnung fehlt ------------------------------------
-  if (status === 'ordered') {
+  // --- bestellt / teils hochgeladen: fehlende Rechnung(en) hochladen -------
+  if (status === 'ordered' || status === 'settled') {
     return (
       <div className="space-y-3 rounded-lg border border-amber-500/50 bg-amber-500/[0.06] p-3">
         <div>
           <div className="text-sm font-semibold text-amber-700 dark:text-amber-300">
-            💶 Eingangsrechnung der Druckerei fehlt
+            💶 Druckerei-Rechnungen hochladen
           </div>
           <p className="text-xs text-muted-foreground">
-            Druckprodukt wurde bestellt. Bitte die Rechnung der Druckerei
-            hochladen – sie geht in den internen Bereich &bdquo;Ausgaben&ldquo;
-            und fließt in die monatliche Kundenrechnung ein.
+            Bitte <strong>beide</strong> Rechnungen hochladen: die Proforma sofort
+            und die Endrechnung, sobald sie kommt (~10 Tage später). Sie gehen in
+            den internen Bereich &bdquo;Ausgaben&ldquo;; nur die Endrechnung fließt
+            in die monatliche Kundenrechnung ein.
           </p>
         </div>
+        <StatusLine />
         {uploadBlock}
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
@@ -179,7 +212,8 @@ export function PrintBillingCard({
         </div>
         <p className="text-xs text-muted-foreground">
           Diese Aufgabe wurde als Druckprodukt erkannt. Bitte angeben, wie damit
-          verfahren wird.
+          verfahren wird – danach beide Rechnungen (Proforma + Endrechnung)
+          hochladen.
         </p>
       </div>
       {error && <Alert variant="destructive">{error}</Alert>}

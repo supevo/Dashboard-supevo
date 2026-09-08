@@ -731,7 +731,8 @@ async function detectAndFlagPrintBilling(
 
   await supabase
     .from('tasks')
-    .update({ print_billing_status: 'required' })
+    // print_flagged_at = Anker für die 10-Tage-Frist der Endrechnung.
+    .update({ print_billing_status: 'required', print_flagged_at: new Date().toISOString() })
     .eq('id', taskId);
   return 'required';
 }

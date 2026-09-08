@@ -81,6 +81,8 @@ export async function runMonthlyPrintInvoices(
   const groups = new Map<string, OpenExpense[]>();
   for (const e of expenses) {
     if (!e.client_company_id || e.client_charge_cents == null) continue;
+    // Proforma-Belege werden NIE abgerechnet – nur die Endrechnung.
+    if ((e as { kind?: string }).kind === 'proforma') continue;
     if (e.task_id && selfPaidTasks.has(e.task_id)) continue;
     const key = `${e.organization_id}::${e.client_company_id}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(e);

@@ -2509,6 +2509,8 @@ export interface Database {
           client_notified_at: string | null;
           completed_at: string | null;
           print_billing_status: string | null;
+          print_flagged_at: string | null;
+          print_reminded_at: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -2537,6 +2539,8 @@ export interface Database {
           is_idea?: boolean;
           client_notified_at?: string | null;
           print_billing_status?: string | null;
+          print_flagged_at?: string | null;
+          print_reminded_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;
@@ -2560,6 +2564,8 @@ export interface Database {
           amount_cents: number | null;
           supplier: string | null;
           notes: string | null;
+          /** 'proforma' | 'final' – welche Rechnung dieser Beleg ist. */
+          kind: string;
           created_at: string;
         };
         Insert: {
@@ -2575,6 +2581,7 @@ export interface Database {
           amount_cents?: number | null;
           supplier?: string | null;
           notes?: string | null;
+          kind?: string;
         };
         Update: Partial<
           Database['public']['Tables']['print_expenses']['Insert']
