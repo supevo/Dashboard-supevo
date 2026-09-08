@@ -7,6 +7,11 @@ import {
   netMonthlyAfterPromos,
   membershipLabel,
 } from '@/features/billing/membership';
+import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import {
+  normalizeSelections,
+  moduleLabel,
+} from '@/features/memberships/modules';
 
 export type BillingEntity =
   Database['public']['Tables']['billing_entities']['Row'];
@@ -151,10 +156,26 @@ export async function createDraftInvoice(params: {
     .single();
   if (error || !invoice) return { error: error?.message ?? 'insert failed' };
 
-  const description =
+  const baseDescription =
     membership.interval_months === 1
       ? `${label} – Leistungszeitraum ${formatDe(period.start)}–${formatDe(period.end)}`
       : `${label} (${membership.interval_months} Monate) – ${formatDe(period.start)}–${formatDe(period.end)}`;
+
+  // Gebuchte Module transparent auf der Rechnung ausweisen (wie im Vertrag),
+  // ohne die Preiszeile aufzuteilen – abgerechnet wird weiter eine Summenposition.
+  const selections = normalizeSelections(membership.modules).filter(
+    (s) => s.enabled,
+  );
+  let description = baseDescription;
+  if (selections.length > 0) {
+    const catalog = await getModuleCatalog(orgId);
+    const moduleLines = selections.map((s) => {
+      const name = moduleLabel(catalog, s.id);
+      const qty = s.qty ?? 1;
+      return qty > 1 ? `• ${name} (×${qty})` : `• ${name}`;
+    });
+    description = `${baseDescription}\nEnthaltene Module:\n${moduleLines.join('\n')}`;
+  }
 
   await supabase.from('invoice_items').insert({
     invoice_id: invoice.id,

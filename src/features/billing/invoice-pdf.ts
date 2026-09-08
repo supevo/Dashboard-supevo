@@ -159,21 +159,27 @@ export async function renderInvoicePdf(params: {
 
   for (const it of items) {
     text(page, String(it.position), colPos, y, 10);
-    // Wrap description if long.
+    // Explizite Zeilenumbrüche (\n, z. B. die Modulliste) beachten und jede
+    // Zeile zusätzlich bei Überlänge umbrechen.
     const maxWidth = colQty - colDesc - 60;
-    const words = it.description.split(' ');
-    let line = '';
     const lines: string[] = [];
-    for (const w of words) {
-      const test = line ? `${line} ${w}` : w;
-      if (font.widthOfTextAtSize(test, 10) > maxWidth) {
-        if (line) lines.push(line);
-        line = w;
-      } else {
-        line = test;
+    for (const rawLine of it.description.split('\n')) {
+      if (rawLine === '') {
+        lines.push('');
+        continue;
       }
+      let line = '';
+      for (const w of rawLine.split(' ')) {
+        const test = line ? `${line} ${w}` : w;
+        if (font.widthOfTextAtSize(test, 10) > maxWidth) {
+          if (line) lines.push(line);
+          line = w;
+        } else {
+          line = test;
+        }
+      }
+      if (line) lines.push(line);
     }
-    if (line) lines.push(line);
     for (let i = 0; i < lines.length; i++) text(page, lines[i]!, colDesc, y - i * 12, 10);
 
     textRight(String(it.quantity), colQty, y, 10);
