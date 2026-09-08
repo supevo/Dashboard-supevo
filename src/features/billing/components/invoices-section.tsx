@@ -51,6 +51,17 @@ export function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-2">
+        {!invoice.pdf_path && invoice.status === 'draft' && (
+          <a
+            href={`/api/invoices/${invoice.id}/pdf`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Button type="button" variant="outline" size="sm">
+              👁 Vorschau (Entwurf)
+            </Button>
+          </a>
+        )}
         {invoice.pdf_path && (
           <>
             <a
