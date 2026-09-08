@@ -7,6 +7,7 @@ import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { WorkHoursCard } from '@/features/time-tracking/components/work-hours-card';
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
+import { PushEnableBanner } from '@/features/push/components/push-enable-banner';
 import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
@@ -44,6 +45,7 @@ export default async function AgencyDashboardPage() {
 
   return (
     <div className="space-y-6">
+      <PushEnableBanner />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">{de.nav.dashboard}</h1>
