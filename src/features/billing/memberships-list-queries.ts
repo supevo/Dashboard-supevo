@@ -41,6 +41,9 @@ export interface MembershipListRow {
   netCents: number;
   /** Monatspreis inkl. USt (Cent). */
   grossCents: number;
+  /** Zugeordneter Rechnungssteller (Firma) – null = Standard. */
+  billingEntityId: string | null;
+  billingEntityName: string;
 }
 
 /** Startdatum + n Monate als ISO (YYYY-MM-DD), robust bei Monatsenden. */
@@ -125,12 +128,25 @@ export async function listMembershipsForOverview(
   const clientIds = [...new Set(memberships.map((m) => m.client_company_id))];
   const { data: companies } = await supabase
     .from('client_companies')
-    .select('id, name, is_legacy, contact_email')
+    .select('id, name, is_legacy, contact_email, billing_entity_id')
     .in('id', clientIds)
     .is('deleted_at', null);
   const companyById = new Map(
     (companies ?? []).map((c) => [c.id, c] as const),
   );
+
+  // Rechnungssteller (Firma) je Kunde – für die Aufteilung nach Einzelunternehmen
+  // vs. GmbH in der Überschlagsrechnung. Kunden ohne Zuordnung nutzen den Standard.
+  const { data: entities } = await supabase
+    .from('billing_entities')
+    .select('id, name, company_name, is_default')
+    .eq('organization_id', orgId);
+  const entityNameById = new Map(
+    (entities ?? []).map(
+      (e) => [e.id, e.company_name || e.name || 'Rechnungssteller'] as const,
+    ),
+  );
+  const defaultEntityId = (entities ?? []).find((e) => e.is_default)?.id ?? null;
 
   // Primär-Ansprechpartner:innen je Kunde (Kontakt = verknüpftes Nutzerkonto).
   const { data: contacts } = await supabase
@@ -182,6 +198,8 @@ export async function listMembershipsForOverview(
           ? m.custom_name
           : stageName;
       const contact = contactByClient.get(m.client_company_id);
+      const entityId =
+        (company as { billing_entity_id?: string | null }).billing_entity_id ?? defaultEntityId;
       const term = m.term_months ?? null;
       const autoRenew = m.auto_renew ?? false;
       const notice = m.notice_period_months ?? null;
@@ -215,6 +233,10 @@ export async function listMembershipsForOverview(
         contactEmail: contact?.email ?? company.contact_email ?? null,
         netCents: net,
         grossCents: gross,
+        billingEntityId: entityId,
+        billingEntityName: entityId
+          ? entityNameById.get(entityId) ?? 'Rechnungssteller'
+          : 'Standard',
       };
     })
     .sort((a, b) => a.clientName.localeCompare(b.clientName, 'de'));

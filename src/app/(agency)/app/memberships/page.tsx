@@ -37,6 +37,19 @@ export default async function MembershipsPage() {
   const active = rows.filter((r) => r.status === 'active');
   const mrrGross = active.reduce((n, r) => n + r.grossCents, 0);
   const mrrNet = active.reduce((n, r) => n + r.netCents, 0);
+
+  // Netto-Umsatz je Rechnungssteller (für die Überschlagsrechnung getrennt nach
+  // Einzelunternehmen/GmbH). Kunden ohne Zuordnung landen unter „Standard".
+  const entityMap = new Map<string, { id: string; name: string; netMonthlyCents: number }>();
+  for (const r of active) {
+    const key = r.billingEntityId ?? 'standard';
+    const cur = entityMap.get(key) ?? { id: key, name: r.billingEntityName, netMonthlyCents: 0 };
+    cur.netMonthlyCents += r.netCents;
+    entityMap.set(key, cur);
+  }
+  const entityRevenue = [...entityMap.values()].sort(
+    (a, b) => b.netMonthlyCents - a.netMonthlyCents,
+  );
   const openPayments = active.filter((r) => !r.collected).length;
   const attention = rows.filter((r) => {
     if (r.status === 'canceled') return false;
@@ -102,7 +115,7 @@ export default async function MembershipsPage() {
         <MembershipsTable rows={rows} todayIso={today} period={period} />
       )}
 
-      {rows.length > 0 && <MembershipsProfitEstimate netMonthlyCents={mrrNet} />}
+      {rows.length > 0 && <MembershipsProfitEstimate entities={entityRevenue} />}
     </div>
   );
 }
