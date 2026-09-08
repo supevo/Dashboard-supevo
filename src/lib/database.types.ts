@@ -1915,6 +1915,7 @@ export interface Database {
           file_removed: boolean;
           file_expires_at: string | null;
           poll_id: string | null;
+          reply_to_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -1932,6 +1933,7 @@ export interface Database {
           file_removed?: boolean;
           file_expires_at?: string | null;
           poll_id?: string | null;
+          reply_to_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
         Relationships: [];

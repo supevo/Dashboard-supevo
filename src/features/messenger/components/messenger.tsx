@@ -178,6 +178,7 @@ function MessagePane({
         stickerUrl: null,
         file: null,
         poll: null,
+        replyTo: null,
         createdAt: new Date().toISOString(),
         isMine: true,
       },

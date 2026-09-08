@@ -69,8 +69,17 @@ export interface ChannelMessage {
   file: ChannelFile | null;
   /** Set when the message is a poll (Abstimmung). */
   poll: ChannelPoll | null;
+  /** Zitierte Nachricht, auf die geantwortet wurde (WhatsApp-Stil). */
+  replyTo: ChannelReplyPreview | null;
   createdAt: string;
   isMine: boolean;
+}
+
+/** Kurzvorschau der zitierten Nachricht (Autor + Textauszug/Typ). */
+export interface ChannelReplyPreview {
+  id: string;
+  authorName: string;
+  preview: string;
 }
 
 interface RawMessage {
@@ -86,11 +95,66 @@ interface RawMessage {
   file_removed: boolean;
   file_expires_at: string | null;
   poll_id: string | null;
+  reply_to_id: string | null;
   created_at: string;
 }
 
 const MESSAGE_COLUMNS =
-  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, poll_id, created_at';
+  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, poll_id, reply_to_id, created_at';
+
+/** Einzeiliger Vorschautext einer Nachricht (Text gekürzt, sonst Typ-Label). */
+function messagePreview(m: {
+  body: string | null;
+  sticker_path: string | null;
+  file_name: string | null;
+  poll_id: string | null;
+}): string {
+  const body = (m.body ?? '').trim();
+  if (body) return body.length > 90 ? `${body.slice(0, 90)}…` : body;
+  if (m.sticker_path) return '📷 Sticker';
+  if (m.file_name) return `📎 ${m.file_name}`;
+  if (m.poll_id) return '📊 Umfrage';
+  return '…';
+}
+
+/**
+ * Löst die zitierten Ausgangsnachrichten (reply_to_id) auf: Autorname + kurze
+ * Vorschau. Service-Client, nachdem die RLS-Sicht die Nachrichten schon
+ * freigegeben hat (die Zitate gehören zum selben Kanal).
+ */
+async function loadReplyPreviews(
+  rows: RawMessage[],
+): Promise<Map<string, ChannelReplyPreview>> {
+  const ids = [
+    ...new Set(rows.map((m) => m.reply_to_id).filter((v): v is string => !!v)),
+  ];
+  const out = new Map<string, ChannelReplyPreview>();
+  if (ids.length === 0) return out;
+
+  const service = createSupabaseServiceClient();
+  const { data: parents } = await service
+    .from('chat_channel_messages')
+    .select('id, author_id, body, sticker_path, file_name, poll_id')
+    .in('id', ids);
+  if (!parents || parents.length === 0) return out;
+
+  const authorIds = [
+    ...new Set(parents.map((p) => p.author_id).filter((v): v is string => !!v)),
+  ];
+  const { data: profiles } = authorIds.length
+    ? await service.from('profiles').select('id, full_name').in('id', authorIds)
+    : { data: [] as { id: string; full_name: string | null }[] };
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name ?? 'Unbekannt'] as const));
+
+  for (const p of parents) {
+    out.set(p.id, {
+      id: p.id,
+      authorName: p.author_id ? nameById.get(p.author_id) ?? 'Unbekannt' : 'Unbekannt',
+      preview: messagePreview(p),
+    });
+  }
+  return out;
+}
 
 /**
  * Loads polls referenced by the given message rows and aggregates their votes
@@ -162,6 +226,7 @@ async function mapMessages(
     : { data: [] as { id: string; full_name: string | null; avatar_url: string | null; status: string | null }[] };
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
   const pollById = await loadPolls(rows, currentUserId);
+  const replyById = await loadReplyPreviews(rows);
 
   return rows.map((m) => {
     const profile = m.author_id ? profileById.get(m.author_id) : undefined;
@@ -189,6 +254,7 @@ async function mapMessages(
         : null,
       file,
       poll: m.poll_id ? pollById.get(m.poll_id) ?? null : null,
+      replyTo: m.reply_to_id ? replyById.get(m.reply_to_id) ?? null : null,
       createdAt: m.created_at,
       isMine: m.author_id === currentUserId,
     };

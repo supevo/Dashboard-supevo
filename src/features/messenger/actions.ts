@@ -195,6 +195,7 @@ export async function openDmAction(
 const sendSchema = z.object({
   channelId: z.string().uuid(),
   body: z.string().trim().min(1).max(4000),
+  replyToId: z.string().uuid().optional().or(z.literal('')),
 });
 
 /** Posts a message to a channel. */
@@ -205,6 +206,7 @@ export async function sendChannelMessageAction(
   const parsed = sendSchema.safeParse({
     channelId: formData.get('channelId'),
     body: formData.get('body'),
+    replyToId: formData.get('replyToId') ?? '',
   });
   if (!parsed.success) return errorResult(de.errors.VALIDATION);
 
@@ -229,6 +231,7 @@ export async function sendChannelMessageAction(
     organization_id: channel.organization_id,
     author_id: user.id,
     body: parsed.data.body,
+    reply_to_id: parsed.data.replyToId || null,
   });
   if (error) return errorResult(de.errors.FORBIDDEN);
 

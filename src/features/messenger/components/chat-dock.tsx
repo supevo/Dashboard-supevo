@@ -104,6 +104,8 @@ function ConversationView({
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
   const stagingRef = useRef<HTMLInputElement>(null);
+  // Zitierte Nachricht, auf die geantwortet wird (WhatsApp-Stil). null = keine.
+  const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null);
 
   function addFiles(list: FileList | File[] | null | undefined) {
     if (!list) return;
@@ -142,6 +144,7 @@ function ConversationView({
         stickerUrl: null,
         file: null,
         poll: null,
+        replyTo: null,
         createdAt: new Date().toISOString(),
         isMine: true,
       },
@@ -170,7 +173,10 @@ function ConversationView({
         addOptimistic(body);
         const res = await sendChannelMessageAction(prev, formData);
         // Nach Erfolg im SELBEN Übergang neu laden (kein Flackern der Blase).
-        if (res.status === 'success') await loadRef.current();
+        if (res.status === 'success') {
+          setReplyTo(null);
+          await loadRef.current();
+        }
         return res;
       }
       // Nur Dateien: neu laden, damit die Datei-Nachrichten erscheinen.
@@ -318,13 +324,14 @@ function ConversationView({
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
           optimisticMessages.map((m) => (
-            <div key={m.id} className="space-y-0.5">
-            <div className={cn('flex gap-2', m.isMine && 'flex-row-reverse')}>
+            <div key={m.id} id={`cm-${m.id}`} className="space-y-0.5">
+            <div className={cn('group flex items-center gap-2', m.isMine && 'flex-row-reverse')}>
               <Avatar
                 userId={m.authorId ?? ''}
                 name={m.authorName}
                 hasAvatar={m.authorHasAvatar}
                 size="sm"
+                className="self-end"
               />
               <div
                 className={cn(
@@ -340,6 +347,21 @@ function ConversationView({
                 <div className="mb-0.5 text-[11px] opacity-70">
                   {m.authorName} · {timeLabel(m.createdAt)}
                 </div>
+                {m.replyTo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document
+                        .getElementById(`cm-${m.replyTo!.id}`)
+                        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                    }}
+                    className="mb-1 block w-full rounded border-l-2 border-current bg-black/10 px-2 py-1 text-left dark:bg-white/15"
+                    title="Zur Originalnachricht"
+                  >
+                    <span className="block text-[11px] font-medium">{m.replyTo.authorName}</span>
+                    <span className="block truncate text-[11px] opacity-80">{m.replyTo.preview}</span>
+                  </button>
+                )}
                 {m.stickerUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -355,6 +377,18 @@ function ConversationView({
                   <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setReplyTo(m);
+                  inputRef.current?.focus();
+                }}
+                aria-label="Antworten"
+                title="Antworten"
+                className="shrink-0 rounded p-1 text-sm text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+              >
+                ↩︎
+              </button>
             </div>
             {m.isMine &&
               (() => {
@@ -386,6 +420,7 @@ function ConversationView({
       <DropZone overlayLabel="Datei hier ablegen">
       <form ref={formRef} action={action} className="flex flex-col gap-2 border-t p-2">
         <input type="hidden" name="channelId" value={channelId} />
+        <input type="hidden" name="replyToId" value={replyTo?.id ?? ''} />
         <input
           ref={stagingRef}
           type="file"
@@ -397,6 +432,36 @@ function ConversationView({
             e.target.value = '';
           }}
         />
+
+        {/* Antwort-Vorschau (WhatsApp-Stil): zitierte Nachricht + Abbrechen. */}
+        {replyTo && (
+          <div className="flex items-start gap-2 rounded-md border-l-2 border-primary bg-muted/50 px-2 py-1.5">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-medium text-primary">
+                Antwort an {replyTo.authorName}
+              </div>
+              <div className="truncate text-[11px] text-muted-foreground">
+                {replyTo.body?.trim()
+                  ? replyTo.body
+                  : replyTo.stickerUrl
+                    ? '📷 Sticker'
+                    : replyTo.file
+                      ? `📎 ${replyTo.file.name}`
+                      : replyTo.poll
+                        ? '📊 Umfrage'
+                        : '…'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              aria-label="Antwort verwerfen"
+              className="shrink-0 rounded px-1 text-sm text-muted-foreground hover:bg-muted"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Anhang-Vorschau: eingefügte/gewählte Bilder werden erst beim Senden
             hochgeladen; jedes lässt sich per ✕ wieder entfernen. */}
