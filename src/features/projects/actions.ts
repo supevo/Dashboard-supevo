@@ -65,6 +65,10 @@ export async function createProjectAction(
     status: 'active',
     lead_user_id: user.id,
     created_by: user.id,
+    // Standardmäßig für den Kunden sichtbar – Boards sollen ohne extra Klick im
+    // Portal erscheinen. Einzelne Projekte lassen sich in den Einstellungen wieder
+    // ausblenden.
+    is_client_visible: true,
   });
 
   if (error) {
