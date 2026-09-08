@@ -118,11 +118,7 @@ export default async function PortalTaskPage({
           <CardTitle>{de.portal.files}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <FileUploader
-            projectId={projectId}
-            taskId={taskId}
-            allowInternal={false}
-          />
+          <FileUploader projectId={projectId} taskId={taskId} />
           {files.length === 0 ? (
             <p className="text-sm text-muted-foreground">{de.task.noFiles}</p>
           ) : (

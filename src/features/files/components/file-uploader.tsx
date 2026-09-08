@@ -43,12 +43,10 @@ const STORAGE_WARNINGS: Record<string, string> = {
 export function FileUploader({
   projectId,
   taskId,
-  allowInternal = true,
   showStorageWarnings = false,
 }: {
   projectId: string;
   taskId: string;
-  allowInternal?: boolean;
   /** Agency-only: surface OneDrive fallback hints (never shown to clients). */
   showStorageWarnings?: boolean;
 }) {
@@ -57,7 +55,8 @@ export function FileUploader({
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [dragActive, setDragActive] = useState(false);
-  const [isInternal, setIsInternal] = useState(allowInternal);
+  // Hochgeladene Dateien sind immer für alle (auch Kunden) sichtbar – es gibt
+  // keinen „nur intern"-Haken mehr.
 
   async function uploadMany(files: File[]) {
     for (const file of files) {
@@ -134,7 +133,7 @@ export function FileUploader({
             fileName: file.name,
             mimeType: file.type,
             sizeBytes: file.size,
-            isInternal,
+            isInternal: false,
           }),
         });
         const finalizeJson = (await finalizeRes.json()) as { ok?: boolean; error?: string };
@@ -180,7 +179,7 @@ export function FileUploader({
           mimeType: file.type,
           sizeBytes: file.size,
           checksum,
-          isInternal,
+          isInternal: false,
         }),
       });
       const finalizeJson = (await finalizeRes.json()) as {
@@ -206,16 +205,6 @@ export function FileUploader({
     <div className="space-y-2">
       {error && <Alert variant="destructive">{error}</Alert>}
       {notice && <Alert>{notice}</Alert>}
-      {allowInternal && (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={isInternal}
-            onChange={(e) => setIsInternal(e.target.checked)}
-          />
-          {de.task.uploadInternal}
-        </label>
-      )}
 
       <label
         onDragEnter={(e) => {

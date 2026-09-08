@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
   const fileName = body?.fileName ?? '';
   const mimeType = body?.mimeType ?? '';
   const sizeBytes = Number(body?.sizeBytes ?? 0);
-  const isInternal = body?.isInternal !== false;
+  // Dateien sind standardmäßig für alle (auch Kunden) sichtbar; nur explizit
+  // als intern markierte bleiben verborgen (aktuell setzt das kein Uploader).
+  const isInternal = body?.isInternal === true;
 
   if (!projectId || !itemId || !fileName || !mimeType) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
