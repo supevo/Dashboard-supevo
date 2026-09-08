@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 
 function CopyButton({ getValue, label }: { getValue: () => Promise<string> | string; label: string }) {
@@ -81,6 +82,11 @@ function EntryRow({ entry }: { entry: PasswordEntry }) {
             </a>
           )}
         </div>
+        {entry.notes && (
+          <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
+            📝 {entry.notes}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -188,6 +194,16 @@ export function PasswordManager({ entries }: { entries: PasswordEntry[] }) {
               <div className="space-y-1">
                 <Label htmlFor="pw-url">URL</Label>
                 <Input id="pw-url" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://…" />
+              </div>
+              <div className="space-y-1 sm:col-span-2">
+                <Label htmlFor="pw-notes">Notiz</Label>
+                <Textarea
+                  id="pw-notes"
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  rows={3}
+                  placeholder="z. B. 2-Faktor per SMS an +49…, Sicherheitsfrage, Ansprechpartner …"
+                />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
