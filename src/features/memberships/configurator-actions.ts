@@ -23,7 +23,10 @@ import {
   type ModuleDef,
   type PriceContext,
 } from '@/features/memberships/modules';
-import { notifyRemovedModules } from '@/features/memberships/configurator-queries';
+import {
+  notifyRemovedModules,
+  syncStageActiveTaskLimit,
+} from '@/features/memberships/configurator-queries';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
 
 const selectionSchema = z.object({
@@ -165,6 +168,10 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
       });
       if (error) return errorResult(de.errors.INTERNAL);
     }
+
+    // Aktive-Aufgaben-Kapazität sofort an die Stufe anpassen (Stage 1 → 1,
+    // Stage 2 → 2) – analog zu den Express-Tickets, die dieselbe stage lesen.
+    await syncStageActiveTaskLimit(supabase, clientCompanyId, stage);
 
     // Bei einer sofortigen ÄNDERUNG (nicht Erst-Einrichtung) abgewählte Module
     // dem Team melden – mit heutigem Datum, da sofort gültig.

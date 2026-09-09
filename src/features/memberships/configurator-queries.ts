@@ -120,7 +120,63 @@ export async function promoteIfDue(
     .eq('id', membership.id)
     .select('*')
     .maybeSingle();
+
+  // Die aktive-Aufgaben-Kapazität an die (jetzt scharf geschaltete) Stufe
+  // anpassen, damit sie – wie das Express-Ticket-Kontingent – der Mitgliedschaft
+  // folgt (Stage 1 → 1, Stage 2 → 2).
+  if (!error) {
+    await syncStageActiveTaskLimit(
+      supabase,
+      membership.client_company_id,
+      pending.stage,
+    );
+  }
+
   return (data as Membership) ?? (error ? membership : membership);
+}
+
+/**
+ * Propagiert die Mitgliedschafts-Stufe auf die Kapazität für aktive Aufgaben:
+ * Das WIP-Limit der `active`-Spalte jedes Kundenprojekts wird auf die Stufe
+ * gesetzt (Stage 1 → 1 aktive Aufgabe, Stage 2 → 2). So folgt das
+ * Aktive-Aufgaben-Kontingent der Mitgliedschaft – exakt wie die Express-Tickets
+ * (getExpressStatus liest dieselbe stage). No-op für Legacy-Kunden (kein
+ * stufenbasiertes Aufgaben-Board) und wenn der Kunde noch kein Board hat.
+ */
+export async function syncStageActiveTaskLimit(
+  supabase: Supabase,
+  clientCompanyId: string,
+  stage: number,
+): Promise<void> {
+  const { data: company } = await supabase
+    .from('client_companies')
+    .select('is_legacy')
+    .eq('id', clientCompanyId)
+    .maybeSingle();
+  if (company?.is_legacy) return;
+
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('client_company_id', clientCompanyId)
+    .is('deleted_at', null);
+  const projectIds = (projects ?? []).map((p) => p.id);
+  if (projectIds.length === 0) return;
+
+  const { data: boards } = await supabase
+    .from('boards')
+    .select('id')
+    .in('project_id', projectIds);
+  const boardIds = (boards ?? []).map((b) => b.id);
+  if (boardIds.length === 0) return;
+
+  // RLS (board_columns_write → can_manage_project) beschränkt dies auf Manager;
+  // der Service-Client (Baukasten/Rechnungslauf) darf ohnehin.
+  await supabase
+    .from('board_columns')
+    .update({ wip_limit: stage, wip_limit_per_user: null })
+    .in('board_id', boardIds)
+    .eq('column_key', 'active');
 }
 
 async function priceContextFor(

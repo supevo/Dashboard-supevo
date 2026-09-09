@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { requireUser } from '@/lib/authz/authorize';
+import { syncStageActiveTaskLimit } from '@/features/memberships/configurator-queries';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 import {
@@ -36,30 +37,8 @@ export async function setClientStageAction(
   const user = await requireUser();
   const supabase = await createSupabaseServerClient();
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('id')
-    .eq('client_company_id', clientCompanyId)
-    .is('deleted_at', null);
-  const projectIds = (projects ?? []).map((p) => p.id);
-
-  if (projectIds.length > 0) {
-    const { data: boards } = await supabase
-      .from('boards')
-      .select('id')
-      .in('project_id', projectIds);
-    const boardIds = (boards ?? []).map((b) => b.id);
-
-    if (boardIds.length > 0) {
-      // RLS (board_columns_write → can_manage_project) restricts this to managers.
-      const { error } = await supabase
-        .from('board_columns')
-        .update({ wip_limit: stage, wip_limit_per_user: null })
-        .in('board_id', boardIds)
-        .eq('column_key', 'active');
-      if (error) return errorResult(de.errors.INTERNAL);
-    }
-  }
+  // Gemeinsame Logik mit der Mitgliedschaft: WIP-Limit der aktive-Spalte = Stufe.
+  await syncStageActiveTaskLimit(supabase, clientCompanyId, stage);
 
   await logActivity({
     actorId: user.id,
@@ -67,7 +46,7 @@ export async function setClientStageAction(
     action: 'update',
     entityType: 'client_company',
     entityId: clientCompanyId,
-    metadata: { field: 'stage', stage, projects: projectIds.length },
+    metadata: { field: 'stage', stage },
   });
 
   revalidatePath(`/app/clients/${clientCompanyId}`);
