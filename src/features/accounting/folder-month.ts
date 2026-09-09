@@ -60,3 +60,14 @@ export function folderMonthDate(
   if (!year || !month) return null;
   return `${year}-${String(month).padStart(2, '0')}-01`;
 }
+
+/**
+ * Nur das Jahr aus einem Ordnerpfad (4-stellig, 20xx), unabhängig vom Monat.
+ * Für den Import-Jahresfilter (z. B. „erst ab 2026"). Null, wenn kein Jahr
+ * im Pfad steht.
+ */
+export function folderYear(path: string | null | undefined): number | null {
+  if (!path) return null;
+  const m = path.match(/\b(20\d{2})\b/);
+  return m ? Number(m[1]) : null;
+}

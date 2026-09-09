@@ -11,7 +11,14 @@ import {
   getItemMeta,
 } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
-import { folderMonthDate } from '@/features/accounting/folder-month';
+import {
+  folderMonthDate,
+  folderYear,
+} from '@/features/accounting/folder-month';
+
+// Belege werden erst ab diesem Jahr importiert; ältere Ordner (2025 und davor)
+// bleiben vorerst ausgeklammert.
+const MIN_IMPORT_YEAR = 2026;
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -153,14 +160,20 @@ export async function importOneDriveReceiptsAction(input: {
   }
 
   // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).
-  const files = await listFolderFilesRecursive(orgId, scanRootId, {
+  const scanned = await listFolderFilesRecursive(orgId, scanRootId, {
     rootPath: folderPath ?? '',
   });
-  if (files === null) {
+  if (scanned === null) {
     return errorResult(
       'OneDrive nicht erreichbar. Ist das Konto noch verbunden?',
     );
   }
+  // Nur ab MIN_IMPORT_YEAR importieren; ältere Jahresordner (2025 und davor)
+  // ausklammern. Dateien ohne erkennbares Jahr bleiben drin (kein Fehlausschluss).
+  const files = scanned.filter((f) => {
+    const y = folderYear(f.parentPath);
+    return y == null || y >= MIN_IMPORT_YEAR;
+  });
 
   const receiptKind = kind === 'einnahmen' ? 'einnahme' : 'ausgabe';
 
@@ -182,10 +195,12 @@ export async function importOneDriveReceiptsAction(input: {
 
   // Sync: Belege, deren OneDrive-Datei nicht mehr existiert, entfernen – aber nur
   // beim vollständigen Scan (kein einzelner Unterordner), sonst würde man Belege
-  // aus anderen Unterordnern löschen. Löscht nur den DB-Datensatz.
+  // aus anderen Unterordnern löschen. Löscht nur den DB-Datensatz. Bewusst gegen
+  // den UNGEFILTERTEN Scan (scanned) geprüft: der Jahresfilter blockiert nur neue
+  // Importe, löscht aber keine bereits vorhandenen 2025-Belege ungewollt mit.
   let removed = 0;
   if (!subfolderId) {
-    const fileIds = new Set(files.map((f) => f.id));
+    const fileIds = new Set(scanned.map((f) => f.id));
     const staleIds = (known ?? [])
       .filter((r) => r.onedrive_item_id && !fileIds.has(r.onedrive_item_id))
       .map((r) => r.id);
