@@ -89,6 +89,47 @@ export async function awardChoreXp(params: {
   }
 }
 
+/**
+ * XP für unternehmerische / Führungs-Aktionen (Leads, Finanzen, GF-Cockpit).
+ * Damit verdient auch, wer selten selbst Aufgaben abschließt (z. B. die GF),
+ * XP für die tatsächliche Arbeit – nicht nur über den Ordnungsdienst/Tasks.
+ */
+export const XP_LEAD_WON = 20; // Lead gewonnen (in Kunde/Projekt umgewandelt)
+export const XP_LEAD_OFFER = 5; // Angebot für einen Lead erstellt
+export const XP_INVOICE_FINALIZED = 8; // Rechnung verbindlich finalisiert
+export const XP_CEO_TASK = 3; // GF-Cockpit-Karte erledigt
+
+/**
+ * Vergibt XP für eine einmalige Geschäfts-/Führungs-Aktion, idempotent über
+ * (user, kind, ref_id) – z. B. ein gewonnener Lead, eine finalisierte Rechnung
+ * oder eine erledigte GF-Karte. Über den Service-Client geschrieben, damit es
+ * aus jedem Kontext sicher der handelnden Person gutgeschrieben wird. Fehler
+ * (außer „schon vergeben") werden geloggt, brechen die Aktion aber nie ab.
+ */
+export async function awardActionXp(params: {
+  userId: string;
+  orgId: string;
+  kind: string;
+  points: number;
+  refId: string;
+}): Promise<void> {
+  const { userId, orgId, kind, points, refId } = params;
+  const { createSupabaseServiceClient } = await import('@/lib/supabase/service');
+  const service = createSupabaseServiceClient();
+  const factor = await xpFactor(orgId);
+  const { error } = await service.from('xp_events').insert({
+    user_id: userId,
+    organization_id: orgId,
+    kind,
+    points: applyBoost(points, factor),
+    task_id: null,
+    ref_id: refId,
+  } as never);
+  if (error && error.code !== '23505') {
+    logger.error('action xp insert failed', { error, kind });
+  }
+}
+
 export const STREAK_MILESTONES: { days: number; kind: string; points: number }[] = [
   { days: 3, kind: 'streak_3', points: 15 },
   { days: 7, kind: 'streak_7', points: 40 },

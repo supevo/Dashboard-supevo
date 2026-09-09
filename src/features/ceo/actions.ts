@@ -12,6 +12,7 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import { awardActionXp, XP_CEO_TASK } from '@/features/gamification/xp';
 import { CEO_STATUSES } from './types';
 
 /** Nur der/die Geschäftsführer:in (Super-Admin) nutzt das GF-Board. */
@@ -136,6 +137,18 @@ export async function moveCeoTaskAction(
     .eq('id', taskId);
   if (error) return errorResult(de.errors.INTERNAL);
 
+  // XP fürs Erledigen einer GF-Karte (einmal je Karte, idempotent über ref_id).
+  const orgId = primaryAgencyOrgId(user);
+  if (status === 'done' && orgId) {
+    await awardActionXp({
+      userId: user.id,
+      orgId,
+      kind: 'ceo_task',
+      points: XP_CEO_TASK,
+      refId: taskId,
+    });
+  }
+
   revalidatePath('/app/gf');
   return successResult();
 }
@@ -168,6 +181,18 @@ export async function reorderCeoTaskAction(
     })
     .eq('id', taskId);
   if (error) return errorResult(de.errors.INTERNAL);
+
+  // XP fürs Erledigen einer GF-Karte (einmal je Karte, idempotent über ref_id).
+  const orgId = primaryAgencyOrgId(user);
+  if (status === 'done' && orgId) {
+    await awardActionXp({
+      userId: user.id,
+      orgId,
+      kind: 'ceo_task',
+      points: XP_CEO_TASK,
+      refId: taskId,
+    });
+  }
 
   revalidatePath('/app/gf');
   return successResult();

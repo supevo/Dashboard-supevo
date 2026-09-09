@@ -17,6 +17,11 @@ import {
   type PriceContext,
 } from '@/features/memberships/modules';
 import { getModuleCatalog } from '@/features/memberships/catalog-queries';
+import {
+  awardActionXp,
+  XP_LEAD_WON,
+  XP_LEAD_OFFER,
+} from '@/features/gamification/xp';
 import { generateProjectTasks } from '@/features/leads/generate-tasks';
 import { generateContractFromMembershipAction } from '@/features/onboarding/agency-actions';
 import {
@@ -498,6 +503,15 @@ export async function saveLeadOfferAction(input: unknown): Promise<ActionResult>
     revalidatePath(`/app/clients/${lead.converted_client_company_id}`);
   }
 
+  // XP fürs Erstellen eines Angebots (einmal je Lead, idempotent über ref_id).
+  await awardActionXp({
+    userId: user.id,
+    orgId: lead.organization_id,
+    kind: 'lead_offer',
+    points: XP_LEAD_OFFER,
+    refId: leadId,
+  });
+
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);
   return successResult('Angebot gespeichert.');
@@ -546,6 +560,15 @@ export async function convertLeadToClientAction(leadId: string): Promise<ActionR
     .from('leads')
     .update({ status: 'won', converted_client_company_id: res.id })
     .eq('id', leadId);
+
+  // XP für den gewonnenen Lead (einmal je Lead, idempotent über ref_id).
+  await awardActionXp({
+    userId: user.id,
+    orgId: lead.organization_id,
+    kind: 'lead_won',
+    points: XP_LEAD_WON,
+    refId: leadId,
+  });
 
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);
@@ -701,6 +724,15 @@ export async function convertLeadToProjectAction(input: unknown): Promise<Action
     .from('leads')
     .update({ status: 'won', converted_client_company_id: client.id })
     .eq('id', leadId);
+
+  // XP für den gewonnenen Lead (einmal je Lead, idempotent über ref_id).
+  await awardActionXp({
+    userId: user.id,
+    orgId,
+    kind: 'lead_won',
+    points: XP_LEAD_WON,
+    refId: leadId,
+  });
 
   revalidatePath('/app/leads');
   revalidatePath(`/app/leads/${leadId}`);

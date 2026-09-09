@@ -15,6 +15,10 @@ import {
 } from '@/lib/action-result';
 import { getClientMembership } from '@/features/billing/membership';
 import {
+  awardActionXp,
+  XP_INVOICE_FINALIZED,
+} from '@/features/gamification/xp';
+import {
   createDraftInvoice,
   createManualDraftInvoice,
   assignInvoiceNumber,
@@ -389,6 +393,15 @@ export async function finalizeInvoiceAction(
     entityType: 'invoice',
     entityId: invoice.id,
     metadata: { number: numberResult.number, event: 'finalize' },
+  });
+
+  // XP fürs verbindliche Finalisieren der Rechnung (einmal je Rechnung).
+  await awardActionXp({
+    userId: user.id,
+    orgId: invoice.organization_id,
+    kind: 'invoice_finalized',
+    points: XP_INVOICE_FINALIZED,
+    refId: invoice.id,
   });
 
   revalidatePath(`/app/clients/${invoice.client_company_id}`);
