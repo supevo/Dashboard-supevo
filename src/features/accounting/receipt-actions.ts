@@ -11,6 +11,7 @@ import {
   getItemMeta,
 } from '@/lib/onedrive/graph';
 import { resolveReceiptMime } from '@/lib/ai/vision';
+import { folderMonthDate } from '@/features/accounting/folder-month';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -152,7 +153,9 @@ export async function importOneDriveReceiptsAction(input: {
   }
 
   // List the folder recursively (Belege liegen oft in Jahr/Monat-Unterordnern).
-  const files = await listFolderFilesRecursive(orgId, scanRootId);
+  const files = await listFolderFilesRecursive(orgId, scanRootId, {
+    rootPath: folderPath ?? '',
+  });
   if (files === null) {
     return errorResult(
       'OneDrive nicht erreichbar. Ist das Konto noch verbunden?',
@@ -164,11 +167,18 @@ export async function importOneDriveReceiptsAction(input: {
   // Existing receipts of this kind → dedup by OneDrive item id.
   const { data: known } = await supabase
     .from('bookkeeping_receipts')
-    .select('id, onedrive_item_id')
+    .select('id, onedrive_item_id, beleg_datum')
     .eq('billing_entity_id', billingEntityId)
     .eq('kind', receiptKind)
     .not('onedrive_item_id', 'is', null);
   const knownIds = new Set((known ?? []).map((r) => r.onedrive_item_id));
+
+  // OneDrive-Datei-id → Monatsdatum aus dem Ordner (z. B. "2026/08. August").
+  const fileDateById = new Map<string, string>();
+  for (const f of files) {
+    const d = folderMonthDate(f.parentPath);
+    if (d) fileDateById.set(f.id, d);
+  }
 
   // Sync: Belege, deren OneDrive-Datei nicht mehr existiert, entfernen – aber nur
   // beim vollständigen Scan (kein einzelner Unterordner), sonst würde man Belege
@@ -188,6 +198,30 @@ export async function importOneDriveReceiptsAction(input: {
     }
   }
 
+  // Bereits importierte, aber noch NICHT ausgelesene (undatierte) Belege
+  // nachträglich dem Ordner-Monat zuordnen – so „einsortiert" ein erneuter
+  // Import Alt-Belege, ohne dass man sie löschen und neu importieren muss.
+  // Nur undatierte werden angefasst (ausgelesene behalten ihr echtes Datum).
+  let dated = 0;
+  const byDate = new Map<string, string[]>();
+  for (const r of known ?? []) {
+    if (r.beleg_datum || !r.onedrive_item_id) continue;
+    const d = fileDateById.get(r.onedrive_item_id);
+    if (!d) continue;
+    const arr = byDate.get(d) ?? [];
+    arr.push(r.onedrive_item_id);
+    byDate.set(d, arr);
+  }
+  for (const [d, ids] of byDate) {
+    const { count } = await supabase
+      .from('bookkeeping_receipts')
+      .update({ beleg_datum: d } as never, { count: 'exact' })
+      .eq('billing_entity_id', billingEntityId)
+      .in('onedrive_item_id', ids)
+      .is('beleg_datum', null);
+    dated += count ?? 0;
+  }
+
   const toInsert = files
     .filter((f) => !knownIds.has(f.id))
     .map((f) => ({
@@ -199,6 +233,9 @@ export async function importOneDriveReceiptsAction(input: {
       file_name: f.name,
       file_mime: resolveReceiptMime(f.name, null),
       file_size: f.size,
+      // Monat aus dem OneDrive-Ordner vorbelegen; die KI überschreibt das später
+      // mit dem echten Rechnungsdatum beim Auslesen.
+      beleg_datum: folderMonthDate(f.parentPath),
       created_by: user.id,
     }));
 
@@ -227,6 +264,8 @@ export async function importOneDriveReceiptsAction(input: {
   revalidatePath('/app/finance');
   const removedNote =
     removed > 0 ? ` ${removed} in OneDrive gelöschte entfernt.` : '';
+  const datedNote =
+    dated > 0 ? ` ${dated} vorhandene dem Ordner-Monat zugeordnet.` : '';
   if (errors > 0) {
     return errorResult(
       `${imported} importiert, ${errors} fehlgeschlagen. Bitte erneut versuchen.`,
@@ -236,6 +275,7 @@ export async function importOneDriveReceiptsAction(input: {
     (imported > 0
       ? `${imported} neue Belege importiert (${skipped} bereits vorhanden).`
       : `Keine neuen Belege – alle ${files.length} bereits importiert.`) +
+      datedNote +
       removedNote,
     { imported },
   );

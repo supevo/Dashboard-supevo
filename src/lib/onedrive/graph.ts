@@ -18,6 +18,9 @@ export interface DriveItem {
   size: number | null;
   childCount: number | null;
   webUrl: string | null;
+  /** Nur bei rekursivem Listing gesetzt: Pfad des Elternordners (z. B.
+   *  "2026/08. August"), relativ zum Scan-Root. Für die Monatszuordnung. */
+  parentPath?: string;
 }
 
 /**
@@ -511,24 +514,35 @@ export async function ensureSubfolderPath(
 export async function listFolderFilesRecursive(
   orgId: string,
   rootId: string | null,
-  opts: { maxFiles?: number; maxNodes?: number } = {},
+  opts: { maxFiles?: number; maxNodes?: number; rootPath?: string } = {},
 ): Promise<DriveItem[] | null> {
   const maxFiles = opts.maxFiles ?? 5000;
   const maxNodes = opts.maxNodes ?? 800;
-  const queue: (string | null)[] = [rootId];
+  // Pfad je Ordner mitführen, damit die Dateien ihren Elternordner kennen
+  // (Monatszuordnung, z. B. "2026/08. August"). rootPath seedet den Scan-Root,
+  // damit auch Unterordner-Scans den vollen Pfad behalten.
+  const queue: { id: string | null; path: string }[] = [
+    { id: rootId, path: opts.rootPath ?? '' },
+  ];
   const files: DriveItem[] = [];
   let nodes = 0;
   let anyOk = false;
 
   while (queue.length > 0 && nodes < maxNodes && files.length < maxFiles) {
-    const folderId = queue.shift() ?? null;
+    const node = queue.shift()!;
     nodes += 1;
-    const items = await listFolder(orgId, folderId);
+    const items = await listFolder(orgId, node.id);
     if (items === null) continue;
     anyOk = true;
     for (const item of items) {
-      if (item.isFolder) queue.push(item.id);
-      else files.push(item);
+      if (item.isFolder) {
+        queue.push({
+          id: item.id,
+          path: node.path ? `${node.path}/${item.name}` : item.name,
+        });
+      } else {
+        files.push({ ...item, parentPath: node.path });
+      }
     }
   }
   if (!anyOk) return null;
