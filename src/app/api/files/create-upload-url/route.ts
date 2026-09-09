@@ -3,7 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/features/auth/session';
 import { createSignedUploadTarget } from '@/lib/files/storage';
-import { validateUpload, buildStoragePath } from '@/lib/files/validation';
+import {
+  validateUpload,
+  buildStoragePath,
+  TASK_FILE_CONSTRAINTS,
+  TASK_FILE_MAX_SIZE_BYTES,
+} from '@/lib/files/validation';
 import { rateLimit } from '@/lib/rate-limit';
 import { createUploadSession } from '@/lib/onedrive/graph';
 import {
@@ -27,7 +32,9 @@ function isSameOrigin(request: NextRequest): boolean {
 
 const ERROR_MESSAGES: Record<string, string> = {
   EMPTY: 'Die Datei ist leer.',
-  TOO_LARGE: 'Die Datei überschreitet die maximale Größe (25 MB).',
+  TOO_LARGE: `Die Datei überschreitet die maximale Größe (${Math.round(
+    TASK_FILE_MAX_SIZE_BYTES / (1024 * 1024),
+  )} MB).`,
   MIME_NOT_ALLOWED: 'Dieser Dateityp ist nicht erlaubt.',
 };
 
@@ -76,7 +83,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
   }
 
-  const validationError = validateUpload({ size: sizeBytes, type: mimeType });
+  const validationError = validateUpload(
+    { size: sizeBytes, type: mimeType },
+    TASK_FILE_CONSTRAINTS,
+  );
   if (validationError) {
     return NextResponse.json(
       { error: ERROR_MESSAGES[validationError] ?? de.errors.VALIDATION },

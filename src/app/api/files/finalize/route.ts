@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/features/auth/session';
-import { validateUpload, sanitizeFileName } from '@/lib/files/validation';
+import {
+  validateUpload,
+  sanitizeFileName,
+  TASK_FILE_CONSTRAINTS,
+} from '@/lib/files/validation';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { env } from '@/lib/env';
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
   }
 
-  if (validateUpload({ size: sizeBytes, type: mimeType })) {
+  if (validateUpload({ size: sizeBytes, type: mimeType }, TASK_FILE_CONSTRAINTS)) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
   }
 

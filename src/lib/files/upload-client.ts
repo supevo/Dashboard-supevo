@@ -1,11 +1,17 @@
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { CHECKSUM_MAX_BYTES } from '@/lib/files/validation';
 
 // Bucket name (kept in sync with FILES_BUCKET in the server-only storage lib,
 // which cannot be imported into a client module).
 const FILES_BUCKET = 'files';
 
-/** Computes a SHA-256 hex digest of the file in the browser (integrity check). */
+/**
+ * Computes a SHA-256 hex digest of the file in the browser (integrity check).
+ * Übersprungen für große Dateien (> CHECKSUM_MAX_BYTES), da arrayBuffer() die
+ * ganze Datei in den RAM lädt; die Prüfsumme ist optional.
+ */
 async function sha256Hex(file: File): Promise<string | null> {
+  if (file.size > CHECKSUM_MAX_BYTES) return null;
   try {
     const buffer = await file.arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', buffer);

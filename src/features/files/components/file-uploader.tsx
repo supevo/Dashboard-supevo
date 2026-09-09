@@ -6,7 +6,9 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import {
   validateUpload,
   DEFAULT_ALLOWED_MIME,
-  DEFAULT_MAX_SIZE_BYTES,
+  TASK_FILE_MAX_SIZE_BYTES,
+  TASK_FILE_CONSTRAINTS,
+  CHECKSUM_MAX_BYTES,
 } from '@/lib/files/validation';
 import { de } from '@/lib/i18n/de';
 import { Alert } from '@/components/ui/alert';
@@ -14,12 +16,19 @@ import { cn } from '@/lib/utils';
 
 const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   EMPTY: 'Die Datei ist leer.',
-  TOO_LARGE: 'Die Datei überschreitet die maximale Größe (25 MB).',
+  TOO_LARGE: `Die Datei überschreitet die maximale Größe (${Math.round(
+    TASK_FILE_MAX_SIZE_BYTES / (1024 * 1024),
+  )} MB).`,
   MIME_NOT_ALLOWED: 'Dieser Dateityp ist nicht erlaubt.',
 };
 
-/** Computes a SHA-256 hex digest of the file in the browser (integrity check). */
+/**
+ * Computes a SHA-256 hex digest of the file in the browser (integrity check).
+ * Übersprungen für große Dateien (> CHECKSUM_MAX_BYTES), da arrayBuffer() die
+ * ganze Datei in den RAM lädt; die Prüfsumme ist optional.
+ */
 async function sha256Hex(file: File): Promise<string | null> {
+  if (file.size > CHECKSUM_MAX_BYTES) return null;
   try {
     const buffer = await file.arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', buffer);
@@ -71,7 +80,10 @@ export function FileUploader({
     setError(null);
 
     // Fail fast in the browser before any network round-trip.
-    const clientError = validateUpload({ size: file.size, type: file.type });
+    const clientError = validateUpload(
+      { size: file.size, type: file.type },
+      TASK_FILE_CONSTRAINTS,
+    );
     if (clientError) {
       setError(CLIENT_ERROR_MESSAGES[clientError] ?? de.task.uploadError);
       return false;
@@ -240,7 +252,7 @@ export function FileUploader({
           {pending ? de.common.loading : 'Dateien hierher ziehen oder klicken'}
         </span>
         <span className="text-xs text-muted-foreground">
-          Mehrere möglich · max. {Math.round(DEFAULT_MAX_SIZE_BYTES / (1024 * 1024))} MB je Datei
+          Mehrere möglich · max. {Math.round(TASK_FILE_MAX_SIZE_BYTES / (1024 * 1024))} MB je Datei
         </span>
         <input
           type="file"

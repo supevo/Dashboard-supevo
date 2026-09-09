@@ -6,6 +6,26 @@
 
 export const DEFAULT_MAX_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
+/**
+ * Höheres Limit speziell für Task-/Projektdateien (größere Videos, Design-Files
+ * etc.). Gilt NUR für die Datei-Anhänge an Aufgaben/Projekten – Chat, Assets und
+ * Client-Pages bleiben bewusst beim DEFAULT.
+ *
+ * WICHTIG: Der Upload läuft direkt in den Supabase-Storage. Dieses App-Limit
+ * wirkt nur, wenn auch das `files`-Bucket-Limit UND das globale Storage-Limit in
+ * Supabase mindestens so hoch stehen – sonst lehnt der Storage den Upload trotz
+ * App-OK ab.
+ */
+export const TASK_FILE_MAX_SIZE_BYTES = 200 * 1024 * 1024; // 200 MB
+
+/**
+ * Ab dieser Größe wird der SHA-256-Integritäts-Check im Browser übersprungen:
+ * er liest die ganze Datei in den RAM (file.arrayBuffer()), was bei großen
+ * Dateien den Tab zum Absturz bringen kann. Die Prüfsumme ist optional (finalize
+ * akzeptiert null), daher ist das Auslassen unkritisch.
+ */
+export const CHECKSUM_MAX_BYTES = 64 * 1024 * 1024; // 64 MB
+
 export const DEFAULT_ALLOWED_MIME = [
   'image/png',
   'image/jpeg',
@@ -38,6 +58,12 @@ export interface UploadConstraints {
 
 export const DEFAULT_CONSTRAINTS: UploadConstraints = {
   maxSizeBytes: DEFAULT_MAX_SIZE_BYTES,
+  allowedMime: DEFAULT_ALLOWED_MIME,
+};
+
+/** Constraints für Task-/Projektdateien (höheres Größenlimit, gleiche Typen). */
+export const TASK_FILE_CONSTRAINTS: UploadConstraints = {
+  maxSizeBytes: TASK_FILE_MAX_SIZE_BYTES,
   allowedMime: DEFAULT_ALLOWED_MIME,
 };
 

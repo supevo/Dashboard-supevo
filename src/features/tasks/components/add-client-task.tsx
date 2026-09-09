@@ -10,7 +10,8 @@ import { uploadFileToTask } from '@/lib/files/upload-client';
 import {
   validateUpload,
   DEFAULT_ALLOWED_MIME,
-  DEFAULT_MAX_SIZE_BYTES,
+  TASK_FILE_MAX_SIZE_BYTES,
+  TASK_FILE_CONSTRAINTS,
 } from '@/lib/files/validation';
 import { de } from '@/lib/i18n/de';
 import { Modal } from '@/components/ui/modal';
@@ -43,7 +44,7 @@ export function AddClientTask({ projectId }: { projectId: string }) {
     setError(null);
 
     for (const f of files) {
-      if (validateUpload({ size: f.size, type: f.type })) {
+      if (validateUpload({ size: f.size, type: f.type }, TASK_FILE_CONSTRAINTS)) {
         setError(`${de.task.uploadError} (${f.name})`);
         return;
       }
@@ -129,7 +130,7 @@ export function AddClientTask({ projectId }: { projectId: string }) {
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              Max. {Math.round(DEFAULT_MAX_SIZE_BYTES / (1024 * 1024))} MB je
+              Max. {Math.round(TASK_FILE_MAX_SIZE_BYTES / (1024 * 1024))} MB je
               Datei.
             </p>
           </div>
