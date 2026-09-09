@@ -295,7 +295,11 @@ export async function MonthClosePanel({
                       {formatEuroCents(g.betragCents)}
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <NoReceiptToggle transactionId={g.id} value={true} />
+                      <NoReceiptToggle
+                        transactionId={g.id}
+                        value={true}
+                        reason={g.noReceiptReason ?? ''}
+                      />
                     </td>
                   </tr>
                 ))}

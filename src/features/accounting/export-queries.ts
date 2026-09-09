@@ -1,6 +1,7 @@
 import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
+import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
 
 /** One booking line for the Steuerberater export (already display-formatted). */
 export interface BookingExportRow {
@@ -19,6 +20,8 @@ export interface BookingExportRow {
   belegVorhanden: string;
   belegDatei: string;
   rechnungsnummer: string;
+  /** Begründung, wenn kein Beleg nötig ist (für den Steuerberater). */
+  belegGrund: string;
 }
 
 function euroAbs(cents: number): string {
@@ -59,6 +62,12 @@ export async function getBookingExportRows(
     .order('datum', { ascending: true })
     .limit(20000);
   const rows = txns ?? [];
+
+  // Gründe für „kein Beleg nötig" (resilient – leer, falls Migration 0194 fehlt).
+  const reasonById = await getNoReceiptReasons(
+    supabase,
+    rows.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
+  );
 
   // Beleg-Infos (Dateiname, Rechnungsnr.) nachladen und zuordnen.
   const belegIds = [...new Set(rows.map((t) => t.beleg_id).filter((x): x is string => !!x))];
@@ -107,6 +116,7 @@ export async function getBookingExportRows(
       belegVorhanden,
       belegDatei: beleg?.file_name ?? '',
       rechnungsnummer: beleg?.rechnungsnummer ?? '',
+      belegGrund: t.beleg_nicht_noetig ? (reasonById.get(t.id) ?? '') : '',
     };
   });
 }

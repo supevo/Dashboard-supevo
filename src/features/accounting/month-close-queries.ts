@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
+import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
 
 export interface MonthStat {
   month: number; // 1..12
@@ -17,6 +18,8 @@ export interface BookingGap {
   zweck: string | null;
   betragCents: number;
   kategorieLabel: string;
+  /** Bei „kein Beleg nötig": hinterlegte Begründung (für den Export). */
+  noReceiptReason?: string;
 }
 
 export interface MonthClose {
@@ -108,9 +111,15 @@ export async function getMonthClose(
   const step3Gaps = inMonth
     .filter((t) => needsReceipt(t) && t.beleg_id == null)
     .map(toGap);
-  const intentionalNoReceipt = inMonth
-    .filter((t) => t.beleg_nicht_noetig)
-    .map(toGap);
+  const noReceiptRows = inMonth.filter((t) => t.beleg_nicht_noetig);
+  const reasonById = await getNoReceiptReasons(
+    supabase,
+    noReceiptRows.map((t) => t.id),
+  );
+  const intentionalNoReceipt = noReceiptRows.map((t) => ({
+    ...toGap(t),
+    noReceiptReason: reasonById.get(t.id) ?? '',
+  }));
 
   // Step 4: open payment suggestions whose transaction falls in the month.
   const { payments } = await getReconcileSuggestions(billingEntityId);

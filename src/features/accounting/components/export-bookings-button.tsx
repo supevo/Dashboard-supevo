@@ -20,6 +20,7 @@ const HEADER = [
   'Beleg vorhanden',
   'Beleg-Datei',
   'Rechnungsnummer',
+  'Grund (kein Beleg)',
 ];
 
 /**
@@ -49,6 +50,7 @@ export function ExportBookingsButton({
           r.belegVorhanden,
           r.belegDatei,
           r.rechnungsnummer,
+          r.belegGrund,
         ]
           .map(csvCell)
           .join(';'),
