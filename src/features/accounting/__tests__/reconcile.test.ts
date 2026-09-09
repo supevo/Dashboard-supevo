@@ -438,6 +438,19 @@ describe('matchReceiptsToTransactions', () => {
     expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
   });
 
+  it('matches when the merchant is glued into a purpose block (PP.META*… / MetaPlatformsIreland)', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-05', haendler: 'Meta Platforms Ireland', bruttoCents: 5000 },
+    ];
+    const outgoing = [
+      // Bank reformats the purpose so the merchant is not its own word.
+      { id: 't1', datum: '2024-03-06', gegen: 'PayPal Europe Sarl', zweck: 'PP.4711.PP MetaPlatformsIreland Einkauf', betragCents: -5000 },
+    ];
+    const matches = matchReceiptsToTransactions(receipts, outgoing);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
+  });
+
   it('matches a foreign-currency receipt whose bank amount differs by the FX rate', () => {
     const receipts = [
       { id: 'r1', datum: '2024-03-05', haendler: 'Voiceflow', bruttoCents: 5000, waehrung: 'USD', rechnungsnummer: 'VF-99' },

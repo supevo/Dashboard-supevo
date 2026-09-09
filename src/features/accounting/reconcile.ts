@@ -103,16 +103,16 @@ function nameSimilarity(a: string | null, b: string | null): number {
  */
 function nameInPurpose(name: string | null, zweck: string | null): boolean {
   if (!name || !zweck) return false;
-  const zt = new Set(
-    normName(zweck)
-      .split(' ')
-      .filter((t) => t.length >= 4),
-  );
-  if (zt.size === 0) return false;
-  return normName(name)
+  const zn = normName(zweck);
+  const zt = new Set(zn.split(' ').filter((t) => t.length >= 4));
+  // Kompaktform ohne Trenner: fängt zusammengezogene Zweck-Blöcke, in denen der
+  // Händlername in längeren Tokens steckt („MetaPlatformsIreland", „PP.META*123").
+  const zcompact = zn.replace(/[^a-z0-9äöüß]/g, '');
+  const nt = normName(name)
     .split(' ')
-    .filter((t) => t.length >= 4)
-    .some((t) => zt.has(t));
+    .filter((t) => t.length >= 4);
+  if (nt.length === 0 || (zt.size === 0 && zcompact.length === 0)) return false;
+  return nt.some((t) => zt.has(t) || zcompact.includes(t));
 }
 
 /** Only the alphanumeric characters, lowercased ("RE-2026/1" → "re20261"). */
