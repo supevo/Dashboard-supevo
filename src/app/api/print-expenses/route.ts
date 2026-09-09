@@ -135,10 +135,18 @@ export async function POST(request: NextRequest) {
     .upload(path, bytes, { contentType: file.type, upsert: false });
   if (upErr) {
     logger.error('print_expense.upload_failed', { error: upErr.message });
-    return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
+    return NextResponse.json(
+      { error: `Datei-Upload fehlgeschlagen: ${upErr.message}` },
+      { status: 500 },
+    );
   }
 
-  const { error: insErr } = await service.from('print_expenses').insert({
+  // Basisspalten (seit jeher vorhanden) und die neueren, migrations-abhängigen
+  // Spalten getrennt halten. Fehlt eine neuere Migration (0173/0174 markup,
+  // 0191 kind), scheiterte der Insert bisher komplett. Jetzt fällt er auf die
+  // Basisspalten zurück, damit der Upload wie in früheren Versionen gespeichert
+  // wird – die Proforma/Endrechnung-Trennung greift dann erst nach Migration 0191.
+  const baseRow: Record<string, unknown> = {
     organization_id: task.organization_id,
     client_company_id: project?.client_company_id ?? null,
     task_id: task.id,
@@ -148,15 +156,31 @@ export async function POST(request: NextRequest) {
     file_mime: file.type,
     file_size: file.size,
     amount_cents: amountCents,
-    markup_percent: markupPercent,
-    client_charge_cents: clientCharge,
     supplier,
     notes,
+  };
+  const fullRow: Record<string, unknown> = {
+    ...baseRow,
+    markup_percent: markupPercent,
+    client_charge_cents: clientCharge,
     kind,
-  } as never);
+  };
+
+  let insErr = (await service.from('print_expenses').insert(fullRow as never))
+    .error;
+  if (insErr) {
+    // Wahrscheinlich fehlt eine Spalte (Migration nicht eingespielt) → nur die
+    // Basisspalten schreiben, damit der Beleg trotzdem gespeichert wird.
+    logger.warn('print_expense.insert_full_failed', { error: insErr.message });
+    insErr = (await service.from('print_expenses').insert(baseRow as never))
+      .error;
+  }
   if (insErr) {
     logger.error('print_expense.insert_failed', { error: insErr.message });
-    return NextResponse.json({ error: de.errors.INTERNAL }, { status: 500 });
+    return NextResponse.json(
+      { error: `Speichern fehlgeschlagen: ${insErr.message}` },
+      { status: 500 },
+    );
   }
 
   // Nur die ENDRECHNUNG schließt die Abrechnung ab ('settled'); die Proforma
