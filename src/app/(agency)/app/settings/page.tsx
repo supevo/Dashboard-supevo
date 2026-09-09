@@ -16,6 +16,8 @@ import { getOrgBranding } from '@/features/branding/queries';
 import { LogoSettings } from '@/features/branding/components/logo-settings';
 import { getBinCoverage } from '@/features/bins/queries';
 import { BinAdmin } from '@/features/bins/components/bin-admin';
+import { listAllPhilosophyQuotes } from '@/features/philosophy/queries';
+import { PhilosophyAdmin } from '@/features/philosophy/components/philosophy-admin';
 import { de } from '@/lib/i18n/de';
 
 export default async function SettingsPage({
@@ -25,16 +27,25 @@ export default async function SettingsPage({
 }) {
   const { orgId } = await requireOrgAdminPage();
   // Independent → parallel. Org and OneDrive-Status don't depend on each other.
-  const [org, oneDriveStatus, chores, branding, binCoverage, sp, cookieStore] =
-    await Promise.all([
-      getOrganization(orgId),
-      getOneDriveStatus(orgId),
-      listOrgChores(orgId),
-      getOrgBranding(orgId),
-      getBinCoverage(orgId),
-      searchParams,
-      cookies(),
-    ]);
+  const [
+    org,
+    oneDriveStatus,
+    chores,
+    branding,
+    binCoverage,
+    philosophyQuotes,
+    sp,
+    cookieStore,
+  ] = await Promise.all([
+    getOrganization(orgId),
+    getOneDriveStatus(orgId),
+    listOrgChores(orgId),
+    getOrgBranding(orgId),
+    getBinCoverage(orgId),
+    listAllPhilosophyQuotes(orgId),
+    searchParams,
+    cookies(),
+  ]);
   if (!org) return null;
 
   const aiOn = isAiEnabled();
@@ -130,6 +141,19 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent>
           <ChoreAdmin chores={chores} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>✨ Firmenphilosophie</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Kurze Leitsätze, die oben in der Übersicht rotierend angezeigt
+            werden. Mehrere Texte wechseln sich automatisch ab.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <PhilosophyAdmin quotes={philosophyQuotes} />
         </CardContent>
       </Card>
 

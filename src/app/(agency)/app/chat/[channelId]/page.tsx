@@ -9,6 +9,7 @@ import {
 } from '@/features/messenger/queries';
 import { markChannelRead } from '@/features/messenger/actions';
 import { Messenger } from '@/features/messenger/components/messenger';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { de } from '@/lib/i18n/de';
 
 export default async function ChannelPage({
@@ -42,6 +43,7 @@ export default async function ChannelPage({
         initialMessages={messages}
         meId={user.id}
         meName={user.fullName ?? user.email}
+        canManage={isOrgAdmin(user, orgId)}
       />
     </div>
   );

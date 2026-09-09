@@ -9,6 +9,7 @@ import {
   useOptimistic,
   useRef,
   useState,
+  useTransition,
 } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -16,6 +17,8 @@ import {
   createChannelAction,
   sendChannelMessageAction,
   toggleChatFileKeepAction,
+  renameChannelAction,
+  deleteChannelAction,
 } from '@/features/messenger/actions';
 import type {
   ChatChannel,
@@ -150,16 +153,136 @@ function CreateChannel({ onDone }: { onDone: () => void }) {
   );
 }
 
+/**
+ * Kanal-Verwaltung (umbenennen/löschen) im Kanal-Kopf. Nur für echte Kanäle und
+ * nur, wenn der Nutzer verwalten darf (Org-Admin/Ersteller). Beim Löschen zurück
+ * zur Chat-Übersicht.
+ */
+function ChannelManage({ channel }: { channel: ChatChannel }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [name, setName] = useState(channel.name);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  function rename() {
+    const next = name.trim();
+    if (next.length < 1) return;
+    setError(null);
+    start(async () => {
+      const res = await renameChannelAction({ channelId: channel.id, name: next });
+      if (res.status === 'error') setError(res.message);
+      else {
+        setOpen(false);
+        router.refresh();
+      }
+    });
+  }
+
+  function remove() {
+    setError(null);
+    start(async () => {
+      const res = await deleteChannelAction(channel.id);
+      if (res.status === 'error') setError(res.message);
+      else router.push('/app/chat');
+    });
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+          setConfirmDelete(false);
+          setName(channel.name);
+          setError(null);
+        }}
+        className="rounded px-1.5 py-1 text-sm text-muted-foreground hover:bg-muted"
+        title="Kanal verwalten"
+        aria-label="Kanal verwalten"
+      >
+        ⚙︎
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1 w-64 space-y-2 rounded-lg border bg-card p-3 shadow-xl">
+          <label className="block text-xs font-medium text-muted-foreground">
+            Kanal umbenennen
+          </label>
+          <div className="flex gap-1">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  rename();
+                }
+              }}
+              maxLength={40}
+              className="h-8 text-sm"
+            />
+            <Button size="sm" disabled={pending} onClick={rename}>
+              OK
+            </Button>
+          </div>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+          <div className="border-t pt-2">
+            {confirmDelete ? (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Kanal inkl. aller Nachrichten endgültig löschen?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={pending}
+                    onClick={remove}
+                  >
+                    Endgültig löschen
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={pending}
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive"
+                disabled={pending}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Kanal löschen
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessagePane({
   channel,
   initialMessages,
   meId,
   meName,
+  canManage = false,
 }: {
   channel: ChatChannel;
   initialMessages: ChannelMessage[];
   meId: string;
   meName: string;
+  canManage?: boolean;
 }) {
   const { typing, notifyTyping } = useChatTyping(channel.id, meId, meName);
   const [messages, setMessages] = useState<ChannelMessage[]>(initialMessages);
@@ -298,6 +421,9 @@ function MessagePane({
               >
                 ✕
               </button>
+            )}
+            {canManage && channel.kind === 'channel' && (
+              <ChannelManage channel={channel} />
             )}
           </div>
         </div>
@@ -447,6 +573,7 @@ export function Messenger({
   initialMessages,
   meId,
   meName,
+  canManage = false,
 }: {
   channels: ChatChannel[];
   clientChannels?: ChatChannel[];
@@ -455,6 +582,7 @@ export function Messenger({
   initialMessages: ChannelMessage[];
   meId: string;
   meName: string;
+  canManage?: boolean;
 }) {
   const [creating, setCreating] = useState(false);
 
@@ -537,6 +665,7 @@ export function Messenger({
           initialMessages={initialMessages}
           meId={meId}
           meName={meName}
+          canManage={canManage}
         />
       ) : (
         <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">

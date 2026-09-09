@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
 import { hasAgencyAccess, primaryAgencyOrgId } from '@/features/auth/access';
+import { isOrgAdmin } from '@/lib/authz/policies';
 import { createNotifications } from '@/features/notifications/create';
 import { sendPushToUsers } from '@/lib/push/send';
 import { env } from '@/lib/env';
@@ -111,6 +112,97 @@ export async function createChannelAction(
 
   revalidatePath('/app/chat');
   return successResult('Privater Kanal erstellt.');
+}
+
+const renameSchema = z.object({
+  channelId: z.string().uuid(),
+  name: z.string().trim().min(1).max(40),
+  description: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Loads a real channel (not a DM) and checks the caller may manage it:
+ * org-admin/super-admin or the channel's creator. Returns the channel + org.
+ */
+async function loadManageableChannel(
+  channelId: string,
+): Promise<
+  | { ok: true; orgId: string; channelId: string }
+  | { ok: false; result: ActionResult }
+> {
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return { ok: false, result: errorResult(de.errors.FORBIDDEN) };
+
+  const service = createSupabaseServiceClient();
+  const { data: channel } = await service
+    .from('chat_channels')
+    .select('id, organization_id, created_by, kind')
+    .eq('id', channelId)
+    .maybeSingle();
+  if (!channel || channel.kind !== 'channel') {
+    return { ok: false, result: errorResult(de.errors.FORBIDDEN) };
+  }
+  const canManage =
+    isOrgAdmin(user, channel.organization_id) || channel.created_by === user.id;
+  if (!canManage) return { ok: false, result: errorResult(de.errors.FORBIDDEN) };
+  return { ok: true, orgId: channel.organization_id, channelId: channel.id };
+}
+
+/** Benennt einen Kanal um (Org-Admin/Super-Admin oder Ersteller). Keine DMs. */
+export async function renameChannelAction(input: {
+  channelId: string;
+  name: string;
+  description?: string;
+}): Promise<ActionResult> {
+  const parsed = renameSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const name = normalizeChannelName(parsed.data.name);
+  if (!name) return errorResult(de.errors.VALIDATION);
+
+  const loaded = await loadManageableChannel(parsed.data.channelId);
+  if (!loaded.ok) return loaded.result;
+
+  const patch: { name: string; description?: string | null } = { name };
+  if (parsed.data.description !== undefined) {
+    patch.description = parsed.data.description ? parsed.data.description : null;
+  }
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('chat_channels')
+    .update(patch)
+    .eq('id', loaded.channelId);
+  if (error) {
+    if (error.code === '23505')
+      return errorResult('Ein Kanal mit diesem Namen existiert bereits.');
+    return errorResult(de.errors.INTERNAL);
+  }
+  revalidatePath('/app/chat');
+  return successResult('Kanal umbenannt.');
+}
+
+/**
+ * Löscht einen Kanal endgültig – inkl. aller Nachrichten, Umfragen, Lese- und
+ * Mitgliedsstände (per FK-Cascade). Nur Org-Admin/Super-Admin oder Ersteller.
+ */
+export async function deleteChannelAction(
+  channelId: string,
+): Promise<ActionResult> {
+  const id = z.string().uuid().safeParse(channelId);
+  if (!id.success) return errorResult(de.errors.VALIDATION);
+
+  const loaded = await loadManageableChannel(id.data);
+  if (!loaded.ok) return loaded.result;
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('chat_channels')
+    .delete()
+    .eq('id', loaded.channelId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/chat');
+  return successResult('Kanal gelöscht.');
 }
 
 /**
@@ -719,21 +811,3 @@ export async function markChannelRead(channelId: string): Promise<void> {
     .eq('is_read', false);
 }
 
-/** Deletes a channel (creator or admin). */
-export async function deleteChannelAction(
-  _prev: ActionResult,
-  formData: FormData,
-): Promise<ActionResult> {
-  const id = z.string().uuid().safeParse(formData.get('channelId'));
-  if (!id.success) return errorResult(de.errors.VALIDATION);
-
-  const user = await requireUser();
-  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from('chat_channels').delete().eq('id', id.data);
-  if (error) return errorResult(de.errors.FORBIDDEN);
-
-  revalidatePath('/app/chat');
-  return successResult('Kanal gelöscht.');
-}

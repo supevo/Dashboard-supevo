@@ -8,6 +8,8 @@ import { WorkHoursCard } from '@/features/time-tracking/components/work-hours-ca
 import { isSuperAdmin } from '@/lib/authz/policies';
 import { MorningBriefing } from '@/components/dashboard/morning-briefing';
 import { PushEnableBanner } from '@/features/push/components/push-enable-banner';
+import { PhilosophyBanner } from '@/features/philosophy/components/philosophy-banner';
+import { listActivePhilosophyQuotes } from '@/features/philosophy/queries';
 import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
@@ -31,20 +33,23 @@ export default async function AgencyDashboardPage() {
   const { user, orgId } = await requireAgencyPage();
   // Everyone but the super admin sees their own weekly hours vs. target.
   const showHours = !isSuperAdmin(user);
-  const [d, myPulse, workStatus, weekly, hours, reminders] = await Promise.all([
-    getAgencyDashboard(user.id),
-    getMyPulse(user.id),
-    getWorkStatus(user.id),
-    getWeeklyChallenges(user.id, orgId),
-    showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
-    listMyReminders(),
-  ]);
+  const [d, myPulse, workStatus, weekly, hours, reminders, philosophy] =
+    await Promise.all([
+      getAgencyDashboard(user.id),
+      getMyPulse(user.id),
+      getWorkStatus(user.id),
+      getWeeklyChallenges(user.id, orgId),
+      showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
+      listMyReminders(),
+      listActivePhilosophyQuotes(orgId),
+    ]);
   // Der wöchentliche Stimmungscheck erscheint nur freitags beim Ausstempeln –
   // und nur, wenn er diese Woche noch nicht ausgefüllt wurde.
   const weeklyPulseDue = berlinWeekday() === 5 && !myPulse;
 
   return (
     <div className="space-y-6">
+      <PhilosophyBanner quotes={philosophy} />
       <PushEnableBanner />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
