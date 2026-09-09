@@ -776,7 +776,20 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
         );
       }
     } catch (e) {
-      alert(`Aktivieren fehlgeschlagen: ${(e as Error).message}`);
+      const msg = (e as Error).message ?? '';
+      // Brave blockiert Web-Push standardmäßig (kein Google-Push-Dienst aktiv)
+      // → „Registration failed - push service error". Gezielte Anleitung zeigen.
+      if (/push service error|Registration failed/i.test(msg)) {
+        alert(
+          'Benachrichtigungen konnten nicht aktiviert werden.\n\n' +
+            'In Brave ist Web-Push standardmäßig aus. Bitte aktivieren:\n' +
+            'brave://settings/privacy → „Google-Dienste für Push-Nachrichten verwenden" einschalten, ' +
+            'Browser neu starten und erneut versuchen.\n\n' +
+            '(In Chrome, Edge oder Firefox funktioniert es ohne diese Einstellung.)',
+        );
+      } else {
+        alert(`Aktivieren fehlgeschlagen: ${msg}`);
+      }
     } finally {
       setNotifyBusy(false);
     }
