@@ -2,6 +2,18 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
+import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
+import { formatEuroCents } from '@/lib/money';
+
+export interface ClearingSuggestion {
+  receiptId: string;
+  fileName: string;
+  /** Kurzlabel: Händler · Betrag · Datum. */
+  label: string;
+  /** Warum das passt (z. B. „Betrag exakt, Händlername im Zweck"). */
+  reason: string;
+  scorePct: number;
+}
 
 export type ClearingStatus =
   | 'ok' // Beleg vorhanden
@@ -22,6 +34,8 @@ export interface ClearingRow {
   status: ClearingStatus;
   belegFile: string | null;
   reason: string | null;
+  /** Automatische Beleg-Vorschläge (nur bei „Beleg fehlt"), bester zuerst. */
+  suggestions: ClearingSuggestion[];
 }
 
 export interface MonthClearing {
@@ -93,6 +107,68 @@ export async function getMonthClearing(
     txns.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
   );
 
+  // Automatische Beleg-Vorschläge vom Abgleich-Motor (Betrag + Datum +
+  // Händler/Nummer im Verwendungszweck, inkl. PayPal-Intermediär). Pro Umsatz
+  // die besten Treffer. Optional – Fehler dürfen die Liste nie blockieren.
+  const suggByTx = new Map<string, ClearingSuggestion[]>();
+  try {
+    const sugg = await getReconcileSuggestions(billingEntityId);
+    const raw = new Map<
+      string,
+      {
+        receiptId: string;
+        score: number;
+        reason: string;
+        haendler: string | null;
+        brutto: number | null;
+        datum: string | null;
+      }[]
+    >();
+    for (const s of sugg.receipts) {
+      const txId = s.match.rightId; // leftId=Beleg, rightId=Umsatz
+      const arr = raw.get(txId) ?? [];
+      arr.push({
+        receiptId: s.match.leftId,
+        score: s.match.score,
+        reason: s.match.reason,
+        haendler: s.receiptHaendler,
+        brutto: s.receiptBruttoCents,
+        datum: s.receiptDatum,
+      });
+      raw.set(txId, arr);
+    }
+    const suggIds = [...new Set([...raw.values()].flat().map((x) => x.receiptId))];
+    const nameById = new Map<string, string>();
+    if (suggIds.length > 0) {
+      const { data: sr } = await supabase
+        .from('bookkeeping_receipts')
+        .select('id, file_name')
+        .in('id', suggIds);
+      for (const r of sr ?? []) nameById.set(r.id, r.file_name ?? '');
+    }
+    for (const [txId, arr] of raw) {
+      arr.sort((a, b) => b.score - a.score);
+      suggByTx.set(
+        txId,
+        arr.slice(0, 3).map((x) => ({
+          receiptId: x.receiptId,
+          fileName: nameById.get(x.receiptId) || '(Beleg)',
+          label: [
+            x.haendler,
+            x.datum ? new Date(x.datum).toLocaleDateString('de-DE') : null,
+            x.brutto != null ? formatEuroCents(Math.abs(x.brutto)) : null,
+          ]
+            .filter(Boolean)
+            .join(' · '),
+          reason: x.reason,
+          scorePct: Math.round(x.score * 100),
+        })),
+      );
+    }
+  } catch {
+    /* Vorschläge sind optional. */
+  }
+
   const rows: ClearingRow[] = txns.map((t) => {
     const kat = kategorie(t.kategorie_id);
     const art: ClearingRow['art'] =
@@ -131,6 +207,7 @@ export async function getMonthClearing(
       status,
       belegFile: belegFile || null,
       reason,
+      suggestions: status === 'missing' ? (suggByTx.get(t.id) ?? []) : [],
     };
   });
 

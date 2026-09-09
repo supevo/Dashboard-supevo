@@ -6,7 +6,10 @@ import {
   searchReceiptsAction,
   assignReceiptAction,
 } from '@/features/accounting/month-clearing-actions';
-import type { ReceiptSearchHit } from '@/features/accounting/month-clearing-queries';
+import type {
+  ReceiptSearchHit,
+  ClearingSuggestion,
+} from '@/features/accounting/month-clearing-queries';
 import { NoReceiptToggle } from '@/features/accounting/components/no-receipt-toggle';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,10 +24,12 @@ export function ClearingRowActions({
   txId,
   billingEntityId,
   defaultQuery = '',
+  suggestions = [],
 }: {
   txId: string;
   billingEntityId: string;
   defaultQuery?: string;
+  suggestions?: ClearingSuggestion[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -48,6 +53,35 @@ export function ClearingRowActions({
 
   return (
     <div className="space-y-2">
+      {suggestions.length > 0 && (
+        <div className="space-y-1.5">
+          {suggestions.map((s) => (
+            <div
+              key={s.receiptId}
+              className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/[0.06] px-2.5 py-1.5"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-xs font-medium">
+                  Vorschlag: {s.label || s.fileName}{' '}
+                  <span className="text-muted-foreground">· {s.scorePct}%</span>
+                </div>
+                <div className="truncate text-[11px] text-muted-foreground">
+                  {s.reason} · 🧾 {s.fileName}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                type="button"
+                disabled={busy}
+                onClick={() => assign(s.receiptId)}
+              >
+                Zuordnen
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {!open && (
           <Button

@@ -233,6 +233,7 @@ export async function MonthClearingPanel({
                             txId={r.id}
                             billingEntityId={active.entity.id}
                             defaultQuery={r.gegen ?? ''}
+                            suggestions={r.suggestions}
                           />
                         </div>
                       )}
