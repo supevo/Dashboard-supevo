@@ -10,6 +10,7 @@ import {
   TASK_FILE_CONSTRAINTS,
   CHECKSUM_MAX_BYTES,
 } from '@/lib/files/validation';
+import { uploadFileToOneDriveSession } from '@/lib/files/onedrive-upload-client';
 import { de } from '@/lib/i18n/de';
 import { Alert } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -117,22 +118,13 @@ export function FileUploader({
         return false;
       }
 
-      // OneDrive path: PUT the bytes DIRECTLY into OneDrive, then record the row.
+      // OneDrive path: die Bytes DIREKT (gechunkt) nach OneDrive laden, dann
+      // die Metadaten-Zeile anlegen. Chunk-Upload, weil Graph pro PUT nur
+      // ~60 MiB erlaubt – ein Single-PUT würde große Dateien scheitern lassen.
       if (createJson.mode === 'onedrive' && createJson.uploadUrl) {
-        const putRes = await fetch(createJson.uploadUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Range': `bytes 0-${file.size - 1}/${file.size}`,
-          },
-          body: file,
-        });
-        if (!putRes.ok) {
-          setError(de.task.uploadError);
-          return false;
-        }
-        const item = (await putRes.json().catch(() => null)) as { id?: string } | null;
-        if (!item?.id) {
-          setError(de.task.uploadError);
+        const up = await uploadFileToOneDriveSession(createJson.uploadUrl, file);
+        if (!up.ok || !up.itemId) {
+          setError(up.error ?? de.task.uploadError);
           return false;
         }
         const finalizeRes = await fetch('/api/files/onedrive/finalize', {
@@ -141,7 +133,7 @@ export function FileUploader({
           body: JSON.stringify({
             projectId,
             taskId,
-            itemId: item.id,
+            itemId: up.itemId,
             fileName: file.name,
             mimeType: file.type,
             sizeBytes: file.size,

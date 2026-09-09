@@ -1,5 +1,6 @@
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { CHECKSUM_MAX_BYTES } from '@/lib/files/validation';
+import { uploadFileToOneDriveSession } from '@/lib/files/onedrive-upload-client';
 
 // Bucket name (kept in sync with FILES_BUCKET in the server-only storage lib,
 // which cannot be imported into a client module).
@@ -50,12 +51,46 @@ export async function uploadFileToTask({
     }),
   });
   const createJson = (await createRes.json()) as {
+    mode?: 'supabase' | 'onedrive';
+    uploadUrl?: string;
     path?: string;
     token?: string;
     storagePath?: string;
     error?: string;
   };
-  if (!createRes.ok || !createJson.path || !createJson.token) {
+  if (!createRes.ok) {
+    return { ok: false, error: createJson.error };
+  }
+
+  // OneDrive-Primärspeicher: direkt (gechunkt) nach OneDrive laden und die
+  // Metadaten-Zeile über den OneDrive-Finalize-Endpunkt anlegen.
+  if (createJson.mode === 'onedrive' && createJson.uploadUrl) {
+    const up = await uploadFileToOneDriveSession(createJson.uploadUrl, file);
+    if (!up.ok || !up.itemId) return { ok: false, error: up.error };
+    const finalizeRes = await fetch('/api/files/onedrive/finalize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        projectId,
+        taskId,
+        itemId: up.itemId,
+        fileName: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        isInternal,
+      }),
+    });
+    const finalizeJson = (await finalizeRes.json()) as {
+      ok?: boolean;
+      error?: string;
+    };
+    if (!finalizeRes.ok || !finalizeJson.ok) {
+      return { ok: false, error: finalizeJson.error };
+    }
+    return { ok: true };
+  }
+
+  if (!createJson.path || !createJson.token) {
     return { ok: false, error: createJson.error };
   }
 
