@@ -62,6 +62,8 @@ export interface ReceiptLite {
   waehrung?: string | null;
   /** Externe Konto-/Kundennummer (z. B. Google-Ads-Konto-ID). */
   kontoRef?: string | null;
+  /** IBAN des Rechnungsstellers laut Rechnung (aus der KI-Auslesung). */
+  iban?: string | null;
 }
 
 export interface Match {
@@ -225,6 +227,12 @@ export function accountRefFromText(text: string | null): string | null {
 function accountRefDigits(ref: string | null | undefined): string | null {
   const d = (ref ?? '').replace(/\D/g, '');
   return d.length >= 6 ? d : null;
+}
+
+/** IBAN ohne Leerzeichen/Trenner, groß – nur wenn plausibel (≥ 15 Zeichen). */
+function normIban(s: string | null | undefined): string | null {
+  const v = (s ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return v.length >= 15 ? v : null;
 }
 
 /** True, wenn die Konto-ID im Zweck der Konto-Referenz des Belegs entspricht. */
@@ -475,13 +483,31 @@ function scoreReceiptTx(
     reasons.push('Händlername im Zweck');
   }
 
+  // Stärkstes Zusatzsignal: die IBAN des Rechnungsstellers (laut Rechnung) ist
+  // genau die Gegen-IBAN der Bankbuchung. Eindeutig – reicht zur Bestätigung.
+  const recIban = normIban(rec.iban);
+  const ibanHit = !!recIban && recIban === normIban(tx.gegenIban);
+  if (ibanHit) {
+    s += 0.45;
+    reasons.push('IBAN stimmt überein');
+  }
+
+  // Kunden-/Kontonummer der Rechnung taucht im Verwendungszweck auf
+  // (z. B. Google-Ads-Konto-ID) – stabiler Anker bei Sammel-/Vorauszahlungen.
+  const accountHit = accountRefMatches(tx.zweck, rec.kontoRef);
+  if (accountHit && !ibanHit) {
+    s += 0.35;
+    reasons.push('Kundennr. im Zweck');
+  }
+
   s = Math.min(1, s);
   if (s < minScore) return null;
-  // Automatisch nur übernehmen, wenn außer Betrag/Datum ein weiteres Signal
-  // passt (vollständige Rechnungsnr. ODER klar gleicher Händler). Sonst nur
-  // Vorschlag – damit zufällig gleiche Beträge verschiedener Belege nicht falsch
-  // verbucht werden (häufigste Fehlzuordnung).
-  const corroborated = numMatch === 'strong' || sim > 0.5 || nameInZweck;
+  // Automatisch nur übernehmen, wenn außer Betrag/Datum ein weiteres, eindeutiges
+  // Signal passt (IBAN, Konto-/Kundennr., vollständige Rechnungsnr. ODER klar
+  // gleicher Händler). Sonst nur Vorschlag – damit zufällig gleiche Beträge
+  // verschiedener Belege nicht falsch verbucht werden (häufigste Fehlzuordnung).
+  const corroborated =
+    ibanHit || accountHit || numMatch === 'strong' || sim > 0.5 || nameInZweck;
   return {
     leftId: rec.id,
     rightId: tx.id,

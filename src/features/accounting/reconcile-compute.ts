@@ -82,6 +82,8 @@ export interface ReconcileInputRows {
     konto_ref?: string | null;
     konfidenz?: number | null;
     rohtext?: string | null;
+    /** Rohe KI-Auslesung – enthält u. a. die IBAN des Rechnungsstellers. */
+    erkannt?: Record<string, unknown> | null;
   }[];
   /** Vom Nutzer abgelehnte Paare (a_id ↔ b_id), die nicht mehr vorgeschlagen werden. */
   dismissed?: { a_id: string; b_id: string }[];
@@ -185,6 +187,7 @@ export function computeReconcile({
       gegen: t.gegen,
       zweck: t.zweck,
       betragCents: t.betrag_cents,
+      gegenIban: t.gegen_iban ?? null,
     }));
 
   const invoices: InvoiceLite[] = invoiceRows
@@ -219,15 +222,20 @@ export function computeReconcile({
     rechnungsnummer?: string | null;
     waehrung?: string | null;
     konto_ref?: string | null;
-  }): ReceiptLite => ({
-    id: r.id,
-    datum: r.beleg_datum,
-    haendler: r.haendler,
-    bruttoCents: r.brutto_cents,
-    rechnungsnummer: r.rechnungsnummer ?? null,
-    waehrung: r.waehrung ?? null,
-    kontoRef: r.konto_ref ?? null,
-  });
+    erkannt?: Record<string, unknown> | null;
+  }): ReceiptLite => {
+    const iban = r.erkannt?.iban;
+    return {
+      id: r.id,
+      datum: r.beleg_datum,
+      haendler: r.haendler,
+      bruttoCents: r.brutto_cents,
+      rechnungsnummer: r.rechnungsnummer ?? null,
+      waehrung: r.waehrung ?? null,
+      kontoRef: r.konto_ref ?? null,
+      iban: typeof iban === 'string' ? iban : null,
+    };
+  };
   const usableReceipts = receiptRows.filter((r) => r.brutto_cents != null);
   const ausgabeReceipts: ReceiptLite[] = usableReceipts
     .filter(

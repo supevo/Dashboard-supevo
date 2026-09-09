@@ -368,7 +368,7 @@ export async function getReconcileSuggestions(
   const { data: receiptRows } = await supabase
     .from('bookkeeping_receipts')
     .select(
-      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, waehrung, konto_ref, konfidenz, rohtext',
+      'id, haendler, beleg_datum, brutto_cents, kind, rechnungsnummer, waehrung, konto_ref, konfidenz, rohtext, erkannt',
     )
     .eq('billing_entity_id', billingEntityId)
     .in('kind', ['ausgabe', 'einnahme'])

@@ -451,6 +451,33 @@ describe('matchReceiptsToTransactions', () => {
     expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
   });
 
+  it('confirms a match when the invoice IBAN equals the bank counterparty IBAN', () => {
+    const receipts = [
+      // Different name/amount closeness alone would only suggest; the IBAN nails it.
+      { id: 'r1', datum: '2024-03-05', haendler: 'Irgendwer', bruttoCents: 5000, iban: 'DE89 3704 0044 0532 0130 00' },
+    ];
+    const outgoing = [
+      { id: 't1', datum: '2024-03-20', gegen: 'Zahlungsdienst', zweck: 'Sammelzahlung', betragCents: -5000, gegenIban: 'DE89370400440532013000' },
+    ];
+    const matches = matchReceiptsToTransactions(receipts, outgoing);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
+    expect(matches[0]!.reason).toContain('IBAN');
+  });
+
+  it('matches Google Ads via the account/customer number in the purpose', () => {
+    const receipts = [
+      { id: 'r1', datum: '2024-03-01', haendler: 'Google', bruttoCents: 30000, kontoRef: '154-392-4365' },
+    ];
+    const outgoing = [
+      { id: 't1', datum: '2024-03-25', gegen: 'Google Ireland', zweck: 'ADWORDS:1543924365:GG104H1HUM', betragCents: -30000 },
+    ];
+    const matches = matchReceiptsToTransactions(receipts, outgoing);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ leftId: 'r1', rightId: 't1' });
+    expect(matches[0]!.reason).toContain('Kundennr');
+  });
+
   it('matches a foreign-currency receipt whose bank amount differs by the FX rate', () => {
     const receipts = [
       { id: 'r1', datum: '2024-03-05', haendler: 'Voiceflow', bruttoCents: 5000, waehrung: 'USD', rechnungsnummer: 'VF-99' },
