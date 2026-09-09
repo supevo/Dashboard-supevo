@@ -9,6 +9,7 @@ import {
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { RescanBelegeButton } from '@/features/accounting/components/rescan-belege-button';
 import { ClearingRowActions } from '@/features/accounting/components/clearing-row-actions';
+import { CreditorToggle } from '@/features/accounting/components/creditor-toggle';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatEuroCents } from '@/lib/money';
 
@@ -208,8 +209,30 @@ export async function MonthClearingPanel({
                         </div>
                       )}
                       {r.status === 'not_needed' && (
-                        <div className="text-xs text-muted-foreground">
-                          ○ kein Beleg erforderlich
+                        <div className="space-y-1">
+                          <div className="text-xs text-muted-foreground">
+                            ○ kein Beleg erforderlich
+                          </div>
+                          <ClearingRowActions
+                            txId={r.id}
+                            billingEntityId={active.entity.id}
+                            defaultQuery={r.gegen ?? ''}
+                            showNoReceipt={false}
+                            searchLabel="Doch Beleg zuordnen …"
+                          />
+                        </div>
+                      )}
+                      {r.status === 'creditor' && (
+                        <div className="space-y-1">
+                          <div className="text-xs font-semibold text-violet-600 dark:text-violet-400">
+                            🗂️ Kreditorenkonto · kein Einzelbeleg
+                          </div>
+                          <CreditorToggle
+                            billingEntityId={active.entity.id}
+                            name={r.gegen ?? ''}
+                            enabled={false}
+                            label="kein Kreditor mehr"
+                          />
                         </div>
                       )}
                       {r.status === 'none' && (
@@ -235,6 +258,16 @@ export async function MonthClearingPanel({
                             defaultQuery={r.gegen ?? ''}
                             suggestions={r.suggestions}
                           />
+                          {r.gegen && (
+                            <div className="mt-1">
+                              <CreditorToggle
+                                billingEntityId={active.entity.id}
+                                name={r.gegen}
+                                enabled={true}
+                                label={`🗂️ „${r.gegen}" als Kreditor (kein Einzelbeleg)`}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
                     </td>

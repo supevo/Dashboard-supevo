@@ -25,11 +25,15 @@ export function ClearingRowActions({
   billingEntityId,
   defaultQuery = '',
   suggestions = [],
+  showNoReceipt = true,
+  searchLabel = '📎 Beleg suchen …',
 }: {
   txId: string;
   billingEntityId: string;
   defaultQuery?: string;
   suggestions?: ClearingSuggestion[];
+  showNoReceipt?: boolean;
+  searchLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -93,10 +97,10 @@ export function ClearingRowActions({
               if (hits === null) search();
             }}
           >
-            📎 Beleg suchen …
+            {searchLabel}
           </Button>
         )}
-        <NoReceiptToggle transactionId={txId} value={false} />
+        {showNoReceipt && <NoReceiptToggle transactionId={txId} value={false} />}
       </div>
 
       {open && (

@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
 import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
+import { matchesCreditor } from '@/features/accounting/reconcile';
 import { formatEuroCents } from '@/lib/money';
 
 export interface ClearingSuggestion {
@@ -20,6 +21,7 @@ export type ClearingStatus =
   | 'none' // kein Beleg nötig (mit Grund)
   | 'none_no_reason' // als „kein Beleg" markiert, Grund fehlt
   | 'missing' // Beleg fehlt (Ausgabe, kein Dauerbeleg)
+  | 'creditor' // über Kreditorenkonto (z. B. Google) – kein Einzelbeleg
   | 'not_needed'; // kein Beleg erforderlich (Einnahme / Dauerbeleg)
 
 export interface ClearingRow {
@@ -107,6 +109,16 @@ export async function getMonthClearing(
     txns.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
   );
 
+  // Kreditoren (z. B. Google): deren Buchungen laufen übers Kreditorenkonto und
+  // brauchen keinen Einzelbeleg – nicht als „Beleg fehlt" anmahnen.
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select('kreditoren')
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  const creditors =
+    (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
+
   // Automatische Beleg-Vorschläge vom Abgleich-Motor (Betrag + Datum +
   // Händler/Nummer im Verwendungszweck, inkl. PayPal-Intermediär). Pro Umsatz
   // die besten Treffer. Optional – Fehler dürfen die Liste nie blockieren.
@@ -189,7 +201,13 @@ export async function getMonthClearing(
     } else if (t.beleg_nicht_noetig) {
       reason = reasonById.get(t.id) ?? '';
       status = reason ? 'none' : 'none_no_reason';
-    } else if (kat && kat.art === 'ausgabe' && !kat.dauerbeleg) {
+    } else if (t.betrag_cents < 0 && matchesCreditor(t.gegen, creditors)) {
+      status = 'creditor';
+    } else if (
+      (kat && kat.art === 'ausgabe' && !kat.dauerbeleg) ||
+      // Unkategorisierte Ausgaben brauchen Aufmerksamkeit (nicht stumm „nicht nötig").
+      (!kat && t.betrag_cents < 0)
+    ) {
       status = 'missing';
     } else {
       status = 'not_needed';
@@ -214,7 +232,11 @@ export async function getMonthClearing(
   const missing = rows.filter((r) => r.status === 'missing').length;
   const noReason = rows.filter((r) => r.status === 'none_no_reason').length;
   const geklaert = rows.filter(
-    (r) => r.status === 'ok' || r.status === 'none' || r.status === 'not_needed',
+    (r) =>
+      r.status === 'ok' ||
+      r.status === 'none' ||
+      r.status === 'not_needed' ||
+      r.status === 'creditor',
   ).length;
 
   return {
