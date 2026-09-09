@@ -166,6 +166,42 @@ export async function markPrintSelfPaidAction(
 }
 
 /**
+ * Manually starts print-billing for a task the auto-detection missed → status
+ * 'required', which reveals the payer choice + upload card. Agency staff only
+ * (RLS read gate). Only from no/​dismissed status, so it never overwrites an
+ * ongoing one.
+ */
+export async function startPrintBillingAction(
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, print_billing_status')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false };
+
+  const status = (task as { print_billing_status?: string | null })
+    .print_billing_status;
+  // Läuft bereits eine Abrechnung → nichts tun (idempotent).
+  if (status && status !== 'dismissed') return { ok: true };
+
+  const { error } = await createSupabaseServiceClient()
+    .from('tasks')
+    .update({ print_billing_status: 'required' })
+    .eq('id', taskId)
+    .or('print_billing_status.is.null,print_billing_status.eq.dismissed');
+  if (error) return { ok: false };
+
+  revalidatePath('/app/projects');
+  return { ok: true };
+}
+
+/**
  * Employee marks that WE order/pay the printer and bill it on to the client
  * (with markup) → status 'ordered'. The reverse of „Kunde zahlt selbst", so the
  * payer can be switched back and forth. Agency staff only; allowed from the

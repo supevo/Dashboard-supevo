@@ -39,6 +39,7 @@ import {
   PrintBillingCard,
   type PrintBillingCardStatus,
 } from '@/features/print-billing/components/print-billing-card';
+import { StartPrintBillingButton } from '@/features/print-billing/components/start-print-billing-button';
 import { getPrintInvoiceKinds } from '@/features/print-billing/queries';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
@@ -159,20 +160,26 @@ export default async function TaskDetailPage({
         </div>
       </div>
 
-      {/* Drucksachen-Abrechnung nur der zugewiesenen Person zeigen – vorher
-          (ohne Zuweisung) macht der Hinweis keinen Sinn. */}
-      {task.assignees.some((a) => a.userId === user.id) &&
+      {/* Drucksachen-Abrechnung: der zugewiesenen Person ODER wer die Aufgabe
+          verwalten darf. Läuft schon eine Abrechnung → Karte; sonst ein
+          manueller Einstieg, falls die Erkennung das Druckprodukt verpasst hat. */}
+      {(task.assignees.some((a) => a.userId === user.id) || task.canManage) &&
         (task.printBillingStatus === 'required' ||
-          task.printBillingStatus === 'ordered' ||
-          task.printBillingStatus === 'settled' ||
-          task.printBillingStatus === 'self_paid') && (
+        task.printBillingStatus === 'ordered' ||
+        task.printBillingStatus === 'settled' ||
+        task.printBillingStatus === 'self_paid' ? (
           <PrintBillingCard
             taskId={taskId}
             status={task.printBillingStatus as PrintBillingCardStatus}
             hasProforma={printInvoices.hasProforma}
             hasFinal={printInvoices.hasFinal}
           />
-        )}
+        ) : (
+          !task.printBillingStatus ||
+          task.printBillingStatus === 'dismissed'
+        ) ? (
+          <StartPrintBillingButton taskId={taskId} />
+        ) : null)}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Main column: content work */}
