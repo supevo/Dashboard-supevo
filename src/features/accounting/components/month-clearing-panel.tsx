@@ -10,6 +10,7 @@ import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { RescanBelegeButton } from '@/features/accounting/components/rescan-belege-button';
 import { ClearingRowActions } from '@/features/accounting/components/clearing-row-actions';
 import { CreditorToggle } from '@/features/accounting/components/creditor-toggle';
+import { UnassignReceiptButton } from '@/features/accounting/components/unassign-receipt-button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatEuroCents } from '@/lib/money';
 
@@ -206,6 +207,9 @@ export async function MonthClearingPanel({
                               🧾 {r.belegFile}
                             </div>
                           )}
+                          <div className="mt-0.5">
+                            <UnassignReceiptButton txId={r.id} />
+                          </div>
                         </div>
                       )}
                       {r.status === 'not_needed' && (

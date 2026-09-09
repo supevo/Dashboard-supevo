@@ -55,6 +55,53 @@ export async function assignReceiptAction(input: {
   return successResult('Beleg zugeordnet.');
 }
 
+/**
+ * Hebt eine falsche Beleg-Zuordnung an einer Bankbuchung wieder auf: tx.beleg_id
+ * wird geleert; hängt kein anderer Umsatz mehr am Beleg, geht dieser zurück auf
+ * „offen". Danach lässt sich der richtige Beleg zuordnen.
+ */
+export async function unassignReceiptAction(input: {
+  txId: string;
+}): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(input.txId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data: tx } = await supabase
+    .from('bookkeeping_transactions')
+    .select('organization_id, beleg_id')
+    .eq('id', input.txId)
+    .maybeSingle();
+  if (!tx) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: tx.organization_id });
+
+  const receiptId = (tx as { beleg_id: string | null }).beleg_id;
+  const { error } = await supabase
+    .from('bookkeeping_transactions')
+    .update({ beleg_id: null } as never)
+    .eq('id', input.txId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  // Beleg zurück auf „offen", wenn ihn kein anderer Umsatz mehr belegt.
+  if (receiptId) {
+    const { count } = await supabase
+      .from('bookkeeping_transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('beleg_id', receiptId);
+    if (!count || count === 0) {
+      await supabase
+        .from('bookkeeping_receipts')
+        .update({ status: 'offen' } as never)
+        .eq('id', receiptId);
+    }
+  }
+
+  revalidatePath('/app/finance');
+  return successResult('Zuordnung aufgehoben.');
+}
+
 const searchSchema = z.object({
   billingEntityId: z.string().uuid(),
   query: z.string().trim().max(120),
@@ -77,6 +124,7 @@ export async function searchReceiptsAction(input: {
     .select('id, file_name, haendler, brutto_cents, beleg_datum, status')
     .eq('billing_entity_id', parsed.data.billingEntityId)
     .order('beleg_datum', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
     .limit(30);
   const term = parsed.data.query;
   if (term.length >= 1) {
@@ -94,10 +142,7 @@ export async function searchReceiptsAction(input: {
     beleg_datum: string | null;
     status: string | null;
   }[];
-  // Noch nicht zugeordnete Belege zuerst.
-  rows.sort((a, b) =>
-    (a.status === 'zugeordnet' ? 1 : 0) - (b.status === 'zugeordnet' ? 1 : 0),
-  );
+  // Reihenfolge: neueste zuerst (Belegdatum, dann Import) – kommt so aus der DB.
   const hits: ReceiptSearchHit[] = rows.map((r) => ({
     id: r.id,
     fileName: r.file_name ?? '(ohne Namen)',
