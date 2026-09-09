@@ -166,6 +166,37 @@ export async function markPrintSelfPaidAction(
 }
 
 /**
+ * Employee marks that WE order/pay the printer and bill it on to the client
+ * (with markup) → status 'ordered'. The reverse of „Kunde zahlt selbst", so the
+ * payer can be switched back and forth. Agency staff only; allowed from the
+ * open/self-paid states ('required'/'self_paid').
+ */
+export async function markPrintWeBillAction(
+  taskId: string,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+
+  const supabase = await createSupabaseServerClient();
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false };
+
+  const { error } = await createSupabaseServiceClient()
+    .from('tasks')
+    .update({ print_billing_status: 'ordered' })
+    .eq('id', taskId)
+    .in('print_billing_status', ['required', 'self_paid']);
+  if (error) return { ok: false };
+
+  revalidatePath('/app/projects');
+  return { ok: true };
+}
+
+/**
  * Erzeugt die Druck-Sammelrechnungen (Entwürfe) sofort statt auf den Monats-Cron
  * zu warten – für Test und Ad-hoc-Abrechnung. Nur Super-Admin.
  */

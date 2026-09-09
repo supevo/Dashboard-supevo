@@ -12,6 +12,7 @@ import {
   dismissPrintBillingAction,
   confirmPrintOrderedAction,
   markPrintSelfPaidAction,
+  markPrintWeBillAction,
 } from '@/features/print-billing/actions';
 
 export type PrintBillingCardStatus =
@@ -163,6 +164,21 @@ export function PrintBillingCard({
           </p>
         </div>
         {uploadBlock}
+        <div className="flex flex-wrap items-center gap-3 pt-1">
+          <button
+            type="button"
+            disabled={working}
+            onClick={() =>
+              startAction(async () => {
+                await markPrintWeBillAction(taskId);
+                router.refresh();
+              })
+            }
+            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+          >
+            Doch: wir bestellen &amp; berechnen dem Kunden
+          </button>
+        </div>
       </div>
     );
   }
@@ -211,8 +227,8 @@ export function PrintBillingCard({
           🖨️ Druckprodukt bestellt?
         </div>
         <p className="text-xs text-muted-foreground">
-          Diese Aufgabe wurde als Druckprodukt erkannt. Bitte angeben, wie damit
-          verfahren wird – danach beide Rechnungen (Proforma + Endrechnung)
+          Diese Aufgabe wurde als Druckprodukt erkannt. Bitte angeben, wer die
+          Druckerei bezahlt – danach beide Rechnungen (Proforma + Endrechnung)
           hochladen.
         </p>
       </div>
@@ -230,7 +246,7 @@ export function PrintBillingCard({
             })
           }
         >
-          ✅ Ja, bestellt
+          ✅ Wir bestellen &amp; berechnen
         </Button>
         <Button
           size="sm"
