@@ -326,6 +326,53 @@ export async function deleteReceiptAction(receiptId: string): Promise<ActionResu
   return successResult('Beleg gelöscht.');
 }
 
+const bulkDeleteSchema = z.object({
+  billingEntityId: z.string().uuid(),
+  kind: z.enum(['einnahme', 'ausgabe']).optional(),
+});
+
+/**
+ * Sammel-Löschung der versehentlich importierten, noch NICHT ausgelesenen
+ * OneDrive-Belege (source='onedrive', ohne Datum) eines Rechnungsstellers.
+ * Bereits ausgelesene, zugeordnete oder manuell hochgeladene Belege bleiben
+ * unangetastet – ebenso die Dateien in OneDrive selbst. Für das Aufräumen nach
+ * einem falschen „aus Ausgaben importieren".
+ */
+export async function bulkDeleteUnreadOneDriveReceiptsAction(input: {
+  billingEntityId: string;
+  kind?: 'einnahme' | 'ausgabe';
+}): Promise<ActionResult> {
+  const parsed = bulkDeleteSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const supabase = await createSupabaseServerClient();
+  const { data: entity } = await supabase
+    .from('billing_entities')
+    .select('organization_id')
+    .eq('id', parsed.data.billingEntityId)
+    .maybeSingle();
+  if (!entity) return errorResult(de.errors.FORBIDDEN);
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId: entity.organization_id });
+
+  let q = supabase
+    .from('bookkeeping_receipts')
+    .delete({ count: 'exact' })
+    .eq('billing_entity_id', parsed.data.billingEntityId)
+    .eq('source', 'onedrive')
+    .is('beleg_datum', null);
+  if (parsed.data.kind) q = q.eq('kind', parsed.data.kind);
+  const { error, count } = await q;
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/finance');
+  return successResult(
+    `${count ?? 0} nicht ausgelesene OneDrive-Belege gelöscht.`,
+    { count: count ?? 0 },
+  );
+}
+
 /**
  * Hebt die Zuordnung eines Belegs auf: löst die Verknüpfung(en) zur Bankbuchung
  * (beleg_id / Beleg-Sammlung) und setzt den Beleg auf „offen" zurück, damit der

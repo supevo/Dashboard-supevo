@@ -20,6 +20,7 @@ import {
 import { ReceiptKindSelect } from '@/features/accounting/components/receipt-kind-select';
 import { ReceiptFieldsEdit } from '@/features/accounting/components/receipt-fields-edit';
 import { DeleteReceiptButton } from '@/features/accounting/components/delete-receipt-button';
+import { BulkDeleteReceiptsButton } from '@/features/accounting/components/bulk-delete-receipts-button';
 import { UnlinkReceiptButton } from '@/features/accounting/components/unlink-receipt-button';
 import { duplicateReceiptIds } from '@/features/accounting/receipt-duplicates';
 import { kategorieLabel } from '@/features/accounting/categories';
@@ -211,7 +212,18 @@ export async function ReceiptsPanel({
       ) : (
         <div className="rounded-lg border">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-            <h3 className="text-sm font-semibold">Belegarchiv</h3>
+            <div className="flex flex-wrap items-center gap-3">
+              <h3 className="text-sm font-semibold">Belegarchiv</h3>
+              <BulkDeleteReceiptsButton
+                billingEntityId={active.entity.id}
+                kind={kindFilter}
+                count={
+                  receipts.filter(
+                    (r) => r.source === 'onedrive' && !r.beleg_datum,
+                  ).length
+                }
+              />
+            </div>
             <span className="text-xs text-muted-foreground">
               {monthActive && receipts.length < totalForKind
                 ? `${receipts.length} von ${totalForKind} Dateien (Monat gefiltert)`
