@@ -41,6 +41,12 @@ import {
 } from '@/features/print-billing/components/print-billing-card';
 import { StartPrintBillingButton } from '@/features/print-billing/components/start-print-billing-button';
 import { getPrintInvoiceKinds } from '@/features/print-billing/queries';
+import {
+  resolvePrintMarkupPercent,
+  clampMarkupPercent,
+  DEFAULT_MARKUP_OTHER_PERCENT,
+} from '@/features/print-billing/markup';
+import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { listProjectApprovals } from '@/features/approvals/queries';
 import { RequestApprovalForm } from '@/features/approvals/components/request-approval-form';
 import { formatMinutes } from '@/lib/time';
@@ -98,6 +104,25 @@ export default async function TaskDetailPage({
   const printInvoices = task.printBillingStatus
     ? await getPrintInvoiceKinds(taskId)
     : { hasProforma: false, hasFinal: false };
+
+  // Voreingestellter Aufschlag (Faktor) des Kunden für den Preisrechner – nur
+  // laden, wenn die Druck-Karte überhaupt sichtbar ist (assigned oder verwalten).
+  const showPrintSection =
+    task.assignees.some((a) => a.userId === user.id) || task.canManage;
+  let presetMarkupPercent = DEFAULT_MARKUP_OTHER_PERCENT;
+  if (showPrintSection) {
+    const svc = createSupabaseServiceClient();
+    const { data: proj } = await svc
+      .from('projects')
+      .select('client_company_id')
+      .eq('id', projectId)
+      .maybeSingle();
+    if (proj?.client_company_id) {
+      presetMarkupPercent = clampMarkupPercent(
+        await resolvePrintMarkupPercent(svc, proj.client_company_id),
+      );
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -163,7 +188,7 @@ export default async function TaskDetailPage({
       {/* Drucksachen-Abrechnung: der zugewiesenen Person ODER wer die Aufgabe
           verwalten darf. Läuft schon eine Abrechnung → Karte; sonst ein
           manueller Einstieg, falls die Erkennung das Druckprodukt verpasst hat. */}
-      {(task.assignees.some((a) => a.userId === user.id) || task.canManage) &&
+      {showPrintSection &&
         (task.printBillingStatus === 'required' ||
         task.printBillingStatus === 'ordered' ||
         task.printBillingStatus === 'settled' ||
@@ -173,6 +198,7 @@ export default async function TaskDetailPage({
             status={task.printBillingStatus as PrintBillingCardStatus}
             hasProforma={printInvoices.hasProforma}
             hasFinal={printInvoices.hasFinal}
+            presetMarkupPercent={presetMarkupPercent}
           />
         ) : (
           !task.printBillingStatus ||

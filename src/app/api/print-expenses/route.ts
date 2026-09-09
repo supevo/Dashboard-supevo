@@ -8,6 +8,7 @@ import { FILES_BUCKET } from '@/lib/files/storage';
 import {
   resolvePrintMarkupPercent,
   clientChargeCents,
+  clampMarkupPercent,
 } from '@/features/print-billing/markup';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
@@ -67,6 +68,12 @@ export async function POST(request: NextRequest) {
   const supplier = String(form.get('supplier') ?? '').trim().slice(0, 200) || null;
   const notes = String(form.get('notes') ?? '').trim().slice(0, 2000) || null;
   const amountCents = euroToCents(String(form.get('amount') ?? ''));
+  // Optionaler Custom-Faktor (Prozent) für genau diese Drucksache. Leer =
+  // voreingestellter Faktor des Kunden. Untergrenze 20 % wird unten erzwungen.
+  const rawMarkup = String(form.get('markupPercent') ?? '').trim();
+  const customMarkupPercent = /^\d{1,4}$/.test(rawMarkup)
+    ? Number.parseInt(rawMarkup, 10)
+    : null;
 
   if (!(file instanceof File) || !/^[0-9a-f-]{36}$/i.test(taskId)) {
     return NextResponse.json({ error: de.errors.VALIDATION }, { status: 400 });
@@ -107,10 +114,13 @@ export async function POST(request: NextRequest) {
   let markupPercent: number | null = null;
   let clientCharge: number | null = null;
   if (project?.client_company_id) {
-    markupPercent = await resolvePrintMarkupPercent(
+    // Custom-Faktor gewinnt, sonst der Kunden-Voreinstellwert – immer mit
+    // erzwungener 20-%-Untergrenze.
+    const preset = await resolvePrintMarkupPercent(
       service,
       project.client_company_id,
     );
+    markupPercent = clampMarkupPercent(customMarkupPercent ?? preset);
     if (amountCents != null) {
       clientCharge = clientChargeCents(amountCents, markupPercent);
     }

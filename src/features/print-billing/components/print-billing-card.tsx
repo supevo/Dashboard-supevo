@@ -28,27 +28,56 @@ type Kind = 'proforma' | 'final';
  * Rechnungen hochgeladen werden: die Proforma (sofort) und die nachträgliche
  * Endrechnung (~10 Tage später). Der Mitarbeiter handelt mit seinen Rechten (RLS).
  */
+const MIN_MARKUP = 20;
+
+/** German euro string ("12,50", "1.234,00") → number, or null. */
+function parseEuro(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const n = s.replace(/\./g, '').replace(',', '.').replace(/[^0-9.]/g, '');
+  const v = Number.parseFloat(n);
+  return Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+function formatEuro(value: number): string {
+  return value.toLocaleString('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+  });
+}
+
 export function PrintBillingCard({
   taskId,
   status,
   hasProforma = false,
   hasFinal = false,
+  presetMarkupPercent = MIN_MARKUP,
 }: {
   taskId: string;
   status: PrintBillingCardStatus;
   hasProforma?: boolean;
   hasFinal?: boolean;
+  /** Voreingestellter Aufschlag des Kunden (bereits auf >= 20 % gedeckelt). */
+  presetMarkupPercent?: number;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [amount, setAmount] = useState('');
   const [supplier, setSupplier] = useState('');
+  // Custom-Faktor je Drucksache; Default = voreingestellter Faktor des Kunden.
+  const [factor, setFactor] = useState<string>(String(presetMarkupPercent));
   // Vorauswahl: was noch fehlt (erst Proforma, dann Endrechnung).
   const [kind, setKind] = useState<Kind>(hasProforma ? 'final' : 'proforma');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, startAction] = useTransition();
+
+  // Effektiver Faktor (>= 20 %) und daraus der Kundenpreis für die Live-Anzeige.
+  const factorNum = Math.max(MIN_MARKUP, Math.round(Number(factor) || 0));
+  const supplierEuro = parseEuro(amount);
+  const clientPriceEuro =
+    supplierEuro != null ? supplierEuro * (1 + factorNum / 100) : null;
 
   async function upload() {
     if (!file) {
@@ -64,6 +93,7 @@ export function PrintBillingCard({
       fd.set('amount', amount);
       fd.set('supplier', supplier);
       fd.set('kind', kind);
+      fd.set('markupPercent', String(factorNum));
       const res = await fetch('/api/print-expenses', { method: 'POST', body: fd });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) {
@@ -91,9 +121,63 @@ export function PrintBillingCard({
     </div>
   );
 
-  // Upload-Block mit Auswahl Proforma/Endrechnung.
-  const uploadBlock = (
+  // Preisrechner: Druckerei-Preis + Faktor → Kundenpreis (für „wir berechnen").
+  const priceCalculator = (
+    <div className="space-y-2 rounded-md border border-border/70 bg-background/60 p-2.5">
+      <div className="text-xs font-medium text-muted-foreground">
+        💶 Preis für den Kunden berechnen
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="decimal"
+          placeholder="Druckerei-Preis € (brutto)"
+        />
+        <div>
+          <div className="flex items-center gap-1">
+            <Input
+              value={factor}
+              onChange={(e) => setFactor(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={() => setFactor(String(factorNum))}
+              inputMode="numeric"
+              className="w-24"
+              aria-label="Aufschlag in Prozent"
+            />
+            <span className="text-sm text-muted-foreground">% Aufschlag</span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Standard {presetMarkupPercent}% · min. {MIN_MARKUP}%
+          </p>
+        </div>
+      </div>
+      {clientPriceEuro != null && (
+        <div className="flex items-baseline justify-between rounded bg-primary/5 px-2.5 py-1.5">
+          <span className="text-xs text-muted-foreground">
+            Kundenpreis (brutto)
+          </span>
+          <span className="text-base font-semibold">
+            {formatEuro(clientPriceEuro)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  // Upload-Block mit Auswahl Proforma/Endrechnung. `withCalc` blendet den
+  // Preisrechner ein (nur wenn WIR dem Kunden berechnen, nicht bei „zahlt selbst").
+  const renderUpload = (withCalc: boolean) => (
     <>
+      {withCalc ? (
+        priceCalculator
+      ) : (
+        <Input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputMode="decimal"
+          placeholder="Betrag € (brutto, optional)"
+        />
+      )}
       <Select
         value={kind}
         onChange={(e) => setKind(e.target.value as Kind)}
@@ -111,19 +195,11 @@ export function PrintBillingCard({
           className="block w-full text-sm"
         />
       </DropZone>
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Input
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputMode="decimal"
-          placeholder="Betrag € (brutto, optional)"
-        />
-        <Input
-          value={supplier}
-          onChange={(e) => setSupplier(e.target.value)}
-          placeholder="Druckerei / Dienstleister (optional)"
-        />
-      </div>
+      <Input
+        value={supplier}
+        onChange={(e) => setSupplier(e.target.value)}
+        placeholder="Druckerei / Dienstleister (optional)"
+      />
       {error && <Alert variant="destructive">{error}</Alert>}
       <Button size="sm" type="button" onClick={upload} disabled={pending}>
         {pending
@@ -163,7 +239,7 @@ export function PrintBillingCard({
             Rechnung(en) der Druckerei bei Bedarf trotzdem als Beleg hochladen.
           </p>
         </div>
-        {uploadBlock}
+        {renderUpload(false)}
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="button"
@@ -199,7 +275,7 @@ export function PrintBillingCard({
           </p>
         </div>
         <StatusLine />
-        {uploadBlock}
+        {renderUpload(true)}
         <div className="flex flex-wrap items-center gap-3 pt-1">
           <button
             type="button"

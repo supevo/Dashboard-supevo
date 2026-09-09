@@ -11,6 +11,19 @@ export const DEFAULT_MARKUP_MEMBER_PERCENT = 20;
 export const DEFAULT_MARKUP_OTHER_PERCENT = 100;
 
 /**
+ * Harte Untergrenze für den Aufschlag: Unter 20 % wird nie berechnet – weder
+ * per Custom-Faktor je Drucksache noch über einen (evtl. zu niedrig gesetzten)
+ * Kunden-Voreinstellwert.
+ */
+export const MIN_MARKUP_PERCENT = 20;
+
+/** Erzwingt die Untergrenze (>= MIN_MARKUP_PERCENT), rundet auf ganze Prozent. */
+export function clampMarkupPercent(value: number): number {
+  const v = Number.isFinite(value) ? Math.round(value) : MIN_MARKUP_PERCENT;
+  return Math.max(MIN_MARKUP_PERCENT, v);
+}
+
+/**
  * Ermittelt den wirksamen Aufschlag (Prozent) für einen Kunden:
  *   1. expliziter Override am Kunden (print_markup_percent) hat Vorrang,
  *   2. sonst der Standard aus dem Programm (Mitgliedschaft → 20, sonst → 100).
