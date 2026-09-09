@@ -62,6 +62,10 @@ const POLL_MS = 5000;
 // >100k Aufrufe/Tag). 30 s reichen für ein Hintergrund-Badge völlig; zusätzlich
 // pausiert der Poll, wenn der Tab im Hintergrund liegt (siehe unten).
 const OVERVIEW_POLL_MS = 30000;
+// Im Hintergrund-Tab langsamer, aber NICHT gestoppt – sonst kämen Sound und
+// Desktop-Benachrichtigung erst beim Zurückwechseln (genau dann sind sie aber
+// nutzlos). Browser drosseln Hintergrund-Timer ohnehin auf ~1×/Minute.
+const OVERVIEW_POLL_HIDDEN_MS = 60000;
 const OPEN_KEY = 'chatDockOpen';
 const ACTIVE_KEY = 'chatDockChannel';
 const SIDEBAR_KEY = 'chatDockSidebarCollapsed';
@@ -885,31 +889,26 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
 
   useEffect(() => {
     void loadOverview();
-    // Nur pollen, wenn der Tab sichtbar ist. Mitarbeiter lassen das Dashboard den
-    // ganzen Tag in einem Hintergrund-Tab offen – ohne diese Pause liefen die
-    // teuren Übersichts-Abfragen sinnlos weiter. Beim Zurückkehren zum Tab sofort
-    // einmal aktualisieren, damit das Badge nicht veraltet wirkt.
+    // Immer pollen – im sichtbaren Tab schnell, im Hintergrund langsamer. So
+    // kommen Sound + Desktop-Benachrichtigung auch dann, wenn der Tab NICHT im
+    // Vordergrund ist (dafür sind sie da). Beim Zurückkehren sofort aktualisieren.
     let t: ReturnType<typeof setInterval> | null = null;
-    const start = () => {
-      if (t) return;
-      t = setInterval(() => void loadOverview(true), OVERVIEW_POLL_MS);
-    };
-    const stop = () => {
+    const startWith = (ms: number) => {
       if (t) clearInterval(t);
-      t = null;
+      t = setInterval(() => void loadOverview(true), ms);
     };
     const onVisibility = () => {
       if (document.hidden) {
-        stop();
+        startWith(OVERVIEW_POLL_HIDDEN_MS);
       } else {
         void loadOverview();
-        start();
+        startWith(OVERVIEW_POLL_MS);
       }
     };
-    if (!document.hidden) start();
+    startWith(document.hidden ? OVERVIEW_POLL_HIDDEN_MS : OVERVIEW_POLL_MS);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      stop();
+      if (t) clearInterval(t);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [loadOverview]);
