@@ -708,7 +708,7 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       alert('Dieser Browser unterstützt keine Push-Benachrichtigungen.');
       return;
     }
-    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim();
     if (!vapid) {
       alert('Push ist serverseitig nicht konfiguriert (VAPID-Schlüssel fehlen).');
       return;
@@ -736,10 +736,28 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
         );
         return;
       }
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapid) as BufferSource,
-      });
+      const appKey = urlBase64ToUint8Array(vapid) as BufferSource;
+      let sub: PushSubscription;
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: appKey,
+        });
+      } catch (e) {
+        // Häufig nach einem VAPID-Schlüsselwechsel: „A subscription with a
+        // different applicationServerKey already exists." → vorhandenes (evtl.
+        // verstecktes) Abo neu holen, lösen und einmal frisch abonnieren.
+        if ((e as Error).name === 'InvalidStateError') {
+          const stale = await reg.pushManager.getSubscription();
+          if (stale) await stale.unsubscribe();
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: appKey,
+          });
+        } else {
+          throw e;
+        }
+      }
       const json = sub.toJSON();
       const res = await savePushSubscriptionAction({
         endpoint: sub.endpoint,
@@ -748,9 +766,13 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
         userAgent: navigator.userAgent,
       });
       setNotifyEnabled(res.ok);
-      if (!res.ok) alert('Aktivieren fehlgeschlagen. Bitte erneut versuchen.');
-    } catch {
-      alert('Aktivieren fehlgeschlagen. Bitte erneut versuchen.');
+      if (!res.ok) {
+        alert(
+          `Aktivieren fehlgeschlagen${res.error ? `: ${res.error}` : '. Bitte erneut versuchen.'}`,
+        );
+      }
+    } catch (e) {
+      alert(`Aktivieren fehlgeschlagen: ${(e as Error).message}`);
     } finally {
       setNotifyBusy(false);
     }
