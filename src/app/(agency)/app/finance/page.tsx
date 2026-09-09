@@ -6,6 +6,7 @@ import { ExpensesPanel } from '@/features/print-billing/components/expenses-pane
 import { BillingPanel } from '@/features/billing/components/billing-panel';
 import { OverviewPanel } from '@/features/accounting/components/overview-panel';
 import { MonthClosePanel } from '@/features/accounting/components/month-close-panel';
+import { MonthClearingPanel } from '@/features/accounting/components/month-clearing-panel';
 import { SettingsPanel } from '@/features/accounting/components/settings-panel';
 import { ReceiptsPanel } from '@/features/accounting/components/receipts-panel';
 import { TransactionsPanel } from '@/features/accounting/components/transactions-panel';
@@ -89,6 +90,19 @@ export default async function FinancePage({
           year={jahr}
           month={monat}
           basePath="/app/finance?tab=monatsabschluss"
+        />
+      ),
+    },
+    {
+      key: 'monat-klaeren',
+      label: '📋 Monat klären',
+      content: (
+        <MonthClearingPanel
+          orgId={orgId}
+          activeFirma={sp.firma}
+          year={jahr}
+          month={monat}
+          basePath="/app/finance?tab=monat-klaeren"
         />
       ),
     },
