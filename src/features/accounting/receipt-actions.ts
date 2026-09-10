@@ -199,11 +199,39 @@ export async function importOneDriveReceiptsAction(input: {
   // den UNGEFILTERTEN Scan (scanned) geprüft: der Jahresfilter blockiert nur neue
   // Importe, löscht aber keine bereits vorhandenen 2025-Belege ungewollt mit.
   let removed = 0;
-  if (!subfolderId) {
+  // Nur beim vollständigen Scan aufräumen und NUR, wenn der Scan überhaupt etwas
+  // geliefert hat – ein (evtl. transient) leerer Scan darf niemals alle Belege
+  // löschen.
+  if (!subfolderId && scanned.length > 0) {
     const fileIds = new Set(scanned.map((f) => f.id));
-    const staleIds = (known ?? [])
+    let staleIds = (known ?? [])
       .filter((r) => r.onedrive_item_id && !fileIds.has(r.onedrive_item_id))
       .map((r) => r.id);
+
+    // NIEMALS einen bereits zugeordneten Beleg löschen: sonst reißt „neu prüfen"
+    // von Hand gesetzte Zuordnungen wieder auf (tx.beleg_id → null). Das betrifft
+    // v. a. Belege, deren KI-Richtung (Einnahme/Ausgabe) von ihrem Ordner
+    // abweicht – die tauchen im Scan der anderen Seite nicht auf.
+    if (staleIds.length > 0) {
+      const [{ data: linkedTx }, { data: linkedColl }] = await Promise.all([
+        supabase
+          .from('bookkeeping_transactions')
+          .select('beleg_id')
+          .in('beleg_id', staleIds),
+        supabase
+          .from('bookkeeping_tx_receipts')
+          .select('receipt_id')
+          .in('receipt_id', staleIds),
+      ]);
+      const linked = new Set<string>([
+        ...(linkedTx ?? []).map((r) => (r as { beleg_id: string }).beleg_id),
+        ...(linkedColl ?? []).map(
+          (r) => (r as { receipt_id: string }).receipt_id,
+        ),
+      ]);
+      staleIds = staleIds.filter((id) => !linked.has(id));
+    }
+
     if (staleIds.length > 0) {
       const { error: delErr, count } = await supabase
         .from('bookkeeping_receipts')

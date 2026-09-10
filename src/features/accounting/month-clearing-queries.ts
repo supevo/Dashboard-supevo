@@ -260,3 +260,12 @@ export interface ReceiptSearchHit {
   bruttoCents: number | null;
   datum: string | null;
 }
+
+/** Eine OneDrive-Datei als Beleg-Kandidat (Notstep, noch nicht importiert). */
+export interface OneDriveFileHit {
+  itemId: string;
+  fileName: string;
+  /** Elternordner-Pfad (z. B. „2026/08. August"). */
+  folder: string;
+  kind: 'einnahmen' | 'ausgaben';
+}
