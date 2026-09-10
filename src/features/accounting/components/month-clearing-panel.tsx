@@ -11,6 +11,7 @@ import { RescanBelegeButton } from '@/features/accounting/components/rescan-bele
 import { ClearingRowActions } from '@/features/accounting/components/clearing-row-actions';
 import { CreditorToggle } from '@/features/accounting/components/creditor-toggle';
 import { UnassignReceiptButton } from '@/features/accounting/components/unassign-receipt-button';
+import { LearnedHint } from '@/features/accounting/components/learned-hint';
 import { EmptyState } from '@/components/ui/empty-state';
 import { formatEuroCents } from '@/lib/money';
 
@@ -256,6 +257,12 @@ export async function MonthClearingPanel({
                               ? '● Grund fehlt'
                               : '● Beleg fehlt'}
                           </div>
+                          <LearnedHint
+                            txId={r.id}
+                            learnedReason={r.learnedReason}
+                            learnedKategorieId={r.learnedKategorieId}
+                            learnedKategorieLabel={r.learnedKategorieLabel}
+                          />
                           <ClearingRowActions
                             txId={r.id}
                             billingEntityId={active.entity.id}

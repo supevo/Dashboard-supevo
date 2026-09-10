@@ -10,6 +10,10 @@ import {
   errorResult,
   successResult,
 } from '@/lib/action-result';
+import {
+  upsertNoReceiptRule,
+  deleteNoReceiptRule,
+} from '@/features/accounting/no-receipt-rules';
 
 /**
  * Marks a booking as intentionally without a receipt (or reverts it). Beim
@@ -32,7 +36,7 @@ export async function setBelegNichtNoetigAction(input: {
   const supabase = await createSupabaseServerClient();
   const { data: tx } = await supabase
     .from('bookkeeping_transactions')
-    .select('organization_id')
+    .select('organization_id, billing_entity_id, gegen')
     .eq('id', input.transactionId)
     .maybeSingle();
   if (!tx) return errorResult(de.errors.FORBIDDEN);
@@ -48,6 +52,22 @@ export async function setBelegNichtNoetigAction(input: {
     } as never)
     .eq('id', input.transactionId);
   if (error) return errorResult(de.errors.INTERNAL);
+
+  // Aus der manuellen Entscheidung lernen: Empfänger → „kein Beleg nötig" (Grund)
+  // merken, damit künftige Umsätze desselben Empfängers (z. B. Finanzamt) einen
+  // Vorschlag bekommen. Beim Zurücknehmen die Regel wieder vergessen.
+  const t = tx as { billing_entity_id: string; gegen: string | null };
+  if (input.value) {
+    await upsertNoReceiptRule(supabase, {
+      orgId: tx.organization_id,
+      billingEntityId: t.billing_entity_id,
+      gegen: t.gegen,
+      grund: reason,
+      userId: user.id,
+    });
+  } else {
+    await deleteNoReceiptRule(supabase, t.billing_entity_id, t.gegen);
+  }
 
   revalidatePath('/app/finance');
   return successResult(

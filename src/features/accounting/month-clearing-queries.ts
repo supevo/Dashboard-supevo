@@ -4,6 +4,11 @@ import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
 import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
 import { matchesCreditor } from '@/features/accounting/reconcile';
+import {
+  getCategoryRuleMap,
+  normalizeMatchKey,
+} from '@/features/accounting/category-rules';
+import { getNoReceiptRuleMap } from '@/features/accounting/no-receipt-rules';
 import { formatEuroCents } from '@/lib/money';
 
 export interface ClearingSuggestion {
@@ -38,6 +43,11 @@ export interface ClearingRow {
   reason: string | null;
   /** Automatische Beleg-Vorschläge (nur bei „Beleg fehlt"), bester zuerst. */
   suggestions: ClearingSuggestion[];
+  /** Gelernt: dieser Empfänger war früher „kein Beleg nötig" (Grund) – Vorschlag. */
+  learnedReason: string | null;
+  /** Gelernt: frühere Kategorie dieses Empfängers (nur wenn noch nicht kategorisiert). */
+  learnedKategorieId: string | null;
+  learnedKategorieLabel: string;
 }
 
 export interface MonthClearing {
@@ -118,6 +128,13 @@ export async function getMonthClearing(
     .maybeSingle();
   const creditors =
     (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
+
+  // Gelerntes: Empfänger → frühere Kategorie bzw. „kein Beleg nötig"-Grund.
+  // Wird als Ein-Klick-Vorschlag angeboten (nicht automatisch übernommen).
+  const [categoryRules, noReceiptRules] = await Promise.all([
+    getCategoryRuleMap(supabase, billingEntityId),
+    getNoReceiptRuleMap(supabase, billingEntityId),
+  ]);
 
   // Automatische Beleg-Vorschläge vom Abgleich-Motor (Betrag + Datum +
   // Händler/Nummer im Verwendungszweck, inkl. PayPal-Intermediär). Pro Umsatz
@@ -213,6 +230,15 @@ export async function getMonthClearing(
       status = 'not_needed';
     }
 
+    // Gelernte Vorschläge für diesen Empfänger (nur wo sie etwas bringen).
+    const key = normalizeMatchKey(t.gegen);
+    const learnedReason =
+      key && (status === 'missing' || status === 'none_no_reason')
+        ? (noReceiptRules.get(key) ?? null)
+        : null;
+    const learnedKategorieId =
+      key && !t.kategorie_id ? (categoryRules.get(key) ?? null) : null;
+
     return {
       id: t.id,
       datum: t.datum,
@@ -226,6 +252,11 @@ export async function getMonthClearing(
       belegFile: belegFile || null,
       reason,
       suggestions: status === 'missing' ? (suggByTx.get(t.id) ?? []) : [],
+      learnedReason,
+      learnedKategorieId,
+      learnedKategorieLabel: learnedKategorieId
+        ? kategorieLabel(learnedKategorieId)
+        : '',
     };
   });
 
