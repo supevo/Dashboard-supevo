@@ -71,8 +71,18 @@ export interface ChannelMessage {
   poll: ChannelPoll | null;
   /** Zitierte Nachricht, auf die geantwortet wurde (WhatsApp-Stil). */
   replyTo: ChannelReplyPreview | null;
+  /** Emoji-Reaktionen, je Emoji zusammengefasst (👍 ×3), bestückt bester zuerst. */
+  reactions: MessageReaction[];
   createdAt: string;
   isMine: boolean;
+}
+
+/** Eine zusammengefasste Emoji-Reaktion auf eine Nachricht. */
+export interface MessageReaction {
+  emoji: string;
+  count: number;
+  /** Hat der aktuelle Nutzer mit diesem Emoji reagiert? */
+  mine: boolean;
 }
 
 /** Kurzvorschau der zitierten Nachricht (Autor + Textauszug/Typ). */
@@ -208,6 +218,47 @@ async function loadPolls(
   return out;
 }
 
+/**
+ * Lädt die Emoji-Reaktionen der Nachrichten und fasst sie je Nachricht/Emoji
+ * zusammen (Anzahl + ob der aktuelle Nutzer dabei ist). Service-Client, nachdem
+ * die RLS-Sicht die Nachrichten freigegeben hat.
+ */
+async function loadReactions(
+  rows: RawMessage[],
+  currentUserId: string,
+): Promise<Map<string, MessageReaction[]>> {
+  const out = new Map<string, MessageReaction[]>();
+  const ids = rows.map((m) => m.id);
+  if (ids.length === 0) return out;
+
+  const service = createSupabaseServiceClient();
+  const { data } = await service
+    .from('chat_message_reactions')
+    .select('message_id, emoji, user_id')
+    .in('message_id', ids);
+  if (!data || data.length === 0) return out;
+
+  // Pro Nachricht: Emoji → {count, mine}. Reihenfolge = Häufigkeit (bester zuerst).
+  const byMsg = new Map<string, Map<string, { count: number; mine: boolean }>>();
+  for (const r of data) {
+    const perEmoji = byMsg.get(r.message_id) ?? new Map();
+    const cur = perEmoji.get(r.emoji) ?? { count: 0, mine: false };
+    cur.count += 1;
+    if (r.user_id === currentUserId) cur.mine = true;
+    perEmoji.set(r.emoji, cur);
+    byMsg.set(r.message_id, perEmoji);
+  }
+  for (const [messageId, perEmoji] of byMsg) {
+    out.set(
+      messageId,
+      [...perEmoji.entries()]
+        .map(([emoji, v]) => ({ emoji, count: v.count, mine: v.mine }))
+        .sort((a, b) => b.count - a.count),
+    );
+  }
+  return out;
+}
+
 /** Resolves author profiles and maps raw message rows to ChannelMessage. */
 async function mapMessages(
   rows: RawMessage[],
@@ -227,6 +278,7 @@ async function mapMessages(
   const profileById = new Map((profiles ?? []).map((p) => [p.id, p] as const));
   const pollById = await loadPolls(rows, currentUserId);
   const replyById = await loadReplyPreviews(rows);
+  const reactionsByMsg = await loadReactions(rows, currentUserId);
 
   return rows.map((m) => {
     const profile = m.author_id ? profileById.get(m.author_id) : undefined;
@@ -255,6 +307,7 @@ async function mapMessages(
       file,
       poll: m.poll_id ? pollById.get(m.poll_id) ?? null : null,
       replyTo: m.reply_to_id ? replyById.get(m.reply_to_id) ?? null : null,
+      reactions: reactionsByMsg.get(m.id) ?? [],
       createdAt: m.created_at,
       isMine: m.author_id === currentUserId,
     };

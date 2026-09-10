@@ -162,6 +162,7 @@ function ConversationView({
         file: null,
         poll: null,
         replyTo: null,
+        reactions: [],
         createdAt: new Date().toISOString(),
         isMine: true,
       },

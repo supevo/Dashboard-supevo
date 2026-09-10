@@ -41,6 +41,7 @@ import { PollBlock } from '@/features/messenger/components/poll-block';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
+import { MessageReactions } from '@/features/messenger/components/message-reactions';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -302,6 +303,7 @@ function MessagePane({
         file: null,
         poll: null,
         replyTo: null,
+        reactions: [],
         createdAt: new Date().toISOString(),
         isMine: true,
       },
@@ -467,39 +469,49 @@ function MessagePane({
                 status={m.authorStatus}
                 size="sm"
               />
-              <div
-                className={cn(
-                  'max-w-[75%] rounded-lg text-sm',
-                  m.stickerUrl || m.file || m.poll
-                    ? ''
-                    : cn(
-                        'px-3 py-2',
-                        m.isMine ? 'bg-primary text-primary-foreground' : 'bg-background border',
-                      ),
-                )}
-              >
-                <div className="mb-0.5 text-xs opacity-70">
-                  {m.authorName} ·{' '}
-                  {new Date(m.createdAt).toLocaleString('de-DE', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
+              <div className={cn('flex max-w-[75%] flex-col gap-1', m.isMine && 'items-end')}>
+                <div
+                  className={cn(
+                    'w-fit max-w-full rounded-lg text-sm',
+                    m.stickerUrl || m.file || m.poll
+                      ? ''
+                      : cn(
+                          'px-3 py-2',
+                          m.isMine ? 'bg-primary text-primary-foreground' : 'bg-background border',
+                        ),
+                  )}
+                >
+                  <div className="mb-0.5 text-xs opacity-70">
+                    {m.authorName} ·{' '}
+                    {new Date(m.createdAt).toLocaleString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                  {m.stickerUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.stickerUrl}
+                      alt="Sticker"
+                      className="max-h-32 max-w-[160px] object-contain"
+                    />
+                  ) : m.file ? (
+                    <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
+                  ) : m.poll ? (
+                    <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                  )}
                 </div>
-                {m.stickerUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={m.stickerUrl}
-                    alt="Sticker"
-                    className="max-h-32 max-w-[160px] object-contain"
+                {!m.id.startsWith('optimistic-') && (
+                  <MessageReactions
+                    messageId={m.id}
+                    reactions={m.reactions}
+                    isMine={m.isMine}
+                    onChanged={() => void load()}
                   />
-                ) : m.file ? (
-                  <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
-                ) : m.poll ? (
-                  <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
-                ) : (
-                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
                 )}
               </div>
             </div>

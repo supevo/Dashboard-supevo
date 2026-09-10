@@ -1982,6 +1982,30 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['chat_poll_votes']['Insert']>;
         Relationships: [];
       };
+      chat_message_reactions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          channel_id: string;
+          message_id: string;
+          user_id: string;
+          emoji: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          channel_id: string;
+          message_id: string;
+          user_id: string;
+          emoji: string;
+          created_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['chat_message_reactions']['Insert']
+        >;
+        Relationships: [];
+      };
       chat_stickers: {
         Row: {
           id: string;

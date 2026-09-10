@@ -364,6 +364,68 @@ export async function sendChannelMessageAction(
   return successResult('');
 }
 
+const reactionSchema = z.object({
+  messageId: z.string().uuid(),
+  // Ein Emoji (ggf. mehrteilig, z. B. Flaggen/Modifier) – großzügig begrenzt.
+  emoji: z.string().trim().min(1).max(24),
+});
+
+/**
+ * Toggle einer Emoji-Reaktion auf eine Nachricht (WhatsApp-Stil): gleiches Emoji
+ * erneut → entfernen, anderes Emoji → ersetzen, sonst neu setzen. Genau eine
+ * Reaktion pro Person und Nachricht.
+ */
+export async function toggleMessageReactionAction(input: {
+  messageId: string;
+  emoji: string;
+}): Promise<ActionResult> {
+  const parsed = reactionSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  // RLS-Lesung bestätigt, dass der Aufrufer die Nachricht/den Kanal sehen darf.
+  const supabase = await createSupabaseServerClient();
+  const { data: msg } = await supabase
+    .from('chat_channel_messages')
+    .select('id, channel_id, organization_id')
+    .eq('id', parsed.data.messageId)
+    .maybeSingle();
+  if (!msg) return errorResult(de.errors.FORBIDDEN);
+
+  // Schreiben über den Service-Client (reiner Super-Admin ist nicht
+  // is_agency_staff() – Zugriff ist oben bereits per RLS geprüft).
+  const service = createSupabaseServiceClient();
+  const { data: existing } = await service
+    .from('chat_message_reactions')
+    .select('id, emoji')
+    .eq('message_id', parsed.data.messageId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.emoji === parsed.data.emoji) {
+      await service.from('chat_message_reactions').delete().eq('id', existing.id);
+    } else {
+      await service
+        .from('chat_message_reactions')
+        .update({ emoji: parsed.data.emoji })
+        .eq('id', existing.id);
+    }
+  } else {
+    await service.from('chat_message_reactions').insert({
+      organization_id: msg.organization_id,
+      channel_id: msg.channel_id,
+      message_id: parsed.data.messageId,
+      user_id: user.id,
+      emoji: parsed.data.emoji,
+    });
+  }
+
+  return successResult('');
+}
+
 /**
  * Push-Benachrichtigung an alle Empfänger eines Team-Kanals bzw. einer DM
  * (außer dem Autor), damit Chatnachrichten wie jede andere Benachrichtigung im
