@@ -667,7 +667,13 @@ async function afterTaskMoved(
       await notifyPrintBillingAssignees(supabase, targetColumn.organization_id, taskId);
     }
     // Ads-Erkennung (keyword-basiert) – flaggt die Rückfrage „wer zahlt?".
-    await detectAndFlagAdsBilling(supabase, taskId);
+    // Best-effort: die Spalte existiert erst nach Migration 0198; ein Fehler
+    // darf das Verschieben nie blockieren.
+    try {
+      await detectAndFlagAdsBilling(supabase, taskId);
+    } catch {
+      /* Migration 0198 evtl. noch nicht eingespielt */
+    }
 
     // Marketingplan: ist mit dieser Aufgabe die aktuelle Phase vollständig
     // abgearbeitet, die nächste Phase automatisch ins Kanban übernehmen. NACH

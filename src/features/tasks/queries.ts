@@ -36,12 +36,28 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, is_idea, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status, ads_billing_status',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, is_idea, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
     .maybeSingle();
   if (!task) return null;
+
+  // Ads-Status separat und resilient laden – die Spalte existiert erst nach
+  // Migration 0198. Fehlt sie, bleibt es einfach null (kein Task-Öffnen-Fehler).
+  let adsBillingStatus: string | null = null;
+  try {
+    const { data: adsRow } = await supabase
+      .from('tasks')
+      .select('ads_billing_status')
+      .eq('id', taskId)
+      .maybeSingle();
+    adsBillingStatus =
+      (adsRow as { ads_billing_status?: string | null } | null)
+        ?.ads_billing_status ?? null;
+  } catch {
+    /* Spalte fehlt (Migration 0198 noch nicht eingespielt) → null */
+  }
 
   const { data: assigneeRows } = await supabase
     .from('task_assignees')
@@ -98,8 +114,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     canManage: canManage === true,
     clientNotifiedAt: task.client_notified_at,
     printBillingStatus: task.print_billing_status,
-    adsBillingStatus: (task as { ads_billing_status: string | null })
-      .ads_billing_status,
+    adsBillingStatus,
   };
 }
 
