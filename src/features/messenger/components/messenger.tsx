@@ -42,6 +42,7 @@ import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { MessageReactions } from '@/features/messenger/components/message-reactions';
+import { MessageText } from '@/features/messenger/components/message-text';
 import { cn } from '@/lib/utils';
 
 const POLL_MS = 5000;
@@ -502,7 +503,7 @@ function MessagePane({
                   ) : m.poll ? (
                     <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
                   ) : (
-                    <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                    <MessageText text={m.body} />
                   )}
                 </div>
                 {!m.id.startsWith('optimistic-') && (

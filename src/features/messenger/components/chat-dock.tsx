@@ -35,6 +35,7 @@ import { uploadChatFile } from '@/features/messenger/upload-chat-file';
 import { ChatSoundPicker } from '@/features/messenger/components/chat-sound-picker';
 import { PollBlock } from '@/features/messenger/components/poll-block';
 import { MessageReactions } from '@/features/messenger/components/message-reactions';
+import { MessageText } from '@/features/messenger/components/message-text';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
@@ -393,7 +394,7 @@ function ConversationView({
                 ) : m.poll ? (
                   <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
                 ) : (
-                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                  <MessageText text={m.body} />
                 )}
               </div>
               <button
