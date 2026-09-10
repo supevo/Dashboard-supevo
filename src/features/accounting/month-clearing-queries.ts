@@ -50,16 +50,29 @@ export interface ClearingRow {
   learnedKategorieLabel: string;
 }
 
+/** Eine gestellte Ausgangsrechnung (Einnahme-Beleg) ohne Zahlungseingang. */
+export interface OpenInvoiceRow {
+  receiptId: string;
+  datum: string | null;
+  kunde: string | null;
+  rechnungsnummer: string | null;
+  bruttoCents: number | null;
+  fileName: string | null;
+}
+
 export interface MonthClearing {
   year: number;
   month: number;
   rows: ClearingRow[];
+  /** Gestellte Rechnungen im Monat, zu denen (noch) kein Zahlungseingang da ist. */
+  openInvoices: OpenInvoiceRow[];
   summary: {
     total: number;
     geklaert: number; // ok + none + not_needed
     offen: number; // missing + none_no_reason
     missing: number;
     noReason: number;
+    openInvoices: number;
   };
 }
 
@@ -140,8 +153,36 @@ export async function getMonthClearing(
   // Händler/Nummer im Verwendungszweck, inkl. PayPal-Intermediär). Pro Umsatz
   // die besten Treffer. Optional – Fehler dürfen die Liste nie blockieren.
   const suggByTx = new Map<string, ClearingSuggestion[]>();
+  let openInvoices: OpenInvoiceRow[] = [];
   try {
     const sugg = await getReconcileSuggestions(billingEntityId);
+
+    // Gestellte Rechnungen (Einnahme-Belege) ohne Zahlungseingang – nur die des
+    // gewählten Monats (nach Beleg-/Rechnungsdatum).
+    const monthPrefix = `${year}-${mm}`;
+    const unpaidThisMonth = sugg.unpaidOutgoing.filter((r) =>
+      (r.datum ?? '').startsWith(monthPrefix),
+    );
+    const invNames = new Map<string, string>();
+    const invIds = unpaidThisMonth.map((r) => r.receiptId);
+    if (invIds.length > 0) {
+      const { data: fn } = await supabase
+        .from('bookkeeping_receipts')
+        .select('id, file_name')
+        .in('id', invIds);
+      for (const r of fn ?? []) invNames.set(r.id, r.file_name ?? '');
+    }
+    openInvoices = unpaidThisMonth
+      .map((r) => ({
+        receiptId: r.receiptId,
+        datum: r.datum,
+        kunde: r.haendler,
+        rechnungsnummer: r.rechnungsnummer,
+        bruttoCents: r.bruttoCents,
+        fileName: invNames.get(r.receiptId) || null,
+      }))
+      .sort((a, b) => (a.datum ?? '').localeCompare(b.datum ?? ''));
+
     const raw = new Map<
       string,
       {
@@ -274,12 +315,14 @@ export async function getMonthClearing(
     year,
     month,
     rows,
+    openInvoices,
     summary: {
       total: rows.length,
       geklaert,
       offen: missing + noReason,
       missing,
       noReason,
+      openInvoices: openInvoices.length,
     },
   };
 }

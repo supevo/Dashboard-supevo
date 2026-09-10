@@ -70,7 +70,7 @@ export async function MonthClearingPanel({
     getMonthClearing(active.entity.id, year, m),
     listImportLogs(active.entity.id, 1),
   ]);
-  const { rows, summary } = clearing;
+  const { rows, summary, openInvoices } = clearing;
   const pct = summary.total === 0 ? 0 : Math.round((summary.geklaert / summary.total) * 100);
   const lastLog = logs[0];
 
@@ -145,6 +145,11 @@ export async function MonthClearingPanel({
         <div className="flex flex-wrap gap-4 text-xs">
           <span className="text-amber-700 dark:text-amber-300">⚠ Beleg fehlt: {summary.missing}</span>
           <span className="text-amber-700 dark:text-amber-300">⚠ Grund fehlt: {summary.noReason}</span>
+          {summary.openInvoices > 0 && (
+            <span className="text-sky-700 dark:text-sky-300">
+              📤 Rechnung ohne Zahlung: {summary.openInvoices}
+            </span>
+          )}
         </div>
       </div>
 
@@ -287,6 +292,57 @@ export async function MonthClearingPanel({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Gestellte Rechnungen ohne Zahlungseingang (aus den Einnahmen-Ordnern). */}
+      {openInvoices.length > 0 && (
+        <div className="space-y-2">
+          <div>
+            <h3 className="text-sm font-semibold">
+              📤 Gestellte Rechnungen ohne Zahlungseingang ({openInvoices.length})
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Diese Ausgangsrechnungen liegen im Ordner, aber es wurde (noch) kein
+              passender Zahlungseingang gefunden – offene Forderungen.
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Datum</th>
+                  <th className="px-3 py-2 font-medium">Kunde / Rechnung</th>
+                  <th className="px-3 py-2 text-right font-medium">Betrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openInvoices.map((r) => (
+                  <tr key={r.receiptId} className="border-t align-top">
+                    <td className="whitespace-nowrap px-3 py-3 tabular-nums">
+                      {fmtDate(r.datum)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <div className="font-medium">{r.kunde || '—'}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {[
+                          r.rechnungsnummer ? `Nr. ${r.rechnungsnummer}` : null,
+                          r.fileName ? `🧾 ${r.fileName}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ') || '—'}
+                      </div>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                      {r.bruttoCents != null
+                        ? `+ ${formatEuroCents(Math.abs(r.bruttoCents))}`
+                        : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
