@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listAccountingCompanies } from '@/features/accounting/queries';
 import { getMonthClearing } from '@/features/accounting/month-clearing-queries';
+import { getBookingExportRows } from '@/features/accounting/export-queries';
 import { listImportLogs } from '@/features/accounting/receipt-queries';
 import {
   CompanySwitcher,
@@ -9,6 +10,7 @@ import {
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { RescanBelegeButton } from '@/features/accounting/components/rescan-belege-button';
 import { BankUploadForm } from '@/features/accounting/components/bank-upload-form';
+import { ExportBookingsButton } from '@/features/accounting/components/export-bookings-button';
 import { ClearingRowActions } from '@/features/accounting/components/clearing-row-actions';
 import { CreditorToggle } from '@/features/accounting/components/creditor-toggle';
 import { UnassignReceiptButton } from '@/features/accounting/components/unassign-receipt-button';
@@ -67,9 +69,10 @@ export async function MonthClearingPanel({
   }));
 
   const m = month >= 1 && month <= 12 ? month : new Date().getMonth() + 1;
-  const [clearing, logs] = await Promise.all([
+  const [clearing, logs, exportRows] = await Promise.all([
     getMonthClearing(active.entity.id, year, m),
     listImportLogs(active.entity.id, 1),
+    getBookingExportRows(active.entity.id, year, m),
   ]);
   const { rows, summary, openInvoices } = clearing;
   const pct = summary.total === 0 ? 0 : Math.round((summary.geklaert / summary.total) * 100);
@@ -89,7 +92,16 @@ export async function MonthClearingPanel({
           <CompanySwitcher companies={options} activeId={active.entity.id} basePath={basePath} />
           <MonthSwitcher year={year} month={m} years={years} basePath={firmaBase} />
         </div>
-        <RescanBelegeButton billingEntityId={active.entity.id} />
+        <div className="flex flex-wrap items-center gap-2">
+          <RescanBelegeButton billingEntityId={active.entity.id} />
+          <ExportBookingsButton
+            rows={exportRows}
+            fileName={`buchungen-${active.entity.name}-${MONTHS[m - 1]}-${year}.csv`.replace(
+              /\s+/g,
+              '_',
+            )}
+          />
+        </div>
       </div>
 
       {/* Wizard */}
@@ -358,9 +370,10 @@ export async function MonthClearingPanel({
       )}
 
       <p className="text-xs text-muted-foreground">
-        Der <strong>Steuerberater-Export</strong> bleibt eine eigene Sache:{' '}
+        Der <strong>Steuerberater-Export</strong> (CSV/Excel) sitzt oben rechts.
+        Die ausführliche Monats-Checkliste findest du weiterhin im{' '}
         <Link href="/app/finance?tab=monatsabschluss" className="text-primary hover:underline">
-          zum Monatsabschluss &amp; CSV-Export
+          Monatsabschluss
         </Link>
         .
       </p>
