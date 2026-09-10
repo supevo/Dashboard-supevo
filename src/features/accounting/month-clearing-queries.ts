@@ -261,11 +261,11 @@ export interface ReceiptSearchHit {
   datum: string | null;
 }
 
-/** Eine OneDrive-Datei als Beleg-Kandidat (Notstep, noch nicht importiert). */
-export interface OneDriveFileHit {
-  itemId: string;
-  fileName: string;
-  /** Elternordner-Pfad (z. B. „2026/08. August"). */
-  folder: string;
-  kind: 'einnahmen' | 'ausgaben';
+/** Ein Eintrag beim Durchblättern der OneDrive-Ordner (Ordner oder Datei). */
+export interface OneDriveEntry {
+  id: string;
+  name: string;
+  isFolder: boolean;
+  /** Nur an den Wurzel-Einträgen gesetzt: Beleg-Art des Ordners. */
+  kind?: 'einnahmen' | 'ausgaben';
 }

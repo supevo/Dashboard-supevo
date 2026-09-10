@@ -11,12 +11,12 @@ import {
   successResult,
 } from '@/lib/action-result';
 import { importOneDriveReceiptsAction } from '@/features/accounting/receipt-actions';
-import { listFolderFilesRecursive } from '@/lib/onedrive/graph';
+import { listFolder } from '@/lib/onedrive/graph';
 import { folderMonthDate } from '@/features/accounting/folder-month';
 import { resolveReceiptMime } from '@/lib/ai/vision';
 import type {
   ReceiptSearchHit,
-  OneDriveFileHit,
+  OneDriveEntry,
 } from '@/features/accounting/month-clearing-queries';
 
 const assignSchema = z.object({
@@ -196,16 +196,27 @@ async function entityFolders(
   return { orgId: entity?.organization_id ?? null, folders };
 }
 
+const browseSchema = z.object({
+  billingEntityId: z.string().uuid(),
+  folderId: z.string().min(1).max(300).optional(),
+});
+
 /**
- * Der „Notstep", wenn die Beleg-Suche über die bereits importierten Belege nichts
- * findet: direkt die OneDrive-Ordner nach Dateinamen durchsuchen. So lässt sich
- * auch eine Datei auswählen, die noch nicht als Beleg importiert wurde.
+ * Blättert durch die verknüpften OneDrive-Ordner: ohne folderId die beiden Wurzel-
+ * ordner (Ausgaben/Einnahmen), sonst den Inhalt eines Ordners (Unterordner +
+ * Dateien). So kann man von Hand zum richtigen Beleg navigieren und ihn wählen –
+ * nicht das System sucht, der Nutzer klickt.
  */
-export async function searchOneDriveFilesAction(input: {
+export async function browseOneDriveAction(input: {
   billingEntityId: string;
-  query: string;
-}): Promise<{ ok: boolean; hits?: OneDriveFileHit[]; error?: string }> {
-  const parsed = searchSchema.safeParse(input);
+  folderId?: string;
+}): Promise<{
+  ok: boolean;
+  atRoot?: boolean;
+  entries?: OneDriveEntry[];
+  error?: string;
+}> {
+  const parsed = browseSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: de.errors.VALIDATION };
 
   const supabase = await createSupabaseServerClient();
@@ -219,33 +230,35 @@ export async function searchOneDriveFilesAction(input: {
   if (folders.length === 0)
     return { ok: false, error: 'Keine OneDrive-Ordner verknüpft (Tab „Firmen").' };
 
-  const term = parsed.data.query.trim().toLowerCase();
-  const hits: OneDriveFileHit[] = [];
-  const seen = new Set<string>();
-  for (const folder of folders) {
-    const files = await listFolderFilesRecursive(orgId, folder.id, {
-      rootPath: folder.path,
-      maxFiles: 3000,
-    });
-    if (!files) continue;
-    for (const f of files) {
-      if (seen.has(f.id)) continue;
-      const name = f.name ?? '';
-      if (term && !name.toLowerCase().includes(term)) continue;
-      seen.add(f.id);
-      hits.push({
-        itemId: f.id,
-        fileName: name,
-        folder: f.parentPath ?? '',
-        kind: folder.kind,
-      });
-      if (hits.length >= 40) break;
-    }
-    if (hits.length >= 40) break;
+  // Wurzel: die verknüpften Ordner selbst zur Auswahl anbieten.
+  if (!parsed.data.folderId) {
+    return {
+      ok: true,
+      atRoot: true,
+      entries: folders.map((f) => ({
+        id: f.id,
+        name: f.kind === 'ausgaben' ? '📤 Ausgaben' : '📥 Einnahmen',
+        isFolder: true,
+        kind: f.kind,
+      })),
+    };
   }
-  // Neueste Ordner zuerst (Pfad enthält „2026/08. …") – grob nach Pfad absteigend.
-  hits.sort((a, b) => (a.folder < b.folder ? 1 : a.folder > b.folder ? -1 : 0));
-  return { ok: true, hits };
+
+  const items = await listFolder(orgId, parsed.data.folderId);
+  if (items === null)
+    return { ok: false, error: 'OneDrive-Ordner nicht erreichbar.' };
+
+  // Ordner zuerst, dann Dateien; je alphabetisch (Ordner absteigend, damit neue
+  // Jahres-/Monatsordner wie „2026" oben stehen).
+  const entries: OneDriveEntry[] = items
+    .map((it) => ({ id: it.id, name: it.name, isFolder: it.isFolder }))
+    .sort((a, b) => {
+      if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+      return a.isFolder
+        ? b.name.localeCompare(a.name, 'de')
+        : a.name.localeCompare(b.name, 'de');
+    });
+  return { ok: true, atRoot: false, entries };
 }
 
 const assignOdSchema = z.object({
