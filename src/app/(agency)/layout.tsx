@@ -31,6 +31,7 @@ import {
   Trophy,
   MessageSquare,
   KeyRound,
+  Megaphone,
   Wallet,
   BadgeEuro,
   Plug,
@@ -81,6 +82,7 @@ function buildNavItems(
       : []),
 
     heading('Ressourcen'),
+    { href: '/app/ads', label: 'Ads-Abrechnung', icon: <Megaphone /> },
     { href: '/app/passwords', label: 'Passwörter', icon: <KeyRound /> },
     // Finanzen (Ausgaben + Rechnungen) – nur Super-Admin.
     ...(superAdmin

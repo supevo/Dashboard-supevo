@@ -41,6 +41,7 @@ import {
 } from '@/features/print-billing/components/print-billing-card';
 import { StartPrintBillingButton } from '@/features/print-billing/components/start-print-billing-button';
 import { getPrintInvoiceKinds } from '@/features/print-billing/queries';
+import { AdsBillingCard } from '@/features/ads-billing/components/ads-billing-card';
 import {
   resolvePrintMarkupPercent,
   clampMarkupPercent,
@@ -206,6 +207,11 @@ export default async function TaskDetailPage({
         ) ? (
           <StartPrintBillingButton taskId={taskId} />
         ) : null)}
+
+      {/* Ads-Abrechnung (Meta/Google): Rückfrage „wer zahlt?" bzw. Mandats-Status. */}
+      {showPrintSection && task.adsBillingStatus && (
+        <AdsBillingCard taskId={taskId} status={task.adsBillingStatus} />
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Main column: content work */}

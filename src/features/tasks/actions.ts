@@ -15,6 +15,7 @@ import { awardTaskXp } from '@/features/gamification/xp';
 import { checkAndAwardAchievements } from '@/features/gamification/achievements';
 import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
 import { detectPrintProduct } from '@/features/print-billing/detect';
+import { detectAdsProduct } from '@/features/ads-billing/detect';
 import { advanceMarketingPlanOnTaskDone } from '@/features/marketing-plan/embed';
 import { de } from '@/lib/i18n/de';
 import {
@@ -546,9 +547,11 @@ export async function createTaskAction(
       try {
         // Nur erkennen/flaggen (der Hinweis wird erst bei „Fertig" verschickt und
         // nur der zugewiesenen Person angezeigt).
-        await detectAndFlagPrintBilling(createSupabaseServiceClient(), task.id);
+        const svc = createSupabaseServiceClient();
+        await detectAndFlagPrintBilling(svc, task.id);
+        await detectAndFlagAdsBilling(svc, task.id);
       } catch {
-        /* Drucksachen-Hinweis ist optional – nie das Anlegen stören */
+        /* Drucksachen-/Ads-Hinweis ist optional – nie das Anlegen stören */
       }
     });
   }
@@ -663,6 +666,8 @@ async function afterTaskMoved(
     if (pbStatus === 'required' || pbStatus === 'ordered') {
       await notifyPrintBillingAssignees(supabase, targetColumn.organization_id, taskId);
     }
+    // Ads-Erkennung (keyword-basiert) – flaggt die Rückfrage „wer zahlt?".
+    await detectAndFlagAdsBilling(supabase, taskId);
 
     // Marketingplan: ist mit dieser Aufgabe die aktuelle Phase vollständig
     // abgearbeitet, die nächste Phase automatisch ins Kanban übernehmen. NACH
@@ -699,6 +704,42 @@ async function afterTaskMoved(
  * "Fertig". Returns the resulting print_billing_status (or null if not a print
  * job / client doesn't bill print).
  */
+/**
+ * Flaggt eine Aufgabe für die Ads-Abrechnung, wenn Titel/Beschreibung nach
+ * Meta/Google Ads aussehen und ein Kunde dranhängt. Rein keyword-basiert,
+ * idempotent (nur aus null). Die Rückfrage „wer zahlt?" zeigt die Aufgaben-Karte.
+ */
+async function detectAndFlagAdsBilling(
+  supabase: MoveSupabase,
+  taskId: string,
+): Promise<void> {
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, title, description, project_id, ads_billing_status')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return;
+  if ((task as { ads_billing_status: string | null }).ads_billing_status) return;
+
+  const { data: project } = await supabase
+    .from('projects')
+    .select('client_company_id')
+    .eq('id', task.project_id)
+    .maybeSingle();
+  if (!project?.client_company_id) return;
+
+  const det = detectAdsProduct(task.title, task.description);
+  if (!det.isAds) return;
+
+  await supabase
+    .from('tasks')
+    .update({
+      ads_billing_status: 'required',
+      ads_flagged_at: new Date().toISOString(),
+    } as never)
+    .eq('id', taskId);
+}
+
 async function detectAndFlagPrintBilling(
   supabase: MoveSupabase,
   taskId: string,

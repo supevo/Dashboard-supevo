@@ -32,6 +32,8 @@ export function notificationHref(
       return portal ? '/portal/appointments' : '/app/calendar';
     case 'invoice':
       return portal ? '/portal/invoices' : '/app/finance?tab=rechnungen';
+    case 'ads_mandate':
+      return portal ? null : '/app/ads';
     case 'marketing_plan':
       return portal ? '/portal/plan' : entityId ? `/app/clients/${entityId}` : null;
     case 'membership':

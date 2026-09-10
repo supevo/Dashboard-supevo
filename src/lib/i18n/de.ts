@@ -287,6 +287,7 @@ export const de = {
     reaction: 'Reaktion',
     appointment: 'Termin',
     print_billing: 'Drucksachen-Abrechnung',
+    ads_billing: 'Ads-Abrechnung',
     reminder: 'Erinnerung',
     late: 'Verspätung',
   } satisfies Record<string, string>,

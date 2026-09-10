@@ -26,6 +26,8 @@ export interface TaskDetail {
   clientNotifiedAt: string | null;
   /** null | 'required' (Rechnung fehlt) | 'settled' (hochgeladen). */
   printBillingStatus: string | null;
+  /** null | 'required' | 'confirmed' | 'self_paid' | 'dismissed' (Ads). */
+  adsBillingStatus: string | null;
 }
 
 /** Loads a single task the user can access, with assignees and manage flag. */
@@ -34,7 +36,7 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: task } = await supabase
     .from('tasks')
     .select(
-      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, is_idea, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status',
+      'id, organization_id, project_id, title, description, priority, is_internal, is_blocked, is_express, is_archived, is_idea, due_date, estimated_minutes, ai_estimate_minutes, manual_estimate_minutes, actual_minutes, lock_version, client_notified_at, print_billing_status, ads_billing_status',
     )
     .eq('id', taskId)
     .is('deleted_at', null)
@@ -96,6 +98,8 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     canManage: canManage === true,
     clientNotifiedAt: task.client_notified_at,
     printBillingStatus: task.print_billing_status,
+    adsBillingStatus: (task as { ads_billing_status: string | null })
+      .ads_billing_status,
   };
 }
 

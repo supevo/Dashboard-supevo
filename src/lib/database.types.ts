@@ -65,6 +65,7 @@ export type NotificationType =
   | 'reaction'
   | 'appointment'
   | 'print_billing'
+  | 'ads_billing'
   | 'reminder'
   | 'late';
 export type ActivityAction =
@@ -2535,6 +2536,9 @@ export interface Database {
           print_billing_status: string | null;
           print_flagged_at: string | null;
           print_reminded_at: string | null;
+          ads_billing_status: string | null;
+          ads_flagged_at: string | null;
+          ads_reminded_at: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -2565,6 +2569,9 @@ export interface Database {
           print_billing_status?: string | null;
           print_flagged_at?: string | null;
           print_reminded_at?: string | null;
+          ads_billing_status?: string | null;
+          ads_flagged_at?: string | null;
+          ads_reminded_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;
@@ -2612,6 +2619,70 @@ export interface Database {
         };
         Update: Partial<
           Database['public']['Tables']['print_expenses']['Insert']
+        >;
+        Relationships: [];
+      };
+      ads_mandates: {
+        Row: {
+          id: string;
+          organization_id: string;
+          client_company_id: string;
+          platform: string;
+          monthly_fee_cents: number | null;
+          responsible_user_id: string | null;
+          active: boolean;
+          started_month: string | null;
+          reminded_at: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          client_company_id: string;
+          platform: string;
+          monthly_fee_cents?: number | null;
+          responsible_user_id?: string | null;
+          active?: boolean;
+          started_month?: string | null;
+          reminded_at?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['ads_mandates']['Insert']>;
+        Relationships: [];
+      };
+      ads_monthly_entries: {
+        Row: {
+          id: string;
+          organization_id: string;
+          mandate_id: string;
+          month: string;
+          spent_cents: number | null;
+          billed: boolean;
+          recorded_by: string | null;
+          recorded_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          mandate_id: string;
+          month: string;
+          spent_cents?: number | null;
+          billed?: boolean;
+          recorded_by?: string | null;
+          recorded_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<
+          Database['public']['Tables']['ads_monthly_entries']['Insert']
         >;
         Relationships: [];
       };
