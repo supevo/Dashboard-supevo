@@ -34,6 +34,7 @@ import { StickerPicker } from '@/features/messenger/components/sticker-picker';
 import { uploadChatFile } from '@/features/messenger/upload-chat-file';
 import { ChatSoundPicker } from '@/features/messenger/components/chat-sound-picker';
 import { PollBlock } from '@/features/messenger/components/poll-block';
+import { MessageReactions } from '@/features/messenger/components/message-reactions';
 import { PollComposer } from '@/features/messenger/components/poll-composer';
 import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
@@ -408,6 +409,16 @@ function ConversationView({
                 ↩︎
               </button>
             </div>
+            {!m.id.startsWith('optimistic-') && (
+              <div className={cn('px-9', m.isMine && 'flex justify-end')}>
+                <MessageReactions
+                  messageId={m.id}
+                  reactions={m.reactions}
+                  isMine={m.isMine}
+                  onChanged={() => void load()}
+                />
+              </div>
+            )}
             {m.isMine &&
               (() => {
                 const s = readStatus(m.createdAt);
