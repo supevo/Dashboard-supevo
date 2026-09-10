@@ -8,6 +8,7 @@ import {
 } from '@/features/accounting/components/company-switcher';
 import { MonthSwitcher } from '@/features/accounting/components/month-switcher';
 import { RescanBelegeButton } from '@/features/accounting/components/rescan-belege-button';
+import { BankUploadForm } from '@/features/accounting/components/bank-upload-form';
 import { ClearingRowActions } from '@/features/accounting/components/clearing-row-actions';
 import { CreditorToggle } from '@/features/accounting/components/creditor-toggle';
 import { UnassignReceiptButton } from '@/features/accounting/components/unassign-receipt-button';
@@ -118,6 +119,16 @@ export async function MonthClearingPanel({
         })}
       </ol>
 
+      {/* Kontoauszug hochladen – direkt hier (Schritt 1), ohne Tab-Wechsel. */}
+      <details className="rounded-xl border bg-card" open={summary.total === 0}>
+        <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+          🏦 Kontoauszug hochladen
+        </summary>
+        <div className="border-t p-4">
+          <BankUploadForm billingEntityId={active.entity.id} />
+        </div>
+      </details>
+
       {/* Fortschritt */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border bg-card p-4">
         <div className="flex items-center gap-3">
@@ -158,7 +169,7 @@ export async function MonthClearingPanel({
         <EmptyState
           icon="🏦"
           title={`Keine Umsätze im ${MONTHS[m - 1]} ${year}`}
-          description="Lade zuerst den Kontoauszug dieses Monats hoch (Tab „Kontoauszüge“)."
+          description="Lade oben unter „🏦 Kontoauszug hochladen“ den Auszug dieses Monats hoch – dann erscheint hier die Klär-Liste."
         />
       ) : (
         <div className="overflow-x-auto rounded-xl border">
