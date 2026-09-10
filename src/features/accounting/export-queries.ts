@@ -2,6 +2,7 @@ import 'server-only';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
+import { matchesCreditor } from '@/features/accounting/reconcile';
 
 /** One booking line for the Steuerberater export (already display-formatted). */
 export interface BookingExportRow {
@@ -69,6 +70,16 @@ export async function getBookingExportRows(
     rows.filter((t) => t.beleg_nicht_noetig).map((t) => t.id),
   );
 
+  // Kreditoren (z. B. Google): deren Ausgaben laufen übers Kreditorenkonto und
+  // brauchen keinen Einzelbeleg – im Export als „Kreditorenkonto" ausweisen.
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select('kreditoren')
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  const creditors =
+    (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
+
   // Beleg-Infos (Dateiname, Rechnungsnr.) nachladen und zuordnen.
   const belegIds = [...new Set(rows.map((t) => t.beleg_id).filter((x): x is string => !!x))];
   const belegById = new Map<
@@ -99,11 +110,15 @@ export async function getBookingExportRows(
             ? 'Einnahme'
             : 'Ausgabe';
     const beleg = t.beleg_id ? belegById.get(t.beleg_id) : undefined;
+    const istKreditor =
+      t.betrag_cents < 0 && matchesCreditor(t.gegen, creditors);
     const belegVorhanden = t.beleg_id
       ? 'Ja'
       : t.beleg_nicht_noetig
         ? 'Nicht nötig'
-        : 'Nein';
+        : istKreditor
+          ? 'Kreditorenkonto'
+          : 'Nein';
     return {
       datum: t.datum,
       art,

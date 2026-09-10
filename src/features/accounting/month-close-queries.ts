@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { kategorie, kategorieLabel } from '@/features/accounting/categories';
 import { getReconcileSuggestions } from '@/features/accounting/reconcile-queries';
 import { getNoReceiptReasons } from '@/features/accounting/no-receipt';
+import { matchesCreditor } from '@/features/accounting/reconcile';
 
 export interface MonthStat {
   month: number; // 1..12
@@ -44,9 +45,14 @@ interface TxRow {
   beleg_nicht_noetig: boolean;
 }
 
-/** A business expense that isn't a Dauerbeleg needs a receipt on file. */
-function needsReceipt(tx: TxRow): boolean {
+/**
+ * A business expense that isn't a Dauerbeleg needs a receipt on file. Kreditoren
+ * (z. B. Google) laufen übers Kreditorenkonto und brauchen keinen Einzelbeleg –
+ * identisch zur Logik in „Monat klären", damit beide Reiter übereinstimmen.
+ */
+function needsReceipt(tx: TxRow, creditors: string[]): boolean {
   if (tx.beleg_nicht_noetig) return false;
+  if (tx.betrag_cents < 0 && matchesCreditor(tx.gegen, creditors)) return false;
   const kat = kategorie(tx.kategorie_id);
   if (!kat || kat.art !== 'ausgabe') return false;
   return !kat.dauerbeleg;
@@ -90,6 +96,15 @@ export async function getMonthClose(
     .limit(20000);
   const rows = (data ?? []) as TxRow[];
 
+  // Kreditoren (z. B. Google): deren Ausgaben brauchen keinen Einzelbeleg.
+  const { data: profile } = await supabase
+    .from('accounting_profiles')
+    .select('kreditoren')
+    .eq('billing_entity_id', billingEntityId)
+    .maybeSingle();
+  const creditors =
+    (profile as { kreditoren?: string[] } | null)?.kreditoren ?? [];
+
   const months: MonthStat[] = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     total: 0,
@@ -102,14 +117,14 @@ export async function getMonthClose(
     const stat = months[m - 1]!;
     stat.total += 1;
     stat.hasData = true;
-    const belegt = !needsReceipt(tx) || tx.beleg_id != null;
+    const belegt = !needsReceipt(tx, creditors) || tx.beleg_id != null;
     if (belegt) stat.belegt += 1;
   }
 
   const inMonth = rows.filter((t) => monthOf(t.datum) === selectedMonth);
   const step2Uncategorized = inMonth.filter((t) => !t.kategorie_id).length;
   const step3Gaps = inMonth
-    .filter((t) => needsReceipt(t) && t.beleg_id == null)
+    .filter((t) => needsReceipt(t, creditors) && t.beleg_id == null)
     .map(toGap);
   const noReceiptRows = inMonth.filter((t) => t.beleg_nicht_noetig);
   const reasonById = await getNoReceiptReasons(
