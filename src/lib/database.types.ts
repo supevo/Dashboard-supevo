@@ -2590,6 +2590,8 @@ export interface Database {
           notes: string | null;
           /** 'proforma' | 'final' – welche Rechnung dieser Beleg ist. */
           kind: string;
+          /** Verknüpfter Buchhaltungs-Beleg (gespiegelte Eingangsrechnung). */
+          receipt_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -2606,6 +2608,7 @@ export interface Database {
           supplier?: string | null;
           notes?: string | null;
           kind?: string;
+          receipt_id?: string | null;
         };
         Update: Partial<
           Database['public']['Tables']['print_expenses']['Insert']

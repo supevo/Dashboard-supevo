@@ -16,6 +16,8 @@ export interface PrintExpense {
   clientChargeCents: number | null;
   supplier: string | null;
   notes: string | null;
+  /** Wurde als Eingangsrechnung in die Buchhaltung gespiegelt? (Migration 0197) */
+  bookedAsReceipt: boolean;
   createdAt: string;
 }
 
@@ -97,6 +99,9 @@ export async function listPrintExpenses(orgId: string): Promise<PrintExpense[]> 
       (r as { client_charge_cents?: number | null }).client_charge_cents ?? null,
     supplier: r.supplier,
     notes: r.notes,
+    bookedAsReceipt: Boolean(
+      (r as { receipt_id?: string | null }).receipt_id,
+    ),
     createdAt: r.created_at,
   }));
 }

@@ -10,9 +10,13 @@ import {
   clientChargeCents,
   clampMarkupPercent,
 } from '@/features/print-billing/markup';
+import { mirrorPrintExpenseToReceipt } from '@/features/print-billing/mirror-to-bookkeeping';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
+
+// Das KI-Auslesen der gespiegelten Eingangsrechnung läuft ggf. inline.
+export const maxDuration = 120;
 
 const MAX_BYTES = 15 * 1024 * 1024; // 15 MB – supplier invoices are small.
 const ALLOWED = [
@@ -166,22 +170,31 @@ export async function POST(request: NextRequest) {
     kind,
   };
 
-  let insErr = (await service.from('print_expenses').insert(fullRow as never))
-    .error;
-  if (insErr) {
+  let inserted = await service
+    .from('print_expenses')
+    .insert(fullRow as never)
+    .select('id')
+    .maybeSingle();
+  if (inserted.error) {
     // Wahrscheinlich fehlt eine Spalte (Migration nicht eingespielt) → nur die
     // Basisspalten schreiben, damit der Beleg trotzdem gespeichert wird.
-    logger.warn('print_expense.insert_full_failed', { error: insErr.message });
-    insErr = (await service.from('print_expenses').insert(baseRow as never))
-      .error;
+    logger.warn('print_expense.insert_full_failed', {
+      error: inserted.error.message,
+    });
+    inserted = await service
+      .from('print_expenses')
+      .insert(baseRow as never)
+      .select('id')
+      .maybeSingle();
   }
-  if (insErr) {
-    logger.error('print_expense.insert_failed', { error: insErr.message });
+  if (inserted.error) {
+    logger.error('print_expense.insert_failed', { error: inserted.error.message });
     return NextResponse.json(
-      { error: `Speichern fehlgeschlagen: ${insErr.message}` },
+      { error: `Speichern fehlgeschlagen: ${inserted.error.message}` },
       { status: 500 },
     );
   }
+  const printExpenseId = (inserted.data as { id: string } | null)?.id ?? null;
 
   // Nur die ENDRECHNUNG schließt die Abrechnung ab ('settled'); die Proforma
   // wird nur erfasst (Status bleibt 'required'/'ordered', bis die Endrechnung da
@@ -191,6 +204,22 @@ export async function POST(request: NextRequest) {
       .from('tasks')
       .update({ print_billing_status: 'settled' })
       .eq('id', task.id);
+
+    // Endrechnung zusätzlich als Eingangsrechnung in die Buchhaltung spiegeln
+    // (OneDrive-Ausgabenordner + KI-Auslesen). Best effort – blockiert den
+    // Upload nicht.
+    if (printExpenseId) {
+      await mirrorPrintExpenseToReceipt({
+        printExpenseId,
+        orgId: task.organization_id,
+        clientCompanyId: project?.client_company_id ?? null,
+        supplier,
+        amountCents,
+        fileName: file.name.slice(0, 200),
+        fileMime: file.type,
+        bytes,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });

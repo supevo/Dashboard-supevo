@@ -131,7 +131,17 @@ export async function ExpensesPanel({
                       <td className="py-2">
                         {e.taskTitle ?? <span className="text-muted-foreground">—</span>}
                       </td>
-                      <td className="py-2">{e.supplier ?? '—'}</td>
+                      <td className="py-2">
+                        {e.supplier ?? '—'}
+                        {e.bookedAsReceipt && (
+                          <span
+                            className="ml-1.5 whitespace-nowrap rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-300"
+                            title="Als Eingangsrechnung in die Buchhaltung übernommen"
+                          >
+                            ✓ Eingangsrechnung
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 text-right whitespace-nowrap">
                         {e.amountCents != null ? euro(e.amountCents) : '—'}
                       </td>
