@@ -6,7 +6,7 @@ import { getWorkStatus, getWeeklyWorkSummary } from '@/features/time-tracking/qu
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
 import { WorkHoursCard } from '@/features/time-tracking/components/work-hours-card';
 import { isSuperAdmin } from '@/lib/authz/policies';
-import { MorningBriefing } from '@/components/dashboard/morning-briefing';
+import { TodayPlan } from '@/features/plan/components/today-plan';
 import { PushEnableBanner } from '@/features/push/components/push-enable-banner';
 import { PhilosophyBanner } from '@/features/philosophy/components/philosophy-banner';
 import { listActivePhilosophyQuotes } from '@/features/philosophy/queries';
@@ -68,15 +68,11 @@ export default async function AgencyDashboardPage() {
         </div>
       </div>
 
-      {/* KI-Zusammenfassung links; rechts Arbeitszeit + Wochenchallenges. */}
+      {/* Kuratierter Tagesplan (voll breit); darunter Arbeitszeit + Challenges. */}
+      <TodayPlan userId={user.id} />
       <div className="grid gap-6 lg:grid-cols-2">
-        <MorningBriefing
-          firstName={(user.fullName ?? '').trim().split(/\s+/)[0] ?? ''}
-        />
-        <div className="space-y-6">
-          {hours && <WorkHoursCard summary={hours} />}
-          <WeeklyChallengesCard weekly={weekly} />
-        </div>
+        {hours && <WorkHoursCard summary={hours} />}
+        <WeeklyChallengesCard weekly={weekly} />
       </div>
 
       <CoachingCard mode="me" />
