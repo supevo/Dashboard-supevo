@@ -70,6 +70,7 @@ export function PrintBillingCard({
   // Vorauswahl: was noch fehlt (erst Proforma, dann Endrechnung).
   const [kind, setKind] = useState<Kind>(hasProforma ? 'final' : 'proforma');
   const [pending, setPending] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [working, startAction] = useTransition();
 
@@ -85,6 +86,7 @@ export function PrintBillingCard({
       return;
     }
     setError(null);
+    setDone(false);
     setPending(true);
     try {
       const fd = new FormData();
@@ -102,6 +104,8 @@ export function PrintBillingCard({
       }
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
+      setDone(true);
+      setTimeout(() => setDone(false), 3000);
       router.refresh();
     } catch {
       setError('Upload fehlgeschlagen.');
@@ -201,13 +205,29 @@ export function PrintBillingCard({
         placeholder="Druckerei / Dienstleister (optional)"
       />
       {error && <Alert variant="destructive">{error}</Alert>}
-      <Button size="sm" type="button" onClick={upload} disabled={pending}>
-        {pending
-          ? 'Wird hochgeladen …'
-          : kind === 'proforma'
-            ? 'Proforma hochladen'
-            : 'Endrechnung hochladen'}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button size="sm" type="button" onClick={upload} disabled={pending}>
+          {pending
+            ? 'Wird hochgeladen …'
+            : kind === 'proforma'
+              ? 'Proforma hochladen'
+              : 'Endrechnung hochladen'}
+        </Button>
+        {pending && (
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+            lädt …
+          </span>
+        )}
+        {done && !pending && (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+            <span className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">
+              ✓
+            </span>
+            hochgeladen
+          </span>
+        )}
+      </div>
     </>
   );
 
