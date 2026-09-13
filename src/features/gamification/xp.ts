@@ -98,6 +98,7 @@ export const XP_LEAD_WON = 20; // Lead gewonnen (in Kunde/Projekt umgewandelt)
 export const XP_LEAD_OFFER = 5; // Angebot für einen Lead erstellt
 export const XP_INVOICE_FINALIZED = 8; // Rechnung verbindlich finalisiert
 export const XP_CEO_TASK = 3; // GF-Cockpit-Karte erledigt
+export const XP_REVIEW = 3; // Aufgabe als Prüfer kontrolliert & freigegeben
 
 /**
  * Vergibt XP für eine einmalige Geschäfts-/Führungs-Aktion, idempotent über

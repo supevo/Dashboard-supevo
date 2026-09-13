@@ -28,6 +28,11 @@ export interface TaskDetail {
   printBillingStatus: string | null;
   /** null | 'required' | 'confirmed' | 'self_paid' | 'dismissed' (Ads). */
   adsBillingStatus: string | null;
+  /** Prüfer (Kontrolle & Beratung) – optional, eine Person. */
+  reviewerId: string | null;
+  reviewerName: string | null;
+  /** Gesetzt, solange die Aufgabe zur Kontrolle eingereicht ist. */
+  reviewSubmittedAt: string | null;
 }
 
 /** Loads a single task the user can access, with assignees and manage flag. */
@@ -59,6 +64,24 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     /* Spalte fehlt (Migration 0198 noch nicht eingespielt) → null */
   }
 
+  // Prüfer (Migration 0199) ebenfalls resilient laden.
+  let reviewerId: string | null = null;
+  let reviewSubmittedAt: string | null = null;
+  try {
+    const { data: revRow } = await supabase
+      .from('tasks')
+      .select('reviewer_id, review_submitted_at')
+      .eq('id', taskId)
+      .maybeSingle();
+    reviewerId =
+      (revRow as { reviewer_id?: string | null } | null)?.reviewer_id ?? null;
+    reviewSubmittedAt =
+      (revRow as { review_submitted_at?: string | null } | null)
+        ?.review_submitted_at ?? null;
+  } catch {
+    /* Spalten fehlen (Migration 0199 noch nicht eingespielt) → null */
+  }
+
   const { data: assigneeRows } = await supabase
     .from('task_assignees')
     .select('user_id')
@@ -86,6 +109,20 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
   const { data: canManage } = await supabase.rpc('can_manage_project', {
     p_project_id: task.project_id,
   });
+
+  // Prüfer-Name auflösen (kann ein Nicht-Verantwortlicher sein → separat laden).
+  let reviewerName: string | null = null;
+  if (reviewerId) {
+    reviewerName = nameById.get(reviewerId) ?? null;
+    if (!reviewerName) {
+      const { data: rp } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', reviewerId)
+        .maybeSingle();
+      reviewerName = rp?.full_name ?? null;
+    }
+  }
 
   return {
     id: task.id,
@@ -115,6 +152,9 @@ export async function getTaskDetail(taskId: string): Promise<TaskDetail | null> 
     clientNotifiedAt: task.client_notified_at,
     printBillingStatus: task.print_billing_status,
     adsBillingStatus,
+    reviewerId,
+    reviewerName,
+    reviewSubmittedAt,
   };
 }
 

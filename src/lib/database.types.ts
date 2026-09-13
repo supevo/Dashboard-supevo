@@ -2539,6 +2539,8 @@ export interface Database {
           ads_billing_status: string | null;
           ads_flagged_at: string | null;
           ads_reminded_at: string | null;
+          reviewer_id: string | null;
+          review_submitted_at: string | null;
           created_at: string;
           updated_at: string;
           deleted_at: string | null;
@@ -2572,6 +2574,8 @@ export interface Database {
           ads_billing_status?: string | null;
           ads_flagged_at?: string | null;
           ads_reminded_at?: string | null;
+          reviewer_id?: string | null;
+          review_submitted_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['tasks']['Insert']> & {
           lock_version?: number;

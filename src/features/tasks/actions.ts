@@ -11,7 +11,7 @@ import { isSuperAdmin } from '@/lib/authz/policies';
 import { hasAgencyAccess } from '@/features/auth/access';
 import { createNotifications } from '@/features/notifications/create';
 import { logActivity } from '@/lib/audit';
-import { awardTaskXp } from '@/features/gamification/xp';
+import { awardTaskXp, awardActionXp, XP_REVIEW } from '@/features/gamification/xp';
 import { checkAndAwardAchievements } from '@/features/gamification/achievements';
 import { autoEstimateTaskMinutes } from '@/features/estimate/generate';
 import { detectPrintProduct } from '@/features/print-billing/detect';
@@ -1148,4 +1148,295 @@ export async function deleteAllBoardTasksAction(
   revalidatePath(`/portal/projects/${projectId}`);
   revalidatePath('/app/clients');
   return successResult(`${count ?? 0} Aufgaben endgültig gelöscht.`);
+}
+
+// ===========================================================================
+// Prüfer-Rolle (Kontrolle & Beratung) + Einreich-/Freigabe-Flow
+// ===========================================================================
+
+/** Verschiebt eine Aufgabe in die Status-Spalte und schreibt das Nachspiel
+ *  (XP/Abschluss) der GUTGESCHRIEBENEN Person gut (bei „done" der/dem
+ *  Verantwortlichen, nicht dem Prüfer). */
+async function moveToStatusColumn(
+  supabase: MoveSupabase,
+  taskId: string,
+  status: 'queue' | 'active' | 'review' | 'done',
+  creditUserId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, board_id, column_id, lock_version')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return { ok: false, error: de.errors.FORBIDDEN };
+
+  const { data: columns } = await supabase
+    .from('board_columns')
+    .select('id, column_key, is_done_column')
+    .eq('board_id', task.board_id);
+  const target =
+    status === 'done'
+      ? (columns ?? []).find((c) => c.is_done_column) ??
+        (columns ?? []).find((c) => c.column_key === 'done')
+      : (columns ?? []).find((c) => c.column_key === status);
+  if (!target) return { ok: false, error: 'Für diesen Status gibt es keine Spalte.' };
+
+  if (task.column_id !== target.id) {
+    const { data: last } = await supabase
+      .from('tasks')
+      .select('position')
+      .eq('column_id', target.id)
+      .is('deleted_at', null)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const newPosition = (last?.position ?? 0) + 1000;
+    const { error } = await supabase.rpc('move_task', {
+      p_task_id: taskId,
+      p_target_column_id: target.id,
+      p_new_position: newPosition,
+      p_expected_lock_version: task.lock_version,
+    });
+    if (error) return { ok: false, error: moveErrorMessage(error.message) };
+    await afterTaskMoved(supabase, creditUserId, taskId, target.id);
+  }
+  return { ok: true };
+}
+
+/** Lädt Kontext einer Aufgabe für den Review-Flow (Org, Verantwortliche, Prüfer). */
+async function reviewContext(
+  supabase: MoveSupabase,
+  taskId: string,
+): Promise<{
+  orgId: string;
+  projectId: string;
+  title: string;
+  reviewerId: string | null;
+  assigneeIds: string[];
+} | null> {
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('organization_id, project_id, title, reviewer_id')
+    .eq('id', taskId)
+    .maybeSingle();
+  if (!task) return null;
+  const { data: rows } = await supabase
+    .from('task_assignees')
+    .select('user_id')
+    .eq('task_id', taskId);
+  return {
+    orgId: task.organization_id,
+    projectId: task.project_id,
+    title: task.title,
+    reviewerId: (task as { reviewer_id: string | null }).reviewer_id,
+    assigneeIds: (rows ?? []).map((r) => r.user_id),
+  };
+}
+
+/** Setzt (oder entfernt) den Prüfer einer Aufgabe. */
+export async function setReviewerAction(input: {
+  taskId: string;
+  reviewerId: string | null;
+}): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(input.taskId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  if (input.reviewerId && !z.string().uuid().safeParse(input.reviewerId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const supabase = await createSupabaseServerClient();
+  const ctx = await reviewContext(supabase, input.taskId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { error } = await service
+    .from('tasks')
+    .update({ reviewer_id: input.reviewerId } as never)
+    .eq('id', input.taskId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  // Neuer Prüfer erfährt es (nur wenn gesetzt).
+  if (input.reviewerId && input.reviewerId !== user.id) {
+    await createNotifications(
+      [
+        {
+          organizationId: ctx.orgId,
+          recipientId: input.reviewerId,
+          type: 'task_assigned',
+          title: 'Du bist Prüfer:in',
+          body: `Du kontrollierst künftig „${ctx.title}".`,
+          entityType: 'task',
+          entityId: input.taskId,
+        },
+      ],
+      user.id,
+    );
+  }
+  revalidatePath(`/app/projects/${ctx.projectId}/tasks/${input.taskId}`);
+  return successResult(input.reviewerId ? 'Prüfer:in gesetzt.' : 'Prüfer:in entfernt.');
+}
+
+/** Verantwortliche:r reicht die fertige Aufgabe zur Kontrolle ein. */
+export async function submitForReviewAction(input: {
+  taskId: string;
+}): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(input.taskId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const supabase = await createSupabaseServerClient();
+  const ctx = await reviewContext(supabase, input.taskId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+  if (!ctx.reviewerId) {
+    return errorResult('Für diese Aufgabe ist kein:e Prüfer:in gesetzt.');
+  }
+
+  const moved = await moveToStatusColumn(supabase, input.taskId, 'review', user.id);
+  if (!moved.ok) return errorResult(moved.error ?? de.errors.INTERNAL);
+
+  const service = createSupabaseServiceClient();
+  await service
+    .from('tasks')
+    .update({ review_submitted_at: new Date().toISOString() } as never)
+    .eq('id', input.taskId);
+
+  await createNotifications(
+    [
+      {
+        organizationId: ctx.orgId,
+        recipientId: ctx.reviewerId,
+        type: 'task_in_review',
+        title: '🔍 Aufgabe zur Kontrolle',
+        body: `„${ctx.title}" wartet auf deine Kontrolle.`,
+        entityType: 'task',
+        entityId: input.taskId,
+      },
+    ],
+    user.id,
+  );
+  revalidatePath(`/app/projects/${ctx.projectId}/tasks/${input.taskId}`);
+  revalidatePath('/app');
+  return successResult('Zur Kontrolle eingereicht.');
+}
+
+/** Prüfer:in gibt die Aufgabe frei → erledigt; Abschluss zählt der/dem
+ *  Verantwortlichen, der/die Prüfer:in bekommt Prüf-XP. */
+export async function approveReviewAction(input: {
+  taskId: string;
+}): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(input.taskId).success) {
+    return errorResult(de.errors.VALIDATION);
+  }
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const supabase = await createSupabaseServerClient();
+  const ctx = await reviewContext(supabase, input.taskId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+
+  const { data: canManage } = await supabase.rpc('can_manage_project', {
+    p_project_id: ctx.projectId,
+  });
+  if (ctx.reviewerId !== user.id && canManage !== true) {
+    return errorResult('Nur der/die Prüfer:in kann freigeben.');
+  }
+
+  // Abschluss der/dem Verantwortlichen gutschreiben (erste zugewiesene Person).
+  const creditUserId = ctx.assigneeIds[0] ?? user.id;
+  const moved = await moveToStatusColumn(supabase, input.taskId, 'done', creditUserId);
+  if (!moved.ok) return errorResult(moved.error ?? de.errors.INTERNAL);
+
+  const service = createSupabaseServiceClient();
+  await service
+    .from('tasks')
+    .update({ review_submitted_at: null } as never)
+    .eq('id', input.taskId);
+
+  // Prüf-XP für die kontrollierende Person (idempotent je Aufgabe).
+  await awardActionXp({
+    userId: user.id,
+    orgId: ctx.orgId,
+    kind: 'task_review',
+    points: XP_REVIEW,
+    refId: input.taskId,
+  });
+
+  // Verantwortliche über die Freigabe informieren.
+  const recipients = [...new Set(ctx.assigneeIds)].filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: ctx.orgId,
+        recipientId,
+        type: 'approval_granted' as const,
+        title: '✅ Freigegeben',
+        body: `„${ctx.title}" wurde freigegeben und ist erledigt.`,
+        entityType: 'task',
+        entityId: input.taskId,
+      })),
+      user.id,
+    );
+  }
+  revalidatePath(`/app/projects/${ctx.projectId}/tasks/${input.taskId}`);
+  revalidatePath('/app');
+  return successResult('Freigegeben – Aufgabe erledigt.');
+}
+
+const rejectReviewSchema = z.object({
+  taskId: z.string().uuid(),
+  note: z.string().trim().max(1000).optional(),
+});
+
+/** Prüfer:in schickt die Aufgabe mit Hinweis zurück an die/den Verantwortliche:n. */
+export async function rejectReviewAction(input: {
+  taskId: string;
+  note?: string;
+}): Promise<ActionResult> {
+  const parsed = rejectReviewSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+  const supabase = await createSupabaseServerClient();
+  const ctx = await reviewContext(supabase, parsed.data.taskId);
+  if (!ctx) return errorResult(de.errors.FORBIDDEN);
+
+  const { data: canManage } = await supabase.rpc('can_manage_project', {
+    p_project_id: ctx.projectId,
+  });
+  if (ctx.reviewerId !== user.id && canManage !== true) {
+    return errorResult('Nur der/die Prüfer:in kann zurückgeben.');
+  }
+
+  const moved = await moveToStatusColumn(supabase, parsed.data.taskId, 'active', user.id);
+  if (!moved.ok) return errorResult(moved.error ?? de.errors.INTERNAL);
+
+  const service = createSupabaseServiceClient();
+  await service
+    .from('tasks')
+    .update({ review_submitted_at: null } as never)
+    .eq('id', parsed.data.taskId);
+
+  const note = parsed.data.note?.trim();
+  const recipients = [...new Set(ctx.assigneeIds)].filter((id) => id !== user.id);
+  if (recipients.length > 0) {
+    await createNotifications(
+      recipients.map((recipientId) => ({
+        organizationId: ctx.orgId,
+        recipientId,
+        type: 'changes_requested' as const,
+        title: '↩️ Zurück von der Kontrolle',
+        body: note
+          ? `„${ctx.title}": ${note}`
+          : `„${ctx.title}" kommt mit Änderungswünschen zurück.`,
+        entityType: 'task',
+        entityId: parsed.data.taskId,
+      })),
+      user.id,
+    );
+  }
+  revalidatePath(`/app/projects/${ctx.projectId}/tasks/${parsed.data.taskId}`);
+  revalidatePath('/app');
+  return successResult('Zurück an Verantwortliche:n.');
 }
