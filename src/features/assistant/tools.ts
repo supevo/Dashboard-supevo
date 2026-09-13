@@ -94,14 +94,23 @@ export const assistantTools = [
     function: {
       name: 'create_task',
       description:
-        'Legt eine Aufgabe in einem Projekt an (landet in der ersten Spalte). Optional direkt einem Mitarbeiter zuweisen.',
+        'Legt eine Aufgabe in einem Projekt an (landet in der ersten Spalte). Optional direkt einem Mitarbeiter zuweisen. WICHTIG: Eine Frist/Deadline gehört NICHT in die description, sondern in das Feld dueDate (Datum). Die description ist nur das inhaltliche Briefing.',
       parameters: {
         type: 'object',
         properties: {
           projectId: { type: 'string' },
           title: { type: 'string' },
-          description: { type: 'string' },
+          description: {
+            type: 'string',
+            description:
+              'Inhaltliches Briefing der Aufgabe – KEINE Frist/Deadline hier hineinschreiben (dafür dueDate nutzen).',
+          },
           priority: { type: 'string', enum: ['low', 'medium', 'high'] },
+          dueDate: {
+            type: 'string',
+            description:
+              'optional: Frist/Deadline als Datum im Format YYYY-MM-DD. Relative Angaben („morgen", „bis Freitag", „nächste Woche") anhand des heutigen Datums aus dem System-Prompt umrechnen. Wenn keine Frist genannt ist, weglassen.',
+          },
           assigneeUserId: { type: 'string', description: 'optional: userId des Verantwortlichen' },
         },
         required: ['projectId', 'title'],
@@ -428,6 +437,7 @@ export async function executeAssistantTool(
           title: s('title'),
           description: s('description'),
           priority: s('priority') ?? 'medium',
+          dueDate: s('dueDate') ?? '',
           isInternal: 'true',
         }),
       );

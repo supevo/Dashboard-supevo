@@ -65,14 +65,33 @@ export function FileUploader({
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  // Sichtbares Upload-Feedback je Datei: Kreis (lädt) → grüner Haken (fertig).
+  const [items, setItems] = useState<
+    { id: string; name: string; status: 'uploading' | 'done' | 'error' }[]
+  >([]);
+
+  function setItemStatus(id: string, status: 'done' | 'error') {
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, status } : it)));
+    if (status === 'done') {
+      // Erledigte Zeilen nach kurzer Bestätigung wieder ausblenden.
+      setTimeout(() => setItems((prev) => prev.filter((it) => it.id !== id)), 2500);
+    }
+  }
   // Hochgeladene Dateien sind immer für alle (auch Kunden) sichtbar – es gibt
   // keinen „nur intern"-Haken mehr.
 
   async function uploadMany(files: File[]) {
     for (const file of files) {
+      const id =
+        (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${file.name}`);
+      setItems((prev) => [
+        ...prev,
+        { id, name: file.name, status: 'uploading' as const },
+      ]);
       // Stop the batch on the first failure (upload sets the error).
       // eslint-disable-next-line no-await-in-loop
       const ok = await upload(file);
+      setItemStatus(id, ok ? 'done' : 'error');
       if (!ok) break;
     }
   }
@@ -209,6 +228,46 @@ export function FileUploader({
     <div className="space-y-2">
       {error && <Alert variant="destructive">{error}</Alert>}
       {notice && <Alert>{notice}</Alert>}
+
+      {items.length > 0 && (
+        <ul className="space-y-1">
+          {items.map((it) => (
+            <li
+              key={it.id}
+              className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-sm"
+            >
+              {it.status === 'uploading' ? (
+                <span
+                  className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary"
+                  aria-label="lädt hoch"
+                />
+              ) : it.status === 'done' ? (
+                <span
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-500 text-[10px] font-bold text-white"
+                  aria-label="hochgeladen"
+                >
+                  ✓
+                </span>
+              ) : (
+                <span
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-destructive text-[10px] font-bold text-white"
+                  aria-label="fehlgeschlagen"
+                >
+                  ✕
+                </span>
+              )}
+              <span className="min-w-0 flex-1 truncate">{it.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {it.status === 'uploading'
+                  ? 'lädt …'
+                  : it.status === 'done'
+                    ? 'hochgeladen'
+                    : 'fehlgeschlagen'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <label
         onDragEnter={(e) => {
