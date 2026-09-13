@@ -17,6 +17,8 @@ export interface PlanItem {
   ready: boolean;
   /** Schon mir zugewiesen? (sonst „übernehmbar"). */
   mine: boolean;
+  /** Zustand fürs Badge: gerade in Arbeit / muss fertig / verfügbar / offen. */
+  status: 'in_progress' | 'due' | 'available' | 'todo';
   reason: string;
   recommended: boolean;
 }
@@ -81,12 +83,15 @@ export async function getTodayPlan(userId: string): Promise<PlanItem[]> {
   ].map(({ t, mine }) => {
     const { category, skill } = classify(t.title);
     const skillMatch = skill != null && mySkills.has(skill);
+    const inProgress = mine && t.columnKey === 'active';
     const score =
       dueScore(t) +
       (mine ? 20 : 0) +
+      // Woran du GERADE arbeitest, gehört immer in den Plan (starker Boost).
+      (inProgress ? 90 : 0) +
       (skillMatch ? 30 : 0) +
       (t.isBlocked ? -1000 : 0);
-    return { t, mine, category, skill, skillMatch, score };
+    return { t, mine, category, skill, skillMatch, inProgress, score };
   });
 
   candidates.sort((a, b) => b.score - a.score);
@@ -106,9 +111,17 @@ export async function getTodayPlan(userId: string): Promise<PlanItem[]> {
               : c.mine
                 ? 'Steht auf deiner Liste'
                 : 'Wartet auf Übernahme';
+    const status: PlanItem['status'] = c.inProgress
+      ? 'in_progress'
+      : c.t.dueState === 'overdue' || c.t.dueState === 'today'
+        ? 'due'
+        : c.mine
+          ? 'todo'
+          : 'available';
+    const lead = c.inProgress ? 'Du arbeitest gerade daran' : dueClause;
     const reason = c.skillMatch
-      ? `${dueClause} und passt zu deiner Stärke „${c.category}".`
-      : `${dueClause}.`;
+      ? `${lead} und passt zu deiner Stärke „${c.category}".`
+      : `${lead}.`;
     return {
       taskId: c.t.id,
       projectId: c.t.projectId,
@@ -118,6 +131,7 @@ export async function getTodayPlan(userId: string): Promise<PlanItem[]> {
       dueLabel: label,
       ready: !c.t.isBlocked,
       mine: c.mine,
+      status,
       reason,
       recommended: i === 0,
     };

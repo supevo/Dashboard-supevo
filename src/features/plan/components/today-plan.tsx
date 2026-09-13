@@ -52,7 +52,17 @@ export async function TodayPlan({ userId }: { userId: string }) {
                       Empfohlen
                     </span>
                   )}
-                  {!it.mine && (
+                  {it.status === 'in_progress' && (
+                    <span className="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs font-medium text-sky-600 dark:text-sky-400">
+                      ▶ In Arbeit
+                    </span>
+                  )}
+                  {it.status === 'due' && (
+                    <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                      Muss fertig
+                    </span>
+                  )}
+                  {it.status === 'available' && (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       verfügbar
                     </span>
