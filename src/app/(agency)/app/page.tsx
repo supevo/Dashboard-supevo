@@ -1,47 +1,36 @@
-import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
-import { getAgencyDashboard } from '@/features/dashboard/queries';
-import { getWorkStatus, getWeeklyWorkSummary } from '@/features/time-tracking/queries';
+import { getWorkStatus } from '@/features/time-tracking/queries';
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
-import { WorkHoursCard } from '@/features/time-tracking/components/work-hours-card';
-import { isSuperAdmin } from '@/lib/authz/policies';
 import { TodayPlan } from '@/features/plan/components/today-plan';
 import { PushEnableBanner } from '@/features/push/components/push-enable-banner';
 import { PhilosophyBanner } from '@/features/philosophy/components/philosophy-banner';
 import { listActivePhilosophyQuotes } from '@/features/philosophy/queries';
-import { TaskStatusControl } from '@/features/tasks/components/task-status-control';
 import { WeeklyChallengesCard } from '@/features/gamification/components/weekly-challenges-card';
 import { getWeeklyChallenges } from '@/features/gamification/challenges';
 import { getMyPulse } from '@/features/pulse/queries';
 import { CoachingCard } from '@/features/coaching/components/coaching-card';
 import { RemindersCard } from '@/features/reminders/components/reminders-card';
 import { listMyReminders } from '@/features/reminders/queries';
-import { formatMinutes, formatBerlinDateTime, berlinWeekday } from '@/lib/time';
+import { getOverviewData } from '@/features/dashboard/overview';
+import {
+  HeuteCard,
+  OpenQuestionsCard,
+  WeekProgressCard,
+  CurrentTasksCard,
+} from '@/features/dashboard/components/overview-cards';
+import { berlinWeekday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
-
-function StatTile({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border bg-card p-4">
-      <div className="text-2xl font-bold">{value}</div>
-      <div className="text-xs text-muted-foreground">{label}</div>
-    </div>
-  );
-}
 
 export default async function AgencyDashboardPage() {
   const { user, orgId } = await requireAgencyPage();
-  // Everyone but the super admin sees their own weekly hours vs. target.
-  const showHours = !isSuperAdmin(user);
-  const [d, myPulse, workStatus, weekly, hours, reminders, philosophy] =
+  const [myPulse, workStatus, weekly, reminders, philosophy, overview] =
     await Promise.all([
-      getAgencyDashboard(user.id),
       getMyPulse(user.id),
       getWorkStatus(user.id),
       getWeeklyChallenges(user.id, orgId),
-      showHours ? getWeeklyWorkSummary(user.id, orgId) : Promise.resolve(null),
       listMyReminders(),
       listActivePhilosophyQuotes(orgId),
+      getOverviewData(user.id, orgId),
     ]);
   // Der wöchentliche Stimmungscheck erscheint nur freitags beim Ausstempeln –
   // und nur, wenn er diese Woche noch nicht ausgefüllt wurde.
@@ -68,88 +57,26 @@ export default async function AgencyDashboardPage() {
         </div>
       </div>
 
-      {/* Kuratierter Tagesplan (voll breit); darunter Arbeitszeit + Challenges. */}
-      <TodayPlan userId={user.id} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        {hours && <WorkHoursCard summary={hours} />}
+      {/* Reihe 1: Tagesplan (breit) + Wochenchallenges. */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <TodayPlan userId={user.id} />
+        </div>
         <WeeklyChallengesCard weekly={weekly} />
       </div>
 
-      <CoachingCard mode="me" />
-
-      <RemindersCard initialOpen={reminders.open} />
-
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        <StatTile label={de.dashboard.myActiveTasks} value={d.myActive.length} />
-        <StatTile label={de.dashboard.inReview} value={d.inReviewCount} />
-        <StatTile label={de.dashboard.overdue} value={d.overdueCount} />
-        <StatTile label={de.dashboard.dueToday} value={d.dueTodayCount} />
-        <StatTile label={de.dashboard.blocked} value={d.blockedCount} />
-        <StatTile
-          label={de.dashboard.openApprovals}
-          value={d.openApprovalsCount}
-        />
-        <StatTile
-          label={de.dashboard.workToday}
-          value={formatMinutes(d.workTodayMinutes)}
-        />
-        <StatTile
-          label={de.dashboard.runningTimer}
-          value={d.runningTimer ? d.runningTimer.label : de.dashboard.none}
-        />
+      {/* Reihe 2: Heute · Offene Rückfragen · Wochenfortschritt · Aktuelle Aufgaben. */}
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+        <HeuteCard today={overview.today} />
+        <OpenQuestionsCard questions={overview.openQuestions} />
+        <WeekProgressCard week={overview.week} />
+        <CurrentTasksCard tasks={overview.currentTasks} />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Meine Aufgaben</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.myActive.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{de.dashboard.none}</p>
-            ) : (
-              <ul className="divide-y">
-                {d.myActive.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <Link
-                      href={`/app/tasks/${t.id}`}
-                      className="min-w-0 flex-1 truncate text-primary hover:underline"
-                    >
-                      {t.title}
-                    </Link>
-                    <TaskStatusControl taskId={t.id} status={t.status ?? null} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{de.dashboard.recentActivity}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.recentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{de.dashboard.none}</p>
-            ) : (
-              <ul className="divide-y">
-                {d.recentActivity.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex justify-between py-2 text-sm text-muted-foreground"
-                  >
-                    <span>{a.action}</span>
-                    <span>{formatBerlinDateTime(a.createdAt)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {/* Reihe 3: Erinnerungen & To-dos + KI-Feedback. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RemindersCard initialOpen={reminders.open} />
+        <CoachingCard mode="me" />
       </div>
     </div>
   );
