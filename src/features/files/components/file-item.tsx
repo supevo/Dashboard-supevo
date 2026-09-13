@@ -87,7 +87,7 @@ export function FileItem({
             onClick={() => setProofing(true)}
             title="Markierungen / Änderungswünsche"
           >
-            🖊️ {area === 'portal' ? 'Markieren' : 'Markierungen'}
+            🖊️ Markieren
           </Button>
         )}
         <a href={`/api/files/${file.id}/download`}>
@@ -146,7 +146,7 @@ export function FileItem({
               <ImageProofing
                 fileId={file.id}
                 imageUrl={`/api/files/${file.id}/download`}
-                canAnnotate={area === 'portal'}
+                canAnnotate={true}
                 canResolve={area !== 'portal'}
                 currentUserId={currentUserId}
               />
