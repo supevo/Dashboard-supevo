@@ -237,6 +237,92 @@ export async function listMyVerifications(
   }));
 }
 
+export interface ChoreHistoryEntry {
+  /** assignment id */
+  id: string;
+  text: string;
+  assigneeName: string;
+  /** null = keine Kontrolle vorgesehen (solo erledigt / auto-verifiziert). */
+  verifierName: string | null;
+  /** 'assigned' | 'done' | 'verified' | 'rejected' | 'missed' */
+  status: string;
+  doneAt: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  /** Zeitpunkt der jüngsten Aktivität – für Sortierung & Tagesgruppierung. */
+  activityAt: string;
+}
+
+/**
+ * Rückwirkender Ordnungsdienst-Verlauf für die Admin-Kontrolle: die letzten
+ * Zuteilungen der Organisation (alle Status) mit Erlediger, Prüfer und
+ * Zeitstempeln – neueste zuerst. Best effort; leer, wenn die Tabellen fehlen.
+ */
+export async function listChoreHistory(
+  orgId: string,
+  limit = 250,
+): Promise<ChoreHistoryEntry[]> {
+  const service = createSupabaseServiceClient();
+  const { data, error } = await service
+    .from('office_chore_assignments')
+    .select('id, chore_id, assignee_id, verifier_id, status, done_at, verified_at, created_at')
+    .eq('organization_id', orgId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return [];
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    chore_id: string;
+    assignee_id: string;
+    verifier_id: string | null;
+    status: string;
+    done_at: string | null;
+    verified_at: string | null;
+    created_at: string;
+  }[];
+  if (rows.length === 0) return [];
+
+  const choreIds = [...new Set(rows.map((r) => r.chore_id))];
+  const userIds = [
+    ...new Set(
+      rows
+        .flatMap((r) => [r.assignee_id, r.verifier_id])
+        .filter((v): v is string => !!v),
+    ),
+  ];
+  const [choresRes, profilesRes] = await Promise.all([
+    service.from('office_chores').select('id, text').in('id', choreIds),
+    service.from('profiles').select('id, full_name').in('id', userIds),
+  ]);
+  const textById = new Map(
+    ((choresRes.data ?? []) as unknown as { id: string; text: string }[]).map(
+      (c) => [c.id, c.text],
+    ),
+  );
+  const nameById = new Map(
+    (
+      (profilesRes.data ?? []) as unknown as {
+        id: string;
+        full_name: string | null;
+      }[]
+    ).map((p) => [p.id, p.full_name ?? '—']),
+  );
+
+  return rows
+    .map((r) => ({
+      id: r.id,
+      text: textById.get(r.chore_id) ?? '—',
+      assigneeName: nameById.get(r.assignee_id) ?? '—',
+      verifierName: r.verifier_id ? (nameById.get(r.verifier_id) ?? '—') : null,
+      status: r.status,
+      doneAt: r.done_at,
+      verifiedAt: r.verified_at,
+      createdAt: r.created_at,
+      activityAt: r.verified_at ?? r.done_at ?? r.created_at,
+    }))
+    .sort((a, b) => b.activityAt.localeCompare(a.activityAt));
+}
+
 /** All chores of an org for the admin editor (active + inactive). */
 export async function listOrgChores(orgId: string): Promise<AdminChore[]> {
   const service: Service = createSupabaseServiceClient();

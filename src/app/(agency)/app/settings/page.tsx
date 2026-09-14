@@ -11,7 +11,8 @@ import { isAiEnabled, aiModelLabel } from '@/lib/ai/complete';
 import { getOneDriveStatus } from '@/features/onedrive/queries';
 import { OneDriveSettingsCard } from '@/features/onedrive/components/onedrive-settings-card';
 import { ChoreAdmin } from '@/features/office-chores/components/chore-admin';
-import { listOrgChores } from '@/features/office-chores/queries';
+import { ChoreHistory } from '@/features/office-chores/components/chore-history';
+import { listOrgChores, listChoreHistory } from '@/features/office-chores/queries';
 import { getOrgBranding } from '@/features/branding/queries';
 import { LogoSettings } from '@/features/branding/components/logo-settings';
 import { getBinCoverage } from '@/features/bins/queries';
@@ -31,6 +32,7 @@ export default async function SettingsPage({
     org,
     oneDriveStatus,
     chores,
+    choreHistory,
     branding,
     binCoverage,
     philosophyQuotes,
@@ -40,6 +42,7 @@ export default async function SettingsPage({
     getOrganization(orgId),
     getOneDriveStatus(orgId),
     listOrgChores(orgId),
+    listChoreHistory(orgId),
     getOrgBranding(orgId),
     getBinCoverage(orgId),
     listAllPhilosophyQuotes(orgId),
@@ -141,6 +144,19 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent>
           <ChoreAdmin chores={chores} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>🧹 Ordnungsdienst – Verlauf</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Wer hat welchen Checkpunkt erledigt und wer hat kontrolliert – die
+            letzten Einträge, filterbar nach Person und Status.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <ChoreHistory entries={choreHistory} />
         </CardContent>
       </Card>
 
