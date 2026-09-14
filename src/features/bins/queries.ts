@@ -20,6 +20,13 @@ function addDays(iso: string, n: number): string {
 const ACTION_VERB: Record<string, string> = { out: 'rausstellen', in: 'wieder reinnehmen' };
 
 /**
+ * Tonnen, die NICHT vom Büro-System verwaltet werden (weder angezeigt noch beim
+ * Ausstempeln zugeteilt). Die Restmülltonne wird privat gemacht. Die Termine
+ * bleiben in der DB gespeichert – bei Bedarf lässt sich das hier wieder öffnen.
+ */
+const OFFICE_EXCLUDED_BIN_KEYS = ['rest'];
+
+/**
  * Schließt überfällige (älter als 2 Tage) offene/verpasste Tonnen-Aufgaben eines
  * Nutzers als 'expired'. Solche Aufgaben sind nicht mehr sinnvoll nachholbar –
  * sie dürfen weder neue Zuteilungen blockieren noch die Nachhol-Liste zumüllen.
@@ -73,6 +80,7 @@ export async function assignClockOutBinTask(args: {
     .from('bin_pickups')
     .select('id, bin_key, bin_label, pickup_date')
     .eq('organization_id', orgId)
+    .not('bin_key', 'in', `(${OFFICE_EXCLUDED_BIN_KEYS.join(',')})`)
     .gte('pickup_date', addDays(today, -3))
     .lte('pickup_date', addDays(today, 1));
   const rows = (pickups ?? []) as unknown as {
@@ -231,6 +239,7 @@ export async function listUpcomingBinDues(
     .from('bin_pickups')
     .select('bin_key, bin_label, pickup_date')
     .eq('organization_id', orgId)
+    .not('bin_key', 'in', `(${OFFICE_EXCLUDED_BIN_KEYS.join(',')})`)
     .gte('pickup_date', today)
     .lte('pickup_date', until)
     .order('pickup_date', { ascending: true });
@@ -277,6 +286,7 @@ export async function getBinCoverage(orgId: string): Promise<BinCoverage> {
       .from('bin_pickups')
       .select('bin_key, bin_label, pickup_date')
       .eq('organization_id', orgId)
+      .not('bin_key', 'in', `(${OFFICE_EXCLUDED_BIN_KEYS.join(',')})`)
       .gte('pickup_date', today)
       .order('pickup_date', { ascending: true })
       .limit(8),

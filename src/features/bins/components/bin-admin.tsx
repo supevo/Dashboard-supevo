@@ -99,9 +99,10 @@ export function BinAdmin({ coverage }: { coverage: BinCoverage }) {
         {busy ? 'Lädt …' : 'ICS hochladen'}
       </Button>
       <p className="text-xs text-muted-foreground">
-        ICS deines Entsorgers hochladen. Erkennt Rest-, Bio-, Gelbe und Blaue
-        Tonne automatisch. „Rausstellen“ wird am Vorabend, „Reinnehmen“ am
-        Abfuhrtag beim Ausstempeln zugeteilt.
+        ICS deines Entsorgers hochladen. Erkennt Bio-, Gelbe und Blaue Tonne
+        automatisch. Die Restmülltonne wird privat gemacht und daher weder
+        angezeigt noch zugeteilt. „Rausstellen“ wird am Vorabend, „Reinnehmen“
+        am Abfuhrtag beim Ausstempeln zugeteilt.
       </p>
     </div>
   );
