@@ -196,6 +196,9 @@ export interface BoardTask {
   printBillingStatus: string | null;
   /** Nur in der persönlichen (kundenübergreifenden) Ansicht gesetzt: Kundenname. */
   clientName?: string | null;
+  /** Nur in kundenübergreifenden Ansichten gesetzt: echtes Projekt der Aufgabe
+   *  (für die Navigation, da die Board-projectId dort synthetisch ist). */
+  projectId?: string | null;
 }
 
 export interface BoardColumn {
@@ -484,13 +487,14 @@ export async function getPersonalBoardView(userId: string): Promise<BoardView> {
   const boards = await Promise.all(projectRows.map((p) => getBoardView(p.id)));
   boards.forEach((bv, idx) => {
     if (!bv) return;
-    const clientName = clientByProject.get(projectRows[idx]!.id) ?? null;
+    const projectId = projectRows[idx]!.id;
+    const clientName = clientByProject.get(projectId) ?? null;
     for (const col of bv.columns) {
       const target = byKey.get(col.columnKey);
       if (!target) continue;
       for (const t of col.tasks) {
         if (!t.assignees.some((a) => a.userId === userId)) continue;
-        target.tasks.push({ ...t, columnId: target.id, clientName });
+        target.tasks.push({ ...t, columnId: target.id, clientName, projectId });
       }
     }
   });
@@ -575,13 +579,14 @@ export async function getOwnedBoardView(userId: string): Promise<BoardView> {
 
   boards.forEach((bv, idx) => {
     if (!bv) return;
-    const clientName = clientByProject.get(projectRows[idx]!.id) ?? null;
+    const projectId = projectRows[idx]!.id;
+    const clientName = clientByProject.get(projectId) ?? null;
     for (const col of bv.columns) {
       const target = byKey.get(col.columnKey);
       if (!target) continue;
       for (const t of col.tasks) {
         if (ownerByTask.get(t.id) !== userId) continue;
-        target.tasks.push({ ...t, columnId: target.id, clientName });
+        target.tasks.push({ ...t, columnId: target.id, clientName, projectId });
       }
     }
   });

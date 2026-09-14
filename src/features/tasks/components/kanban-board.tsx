@@ -537,7 +537,7 @@ export function KanbanBoard({
                         if (!task.isExpress) onExpressPick?.(task.id);
                         return;
                       }
-                      router.push(`${basePath}/${projectId}/tasks/${task.id}`);
+                      router.push(`${basePath}/${task.projectId ?? projectId}/tasks/${task.id}`);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
@@ -547,7 +547,7 @@ export function KanbanBoard({
                           return;
                         }
                         router.push(
-                          `${basePath}/${projectId}/tasks/${task.id}`,
+                          `${basePath}/${task.projectId ?? projectId}/tasks/${task.id}`,
                         );
                       }
                     }}
@@ -805,13 +805,13 @@ export function KanbanBoard({
                     onDragStart={() => setDragArchivedId(task.id)}
                     onDragEnd={() => setDragArchivedId(null)}
                     onClick={() =>
-                      router.push(`${basePath}/${projectId}/tasks/${task.id}`)
+                      router.push(`${basePath}/${task.projectId ?? projectId}/tasks/${task.id}`)
                     }
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         router.push(
-                          `${basePath}/${projectId}/tasks/${task.id}`,
+                          `${basePath}/${task.projectId ?? projectId}/tasks/${task.id}`,
                         );
                       }
                     }}
@@ -873,7 +873,7 @@ export function KanbanBoard({
                       <button
                         type="button"
                         onClick={() =>
-                          router.push(`${basePath}/${projectId}/tasks/${idea.id}`)
+                          router.push(`${basePath}/${idea.projectId ?? projectId}/tasks/${idea.id}`)
                         }
                         className="min-w-0 flex-1 text-left font-medium hover:underline"
                         title="Idee öffnen"
