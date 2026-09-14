@@ -143,7 +143,7 @@ export async function listProjectMembers(
     ...new Set(
       (memberships ?? [])
         .filter((m) =>
-          ['agency_admin', 'project_manager', 'employee', 'freelancer'].includes(
+          ['super_admin', 'agency_admin', 'project_manager', 'employee', 'freelancer'].includes(
             m.role,
           ),
         )
