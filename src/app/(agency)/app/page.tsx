@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireAgencyPage } from '@/lib/authz/page-guards';
 import { getWorkStatus } from '@/features/time-tracking/queries';
 import { WorkClock } from '@/features/time-tracking/components/work-clock';
@@ -18,23 +19,41 @@ import {
   WeekProgressCard,
   CurrentTasksCard,
 } from '@/features/dashboard/components/overview-cards';
+import { BoardPanel } from '@/features/tasks/components/board-panel';
 import { berlinWeekday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
-export default async function AgencyDashboardPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function AgencyDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; modus?: string; kunde?: string }>;
+}) {
   const { user, orgId } = await requireAgencyPage();
-  const [myPulse, workStatus, weekly, reminders, philosophy, overview] =
-    await Promise.all([
-      getMyPulse(user.id),
-      getWorkStatus(user.id),
-      getWeeklyChallenges(user.id, orgId),
-      listMyReminders(),
-      listActivePhilosophyQuotes(orgId),
-      getOverviewData(user.id, orgId),
-    ]);
-  // Der wöchentliche Stimmungscheck erscheint nur freitags beim Ausstempeln –
-  // und nur, wenn er diese Woche noch nicht ausgefüllt wurde.
+  const sp = await searchParams;
+  const tab = sp.tab === 'board' ? 'board' : 'uebersicht';
+  const modus = sp.modus === 'kunde' ? 'kunde' : 'persoenlich';
+
+  const [myPulse, workStatus, philosophy] = await Promise.all([
+    getMyPulse(user.id),
+    getWorkStatus(user.id),
+    listActivePhilosophyQuotes(orgId),
+  ]);
   const weeklyPulseDue = berlinWeekday() === 5 && !myPulse;
+
+  const tabLink = (key: 'uebersicht' | 'board', label: string) => (
+    <Link
+      href={key === 'board' ? '/app?tab=board' : '/app'}
+      className={`rounded-md px-3.5 py-1.5 text-sm font-semibold ${
+        tab === key
+          ? 'bg-primary text-primary-foreground'
+          : 'text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      {label}
+    </Link>
+  );
 
   return (
     <div className="space-y-6">
@@ -57,6 +76,40 @@ export default async function AgencyDashboardPage() {
         </div>
       </div>
 
+      <div className="inline-flex rounded-lg border bg-card p-1">
+        {tabLink('uebersicht', '📊 Übersicht')}
+        {tabLink('board', '🗂️ Board')}
+      </div>
+
+      {tab === 'board' ? (
+        <BoardPanel
+          orgId={orgId}
+          userId={user.id}
+          modus={modus}
+          kunde={sp.kunde ?? null}
+        />
+      ) : (
+        <DashboardCards user={user} orgId={orgId} />
+      )}
+    </div>
+  );
+}
+
+async function DashboardCards({
+  user,
+  orgId,
+}: {
+  user: { id: string };
+  orgId: string;
+}) {
+  const [weekly, reminders, overview] = await Promise.all([
+    getWeeklyChallenges(user.id, orgId),
+    listMyReminders(),
+    getOverviewData(user.id, orgId),
+  ]);
+
+  return (
+    <>
       {/* Reihe 1: Tagesplan (breit) + Wochenchallenges. */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -78,6 +131,6 @@ export default async function AgencyDashboardPage() {
         <RemindersCard initialOpen={reminders.open} />
         <CoachingCard mode="me" />
       </div>
-    </div>
+    </>
   );
 }

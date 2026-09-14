@@ -12,7 +12,7 @@ import {
 import { moveTaskAction, archiveTaskAction, promoteIdeaAction } from '@/features/tasks/actions';
 import { computeInsertPosition } from '@/features/tasks/reorder';
 import { AddTaskInline } from './add-task-inline';
-import { idleResult } from '@/lib/action-result';
+import { idleResult, type ActionResult } from '@/lib/action-result';
 import { de } from '@/lib/i18n/de';
 import { cn } from '@/lib/utils';
 import { Alert } from '@/components/ui/alert';
@@ -22,6 +22,7 @@ import { LabelChip } from '@/components/ui/label-chip';
 import { ClientNotifyButton } from '@/features/tasks/components/client-notify-button';
 import { Avatar } from '@/components/ui/avatar';
 import type { BoardColumn, BoardTask, BoardView } from '@/features/tasks/queries';
+import type { ColumnKey } from '@/lib/database.types';
 
 interface Member {
   userId: string;
@@ -52,6 +53,7 @@ export function KanbanBoard({
   onExpressPick,
   activeColumnFooter,
   currentUserId,
+  statusMove,
 }: {
   projectId: string;
   board: BoardView;
@@ -80,9 +82,16 @@ export function KanbanBoard({
   /** Rendered pinned at the bottom of the "active" (In Arbeit) column – used to
    *  surface recurring-task templates without letting them clutter the queue. */
   activeColumnFooter?: ReactNode;
+  /**
+   * Personal (cross-client) mode: when set, a cross-column drag routes the
+   * status change through this handler (per-task, into its OWN board's column)
+   * instead of the single-board move_task. Same-column reordering is disabled
+   * (positions are per board). Undefined = normal single-board behavior.
+   */
+  statusMove?: (taskId: string, columnKey: ColumnKey) => Promise<ActionResult>;
 }) {
   const router = useRouter();
-  const canDrag = canManage || canMove || reorderOnly;
+  const canDrag = canManage || canMove || reorderOnly || !!statusMove;
   // Agency staff may archive by dragging onto the Archiv column; clients
   // (reorder-only in the portal) may not.
   const canArchive = canManage || canMove;
@@ -183,9 +192,15 @@ export function KanbanBoard({
     const targetCol = columns.find((c) => c.id === targetColumnId);
     if (!targetCol) return;
 
+    // Personal (cross-client) mode: only cross-column status changes are
+    // meaningful; same-column reordering across different clients is not.
+    if (statusMove && task.columnId === targetColumnId) return;
+
     // Stage limit: if the active column is full, don't reject — reroute the
     // task to the TOP of the queue so nothing is silently blocked.
+    // (Personal mode relies on the server's per-client limit instead.)
     if (
+      !statusMove &&
       targetCol.columnKey === 'active' &&
       task.columnId !== targetColumnId &&
       targetCol.wipLimit != null
@@ -244,6 +259,18 @@ export function KanbanBoard({
     );
     setError(null);
     setNotice(null);
+
+    // Personal mode: route the status change per-task into its own board.
+    if (statusMove) {
+      const res = await statusMove(taskId, targetCol.columnKey);
+      if (res.status === 'error') {
+        setColumns(previous); // roll back
+        setError(res.message);
+      } else {
+        router.refresh();
+      }
+      return;
+    }
 
     const fd = new FormData();
     fd.set('taskId', taskId);
@@ -552,6 +579,13 @@ export function KanbanBoard({
                       )}
                       <span className="min-w-0">{task.title}</span>
                     </div>
+                    {task.clientName && (
+                      <div className="mt-1">
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          {task.clientName}
+                        </span>
+                      </div>
+                    )}
                     <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
                       {/* Drucksachen-Abrechnung offen (nur Mitarbeiterseite):
                           Rechnung des Dienstleisters muss noch hochgeladen werden. */}

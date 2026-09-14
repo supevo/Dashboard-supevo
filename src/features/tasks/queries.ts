@@ -194,6 +194,8 @@ export interface BoardTask {
   clientNotifiedAt: string | null;
   /** Print-billing state: null | 'required' | 'settled' | 'dismissed'. */
   printBillingStatus: string | null;
+  /** Nur in der persönlichen (kundenübergreifenden) Ansicht gesetzt: Kundenname. */
+  clientName?: string | null;
 }
 
 export interface BoardColumn {
@@ -427,4 +429,76 @@ export async function getBoardView(
   const ideas = (ideaRows ?? []).map((t) => toBoardTask(t, false));
 
   return { boardId: board.id, columns: columnsOut, archived, ideas };
+}
+
+const PERSONAL_COLUMN_LABEL: Record<'queue' | 'active' | 'review' | 'done', string> = {
+  queue: 'Warteschlange',
+  active: 'In Bearbeitung',
+  review: 'In Überprüfung',
+  done: 'Fertig',
+};
+
+/**
+ * Persönliches, KUNDENÜBERGREIFENDES Board: alle mir zugewiesenen Aufgaben aus
+ * allen (zugänglichen) Kundenprojekten, gebündelt in vier synthetische Spalten
+ * (Warteschlange / In Bearbeitung / In Überprüfung / Fertig). Jede Karte trägt
+ * ihren Kundennamen. Ein Zug ändert den Status der Aufgabe in IHREM eigenen Board
+ * (über setTaskStatusAction) – das WIP-Limit des Kunden greift dabei serverseitig.
+ */
+export async function getPersonalBoardView(userId: string): Promise<BoardView> {
+  const supabase = await createSupabaseServerClient();
+
+  // Zugängliche Projekte (RLS) + Kundennamen.
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, client_company_id')
+    .limit(400);
+  const projectRows = projects ?? [];
+  const clientIds = [
+    ...new Set(projectRows.map((p) => p.client_company_id).filter((v): v is string => !!v)),
+  ];
+  const { data: clients } = clientIds.length
+    ? await supabase.from('client_companies').select('id, name').in('id', clientIds)
+    : { data: [] as { id: string; name: string }[] };
+  const clientNameById = new Map((clients ?? []).map((c) => [c.id, c.name] as const));
+  const clientByProject = new Map(
+    projectRows.map((p) => [
+      p.id,
+      p.client_company_id ? (clientNameById.get(p.client_company_id) ?? null) : null,
+    ]),
+  );
+
+  const KEYS = ['queue', 'active', 'review', 'done'] as const;
+  const columns: BoardColumn[] = KEYS.map((k, i) => ({
+    id: `me-${k}`,
+    name: PERSONAL_COLUMN_LABEL[k],
+    columnKey: k,
+    position: i,
+    wipLimit: null,
+    wipLimitPerUser: null,
+    isDoneColumn: k === 'done',
+    tasks: [],
+  }));
+  const byKey = new Map(columns.map((c) => [c.columnKey, c] as const));
+
+  const boards = await Promise.all(projectRows.map((p) => getBoardView(p.id)));
+  boards.forEach((bv, idx) => {
+    if (!bv) return;
+    const clientName = clientByProject.get(projectRows[idx]!.id) ?? null;
+    for (const col of bv.columns) {
+      const target = byKey.get(col.columnKey);
+      if (!target) continue;
+      for (const t of col.tasks) {
+        if (!t.assignees.some((a) => a.userId === userId)) continue;
+        target.tasks.push({ ...t, columnId: target.id, clientName });
+      }
+    }
+  });
+
+  // Innerhalb der Spalten grob nach Dringlichkeit sortieren (fällig zuerst).
+  const rank = (t: BoardTask) =>
+    t.dueDate ? new Date(t.dueDate).getTime() : Number.POSITIVE_INFINITY;
+  for (const c of columns) c.tasks.sort((a, b) => rank(a) - rank(b));
+
+  return { boardId: 'me', columns, archived: [], ideas: [] };
 }
