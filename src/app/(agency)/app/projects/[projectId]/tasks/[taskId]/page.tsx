@@ -319,9 +319,12 @@ export default async function TaskDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>Verantwortliche</CardTitle>
+              <CardTitle>Zuständigkeit</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                Bearbeiter
+              </div>
               <AssigneePicker
                 projectId={projectId}
                 taskId={taskId}
@@ -334,10 +337,10 @@ export default async function TaskDetailPage({
                 </div>
               )}
 
-              {/* Prüfer:in (Kontrolle & Beratung) + Einreich-/Freigabe-Flow. */}
+              {/* Aufgabenverantwortliche:r (Überwachung, Kontrolle & Freigabe). */}
               <div className="mt-3 space-y-2 border-t pt-3">
                 <div className="text-xs font-medium text-muted-foreground">
-                  Prüfer:in (Kontrolle &amp; Beratung)
+                  Aufgabenverantwortliche:r
                 </div>
                 <ReviewerPicker
                   taskId={taskId}

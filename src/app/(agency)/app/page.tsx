@@ -33,7 +33,12 @@ export default async function AgencyDashboardPage({
   const { user, orgId } = await requireAgencyPage();
   const sp = await searchParams;
   const tab = sp.tab === 'board' ? 'board' : 'uebersicht';
-  const modus = sp.modus === 'kunde' ? 'kunde' : 'persoenlich';
+  const modus =
+    sp.modus === 'kunde'
+      ? 'kunde'
+      : sp.modus === 'verantwortet'
+        ? 'verantwortet'
+        : 'persoenlich';
 
   const [myPulse, workStatus, philosophy] = await Promise.all([
     getMyPulse(user.id),

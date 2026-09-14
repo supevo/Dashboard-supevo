@@ -111,7 +111,7 @@ export const assistantTools = [
             description:
               'optional: Frist/Deadline als Datum im Format YYYY-MM-DD. Relative Angaben („morgen", „bis Freitag", „nächste Woche") anhand des heutigen Datums aus dem System-Prompt umrechnen. Wenn keine Frist genannt ist, weglassen.',
           },
-          assigneeUserId: { type: 'string', description: 'optional: userId des Verantwortlichen' },
+          assigneeUserId: { type: 'string', description: 'optional: userId des Bearbeiters' },
         },
         required: ['projectId', 'title'],
       },
@@ -129,7 +129,7 @@ export const assistantTools = [
           projectId: { type: 'string' },
           taskId: { type: 'string' },
           toUserId: { type: 'string' },
-          fromUserId: { type: 'string', description: 'optional: bisheriger Verantwortlicher' },
+          fromUserId: { type: 'string', description: 'optional: bisheriger Bearbeiter' },
         },
         required: ['projectId', 'taskId', 'toUserId'],
       },

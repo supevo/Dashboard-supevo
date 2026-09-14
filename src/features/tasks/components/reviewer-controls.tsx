@@ -16,7 +16,7 @@ interface Member {
   name: string;
 }
 
-/** Wählt den/die Prüfer:in (Kontrolle & Beratung) – optional, eine Person. */
+/** Wählt den/die Aufgabenverantwortliche:n (Überwachung, Kontrolle & Freigabe) – optional, eine Person. */
 export function ReviewerPicker({
   taskId,
   reviewerId,
@@ -43,7 +43,7 @@ export function ReviewerPicker({
       }
       className="w-full rounded-md border bg-background px-2 py-1.5 text-sm disabled:opacity-50"
     >
-      <option value="">— kein:e Prüfer:in —</option>
+      <option value="">— kein:e Aufgabenverantwortliche:r —</option>
       {members.map((m) => (
         <option key={m.userId} value={m.userId}>
           {m.name || 'Unbenannt'}
@@ -54,8 +54,8 @@ export function ReviewerPicker({
 }
 
 /**
- * Steuerung des Kontroll-Flows: Verantwortliche reichen ein, Prüfer:innen geben
- * frei oder schicken mit Hinweis zurück.
+ * Steuerung des Kontroll-Flows: Bearbeiter:innen reichen ein, Aufgabenverant-
+ * wortliche geben frei oder schicken mit Hinweis zurück.
  */
 export function ReviewControls({
   taskId,
@@ -108,7 +108,7 @@ export function ReviewControls({
               disabled={busy}
               onClick={() => setRejecting((v) => !v)}
             >
-              ↩ Zurück an Verantwortliche:n
+              ↩ Zurück an Bearbeiter:in
             </Button>
           </div>
           {rejecting && (
@@ -140,7 +140,7 @@ export function ReviewControls({
     if (!hasReviewer) {
       return (
         <p className="text-xs text-muted-foreground">
-          Wähle oben eine:n Prüfer:in, um die Aufgabe zur Kontrolle einzureichen.
+          Wähle oben eine:n Aufgabenverantwortliche:n, um die Aufgabe zur Kontrolle einzureichen.
         </p>
       );
     }

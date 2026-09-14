@@ -502,3 +502,93 @@ export async function getPersonalBoardView(userId: string): Promise<BoardView> {
 
   return { boardId: 'me', columns, archived: [], ideas: [] };
 }
+
+/**
+ * „Von mir verantwortet": KUNDENÜBERGREIFENDES Board für Aufgaben, bei denen der
+ * aktuelle Nutzer Aufgabenverantwortliche:r ist (tasks.reviewer_id = userId). Er
+ * überwacht diese Aufgaben, ohne primär daran zu arbeiten. Aufbau wie das
+ * persönliche Board: vier synthetische Spalten, Karten mit Kundenname, ein Zug
+ * ändert den Status im Ursprungs-Board (WIP-Limit greift serverseitig).
+ */
+export async function getOwnedBoardView(userId: string): Promise<BoardView> {
+  const supabase = await createSupabaseServerClient();
+
+  // Zugängliche Projekte (RLS) + Kundennamen.
+  const { data: projects } = await supabase
+    .from('projects')
+    .select('id, client_company_id')
+    .limit(400);
+  const projectRows = projects ?? [];
+  const clientIds = [
+    ...new Set(projectRows.map((p) => p.client_company_id).filter((v): v is string => !!v)),
+  ];
+  const { data: clients } = clientIds.length
+    ? await supabase.from('client_companies').select('id, name').in('id', clientIds)
+    : { data: [] as { id: string; name: string }[] };
+  const clientNameById = new Map((clients ?? []).map((c) => [c.id, c.name] as const));
+  const clientByProject = new Map(
+    projectRows.map((p) => [
+      p.id,
+      p.client_company_id ? (clientNameById.get(p.client_company_id) ?? null) : null,
+    ]),
+  );
+
+  const KEYS = ['queue', 'active', 'review', 'done'] as const;
+  const columns: BoardColumn[] = KEYS.map((k, i) => ({
+    id: `owner-${k}`,
+    name: PERSONAL_COLUMN_LABEL[k],
+    columnKey: k,
+    position: i,
+    wipLimit: null,
+    wipLimitPerUser: null,
+    isDoneColumn: k === 'done',
+    tasks: [],
+  }));
+  const byKey = new Map(columns.map((c) => [c.columnKey, c] as const));
+
+  const boards = await Promise.all(projectRows.map((p) => getBoardView(p.id)));
+
+  // Aufgabenverantwortliche:r wird über tasks.reviewer_id abgebildet. Spalte kann
+  // fehlen, solange Migration 0199 nicht eingespielt ist → resilient auflösen.
+  const allTaskIds: string[] = [];
+  for (const bv of boards) {
+    if (!bv) continue;
+    for (const col of bv.columns) for (const t of col.tasks) allTaskIds.push(t.id);
+  }
+  const ownerByTask = new Map<string, string | null>();
+  if (allTaskIds.length) {
+    try {
+      const { data: owners } = await supabase
+        .from('tasks')
+        .select('id, reviewer_id')
+        .in('id', allTaskIds);
+      for (const row of owners ?? []) {
+        ownerByTask.set(
+          row.id,
+          (row as { reviewer_id?: string | null }).reviewer_id ?? null,
+        );
+      }
+    } catch {
+      // reviewer_id-Spalte existiert noch nicht → Board bleibt leer.
+    }
+  }
+
+  boards.forEach((bv, idx) => {
+    if (!bv) return;
+    const clientName = clientByProject.get(projectRows[idx]!.id) ?? null;
+    for (const col of bv.columns) {
+      const target = byKey.get(col.columnKey);
+      if (!target) continue;
+      for (const t of col.tasks) {
+        if (ownerByTask.get(t.id) !== userId) continue;
+        target.tasks.push({ ...t, columnId: target.id, clientName });
+      }
+    }
+  });
+
+  const rank = (t: BoardTask) =>
+    t.dueDate ? new Date(t.dueDate).getTime() : Number.POSITIVE_INFINITY;
+  for (const c of columns) c.tasks.sort((a, b) => rank(a) - rank(b));
+
+  return { boardId: 'owner', columns, archived: [], ideas: [] };
+}

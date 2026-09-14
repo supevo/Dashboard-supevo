@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { listProjects, listProjectMembers } from '@/features/projects/queries';
-import { getBoardView, getPersonalBoardView } from '@/features/tasks/queries';
+import {
+  getBoardView,
+  getPersonalBoardView,
+  getOwnedBoardView,
+} from '@/features/tasks/queries';
 import { listTeamMembers } from '@/features/messenger/queries';
 import { KanbanBoard } from '@/features/tasks/components/kanban-board';
 import { PersonalBoard } from '@/features/tasks/components/personal-board';
@@ -21,7 +25,7 @@ export async function BoardPanel({
 }: {
   orgId: string;
   userId: string;
-  modus: 'persoenlich' | 'kunde';
+  modus: 'persoenlich' | 'verantwortet' | 'kunde';
   kunde: string | null;
 }) {
   const projects = await listProjects(orgId);
@@ -70,6 +74,22 @@ export async function BoardPanel({
         <EmptyState icon="🔍" title="Kein Board" description="Board konnte nicht geladen werden." />
       );
     }
+  } else if (modus === 'verantwortet') {
+    const [board, members] = await Promise.all([
+      getOwnedBoardView(userId),
+      listTeamMembers(orgId),
+    ]);
+    const total = board.columns.reduce((n, c) => n + c.tasks.length, 0);
+    content =
+      total === 0 ? (
+        <EmptyState
+          icon="🧭"
+          title="Nichts zu verantworten"
+          description="Du bist aktuell für keine Aufgabe als Aufgabenverantwortliche:r eingetragen. Trage dich in einer Aufgabe unter „Zuständigkeit“ ein."
+        />
+      ) : (
+        <PersonalBoard board={board} members={members} currentUserId={userId} />
+      );
   } else {
     const [board, members] = await Promise.all([
       getPersonalBoardView(userId),

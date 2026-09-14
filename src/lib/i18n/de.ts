@@ -191,7 +191,7 @@ export const de = {
     doneRateHint: '⭐ Fertige Aufgaben von Kolleg:innen kannst du hier per Klick bewerten.',
     doneRateHintClient: '⭐ Öffnen Sie eine fertige Aufgabe, um die Ausführung zu bewerten.',
     visibility: 'Sichtbarkeit',
-    filterAssignee: 'Verantwortlicher',
+    filterAssignee: 'Bearbeiter',
     filterPriority: 'Priorität',
     search: 'Aufgabe suchen …',
     onlyOverdue: 'Nur überfällige',

@@ -78,7 +78,7 @@ export async function assignTaskAction(
   });
 
   revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
-  return successResult('Verantwortlicher hinzugefügt.');
+  return successResult('Bearbeiter hinzugefügt.');
 }
 
 export async function unassignTaskAction(
@@ -103,5 +103,5 @@ export async function unassignTaskAction(
   if (error) return errorResult(de.errors.FORBIDDEN);
 
   revalidatePath(`/app/projects/${projectId}/tasks/${taskId}`);
-  return successResult('Verantwortlicher entfernt.');
+  return successResult('Bearbeiter entfernt.');
 }

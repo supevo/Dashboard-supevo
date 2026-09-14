@@ -17,7 +17,7 @@ export function BoardViewSwitch({
   kunde,
   clients,
 }: {
-  modus: 'persoenlich' | 'kunde';
+  modus: 'persoenlich' | 'verantwortet' | 'kunde';
   kunde: string | null;
   clients: ClientOption[];
 }) {
@@ -45,6 +45,15 @@ export function BoardViewSwitch({
           }`}
         >
           👤 Persönlich
+        </button>
+        <button
+          type="button"
+          onClick={() => go({ modus: 'verantwortet', kunde: null })}
+          className={`rounded-md px-3 py-1.5 text-sm font-semibold ${
+            modus === 'verantwortet' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'
+          }`}
+        >
+          🧭 Von mir verantwortet
         </button>
         <button
           type="button"
