@@ -20,6 +20,8 @@ import {
   CurrentTasksCard,
 } from '@/features/dashboard/components/overview-cards';
 import { BoardPanel } from '@/features/tasks/components/board-panel';
+import { BinSchedule } from '@/features/bins/components/bin-schedule';
+import { listUpcomingBinDues } from '@/features/bins/queries';
 import { berlinWeekday } from '@/lib/time';
 import { de } from '@/lib/i18n/de';
 
@@ -107,20 +109,24 @@ async function DashboardCards({
   user: { id: string };
   orgId: string;
 }) {
-  const [weekly, reminders, overview] = await Promise.all([
+  const [weekly, reminders, overview, binDues] = await Promise.all([
     getWeeklyChallenges(user.id, orgId),
     listMyReminders(),
     getOverviewData(user.id, orgId),
+    listUpcomingBinDues(orgId),
   ]);
 
   return (
     <>
-      {/* Reihe 1: Tagesplan (breit) + Wochenchallenges. */}
+      {/* Reihe 1: Tagesplan (breit) + Wochenchallenges & Müllabfuhr. */}
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <TodayPlan userId={user.id} />
         </div>
-        <WeeklyChallengesCard weekly={weekly} />
+        <div className="space-y-6">
+          <WeeklyChallengesCard weekly={weekly} />
+          <BinSchedule dues={binDues} />
+        </div>
       </div>
 
       {/* Reihe 2: Heute · Offene Rückfragen · Wochenfortschritt · Aktuelle Aufgaben. */}

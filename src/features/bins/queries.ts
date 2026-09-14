@@ -174,6 +174,57 @@ export async function flagMissedBinTasksOnClockIn(userId: string): Promise<void>
   }
 }
 
+export interface BinDue {
+  binKey: string;
+  label: string; // z. B. "🟢 Biotonne"
+  date: string; // 'YYYY-MM-DD' Abfuhrtag
+  /** Tage bis zur Abfuhr: 0 = heute, 1 = morgen, … */
+  daysUntil: number;
+  /** true, wenn am Vorabend die Tonne rausgestellt werden sollte (Abfuhr morgen). */
+  putOutTonight: boolean;
+}
+
+/**
+ * Anstehende Abfuhrtermine für die Übersichts-Kachel: ab heute, die nächsten
+ * `days` Tage. Liest direkt die importierten Termine (unabhängig vom Ausstempeln).
+ * Leer, wenn keine Termine/Tabellen vorhanden sind.
+ */
+export async function listUpcomingBinDues(
+  orgId: string,
+  days = 7,
+): Promise<BinDue[]> {
+  const service = createSupabaseServiceClient();
+  const today = berlinToday();
+  const until = addDays(today, days);
+  const { data, error } = await service
+    .from('bin_pickups')
+    .select('bin_key, bin_label, pickup_date')
+    .eq('organization_id', orgId)
+    .gte('pickup_date', today)
+    .lte('pickup_date', until)
+    .order('pickup_date', { ascending: true });
+  if (error) return [];
+  const rows = (data ?? []) as unknown as {
+    bin_key: string;
+    bin_label: string;
+    pickup_date: string;
+  }[];
+  const tomorrow = addDays(today, 1);
+  return rows.map((p) => {
+    const daysUntil = Math.round(
+      (Date.parse(`${p.pickup_date}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) /
+        86_400_000,
+    );
+    return {
+      binKey: p.bin_key,
+      label: binDisplayLabel(p.bin_key, p.bin_label),
+      date: p.pickup_date,
+      daysUntil,
+      putOutTonight: p.pickup_date === tomorrow,
+    };
+  });
+}
+
 export interface BinCoverage {
   coverageEnd: string | null;
   upcoming: { binKey: string; label: string; date: string }[];
