@@ -20,6 +20,24 @@ function addDays(iso: string, n: number): string {
 const ACTION_VERB: Record<string, string> = { out: 'rausstellen', in: 'wieder reinnehmen' };
 
 /**
+ * Schließt überfällige (älter als 2 Tage) offene/verpasste Tonnen-Aufgaben eines
+ * Nutzers als 'expired'. Solche Aufgaben sind nicht mehr sinnvoll nachholbar –
+ * sie dürfen weder neue Zuteilungen blockieren noch die Nachhol-Liste zumüllen.
+ */
+async function expireStaleBinTasks(
+  service: ReturnType<typeof createSupabaseServiceClient>,
+  userId: string,
+  today: string,
+): Promise<void> {
+  await service
+    .from('bin_task_assignments')
+    .update({ status: 'expired' } as never)
+    .eq('assignee_id', userId)
+    .in('status', ['assigned', 'missed'])
+    .lt('due_date', addDays(today, -2));
+}
+
+/**
  * Weist beim Ausstempeln höchstens EINE fällige Mülltonnen-Aufgabe fair zu (die
  * am längsten fällige, noch nicht vergebene). „out" ist am Vorabend fällig,
  * „in" am Abfuhrtag. Stapelt nicht (offene Aufgabe bleibt bestehen). No-op ohne
@@ -36,12 +54,16 @@ export async function assignClockOutBinTask(args: {
 
   await maybeNotifyLowCoverage(orgId).catch(() => {});
 
-  // Nicht stapeln.
+  // Alte, nicht mehr nachholbare Aufgaben schließen, damit sie unten nicht blocken.
+  await expireStaleBinTasks(service, userId, today).catch(() => {});
+
+  // Nicht stapeln: nur eine AKTIVE ('assigned') Aufgabe zur Zeit. Eine verpasste
+  // ('missed') Altlast blockiert die Zuteilung NICHT mehr (wird separat nachgeholt).
   const { data: openMine, error: openErr } = await service
     .from('bin_task_assignments')
     .select('id')
     .eq('assignee_id', userId)
-    .in('status', ['assigned', 'missed'])
+    .eq('status', 'assigned')
     .limit(1);
   if (openErr) return; // Tabellen fehlen → Feature nicht eingerichtet
   if ((openMine ?? []).length > 0) return;
@@ -152,7 +174,16 @@ export async function flagMissedBinTasksOnClockIn(userId: string): Promise<void>
     due_date: string;
     pickup_id: string;
   }[];
+  const staleCutoff = addDays(today, -2);
   for (const r of rows) {
+    // Länger als 2 Tage überfällig → nicht mehr nachholbar, still schließen.
+    if (r.due_date < staleCutoff) {
+      await service
+        .from('bin_task_assignments')
+        .update({ status: 'expired' } as never)
+        .eq('id', r.id);
+      continue;
+    }
     await service
       .from('bin_task_assignments')
       .update({ status: 'missed' } as never)

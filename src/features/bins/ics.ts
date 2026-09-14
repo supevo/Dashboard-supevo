@@ -5,15 +5,39 @@ export interface BinPickup {
   date: string; // 'YYYY-MM-DD'
 }
 
-/** SUMMARY → normalisierter Tonnen-Schlüssel (robust über Stichwörter). */
+/**
+ * SUMMARY → normalisierter Tonnen-Schlüssel (robust über Stichwörter, deckt
+ * regionale Bezeichnungen ab). Reihenfolge: spezifisch vor generisch.
+ * Hinweis: „grün"/„Grüngut" → Bio, da die Biotonne grün ist.
+ */
 export function binKeyFromSummary(summary: string): string {
   const s = summary.toLowerCase();
-  if (s.includes('rest')) return 'rest';
-  if (s.includes('bio')) return 'bio';
-  if (s.includes('gelb') || s.includes('gelber sack') || s.includes('verpack'))
-    return 'gelb';
-  if (s.includes('blau') || s.includes('papier') || s.includes('pappe'))
+  if (s.includes('rest') || s.includes('schwarz') || s.includes('grau'))
+    return 'rest';
+  if (
+    s.includes('bio') ||
+    s.includes('grün') || // Grüngut / Grünabfall / Grünschnitt / grüne Tonne
+    s.includes('organ') || // organischer Abfall
+    s.includes('kompost')
+  )
+    return 'bio';
+  if (
+    s.includes('blau') ||
+    s.includes('papier') ||
+    s.includes('pappe') ||
+    s.includes('karton') ||
+    s.includes('ppk')
+  )
     return 'blau';
+  if (
+    s.includes('gelb') ||
+    s.includes('verpack') ||
+    s.includes('wertstoff') ||
+    s.includes('lvp') ||
+    s.includes('plastik') ||
+    s.includes('leichtstoff')
+  )
+    return 'gelb';
   return 'other';
 }
 

@@ -30,6 +30,27 @@ describe('binKeyFromSummary', () => {
     expect(binKeyFromSummary('Papiertonne')).toBe('blau');
     expect(binKeyFromSummary('Sondermüll')).toBe('other');
   });
+
+  it('mappt regionale Bezeichnungen robust', () => {
+    // „grün" gehört zur Biotonne
+    expect(binKeyFromSummary('Grüne Tonne')).toBe('bio');
+    expect(binKeyFromSummary('Grüngutabfuhr')).toBe('bio');
+    expect(binKeyFromSummary('Grünabfall')).toBe('bio');
+    expect(binKeyFromSummary('Bioabfall')).toBe('bio');
+    expect(binKeyFromSummary('Biomüll')).toBe('bio');
+    // Rest / schwarz / grau
+    expect(binKeyFromSummary('Restmüll')).toBe('rest');
+    expect(binKeyFromSummary('Schwarze Tonne')).toBe('rest');
+    expect(binKeyFromSummary('Graue Tonne')).toBe('rest');
+    // Papier / Pappe / Karton
+    expect(binKeyFromSummary('Altpapier')).toBe('blau');
+    expect(binKeyFromSummary('Pappe & Karton')).toBe('blau');
+    // Gelb / Verpackung / Wertstoff / LVP
+    expect(binKeyFromSummary('Gelber Sack')).toBe('gelb');
+    expect(binKeyFromSummary('Verpackungsabfall')).toBe('gelb');
+    expect(binKeyFromSummary('Wertstofftonne')).toBe('gelb');
+    expect(binKeyFromSummary('LVP')).toBe('gelb');
+  });
 });
 
 describe('parseBinIcs', () => {
