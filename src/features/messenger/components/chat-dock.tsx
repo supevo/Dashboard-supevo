@@ -518,14 +518,14 @@ function ConversationView({
           </div>
         )}
 
-        <div className="flex items-end gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
           <Textarea
             ref={inputRef}
             name="body"
             required={pending.length === 0}
             rows={2}
             placeholder={de.messenger.messagePlaceholder}
-            className="max-h-60 min-h-[56px] flex-1 resize-none text-sm leading-relaxed"
+            className="max-h-60 min-h-[56px] w-full min-w-0 resize-none text-sm leading-relaxed sm:flex-1"
             onChange={(e) => {
               notifyTyping();
               // Mitwachsen wie in Slack: Höhe an den Inhalt anpassen (bis max-h-60).
@@ -555,27 +555,29 @@ function ConversationView({
               }
             }}
           />
-          <button
-            type="button"
-            onClick={() => stagingRef.current?.click()}
-            aria-label="Bild anhängen"
-            title="Bild anhängen (auch per Einfügen oder Ziehen)"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted"
-          >
-            📎
-          </button>
-          <EmojiPicker onPick={insertEmoji} />
-          {!isClient && (
-            <>
-              <StickerPicker channelId={channelId} onSent={() => void load()} />
-              <PollComposer
-                channelId={channelId}
-                onCreated={() => void load()}
-                className="h-9 w-9 text-lg"
-              />
-            </>
-          )}
-          <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => stagingRef.current?.click()}
+              aria-label="Bild anhängen"
+              title="Bild anhängen (auch per Einfügen oder Ziehen)"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted"
+            >
+              📎
+            </button>
+            <EmojiPicker onPick={insertEmoji} />
+            {!isClient && (
+              <>
+                <StickerPicker channelId={channelId} onSent={() => void load()} />
+                <PollComposer
+                  channelId={channelId}
+                  onCreated={() => void load()}
+                  className="h-9 w-9 text-lg"
+                />
+              </>
+            )}
+            <SubmitButton size="sm">{de.messenger.send}</SubmitButton>
+          </div>
         </div>
       </form>
       </DropZone>
