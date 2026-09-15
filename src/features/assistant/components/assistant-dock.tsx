@@ -147,10 +147,10 @@ export function AssistantDock({ firstName }: { firstName?: string }) {
         type="button"
         onClick={() => setOpen(true)}
         title="Assistent"
-        className="fixed bottom-[4.75rem] right-4 z-50 flex items-center gap-2 rounded-full bg-gradient-to-r from-[#8A2D8F] to-[#F2911E] px-3 py-2 text-sm font-medium text-white shadow-lg transition hover:opacity-90"
+        aria-label="Assistent"
+        className="fixed bottom-[4.75rem] right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#8A2D8F] to-[#F2911E] text-white shadow-lg transition-transform duration-150 hover:-translate-y-0.5 hover:scale-110 hover:shadow-xl active:scale-95"
       >
         <AssistantIcon className="h-6 w-[1.85rem]" />
-        Assistent
       </button>
     );
   }

@@ -1043,11 +1043,13 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90"
+        title={de.messenger.title}
+        aria-label={de.messenger.title}
+        className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-xl text-primary-foreground shadow-lg transition-transform duration-150 hover:-translate-y-0.5 hover:scale-110 hover:shadow-xl active:scale-95"
       >
-        💬 {de.messenger.title}
+        <span aria-hidden>💬</span>
         {totalUnread > 0 && (
-          <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 text-white">
+          <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-semibold leading-5 text-white ring-2 ring-background">
             {totalUnread > 99 ? '99+' : totalUnread}
           </span>
         )}

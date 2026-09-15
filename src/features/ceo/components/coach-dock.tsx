@@ -101,10 +101,10 @@ export function CoachDock({ firstName }: { firstName?: string }) {
         type="button"
         onClick={() => setOpen(true)}
         title="GF-Coach"
-        className="fixed bottom-[9.5rem] right-4 z-50 flex items-center gap-2 rounded-full bg-gradient-to-r from-[#2D6CDF] to-[#8A2D8F] px-3 py-2 text-sm font-medium text-white shadow-lg transition hover:opacity-90"
+        aria-label="GF-Coach"
+        className="fixed bottom-[8.5rem] right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#2D6CDF] to-[#8A2D8F] text-white shadow-lg transition-transform duration-150 hover:-translate-y-0.5 hover:scale-110 hover:shadow-xl active:scale-95"
       >
         <Wand2 className="h-5 w-5" />
-        Coach
       </button>
     );
   }
