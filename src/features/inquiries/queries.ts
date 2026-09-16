@@ -76,12 +76,20 @@ export async function isInquiryInboxEnabled(
   return Boolean(data?.enabled);
 }
 
-/** Whether the client may see the Kundenanfragen board in the portal. */
+/**
+ * Whether the client may see the Kundenanfragen board in the portal.
+ *
+ * Gelesen über den Service-Client: Die RLS-Policy auf inquiry_endpoints erlaubt
+ * nur Agentur-Mitarbeitern Zugriff (die Zeile enthält u. a. das geheime Webhook-
+ * Token). Mit dem RLS-Client käme beim Kunden immer `false` zurück – der Reiter
+ * würde trotz „sichtbar" nie erscheinen. Die clientCompanyId stammt vom eigenen
+ * Konto des Aufrufers; zurück geht ausschließlich der boolesche Sichtbar-Wert.
+ */
 export async function isInquiryClientVisible(
   clientCompanyId: string,
 ): Promise<boolean> {
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
+  const service = createSupabaseServiceClient();
+  const { data } = await service
     .from('inquiry_endpoints')
     .select('client_visible')
     .eq('client_company_id', clientCompanyId)
