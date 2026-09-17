@@ -215,11 +215,28 @@ export async function renderInvoicePdf(params: {
   text(page, settings.payment_terms_text || 'Zahlbar sofort ohne Abzug.', left, y, 10);
   y -= 16;
 
-  if (invoice.payment_method === 'sepa' && membership?.debtor_iban) {
-    const mand = membership.mandate_reference ? `, Mandat ${membership.mandate_reference}` : '';
+  // Zahlungshinweis rein nach dem Zahlweg des Kunden (invoice.payment_method =
+  // client_memberships.payment_method), UNABHÄNGIG davon, ob ein SEPA-Mandat/IBAN
+  // hinterlegt ist. SEPA-Kunden bekommen den Lastschrift-Hinweis, alle anderen den
+  // Überweisungs-Hinweis – nie beides.
+  if (invoice.payment_method === 'sepa') {
+    const via = membership?.debtor_iban ? ` von IBAN ${membership.debtor_iban}` : '';
+    const mand = membership?.mandate_reference
+      ? `, Mandat ${membership.mandate_reference}`
+      : '';
     text(
       page,
-      `Der Betrag wird per SEPA-Lastschrift von IBAN ${membership.debtor_iban} eingezogen${mand}.`,
+      `Der Betrag wird per SEPA-Lastschrift${via}${mand} eingezogen.`,
+      left,
+      y,
+      9,
+      font,
+      gray,
+    );
+    y -= 12;
+    text(
+      page,
+      'Die Abbuchung erfolgt 2–3 Tage nach Rechnungsstellung.',
       left,
       y,
       9,
