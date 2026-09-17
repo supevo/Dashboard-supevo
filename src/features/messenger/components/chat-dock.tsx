@@ -103,6 +103,26 @@ function mergeMessages(
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+// Ungesendeter Nachrichtentext je Konversation (pro Gerät, localStorage). So
+// geht der Entwurf nicht verloren, wenn man vor dem Absenden den Chat wechselt,
+// den Dock schließt oder die Seite neu lädt.
+const DRAFT_PREFIX = 'chatDraft:';
+function loadDraft(channelId: string): string {
+  try {
+    return localStorage.getItem(DRAFT_PREFIX + channelId) ?? '';
+  } catch {
+    return '';
+  }
+}
+function saveDraft(channelId: string, text: string): void {
+  try {
+    if (text) localStorage.setItem(DRAFT_PREFIX + channelId, text);
+    else localStorage.removeItem(DRAFT_PREFIX + channelId);
+  } catch {
+    /* ignore */
+  }
+}
+
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
     day: '2-digit',
@@ -263,7 +283,24 @@ function ConversationView({
     const pos = start + emoji.length;
     el.setSelectionRange(pos, pos);
     el.focus();
+    saveDraft(channelId, el.value);
   }
+
+  // Gespeicherten Entwurf für DIESEN Kanal beim Öffnen wiederherstellen. Die
+  // Komponente wird pro Kanal neu gemountet (key=activeId), daher liest jeder
+  // Mount seinen eigenen Entwurf. Höhe passend zum Inhalt setzen.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const draft = loadDraft(channelId);
+    if (draft) {
+      el.value = draft;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+    }
+    // Nur beim Mount / Kanalwechsel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelId]);
 
   const load = useCallback(async () => {
     try {
@@ -342,8 +379,10 @@ function ConversationView({
       formRef.current?.reset();
       // Auto-Grow-Höhe wieder auf Standard zurücksetzen.
       if (inputRef.current) inputRef.current.style.height = '';
+      // Gesendet → gespeicherten Entwurf verwerfen.
+      saveDraft(channelId, '');
     }
-  }, [state]);
+  }, [state, channelId]);
 
   useEffect(() => {
     if (stickToBottom.current) {
@@ -617,6 +656,8 @@ function ConversationView({
               const el = e.currentTarget;
               el.style.height = 'auto';
               el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+              // Entwurf sichern, damit er beim Kanalwechsel/Neuladen bleibt.
+              saveDraft(channelId, el.value);
             }}
             onPaste={(e) => {
               // Bilder aus der Zwischenablage NICHT sofort senden, sondern als
