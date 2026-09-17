@@ -10,6 +10,7 @@ import { isOrgAdmin } from '@/lib/authz/policies';
 import { createNotifications } from '@/features/notifications/create';
 import { sendPushToUsers } from '@/lib/push/send';
 import { env } from '@/lib/env';
+import { logger } from '@/lib/logger';
 import { de } from '@/lib/i18n/de';
 import {
   type ActionResult,
@@ -325,18 +326,37 @@ export async function sendChannelMessageAction(
     .select('organization_id, kind, client_company_id, name, is_private, dm_key')
     .eq('id', parsed.data.channelId)
     .maybeSingle();
-  if (!channel) return errorResult(de.errors.FORBIDDEN);
+  if (!channel) {
+    logger.warn('chat.send.channel_not_found', {
+      channelId: parsed.data.channelId,
+      userId: user.id,
+    });
+    return errorResult('Chat-Kanal nicht gefunden.');
+  }
 
   if (channel.kind === 'dm') {
     const parts = (channel.dm_key ?? '').split(':');
-    if (!parts.includes(user.id)) return errorResult(de.errors.FORBIDDEN);
+    if (!parts.includes(user.id)) {
+      logger.warn('chat.send.dm_not_participant', {
+        channelId: parsed.data.channelId,
+        userId: user.id,
+        dmKey: channel.dm_key,
+      });
+      return errorResult('Du bist kein Teilnehmer dieser Direktnachricht.');
+    }
   } else {
     const { data: visible } = await supabase
       .from('chat_channels')
       .select('id')
       .eq('id', parsed.data.channelId)
       .maybeSingle();
-    if (!visible) return errorResult(de.errors.FORBIDDEN);
+    if (!visible) {
+      logger.warn('chat.send.channel_not_visible', {
+        channelId: parsed.data.channelId,
+        userId: user.id,
+      });
+      return errorResult('Kein Zugriff auf diesen Kanal.');
+    }
   }
 
   // Service client for the write: a pure super_admin is not is_agency_staff(),
@@ -348,7 +368,14 @@ export async function sendChannelMessageAction(
     body: parsed.data.body,
     reply_to_id: parsed.data.replyToId || null,
   });
-  if (error) return errorResult(de.errors.FORBIDDEN);
+  if (error) {
+    logger.error('chat.send.insert_failed', {
+      channelId: parsed.data.channelId,
+      organizationId: channel.organization_id,
+      error: error.message,
+    });
+    return errorResult(`Nachricht konnte nicht gespeichert werden: ${error.message}`);
+  }
 
   if (channel.kind === 'client' && channel.client_company_id) {
     // Staff replied in a client channel → notify the client's contacts, so the

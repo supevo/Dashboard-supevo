@@ -230,6 +230,7 @@ function ConversationView({
   const stickToBottom = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   function insertEmoji(emoji: string) {
     const el = inputRef.current;
@@ -247,11 +248,15 @@ function ConversationView({
       const res = await fetch(`/api/chat/channels/${channelId}/messages`, {
         cache: 'no-store',
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setLoadError(`Nachrichten konnten nicht geladen werden (Fehler ${res.status}).`);
+        return;
+      }
       const data = (await res.json()) as {
         messages: ChannelMessage[];
         reads?: { userId: string; lastReadAt: string }[];
       };
+      setLoadError(null);
       setMessages(data.messages);
       setReads(data.reads ?? []);
     } catch {
@@ -475,6 +480,16 @@ function ConversationView({
       {uploadError && (
         <Alert variant="destructive" className="mx-2 text-[11px]">
           {uploadError}
+        </Alert>
+      )}
+      {state.status === 'error' && 'message' in state && state.message && (
+        <Alert variant="destructive" className="mx-2 text-[11px]">
+          {state.message}
+        </Alert>
+      )}
+      {loadError && (
+        <Alert variant="destructive" className="mx-2 text-[11px]">
+          {loadError}
         </Alert>
       )}
 
