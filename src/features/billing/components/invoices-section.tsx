@@ -102,6 +102,11 @@ export function InvoiceRowActions({ invoice }: { invoice: InvoiceRow }) {
               </SubmitButton>
             </>
           )}
+          {invoice.status === 'paid' && (
+            <SubmitButton name="op" value="unpaid" size="sm" variant="outline">
+              ↩︎ Zahlung zurücknehmen
+            </SubmitButton>
+          )}
           {isNumbered && (
             <SubmitButton
               name="op"

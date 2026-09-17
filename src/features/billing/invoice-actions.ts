@@ -423,7 +423,7 @@ export async function finalizeInvoiceAction(
 
 async function setInvoiceStatus(
   invoiceId: string,
-  status: 'sent' | 'paid' | 'void',
+  status: 'finalized' | 'sent' | 'paid' | 'void',
   extra: Record<string, unknown> = {},
 ): Promise<ActionResult> {
   const loaded = await loadInvoiceForManage(invoiceId);
@@ -460,6 +460,30 @@ export async function markInvoicePaidAction(
   return setInvoiceStatus(parsed.data.invoiceId, 'paid', {
     paid_at: new Date().toISOString(),
   });
+}
+
+/**
+ * Nimmt eine versehentlich als „bezahlt" markierte Rechnung zurück. Sie geht in
+ * den vorherigen Zustand: „versendet" (falls schon versendet), sonst
+ * „finalisiert". paid_at wird gelöscht. Danach lässt sie sich wieder absenden
+ * bzw. korrekt als bezahlt markieren.
+ */
+export async function markInvoiceUnpaidAction(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const parsed = idSchema.safeParse({ invoiceId: formData.get('invoiceId') });
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const loaded = await loadInvoiceForManage(parsed.data.invoiceId);
+  if (!loaded.ok) return loaded.result;
+  const { invoice } = loaded;
+  if (invoice.status !== 'paid') {
+    return errorResult('Nur bezahlte Rechnungen können zurückgenommen werden.');
+  }
+
+  const back = invoice.sent_at ? 'sent' : 'finalized';
+  return setInvoiceStatus(parsed.data.invoiceId, back, { paid_at: null });
 }
 
 /**
@@ -757,6 +781,8 @@ export async function invoiceOpAction(
       return markInvoiceSentAction(prev, formData);
     case 'paid':
       return markInvoicePaidAction(prev, formData);
+    case 'unpaid':
+      return markInvoiceUnpaidAction(prev, formData);
     case 'void':
       return voidInvoiceAction(prev, formData);
     case 'regenerate':
