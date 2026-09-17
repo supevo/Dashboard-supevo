@@ -291,7 +291,37 @@ export async function renderInvoicePdf(params: {
     lines.filter(Boolean).forEach((l, j) => text(page, l as string, x, footerY + 12 - j * 10, 7, font, gray));
   });
   if (settings.invoice_footer) {
-    text(page, settings.invoice_footer, left, footerY - 22, 7, font, gray);
+    // Die Fußzeile kann mehrere Zeilen enthalten (Textarea) und/oder lang sein.
+    // Bisher wurde sie als EINE Zeile ohne Umbruch gezeichnet – dadurch lief sie
+    // rechts aus der Seite bzw. Zeilenumbrüche gingen verloren. Jetzt: an
+    // manuellen Umbrüchen trennen, jede Zeile zusätzlich bei Überlänge auf die
+    // Seitenbreite umbrechen und die Zeilen von unten nach OBEN stapeln, damit
+    // nichts unten aus der Seite läuft.
+    const maxW = right - left;
+    const footerLines: string[] = [];
+    for (const para of settings.invoice_footer.split('\n')) {
+      const trimmed = para.trim();
+      if (!trimmed) continue;
+      let line = '';
+      for (const w of trimmed.split(/\s+/)) {
+        const testLine = line ? `${line} ${w}` : w;
+        if (font.widthOfTextAtSize(testLine, 7) > maxW && line) {
+          footerLines.push(line);
+          line = w;
+        } else {
+          line = testLine;
+        }
+      }
+      if (line) footerLines.push(line);
+    }
+    // Auf die verfügbare Höhe unter dem Absenderblock begrenzen.
+    const shown = footerLines.slice(0, 4);
+    const lineHeight = 8.5;
+    const baseY = 16; // unterste Zeile
+    shown.forEach((l, i) => {
+      const yy = baseY + (shown.length - 1 - i) * lineHeight;
+      text(page, l, left, yy, 7, font, gray);
+    });
   }
 
   return doc.save();
