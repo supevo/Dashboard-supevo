@@ -86,6 +86,23 @@ function abbrev(name: string): string {
   return name.trim().slice(0, 2).toUpperCase() || '–';
 }
 
+/**
+ * Nachrichtenlisten zusammenführen statt ersetzen: neue Nachrichten kommen dazu,
+ * geänderte (Reaktionen/Lesestand) werden aktualisiert, bereits geladene ältere
+ * bleiben erhalten. So „verschwindet" beim Senden nie mehr eine vorherige
+ * Nachricht, obwohl pro Poll nur die neuesten N übertragen werden.
+ */
+function mergeMessages(
+  prev: ChannelMessage[],
+  incoming: ChannelMessage[],
+): ChannelMessage[] {
+  if (prev.length === 0) return incoming;
+  const byId = new Map<string, ChannelMessage>();
+  for (const m of prev) byId.set(m.id, m);
+  for (const m of incoming) byId.set(m.id, m);
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 function timeLabel(iso: string): string {
   return new Date(iso).toLocaleString('de-DE', {
     day: '2-digit',
@@ -264,7 +281,7 @@ function ConversationView({
         hasMore?: boolean;
       };
       setLoadError(null);
-      setMessages(data.messages);
+      setMessages((prev) => mergeMessages(prev, data.messages));
       setReads(data.reads ?? []);
       setHasMore(Boolean(data.hasMore));
     } catch {

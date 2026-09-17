@@ -21,6 +21,19 @@ const POLL_MS = 10_000;
 /** Custom event other components can dispatch to open the dock. */
 export const OPEN_CLIENT_CHAT_EVENT = 'supevo:open-client-chat';
 
+/** Nachrichten zusammenführen (per ID) statt ersetzen – sonst „verschwindet" beim
+ *  Senden eine vorherige Nachricht, sobald mehr als das geladene Fenster da ist. */
+function mergeMessages(
+  prev: ChannelMessage[],
+  incoming: ChannelMessage[],
+): ChannelMessage[] {
+  if (prev.length === 0) return incoming;
+  const byId = new Map<string, ChannelMessage>();
+  for (const m of prev) byId.set(m.id, m);
+  for (const m of incoming) byId.set(m.id, m);
+  return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 /**
  * Floating chat widget for the client portal — same idea as the agency chat
  * dock, but a single conversation with the responsible contact(s). Lives in the
@@ -55,7 +68,7 @@ export function ClientChatDock({
       };
       setChannelId(data.channelId);
       const msgs = data.messages ?? [];
-      setMessages(msgs);
+      setMessages((prev) => mergeMessages(prev, msgs));
       if (data.channelId) {
         const key = `supevo-chat-seen-${data.channelId}`;
         const seen = localStorage.getItem(key);
