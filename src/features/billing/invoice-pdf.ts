@@ -199,7 +199,9 @@ export async function renderInvoicePdf(params: {
     y -= 16;
   };
   totalRow('Nettobetrag', money(invoice.net_cents));
-  if (!settings.small_business) {
+  // Bei Reverse-Charge (innergemeinschaftliche B2B-Leistung) und Kleinunternehmer
+  // (§19) wird keine USt-Zeile ausgewiesen – Netto = Brutto.
+  if (!settings.small_business && !invoice.reverse_charge) {
     totalRow(`zzgl. ${invoice.tax_rate}% USt`, money(invoice.tax_cents));
   }
   y -= 2;
@@ -211,6 +213,43 @@ export async function renderInvoicePdf(params: {
   if (settings.small_business) {
     text(page, 'Gemäß §19 UStG wird keine Umsatzsteuer berechnet.', left, y, 9, font, gray);
     y -= 16;
+  }
+  // Reverse-Charge-Pflichthinweis (innergemeinschaftliche B2B-Leistung). Zusätzlich
+  // die USt-IdNr. des Leistungsempfängers ausweisen, falls hinterlegt.
+  if (invoice.reverse_charge) {
+    text(
+      page,
+      'Steuerschuldnerschaft des Leistungsempfängers (Reverse Charge).',
+      left,
+      y,
+      9,
+      bold,
+      black,
+    );
+    y -= 12;
+    text(
+      page,
+      'Die Umsatzsteuer schuldet der Leistungsempfänger (§ 13b UStG / Art. 196 MwStSystRL).',
+      left,
+      y,
+      9,
+      font,
+      gray,
+    );
+    y -= 12;
+    if (membership?.billing_vat_id) {
+      text(
+        page,
+        `USt-IdNr. des Leistungsempfängers: ${membership.billing_vat_id}`,
+        left,
+        y,
+        9,
+        font,
+        gray,
+      );
+      y -= 12;
+    }
+    y -= 4;
   }
   // Allgemeiner Zahlungshinweis. Der methodenspezifische SEPA-Satz („Abbuchung
   // erfolgt 2–3 Tage …") kommt jetzt aus dem Code (unten, nur bei SEPA). Steht er

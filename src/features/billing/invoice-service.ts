@@ -12,6 +12,7 @@ import {
   normalizeSelections,
   moduleLabel,
 } from '@/features/memberships/modules';
+import { isEuReverseChargeCountry } from '@/features/billing/tax-region';
 
 export type BillingEntity =
   Database['public']['Tables']['billing_entities']['Row'];
@@ -75,13 +76,18 @@ export interface InvoiceAmounts {
   grossCents: number;
 }
 
-/** Net/tax/gross for a net amount. Small-business (§19) => no VAT. */
+/**
+ * Net/tax/gross for a net amount. Small-business (§19) => no VAT. Reverse-charge
+ * (innergemeinschaftliche B2B-Leistung) => ebenfalls 0 % (der Leistungsempfänger
+ * schuldet die USt selbst), Netto = Brutto.
+ */
 export function computeAmounts(
   netCents: number,
   taxRate: number,
   smallBusiness: boolean,
+  reverseCharge = false,
 ): InvoiceAmounts {
-  const rate = smallBusiness ? 0 : taxRate;
+  const rate = smallBusiness || reverseCharge ? 0 : taxRate;
   const taxCents = Math.round((netCents * rate) / 100);
   return { netCents, taxRate: rate, taxCents, grossCents: netCents + taxCents };
 }
@@ -124,7 +130,9 @@ export async function createDraftInvoice(params: {
   const netCents = monthly * membership.interval_months;
   const taxRate = settings?.default_tax_rate ?? 19;
   const smallBusiness = settings?.small_business ?? false;
-  const amounts = computeAmounts(netCents, taxRate, smallBusiness);
+  // Reverse-Charge automatisch anhand des Kundenlandes (EU-Ausland) erkennen.
+  const reverseCharge = isEuReverseChargeCountry(membership.billing_country);
+  const amounts = computeAmounts(netCents, taxRate, smallBusiness, reverseCharge);
   const period = servicePeriod(refDate, membership.interval_months);
   // Legacy-/Bestandskunden erscheinen auf der Rechnung als „supevo Smart".
   const { data: companyRow } = await supabase
@@ -150,6 +158,7 @@ export async function createDraftInvoice(params: {
       tax_cents: amounts.taxCents,
       gross_cents: amounts.grossCents,
       payment_method: membership.payment_method,
+      reverse_charge: reverseCharge,
       created_by: createdBy,
     })
     .select('id')
@@ -227,8 +236,22 @@ export async function createManualDraftInvoice(params: {
     .filter((it) => it.description.length > 0);
   if (clean.length === 0) return { error: 'Bitte mindestens eine Position angeben.' };
 
+  // Reverse-Charge auch bei manuellen Rechnungen automatisch anhand des
+  // Kundenlandes (aus der Mitgliedschaft) erkennen.
+  const { data: cm } = await supabase
+    .from('client_memberships')
+    .select('billing_country')
+    .eq('client_company_id', clientCompanyId)
+    .maybeSingle();
+  const reverseCharge = isEuReverseChargeCountry(cm?.billing_country);
+
   const netCents = clean.reduce((n, it) => n + it.quantity * it.unitNetCents, 0);
-  const amounts = computeAmounts(netCents, params.taxRate, params.smallBusiness);
+  const amounts = computeAmounts(
+    netCents,
+    params.taxRate,
+    params.smallBusiness,
+    reverseCharge,
+  );
 
   const { data: invoice, error } = await supabase
     .from('invoices')
@@ -247,6 +270,7 @@ export async function createManualDraftInvoice(params: {
       tax_cents: amounts.taxCents,
       gross_cents: amounts.grossCents,
       payment_method: null,
+      reverse_charge: reverseCharge,
       created_by: createdBy,
     })
     .select('id')

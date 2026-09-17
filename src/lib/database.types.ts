@@ -3657,6 +3657,9 @@ export interface Database {
           tax_cents: number;
           gross_cents: number;
           payment_method: MembershipPaymentMethod | null;
+          /** Reverse-Charge (0 % USt, Steuerschuldnerschaft des Empfängers);
+           *  beim Erstellen aus dem Kundenland abgeleitet und hier fixiert. */
+          reverse_charge: boolean;
           pdf_path: string | null;
           notes: string | null;
           payment_ref: string | null;
