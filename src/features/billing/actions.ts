@@ -96,7 +96,8 @@ export async function updateBillingSettingsAction(
       invoice_reset_yearly: d.invoice_reset_yearly,
       default_tax_rate: d.default_tax_rate,
       small_business: d.small_business,
-      payment_terms_text: d.payment_terms_text || 'Zahlbar sofort ohne Abzug.',
+      // Leeres Feld = kein Zahlungshinweis (keine erzwungene Standardzeile).
+      payment_terms_text: d.payment_terms_text || '',
       invoice_footer: d.invoice_footer || null,
       stage1_name: d.stage1_name,
       stage1_net_cents: stage1,
@@ -174,7 +175,8 @@ export async function upsertBillingEntityAction(
     invoice_reset_yearly: d.invoice_reset_yearly,
     default_tax_rate: d.default_tax_rate,
     small_business: d.small_business,
-    payment_terms_text: d.payment_terms_text || 'Zahlbar sofort ohne Abzug.',
+    // Leeres Feld = kein Zahlungshinweis (keine erzwungene Standardzeile).
+    payment_terms_text: d.payment_terms_text || '',
     invoice_footer: d.invoice_footer || null,
     stage1_name: d.stage1_name,
     stage1_net_cents: stage1,

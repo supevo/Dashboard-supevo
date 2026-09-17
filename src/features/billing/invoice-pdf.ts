@@ -255,16 +255,18 @@ export async function renderInvoicePdf(params: {
   // erfolgt 2–3 Tage …") kommt jetzt aus dem Code (unten, nur bei SEPA). Steht er
   // aus einer früheren Konfiguration noch in diesem allgemeinen Feld, hier
   // entfernen – sonst erschiene er doppelt bzw. bei Überweisern fälschlich.
-  const terms =
-    (settings.payment_terms_text || 'Zahlbar sofort ohne Abzug.')
-      .replace(
-        /Abbuchung\s+erfolgt\s*2\s*[-–]\s*3\s*Tage\s+nach\s+Rechnungsstellung\.?/gi,
-        '',
-      )
-      .replace(/\s{2,}/g, ' ')
-      .trim() || 'Zahlbar sofort ohne Abzug.';
-  text(page, terms, left, y, 10);
-  y -= 16;
+  const terms = (settings.payment_terms_text ?? '')
+    .replace(
+      /Abbuchung\s+erfolgt\s*2\s*[-–]\s*3\s*Tage\s+nach\s+Rechnungsstellung\.?/gi,
+      '',
+    )
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  // Leerer Zahlungshinweis => keine Zeile (kein Zwangs-Standardtext mehr).
+  if (terms) {
+    text(page, terms, left, y, 10);
+    y -= 16;
+  }
 
   // Zahlungshinweis rein nach dem Zahlweg des Kunden (invoice.payment_method =
   // client_memberships.payment_method), UNABHÄNGIG davon, ob ein SEPA-Mandat/IBAN

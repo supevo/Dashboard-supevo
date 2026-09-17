@@ -300,8 +300,13 @@ export function BillingEntityForm({
         <Input
           id="payment_terms_text"
           name="payment_terms_text"
-          defaultValue={entity?.payment_terms_text ?? 'Zahlbar sofort ohne Abzug.'}
+          defaultValue={entity ? entity.payment_terms_text ?? '' : 'Zahlbar sofort ohne Abzug.'}
+          placeholder="z. B. Zahlbar sofort ohne Abzug. – leer lassen = keine Zeile"
         />
+        <p className="text-xs text-muted-foreground">
+          Optionaler Zahlungshinweis auf der Rechnung. Leer lassen, wenn keine
+          Zeile erscheinen soll.
+        </p>
       </div>
       <div className="space-y-1">
         <Label htmlFor="invoice_footer">Fußzeile (optional)</Label>
