@@ -259,7 +259,10 @@ export async function openDmAction(
       .filter((id) => !have.has(id))
       .map((id) => ({ channel_id: existing.id, organization_id: orgId, user_id: id }));
     if (toAdd.length > 0) {
-      await service.from('chat_channel_members').insert(toAdd);
+      const { error: addErr } = await service
+        .from('chat_channel_members')
+        .insert(toAdd);
+      if (addErr) return { error: de.errors.INTERNAL };
     }
     return { channelId: existing.id };
   }
@@ -278,10 +281,13 @@ export async function openDmAction(
     .maybeSingle();
   if (error || !created) return { error: de.errors.INTERNAL };
 
-  await service.from('chat_channel_members').insert([
+  const { error: memErr } = await service.from('chat_channel_members').insert([
     { channel_id: created.id, organization_id: orgId, user_id: user.id },
     { channel_id: created.id, organization_id: orgId, user_id: otherUserId },
   ]);
+  // Ohne beide Mitgliedszeilen versteckt RLS den DM für den Empfänger komplett –
+  // dann lieber sichtbar scheitern als einen halb angelegten DM zurückgeben.
+  if (memErr) return { error: de.errors.INTERNAL };
 
   return { channelId: created.id };
 }

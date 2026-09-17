@@ -396,21 +396,34 @@ export async function listDmConversations(
   // resolves to, so the overview and the opened conversation always agree.
   const { data: dms } = await supabase
     .from('chat_channels')
-    .select('id')
+    .select('id, dm_key')
     .eq('organization_id', orgId)
     .eq('kind', 'dm')
     .order('created_at', { ascending: true });
-  const dmIds = (dms ?? []).map((d) => d.id);
-  if (dmIds.length === 0) return [];
+  const dmRows = (dms ?? []) as { id: string; dm_key: string | null }[];
+  if (dmRows.length === 0) return [];
+  const dmIds = dmRows.map((d) => d.id);
 
-  const { data: members } = await supabase
-    .from('chat_channel_members')
-    .select('channel_id, user_id')
-    .in('channel_id', dmIds);
-
+  // Gesprächspartner aus dem dm_key ableiten ("<uidA>:<uidB>", sortiert). So
+  // bleibt die DM-Liste auch dann intakt, wenn die eigene chat_channel_members-
+  // Zeile fehlt (RLS gibt den Kanal über die Teilnahme frei, s. 0200). Für sehr
+  // alte DMs ohne dm_key auf die Mitgliederzeilen zurückfallen.
   const otherByChannel = new Map<string, string>();
-  for (const m of members ?? []) {
-    if (m.user_id !== userId) otherByChannel.set(m.channel_id, m.user_id);
+  const needMembers: string[] = [];
+  for (const d of dmRows) {
+    const parts = d.dm_key ? d.dm_key.split(':') : [];
+    const other = parts.length === 2 ? parts.find((p) => p !== userId) : undefined;
+    if (other) otherByChannel.set(d.id, other);
+    else needMembers.push(d.id);
+  }
+  if (needMembers.length > 0) {
+    const { data: members } = await supabase
+      .from('chat_channel_members')
+      .select('channel_id, user_id')
+      .in('channel_id', needMembers);
+    for (const m of members ?? []) {
+      if (m.user_id !== userId) otherByChannel.set(m.channel_id, m.user_id);
+    }
   }
   const otherIds = [...new Set(otherByChannel.values())];
   if (otherIds.length === 0) return [];
