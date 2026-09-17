@@ -212,7 +212,19 @@ export async function renderInvoicePdf(params: {
     text(page, 'Gemäß §19 UStG wird keine Umsatzsteuer berechnet.', left, y, 9, font, gray);
     y -= 16;
   }
-  text(page, settings.payment_terms_text || 'Zahlbar sofort ohne Abzug.', left, y, 10);
+  // Allgemeiner Zahlungshinweis. Der methodenspezifische SEPA-Satz („Abbuchung
+  // erfolgt 2–3 Tage …") kommt jetzt aus dem Code (unten, nur bei SEPA). Steht er
+  // aus einer früheren Konfiguration noch in diesem allgemeinen Feld, hier
+  // entfernen – sonst erschiene er doppelt bzw. bei Überweisern fälschlich.
+  const terms =
+    (settings.payment_terms_text || 'Zahlbar sofort ohne Abzug.')
+      .replace(
+        /Abbuchung\s+erfolgt\s*2\s*[-–]\s*3\s*Tage\s+nach\s+Rechnungsstellung\.?/gi,
+        '',
+      )
+      .replace(/\s{2,}/g, ' ')
+      .trim() || 'Zahlbar sofort ohne Abzug.';
+  text(page, terms, left, y, 10);
   y -= 16;
 
   // Zahlungshinweis rein nach dem Zahlweg des Kunden (invoice.payment_method =
