@@ -306,6 +306,7 @@ function MessagePane({
         replyTo: null,
         reactions: [],
         createdAt: new Date().toISOString(),
+        editedAt: null,
         isMine: true,
       },
     ],

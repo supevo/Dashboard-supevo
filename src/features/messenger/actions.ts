@@ -413,6 +413,56 @@ export async function sendChannelMessageAction(
   return successResult('');
 }
 
+// Wie lange nach dem Senden eine eigene Nachricht noch bearbeitet werden darf.
+const EDIT_WINDOW_MS = 15 * 60 * 1000; // 15 Minuten
+
+const editSchema = z.object({
+  messageId: z.string().uuid(),
+  body: z.string().trim().min(1).max(4000),
+});
+
+/**
+ * Bearbeitet eine eigene Textnachricht innerhalb eines Zeitfensters nach dem
+ * Senden (EDIT_WINDOW_MS). Nur der Autor, nur reine Textnachrichten (keine
+ * Sticker/Dateien/Umfragen). Setzt edited_at für den „(bearbeitet)"-Hinweis.
+ */
+export async function editChannelMessageAction(input: {
+  messageId: string;
+  body: string;
+}): Promise<ActionResult> {
+  const parsed = editSchema.safeParse(input);
+  if (!parsed.success) return errorResult(de.errors.VALIDATION);
+
+  const user = await requireUser();
+  if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
+
+  const service = createSupabaseServiceClient();
+  const { data: msg } = await service
+    .from('chat_channel_messages')
+    .select(
+      'id, channel_id, organization_id, author_id, created_at, sticker_path, file_path, poll_id',
+    )
+    .eq('id', parsed.data.messageId)
+    .maybeSingle();
+  if (!msg) return errorResult(de.errors.NOT_FOUND);
+  if (msg.author_id !== user.id) return errorResult(de.errors.FORBIDDEN);
+  if (msg.sticker_path || msg.file_path || msg.poll_id) {
+    return errorResult('Nur Textnachrichten können bearbeitet werden.');
+  }
+  if (Date.now() - new Date(msg.created_at).getTime() > EDIT_WINDOW_MS) {
+    return errorResult('Die Nachricht ist zu alt zum Bearbeiten.');
+  }
+
+  const { error } = await service
+    .from('chat_channel_messages')
+    .update({ body: parsed.data.body, edited_at: new Date().toISOString() })
+    .eq('id', parsed.data.messageId)
+    .eq('author_id', user.id);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  return successResult('Nachricht bearbeitet.');
+}
+
 const reactionSchema = z.object({
   messageId: z.string().uuid(),
   // Ein Emoji (ggf. mehrteilig, z. B. Flaggen/Modifier) – großzügig begrenzt.

@@ -1918,6 +1918,8 @@ export interface Database {
           poll_id: string | null;
           reply_to_id: string | null;
           created_at: string;
+          /** Zeitpunkt der letzten Bearbeitung; null = nie bearbeitet. */
+          edited_at: string | null;
         };
         Insert: {
           id?: string;
@@ -1935,6 +1937,7 @@ export interface Database {
           file_expires_at?: string | null;
           poll_id?: string | null;
           reply_to_id?: string | null;
+          edited_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['chat_channel_messages']['Insert']>;
         Relationships: [];

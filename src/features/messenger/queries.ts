@@ -74,6 +74,8 @@ export interface ChannelMessage {
   /** Emoji-Reaktionen, je Emoji zusammengefasst (👍 ×3), bestückt bester zuerst. */
   reactions: MessageReaction[];
   createdAt: string;
+  /** Zeitpunkt der letzten Bearbeitung; null = nie bearbeitet. */
+  editedAt: string | null;
   isMine: boolean;
 }
 
@@ -107,10 +109,11 @@ interface RawMessage {
   poll_id: string | null;
   reply_to_id: string | null;
   created_at: string;
+  edited_at: string | null;
 }
 
 const MESSAGE_COLUMNS =
-  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, poll_id, reply_to_id, created_at';
+  'id, author_id, body, sticker_path, file_path, file_name, file_mime, file_size, file_keep, file_removed, file_expires_at, poll_id, reply_to_id, created_at, edited_at';
 
 /** Einzeiliger Vorschautext einer Nachricht (Text gekürzt, sonst Typ-Label). */
 function messagePreview(m: {
@@ -309,6 +312,7 @@ async function mapMessages(
       replyTo: m.reply_to_id ? replyById.get(m.reply_to_id) ?? null : null,
       reactions: reactionsByMsg.get(m.id) ?? [],
       createdAt: m.created_at,
+      editedAt: m.edited_at ?? null,
       isMine: m.author_id === currentUserId,
     };
   });

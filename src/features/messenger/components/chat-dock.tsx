@@ -13,6 +13,7 @@ import {
 import {
   createChannelAction,
   sendChannelMessageAction,
+  editChannelMessageAction,
   markChannelRead,
   openDmAction,
 } from '@/features/messenger/actions';
@@ -74,6 +75,10 @@ const OVERVIEW_POLL_MS = 60000;
 // Desktop-Benachrichtigung erst beim Zurückwechseln (genau dann sind sie aber
 // nutzlos). Browser drosseln Hintergrund-Timer ohnehin auf ~1×/Minute.
 const OVERVIEW_POLL_HIDDEN_MS = 120000;
+// Zeitfenster, in dem eine eigene Nachricht nach dem Senden noch bearbeitet
+// werden darf (muss zum Server-Wert in actions.ts passen). Danach blendet die
+// UI den Bearbeiten-Button aus; der Server lehnt zusätzlich ab.
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
 const OPEN_KEY = 'chatDockOpen';
 const HIDDEN_KEY = 'chatHiddenDms';
 const ACTIVE_KEY = 'chatDockChannel';
@@ -169,6 +174,49 @@ function ConversationView({
   const stagingRef = useRef<HTMLInputElement>(null);
   // Zitierte Nachricht, auf die geantwortet wird (WhatsApp-Stil). null = keine.
   const [replyTo, setReplyTo] = useState<ChannelMessage | null>(null);
+  // Nachricht, die gerade inline bearbeitet wird (nur eigene Textnachrichten,
+  // kurz nach dem Senden). null = keine.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function startEdit(m: ChannelMessage) {
+    setEditError(null);
+    setEditingId(m.id);
+    setEditingText(m.body);
+  }
+  function cancelEdit() {
+    setEditingId(null);
+    setEditingText('');
+    setEditError(null);
+  }
+  async function saveEdit() {
+    const id = editingId;
+    const text = editingText.trim();
+    if (!id) return;
+    if (!text) {
+      setEditError('Die Nachricht darf nicht leer sein.');
+      return;
+    }
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const res = await editChannelMessageAction({ messageId: id, body: text });
+      if (res.status === 'error') {
+        setEditError('message' in res ? (res.message ?? 'Bearbeiten fehlgeschlagen.') : 'Bearbeiten fehlgeschlagen.');
+        return;
+      }
+      cancelEdit();
+      await loadRef.current();
+      // Gegenseite sofort aktualisieren (gleiches Signal wie bei neuen Nachrichten).
+      msgChannelRef.current?.send({ type: 'broadcast', event: 'new', payload: {} });
+    } catch {
+      setEditError('Bearbeiten fehlgeschlagen.');
+    } finally {
+      setEditBusy(false);
+    }
+  }
 
   function addFiles(list: FileList | File[] | null | undefined) {
     if (!list) return;
@@ -210,6 +258,7 @@ function ConversationView({
         replyTo: null,
         reactions: [],
         createdAt: new Date().toISOString(),
+        editedAt: null,
         isMine: true,
       },
     ],
@@ -507,22 +556,91 @@ function ConversationView({
                   <FileBlock messageId={m.id} file={m.file} onChanged={() => void load()} />
                 ) : m.poll ? (
                   <PollBlock poll={m.poll} canClose={m.isMine} onChanged={() => void load()} />
+                ) : editingId === m.id ? (
+                  <div className="space-y-1">
+                    <Textarea
+                      autoFocus
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      rows={2}
+                      className="min-h-[52px] w-full min-w-[180px] resize-none bg-background text-sm text-foreground"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (!editBusy) void saveEdit();
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelEdit();
+                        }
+                      }}
+                    />
+                    {editError && (
+                      <div className="text-[11px] text-destructive">{editError}</div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void saveEdit()}
+                        disabled={editBusy}
+                        className="rounded bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                      >
+                        {editBusy ? 'Speichert …' : 'Speichern'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        disabled={editBusy}
+                        className="rounded px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+                      >
+                        Abbrechen
+                      </button>
+                      <span className="text-[10px] opacity-60">
+                        Enter = speichern · Esc = abbrechen
+                      </span>
+                    </div>
+                  </div>
                 ) : (
-                  <MessageText text={m.body} />
+                  <>
+                    <MessageText text={m.body} />
+                    {m.editedAt && (
+                      <span className="ml-1 align-baseline text-[10px] opacity-60">
+                        (bearbeitet)
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setReplyTo(m);
-                  inputRef.current?.focus();
-                }}
-                aria-label="Antworten"
-                title="Antworten"
-                className="shrink-0 rounded p-1 text-sm text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
-              >
-                ↩︎
-              </button>
+              <div className="flex shrink-0 items-center">
+                {m.isMine &&
+                  !m.id.startsWith('optimistic-') &&
+                  !m.stickerUrl &&
+                  !m.file &&
+                  !m.poll &&
+                  editingId !== m.id &&
+                  Date.now() - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(m)}
+                      aria-label="Bearbeiten"
+                      title="Bearbeiten"
+                      className="shrink-0 rounded p-1 text-sm text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReplyTo(m);
+                    inputRef.current?.focus();
+                  }}
+                  aria-label="Antworten"
+                  title="Antworten"
+                  className="shrink-0 rounded p-1 text-sm text-muted-foreground opacity-60 hover:bg-muted hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+                >
+                  ↩︎
+                </button>
+              </div>
             </div>
             {!m.id.startsWith('optimistic-') && (
               <div className={cn('px-9', m.isMine && 'flex justify-end')}>
