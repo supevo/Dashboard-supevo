@@ -16,13 +16,30 @@ export async function GET(
   const service = createSupabaseServiceClient();
   const { data: msg } = await service
     .from('chat_channel_messages')
-    .select('organization_id, file_path, file_name, file_mime')
+    .select('organization_id, channel_id, file_path, file_name, file_mime')
     .eq('id', messageId)
     .maybeSingle();
   if (!msg || !msg.file_path) return new NextResponse(null, { status: 404 });
 
-  const inOrg = user.memberships.some((m) => m.organizationId === msg.organization_id);
-  if (!inOrg) return new NextResponse(null, { status: 403 });
+  // Agentur-Mitarbeiter der Org – oder ein Kundenkontakt des Kunden-Kanals.
+  let allowed = user.memberships.some((m) => m.organizationId === msg.organization_id);
+  if (!allowed) {
+    const { data: ch } = await service
+      .from('chat_channels')
+      .select('kind, client_company_id')
+      .eq('id', msg.channel_id)
+      .maybeSingle();
+    if (ch?.kind === 'client' && ch.client_company_id) {
+      const { data: contact } = await service
+        .from('client_contacts')
+        .select('user_id')
+        .eq('client_company_id', ch.client_company_id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      allowed = Boolean(contact);
+    }
+  }
+  if (!allowed) return new NextResponse(null, { status: 403 });
 
   let blob: Blob | null = null;
   try {

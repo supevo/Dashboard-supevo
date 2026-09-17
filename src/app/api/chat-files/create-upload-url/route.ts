@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/features/auth/session';
-import { hasAgencyAccess } from '@/features/auth/access';
 import { createSignedUploadTarget } from '@/lib/files/storage';
 import { validateUpload, sanitizeFileName } from '@/lib/files/validation';
 import { rateLimit } from '@/lib/rate-limit';
@@ -26,7 +25,8 @@ export async function POST(request: NextRequest) {
   }
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
-  if (!hasAgencyAccess(user)) return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+  // Kein pauschales Agentur-Gate: die RLS-Lesesicht auf den Kanal (unten)
+  // autorisiert – so dürfen auch Kundenkontakte in ihren Kunden-Kanal hochladen.
 
   const limit = rateLimit(`chat-file:${user.id}`, 30, 60_000);
   if (!limit.allowed) {

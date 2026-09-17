@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
-import { hasAgencyAccess } from '@/features/auth/access';
 import { validateUpload, sanitizeFileName } from '@/lib/files/validation';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import { env } from '@/lib/env';
@@ -27,7 +26,8 @@ export async function POST(request: NextRequest) {
   }
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: de.errors.UNAUTHENTICATED }, { status: 401 });
-  if (!hasAgencyAccess(user)) return NextResponse.json({ error: de.errors.FORBIDDEN }, { status: 403 });
+  // Kein pauschales Agentur-Gate: die RLS-Lesesicht auf den Kanal (unten) plus der
+  // Pfad-Präfix-Check autorisieren – Kundenkontakte dürfen in ihren Kanal hochladen.
 
   const body = (await request.json().catch(() => null)) as {
     channelId?: string;

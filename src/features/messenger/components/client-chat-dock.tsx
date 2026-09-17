@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { sendClientChatMessageAction } from '@/features/messenger/client-chat-actions';
 import { EmojiPicker } from '@/features/messenger/components/emoji-picker';
+import { uploadChatFile } from '@/features/messenger/upload-chat-file';
 import type { ChannelMessage } from '@/features/messenger/queries';
 import { cn } from '@/lib/utils';
 
@@ -39,8 +40,10 @@ export function ClientChatDock({
   const [unread, setUnread] = useState(0);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +118,19 @@ export function ClientChatDock({
       setError('Senden fehlgeschlagen.');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function onFile(file: File) {
+    if (!channelId || file.size === 0) return;
+    setError(null);
+    setUploading(true);
+    try {
+      const res = await uploadChatFile(channelId, file);
+      if (!res.ok) setError(res.error ?? 'Upload fehlgeschlagen.');
+      else await load();
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -208,7 +224,31 @@ export function ClientChatDock({
                       {m.authorName}
                     </div>
                   )}
-                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                  {m.file ? (
+                    m.file.removed || !m.file.url ? (
+                      <div className="text-xs opacity-70">🗑️ {m.file.name}</div>
+                    ) : m.file.isImage ? (
+                      <a href={m.file.url} target="_blank" rel="noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={m.file.url}
+                          alt={m.file.name}
+                          className="max-h-56 max-w-[220px] rounded-md object-contain"
+                        />
+                      </a>
+                    ) : (
+                      <a
+                        href={m.file.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-2 text-sm underline"
+                      >
+                        📎 {m.file.name}
+                      </a>
+                    )
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                  )}
                 </div>
               </div>
             );
@@ -233,6 +273,27 @@ export function ClientChatDock({
               }
             }}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onFile(f);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || uploading || !channelId}
+            aria-label="Foto anhängen"
+            title="Foto anhängen"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-lg hover:bg-muted disabled:opacity-50"
+          >
+            {uploading ? '…' : '📎'}
+          </button>
           <EmojiPicker onPick={(emoji) => setBody((b) => b + emoji)} />
           <Button size="sm" type="button" onClick={send} disabled={sending}>
             Senden
