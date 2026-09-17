@@ -1,11 +1,13 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   upsertBillingEntityAction,
   deleteBillingEntityAction,
+  setBillingEntityLogoAction,
 } from '@/features/billing/actions';
+import { Button } from '@/components/ui/button';
 import { idleResult } from '@/lib/action-result';
 import { centsToInput } from '@/lib/money';
 import { Alert } from '@/components/ui/alert';
@@ -50,6 +52,108 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+const LOGO_MAX_BYTES = 512 * 1024; // 512 KB Rohbild
+
+/**
+ * Logo-Uploader für EINEN Rechnungssteller. Rechnungen dieses Rechnungsstellers
+ * tragen dann dieses Logo statt des org-weiten Standard-Logos. Für die PDF muss
+ * es ein PNG/JPG sein (SVG kann pdf-lib nicht einbetten). Steht bewusst
+ * AUSSERHALB des <form>, damit der versteckte Datei-Upload nicht das Formular
+ * absendet.
+ */
+function EntityLogoUpload({
+  entityId,
+  orgId,
+  current,
+}: {
+  entityId: string;
+  orgId: string;
+  current: string | null;
+}) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function save(dataUri: string) {
+    setError(null);
+    start(async () => {
+      const res = await setBillingEntityLogoAction({ entityId, orgId, dataUri });
+      if (res.status === 'error') setError('message' in res ? res.message ?? '' : '');
+      else router.refresh();
+    });
+  }
+
+  function onFile(file: File) {
+    setError(null);
+    if (file.size > LOGO_MAX_BYTES) {
+      setError('Bild ist zu groß (max. 512 KB).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => save(String(reader.result));
+    reader.onerror = () => setError('Datei konnte nicht gelesen werden.');
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="space-y-2">
+      <SectionTitle>Logo dieses Rechnungsstellers</SectionTitle>
+      <p className="text-xs text-muted-foreground">
+        Erscheint auf allen Rechnungen dieses Rechnungsstellers. Ohne eigenes Logo
+        wird das Standard-Logo der Organisation genutzt. Für die PDF bitte PNG/JPG
+        (kein SVG), max. 512 KB.
+      </p>
+      <div className="flex h-24 w-fit items-center justify-center rounded-lg border bg-white p-3">
+        {current ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={current} alt="Logo-Vorschau" className="max-h-16 w-auto" />
+        ) : (
+          <span className="px-6 text-neutral-400">Standard-Logo</span>
+        )}
+      </div>
+      {error && (
+        <Alert variant="destructive" className="text-xs">
+          {error}
+        </Alert>
+      )}
+      <div className="flex gap-2">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onFile(f);
+            e.target.value = '';
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => inputRef.current?.click()}
+        >
+          {busy ? 'Lädt …' : current ? 'Ersetzen' : 'Hochladen'}
+        </Button>
+        {current && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            onClick={() => save('')}
+          >
+            Entfernen
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Create/edit form for one billing entity (Rechnungssteller). */
 export function BillingEntityForm({
   orgId,
@@ -82,9 +186,17 @@ export function BillingEntityForm({
   }, [delState, router]);
 
   return (
-    <form action={formAction} className="space-y-4">
-      <input type="hidden" name="orgId" value={orgId} />
-      {entity && <input type="hidden" name="id" value={entity.id} />}
+    <div className="space-y-4">
+      {entity && (
+        <EntityLogoUpload
+          entityId={entity.id}
+          orgId={orgId}
+          current={entity.logo_dark ?? null}
+        />
+      )}
+      <form action={formAction} className="space-y-4">
+        <input type="hidden" name="orgId" value={orgId} />
+        {entity && <input type="hidden" name="id" value={entity.id} />}
 
       {state.status === 'error' && (
         <Alert variant="destructive">{state.message}</Alert>
@@ -236,7 +348,8 @@ export function BillingEntityForm({
           </button>
         )}
       </div>
-    </form>
+      </form>
+    </div>
   );
 }
 

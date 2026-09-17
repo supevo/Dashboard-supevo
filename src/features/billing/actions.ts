@@ -213,6 +213,56 @@ export async function upsertBillingEntityAction(
   return successResult('Rechnungssteller gespeichert.');
 }
 
+const entityLogoSchema = z.object({
+  entityId: z.string().uuid(),
+  orgId: z.string().uuid(),
+  // data-URI eines PNG/JPG/SVG-Bildes; ~700 KB base64 ≈ 512 KB Rohbild.
+  dataUri: z
+    .string()
+    .max(700_000)
+    .regex(
+      /^data:image\/(png|jpeg|jpg|svg\+xml);base64,/,
+      'Bitte ein PNG-, JPG- oder SVG-Bild hochladen.',
+    )
+    .or(z.literal('')),
+});
+
+/**
+ * Speichert (oder entfernt) das Logo eines Rechnungsstellers. Nur Org-Admins.
+ * Leerer dataUri = Logo entfernen (dann greift wieder das org-weite Logo).
+ * Für Rechnungen (PDF) muss das Logo ein PNG/JPG sein – SVG kann pdf-lib nicht
+ * einbetten und wird dort ignoriert.
+ */
+export async function setBillingEntityLogoAction(input: {
+  entityId: string;
+  orgId: string;
+  dataUri: string;
+}): Promise<ActionResult> {
+  const parsed = entityLogoSchema.safeParse(input);
+  if (!parsed.success) {
+    return errorResult(
+      parsed.error.flatten().fieldErrors.dataUri?.[0] ?? de.errors.VALIDATION,
+    );
+  }
+  const { entityId, orgId, dataUri } = parsed.data;
+
+  const user = await requireUser();
+  authorize(user, { type: 'organization.update', orgId });
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('billing_entities')
+    .update({ logo_dark: dataUri === '' ? null : dataUri } as never)
+    .eq('id', entityId)
+    .eq('organization_id', orgId);
+  if (error) return errorResult(de.errors.INTERNAL);
+
+  revalidatePath('/app/finance');
+  return successResult(
+    dataUri === '' ? 'Logo entfernt.' : 'Logo gespeichert.',
+  );
+}
+
 const entityIdSchema = z.object({
   id: z.string().uuid(),
   orgId: z.string().uuid(),

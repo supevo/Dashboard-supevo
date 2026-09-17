@@ -315,7 +315,9 @@ async function renderAndStoreInvoicePdf(
       items: items ?? [],
       settings: entity,
       membership,
-      logoDark: (await getOrgBranding(invoice.organization_id)).logoDark,
+      // Eigenes Logo des Rechnungsstellers, sonst org-weites Standard-Logo.
+      logoDark:
+        entity.logo_dark ?? (await getOrgBranding(invoice.organization_id)).logoDark,
     });
   } catch (e) {
     logger.error('invoice.pdf.failed', { error: (e as Error).message });

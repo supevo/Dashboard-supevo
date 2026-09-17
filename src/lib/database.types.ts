@@ -3531,6 +3531,9 @@ export interface Database {
           organization_id: string;
           name: string;
           is_default: boolean;
+          /** Eigenes Logo dieses Rechnungsstellers (data-URI PNG/JPG) für das
+           *  Rechnungs-PDF; null = org-weites Logo. */
+          logo_dark: string | null;
         } & Omit<
           Database['public']['Tables']['billing_settings']['Row'],
           'organization_id'
@@ -3540,6 +3543,7 @@ export interface Database {
           organization_id: string;
           name: string;
           is_default?: boolean;
+          logo_dark?: string | null;
         } & Partial<
           Omit<
             Database['public']['Tables']['billing_settings']['Row'],

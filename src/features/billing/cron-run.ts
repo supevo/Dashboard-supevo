@@ -92,7 +92,8 @@ async function finalizeWithService(
       items: items ?? [],
       settings: entity,
       membership,
-      logoDark: (await getOrgBranding(orgId)).logoDark,
+      // Eigenes Logo des Rechnungsstellers, sonst org-weites Standard-Logo.
+      logoDark: entity.logo_dark ?? (await getOrgBranding(orgId)).logoDark,
     });
   } catch (e) {
     logger.error('cron.pdf.failed', { error: (e as Error).message });
