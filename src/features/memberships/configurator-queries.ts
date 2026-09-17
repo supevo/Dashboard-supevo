@@ -325,6 +325,15 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
 
   const modules = await getModuleCatalog(membership.organization_id);
   const activeSelections = normalizeSelections(membership.modules);
+  const redeemedPromotions = readRedeemed(membership);
+  // Eingelöste Aktionen (z. B. 10% Neukundenrabatt) mitliefern, damit die
+  // Kundenansicht denselben Rabatt auf den Preis anzeigt wie der Agentur-Baukasten.
+  // Im Portal-Modus werden sie NUR angezeigt (Rabatt im Preis) – die Einlöse-UI
+  // bleibt aus (mode === 'portal'), der Kunde kann also nichts ändern.
+  const promotions = await promotionsForConfigurator(
+    membership.organization_id,
+    redeemedPromotions,
+  );
   return {
     hasMembership: true,
     clientCompanyId: membership.client_company_id,
@@ -344,10 +353,8 @@ export async function getPortalMembershipConfigurator(): Promise<PortalConfigura
     clientCanEdit: membership.client_can_edit ?? false,
     modules,
     taxRatePct: 19,
-    // Gutscheine werden bewusst nur im Lead-Angebot und im Agentur-Baukasten
-    // eingelöst; im Portal nur angezeigt (OfferCarryoverCard).
-    promotions: [],
-    redeemedPromotions: readRedeemed(membership),
+    promotions,
+    redeemedPromotions,
     isLegacy: company?.is_legacy ?? false,
     companyName: company?.name ?? null,
   };
