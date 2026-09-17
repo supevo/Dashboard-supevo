@@ -69,6 +69,25 @@ export async function resolveInvoiceEntity(
   return resolveClientEntity(supabase, invoice.organization_id, invoice.client_company_id);
 }
 
+/**
+ * „Heilt" die Steuerebene einer bestehenden Rechnung anhand des AKTUELLEN
+ * Kundenlandes: Ist der Kunde im EU-Ausland (Reverse-Charge), werden 0 % USt,
+ * Netto = Brutto und reverse_charge=true zurückgegeben – der Nettobetrag bleibt
+ * unangetastet. Andernfalls null (keine Änderung), damit z. B. manuelle
+ * Rechnungen mit abweichendem Steuersatz nicht überschrieben werden.
+ *
+ * Nötig, weil reverse_charge/Beträge beim Erstellen eingefroren werden; für vor
+ * der Umstellung angelegte oder nachträglich aufs EU-Ausland umgestellte Kunden
+ * wird die Rechnung so beim Anzeigen/Finalisieren/Neu-Generieren korrekt.
+ */
+export function reverseChargeTaxOverride(
+  netCents: number,
+  billingCountry: string | null | undefined,
+): { reverse_charge: true; tax_rate: number; tax_cents: number; gross_cents: number } | null {
+  if (!isEuReverseChargeCountry(billingCountry)) return null;
+  return { reverse_charge: true, tax_rate: 0, tax_cents: 0, gross_cents: netCents };
+}
+
 export interface InvoiceAmounts {
   netCents: number;
   taxRate: number;

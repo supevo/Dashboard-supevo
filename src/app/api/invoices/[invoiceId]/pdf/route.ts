@@ -3,7 +3,10 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
 import { FILES_BUCKET } from '@/lib/files/storage';
-import { resolveInvoiceEntity } from '@/features/billing/invoice-service';
+import {
+  resolveInvoiceEntity,
+  reverseChargeTaxOverride,
+} from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import { getClientMembership } from '@/features/billing/membership';
 import { getOrgBranding } from '@/features/branding/queries';
@@ -33,11 +36,18 @@ async function draftPreview(
     .order('position', { ascending: true });
   const membership = await getClientMembership(invoice.client_company_id);
   const today = new Date().toISOString().slice(0, 10);
+  // Steuerebene anhand des aktuellen Kundenlandes heilen (Reverse-Charge), damit
+  // auch vor der Umstellung erstellte Entwürfe korrekt angezeigt werden.
+  const rcOverride = reverseChargeTaxOverride(
+    invoice.net_cents,
+    membership?.billing_country,
+  );
   try {
     const bytes = await renderInvoicePdf({
       // Für die Vorschau als „ENTWURF" kennzeichnen; nichts wird gespeichert.
       invoice: {
         ...invoice,
+        ...(rcOverride ?? {}),
         invoice_number: 'ENTWURF – Vorschau',
         issue_date: invoice.issue_date ?? today,
         due_date: invoice.due_date ?? today,

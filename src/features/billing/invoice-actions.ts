@@ -24,6 +24,7 @@ import {
   assignInvoiceNumber,
   resolveClientEntity,
   resolveInvoiceEntity,
+  reverseChargeTaxOverride,
 } from '@/features/billing/invoice-service';
 import { renderInvoicePdf } from '@/features/billing/invoice-pdf';
 import { getOrgBranding } from '@/features/branding/queries';
@@ -363,9 +364,18 @@ export async function finalizeInvoiceAction(
   const numberResult = await assignInvoiceNumber(supabase, entity.id);
   if ('error' in numberResult) return errorResult(de.errors.INTERNAL);
 
+  // Reverse-Charge anhand des aktuellen Kundenlandes ableiten (Netto bleibt),
+  // damit die finalisierte Rechnung auch bei EU-Auslandskunden korrekt ist.
+  const membership = await getClientMembership(invoice.client_company_id);
+  const rcOverride = reverseChargeTaxOverride(
+    invoice.net_cents,
+    membership?.billing_country,
+  );
+
   const today = new Date().toISOString().slice(0, 10);
   const finalized = {
     ...invoice,
+    ...(rcOverride ?? {}),
     invoice_number: numberResult.number,
     issue_date: today,
     due_date: today,
@@ -384,6 +394,7 @@ export async function finalizeInvoiceAction(
       due_date: today,
       status: 'finalized',
       pdf_path: path,
+      ...(rcOverride ?? {}),
     })
     .eq('id', invoice.id);
   if (error) return errorResult(de.errors.INTERNAL);
@@ -543,13 +554,23 @@ export async function regenerateInvoicePdfAction(
     );
   }
 
-  const stored = await renderAndStoreInvoicePdf(supabase, invoice, entity);
+  // Beim Neu-Generieren die Steuerebene aus dem aktuellen Kundenland heilen
+  // (Reverse-Charge) – so lässt sich eine vor der Umstellung finalisierte
+  // Rechnung ohne Storno korrigieren. Netto bleibt unverändert.
+  const membership = await getClientMembership(invoice.client_company_id);
+  const rcOverride = reverseChargeTaxOverride(
+    invoice.net_cents,
+    membership?.billing_country,
+  );
+  const invoiceForRender = { ...invoice, ...(rcOverride ?? {}) };
+
+  const stored = await renderAndStoreInvoicePdf(supabase, invoiceForRender, entity);
   if (!stored.ok) return stored.result;
 
-  if (invoice.pdf_path !== stored.path) {
+  if (invoice.pdf_path !== stored.path || rcOverride) {
     await supabase
       .from('invoices')
-      .update({ pdf_path: stored.path })
+      .update({ pdf_path: stored.path, ...(rcOverride ?? {}) })
       .eq('id', invoice.id);
   }
 
