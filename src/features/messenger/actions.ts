@@ -314,18 +314,33 @@ export async function sendChannelMessageAction(
   if (!hasAgencyAccess(user)) return errorResult(de.errors.FORBIDDEN);
 
   const supabase = await createSupabaseServerClient();
-  // Resolve the channel's org (RLS-scoped read) so the message carries it.
-  const { data: channel } = await supabase
+  const service = createSupabaseServiceClient();
+  // Kanal-Metadaten per Service-Client lesen; die Zugriffskontrolle erfolgt
+  // darunter. DMs werden über die Teilnahme am dm_key autorisiert – die RLS-Sicht
+  // würde einen DM ohne chat_channel_members-Zeile verstecken, dann schlüge das
+  // Senden fehl und die Nachricht „verschwände". Für alle anderen Kanäle bleibt
+  // die RLS-Lesesicht die Zugriffskontrolle.
+  const { data: channel } = await service
     .from('chat_channels')
-    .select('organization_id, kind, client_company_id, name, is_private')
+    .select('organization_id, kind, client_company_id, name, is_private, dm_key')
     .eq('id', parsed.data.channelId)
     .maybeSingle();
   if (!channel) return errorResult(de.errors.FORBIDDEN);
 
+  if (channel.kind === 'dm') {
+    const parts = (channel.dm_key ?? '').split(':');
+    if (!parts.includes(user.id)) return errorResult(de.errors.FORBIDDEN);
+  } else {
+    const { data: visible } = await supabase
+      .from('chat_channels')
+      .select('id')
+      .eq('id', parsed.data.channelId)
+      .maybeSingle();
+    if (!visible) return errorResult(de.errors.FORBIDDEN);
+  }
+
   // Service client for the write: a pure super_admin is not is_agency_staff(),
-  // so the RLS insert with-check would reject them (channel access already
-  // verified by the RLS read above).
-  const service = createSupabaseServiceClient();
+  // so the RLS insert with-check would reject them (access verified above).
   const { error } = await service.from('chat_channel_messages').insert({
     channel_id: parsed.data.channelId,
     organization_id: channel.organization_id,

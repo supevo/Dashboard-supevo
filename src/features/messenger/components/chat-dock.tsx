@@ -41,6 +41,8 @@ import { FileBlock } from '@/features/messenger/components/messenger';
 import { useChatTyping } from '@/features/messenger/use-chat-typing';
 import { TypingIndicator } from '@/features/messenger/components/typing-indicator';
 import { playChatPing } from '@/features/messenger/notify-sound';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 import {
   savePushSubscriptionAction,
   deletePushSubscriptionAction,
@@ -57,7 +59,9 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return out;
 }
 
-const POLL_MS = 5000;
+// Realtime (Broadcast) liefert neue Nachrichten sofort; dieser Poll ist nur noch
+// das Sicherheitsnetz, falls die Realtime-Verbindung mal fehlt. Deshalb seltener.
+const POLL_MS = 10000;
 // Der Ungelesen-Zähler in der angedockten Leiste muss nicht sekundengenau sein.
 // Er lief bisher alle 12 s je Nutzer auf JEDER Seite – und war damit die mit
 // Abstand teuerste DB-Last (chat_unread_counts + Kanal-/Mitglieder-Abfragen,
@@ -69,6 +73,7 @@ const OVERVIEW_POLL_MS = 30000;
 // nutzlos). Browser drosseln Hintergrund-Timer ohnehin auf ~1×/Minute.
 const OVERVIEW_POLL_HIDDEN_MS = 60000;
 const OPEN_KEY = 'chatDockOpen';
+const HIDDEN_KEY = 'chatHiddenDms';
 const ACTIVE_KEY = 'chatDockChannel';
 const SIDEBAR_KEY = 'chatDockSidebarCollapsed';
 
@@ -171,6 +176,10 @@ function ConversationView({
     ],
   );
   const loadRef = useRef<() => Promise<void>>(async () => {});
+  // Realtime-Broadcast: neue Nachrichten sofort ausliefern (kein Migration/Table
+  // nötig, wie beim Tippen). Nach dem Senden broadcasten wir „new"; die Gegenseite
+  // lädt dann sofort neu statt auf den Poll zu warten.
+  const msgChannelRef = useRef<RealtimeChannel | null>(null);
   const [state, action, isPending] = useActionState(
     async (prev: ActionResult, formData: FormData): Promise<ActionResult> => {
       const body = (formData.get('body') as string | null)?.trim() ?? '';
@@ -196,12 +205,14 @@ function ConversationView({
         if (res.status === 'success') {
           setReplyTo(null);
           await loadRef.current();
+          msgChannelRef.current?.send({ type: 'broadcast', event: 'new', payload: {} });
         }
         return res;
       }
       // Nur Dateien: neu laden, damit die Datei-Nachrichten erscheinen.
       if (files.length > 0) {
         await loadRef.current();
+        msgChannelRef.current?.send({ type: 'broadcast', event: 'new', payload: {} });
         return successResult();
       }
       return prev;
@@ -273,6 +284,24 @@ function ConversationView({
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [load]);
+
+  // Realtime: auf „new"-Broadcasts dieses Kanals lauschen und sofort neu laden.
+  useEffect(() => {
+    if (!channelId) return;
+    const supabase = createSupabaseBrowserClient();
+    const ch = supabase.channel(`chat-msg:${channelId}`, {
+      config: { broadcast: { self: false } },
+    });
+    ch.on('broadcast', { event: 'new' }, () => {
+      void loadRef.current();
+    });
+    ch.subscribe();
+    msgChannelRef.current = ch;
+    return () => {
+      msgChannelRef.current = null;
+      void supabase.removeChannel(ch);
+    };
+  }, [channelId]);
 
   useEffect(() => {
     // Neuladen erfolgt bereits in der Action (optimistisches Senden) – hier nur
@@ -669,6 +698,9 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
   const [startingDm, setStartingDm] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // „Chat schließen": ausgeblendete DMs (pro Gerät, localStorage). Ein DM taucht
+  // automatisch wieder auf, sobald er ungelesene Nachrichten hat.
+  const [hiddenDms, setHiddenDms] = useState<Set<string>>(new Set());
   // Mobil: nur EINE Ebene sichtbar (Liste ODER Chat) statt nebeneinander.
   const [mobile, setMobile] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
@@ -697,6 +729,26 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     } catch {
       /* ignore */
     }
+    try {
+      const raw = localStorage.getItem(HIDDEN_KEY);
+      if (raw) setHiddenDms(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const hideDm = useCallback((id: string) => {
+    setHiddenDms((prev) => {
+      const next = new Set(prev).add(id);
+      try {
+        localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    setActiveId((cur) => (cur === id ? null : cur));
+    setMobileView('list');
   }, []);
 
   // Push-Abo dieses Browsers ermitteln (steuert den 🔔-Zustand im Kopf).
@@ -1037,6 +1089,11 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
     0,
   );
   const dmMemberIds = new Set(dms.map((d) => d.otherUserId));
+  // Ausgeblendete DMs verbergen – aber wieder einblenden, sobald sie ungelesene
+  // Nachrichten haben (man verpasst so nichts).
+  const visibleDms = dms.filter(
+    (d) => !(hiddenDms.has(d.id) && (unread[d.id] ?? 0) === 0),
+  );
 
   if (!open) {
     return (
@@ -1190,29 +1247,46 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
             </div>
           )}
           <div className={cn('space-y-0.5 pb-1', collapsed ? 'px-1' : 'px-1.5')}>
-            {dms.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => openChannel(d.id)}
-                title={collapsed ? d.otherName : undefined}
-                className={cn(
-                  'flex w-full items-center rounded hover:bg-muted',
-                  collapsed ? 'justify-center px-0 py-1' : 'gap-1.5 px-2 py-1.5 text-left text-sm',
-                  activeId === d.id
-                    ? 'bg-muted font-medium text-foreground'
-                    : 'text-muted-foreground',
-                )}
-              >
-                <span className="relative">
-                  <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
-                  {collapsed && activeId !== d.id && (unread[d.id] ?? 0) > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
+            {visibleDms.map((d) => (
+              <div key={d.id} className="group relative flex items-center">
+                <button
+                  type="button"
+                  onClick={() => openChannel(d.id)}
+                  title={collapsed ? d.otherName : undefined}
+                  className={cn(
+                    'flex w-full items-center rounded hover:bg-muted',
+                    collapsed
+                      ? 'justify-center px-0 py-1'
+                      : 'gap-1.5 px-2 py-1.5 pr-7 text-left text-sm',
+                    activeId === d.id
+                      ? 'bg-muted font-medium text-foreground'
+                      : 'text-muted-foreground',
                   )}
-                </span>
-                {!collapsed && <span className="truncate">{d.otherName}</span>}
-                {!collapsed && activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
-              </button>
+                >
+                  <span className="relative">
+                    <Avatar userId={d.otherUserId} name={d.otherName} hasAvatar={d.otherHasAvatar} status={d.otherStatus} size="sm" />
+                    {collapsed && activeId !== d.id && (unread[d.id] ?? 0) > 0 && (
+                      <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-1 ring-card" />
+                    )}
+                  </span>
+                  {!collapsed && <span className="truncate">{d.otherName}</span>}
+                  {!collapsed && activeId !== d.id && <UnreadBadge count={unread[d.id] ?? 0} />}
+                </button>
+                {!collapsed && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      hideDm(d.id);
+                    }}
+                    aria-label={`Chat mit ${d.otherName} schließen`}
+                    title="Chat schließen"
+                    className="absolute right-1 rounded p-0.5 text-xs leading-none text-muted-foreground opacity-100 hover:bg-background hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </div>
 

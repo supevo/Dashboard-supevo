@@ -390,45 +390,55 @@ export async function listDmConversations(
   orgId: string,
   userId: string,
 ): Promise<DmConversation[]> {
-  const supabase = await createSupabaseServerClient();
-  // RLS returns only DMs the user is a member of. Order by created_at so the
-  // dedupe below keeps the OLDEST channel per partner – the same one openDmAction
-  // resolves to, so the overview and the opened conversation always agree.
-  const { data: dms } = await supabase
+  const service = createSupabaseServiceClient();
+  // DMs des Nutzers per Service-Client + Teilnahme am dm_key ermitteln, damit die
+  // Liste auch dann intakt bleibt, wenn die eigene chat_channel_members-Zeile
+  // fehlt (durch purge/Sweep aus 0140) oder die Org abweicht. Reihenfolge nach
+  // created_at, damit der Dedupe unten den ÄLTESTEN Kanal je Partner behält (wie
+  // openDmAction ihn auflöst) – Overview und geöffneter Chat bleiben konsistent.
+  const { data: dms } = await service
     .from('chat_channels')
     .select('id, dm_key')
     .eq('organization_id', orgId)
     .eq('kind', 'dm')
     .order('created_at', { ascending: true });
-  const dmRows = (dms ?? []) as { id: string; dm_key: string | null }[];
-  if (dmRows.length === 0) return [];
-  const dmIds = dmRows.map((d) => d.id);
+  const allDms = (dms ?? []) as { id: string; dm_key: string | null }[];
+  if (allDms.length === 0) return [];
 
-  // Gesprächspartner aus dem dm_key ableiten ("<uidA>:<uidB>", sortiert). So
-  // bleibt die DM-Liste auch dann intakt, wenn die eigene chat_channel_members-
-  // Zeile fehlt (RLS gibt den Kanal über die Teilnahme frei, s. 0200). Für sehr
-  // alte DMs ohne dm_key auf die Mitgliederzeilen zurückfallen.
+  // Für Alt-DMs OHNE dm_key: die noch vorhandenen Mitgliedszeilen des Nutzers.
+  const { data: myMem } = await service
+    .from('chat_channel_members')
+    .select('channel_id')
+    .eq('user_id', userId)
+    .eq('organization_id', orgId);
+  const memberOf = new Set((myMem ?? []).map((m) => m.channel_id));
+
+  // Gesprächspartner aus dem dm_key ("<uidA>:<uidB>") ableiten; nur DMs, in denen
+  // der Nutzer teilnimmt. Alt-DMs ohne dm_key über die Mitgliedszeile auflösen.
   const otherByChannel = new Map<string, string>();
-  const needMembers: string[] = [];
-  for (const d of dmRows) {
+  const legacyNeed: string[] = [];
+  for (const d of allDms) {
     const parts = d.dm_key ? d.dm_key.split(':') : [];
-    const other = parts.length === 2 ? parts.find((p) => p !== userId) : undefined;
-    if (other) otherByChannel.set(d.id, other);
-    else needMembers.push(d.id);
+    if (parts.length === 2 && parts.includes(userId)) {
+      const other = parts.find((p) => p !== userId);
+      if (other) otherByChannel.set(d.id, other);
+    } else if (memberOf.has(d.id)) {
+      legacyNeed.push(d.id);
+    }
   }
-  if (needMembers.length > 0) {
-    const { data: members } = await supabase
+  if (legacyNeed.length > 0) {
+    const { data: members } = await service
       .from('chat_channel_members')
       .select('channel_id, user_id')
-      .in('channel_id', needMembers);
+      .in('channel_id', legacyNeed);
     for (const m of members ?? []) {
       if (m.user_id !== userId) otherByChannel.set(m.channel_id, m.user_id);
     }
   }
+  const dmIds = allDms.map((d) => d.id).filter((id) => otherByChannel.has(id));
   const otherIds = [...new Set(otherByChannel.values())];
   if (otherIds.length === 0) return [];
 
-  const service = createSupabaseServiceClient();
   const { data: profiles } = await service
     .from('profiles')
     .select('id, full_name, avatar_url, status, last_seen_at')
@@ -541,6 +551,33 @@ export async function listChannelMessages(
   currentUserId: string,
   limit = 200,
 ): Promise<ChannelMessage[]> {
+  const service = createSupabaseServiceClient();
+  const { data: chan } = await service
+    .from('chat_channels')
+    .select('kind, dm_key')
+    .eq('id', channelId)
+    .maybeSingle();
+  const c = chan as { kind: string | null; dm_key: string | null } | null;
+
+  // DMs: über die Teilnahme am dm_key autorisieren und per Service-Client lesen.
+  // Der Empfang funktioniert dann auch, wenn die chat_channel_members-Zeile fehlt
+  // (durch purge/Sweep aus 0140) oder die Org abweicht – RLS würde den DM sonst
+  // komplett verstecken (Nachrichten „verschwinden"). Nur die beiden im dm_key
+  // kodierten Teilnehmer dürfen lesen; die Route hat bereits Agentur-Zugriff
+  // geprüft, Kundenkonten erreichen diesen Pfad nicht.
+  if (c?.kind === 'dm') {
+    const parts = (c.dm_key ?? '').split(':');
+    if (!parts.includes(currentUserId)) return [];
+    const { data } = await service
+      .from('chat_channel_messages')
+      .select(MESSAGE_COLUMNS)
+      .eq('channel_id', channelId)
+      .order('created_at', { ascending: true })
+      .limit(limit);
+    return mapMessages((data ?? []) as RawMessage[], currentUserId);
+  }
+
+  // Alle anderen Kanäle: unveränderter RLS-Pfad (öffentliche/private/Kunden-Kanäle).
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from('chat_channel_messages')
@@ -566,15 +603,30 @@ export async function listChannelReads(
   channelId: string,
   currentUserId: string,
 ): Promise<ChannelRead[]> {
-  const supabase = await createSupabaseServerClient();
-  const { data: chan } = await supabase
+  const service = createSupabaseServiceClient();
+  const { data: chan } = await service
     .from('chat_channels')
-    .select('id')
+    .select('kind, dm_key')
     .eq('id', channelId)
     .maybeSingle();
-  if (!chan) return []; // Kanal für den Aufrufer nicht sichtbar
+  const c = chan as { kind: string | null; dm_key: string | null } | null;
+  if (!c) return [];
 
-  const { data } = await createSupabaseServiceClient()
+  if (c.kind === 'dm') {
+    // DM: über Teilnahme autorisieren (robust gegen fehlende Mitgliedszeile).
+    if (!(c.dm_key ?? '').split(':').includes(currentUserId)) return [];
+  } else {
+    // Nicht-DM: RLS-Sicht bestätigt, dass der Aufrufer den Kanal sehen darf.
+    const supabase = await createSupabaseServerClient();
+    const { data: vis } = await supabase
+      .from('chat_channels')
+      .select('id')
+      .eq('id', channelId)
+      .maybeSingle();
+    if (!vis) return [];
+  }
+
+  const { data } = await service
     .from('chat_reads')
     .select('user_id, last_read_at')
     .eq('channel_id', channelId)
