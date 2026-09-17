@@ -379,6 +379,7 @@ export async function sendChannelMessageAction(
       user.id,
       user.fullName ?? user.email,
       channel.name ?? null,
+      channel.dm_key ?? null,
     );
   }
 
@@ -463,6 +464,7 @@ async function pushChannelMessage(
   authorId: string,
   authorName: string,
   channelName: string | null,
+  dmKey: string | null,
 ): Promise<void> {
   const service = createSupabaseServiceClient();
 
@@ -477,8 +479,12 @@ async function pushChannelMessage(
     recipientIds = (members ?? [])
       .filter((m) => m.role !== 'client' && m.user_id !== authorId)
       .map((m) => m.user_id);
+  } else if (kind === 'dm' && dmKey) {
+    // DM: Empfänger aus dem dm_key ableiten – robust gegen eine fehlende
+    // chat_channel_members-Zeile (sonst käme beim Empfänger keine Benachrichtigung).
+    recipientIds = dmKey.split(':').filter((id) => id && id !== authorId);
   } else {
-    // Private Kanäle + DMs: explizit hinterlegte Mitglieder.
+    // Private Kanäle: explizit hinterlegte Mitglieder.
     const { data: members } = await service
       .from('chat_channel_members')
       .select('user_id')

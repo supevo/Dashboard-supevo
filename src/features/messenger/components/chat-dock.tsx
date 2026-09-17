@@ -67,11 +67,13 @@ const POLL_MS = 10000;
 // Abstand teuerste DB-Last (chat_unread_counts + Kanal-/Mitglieder-Abfragen,
 // >100k Aufrufe/Tag). 30 s reichen für ein Hintergrund-Badge völlig; zusätzlich
 // pausiert der Poll, wenn der Tab im Hintergrund liegt (siehe unten).
-const OVERVIEW_POLL_MS = 30000;
+// Realtime (postgres_changes) frischt den Ungelesen-Zähler sofort auf; diese
+// Polls sind nur noch das Sicherheitsnetz – deutlich seltener = weniger DB-Last.
+const OVERVIEW_POLL_MS = 60000;
 // Im Hintergrund-Tab langsamer, aber NICHT gestoppt – sonst kämen Sound und
 // Desktop-Benachrichtigung erst beim Zurückwechseln (genau dann sind sie aber
 // nutzlos). Browser drosseln Hintergrund-Timer ohnehin auf ~1×/Minute.
-const OVERVIEW_POLL_HIDDEN_MS = 60000;
+const OVERVIEW_POLL_HIDDEN_MS = 120000;
 const OPEN_KEY = 'chatDockOpen';
 const HIDDEN_KEY = 'chatHiddenDms';
 const ACTIVE_KEY = 'chatDockChannel';
@@ -966,6 +968,38 @@ export function ChatDock({ meId, meName }: { meId: string; meName: string }) {
       /* ignore */
     }
   }, [notifyDesktop]);
+
+  // Stabiler Zugriff auf loadOverview für den Realtime-Handler (kein Re-Subscribe).
+  const loadOverviewRef = useRef(loadOverview);
+  loadOverviewRef.current = loadOverview;
+
+  // Realtime: neue Nachrichten (postgres_changes) frischen den Ungelesen-Zähler
+  // SOFORT auf, statt auf den Poll zu warten. RLS liefert nur Kanäle, die der
+  // Nutzer sehen darf. Debounced, damit ein Schwung Inserts nur eine Runde macht.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const ch = supabase
+      .channel('chat-inserts')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_channel_messages' },
+        (payload) => {
+          const row = payload.new as { author_id?: string | null };
+          if (row.author_id === meId) return; // eigene Nachricht: schon geladen
+          if (timer) return;
+          timer = setTimeout(() => {
+            timer = null;
+            void loadOverviewRef.current(true);
+          }, 800);
+        },
+      )
+      .subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      void supabase.removeChannel(ch);
+    };
+  }, [meId]);
 
   useEffect(() => {
     void loadOverview();
