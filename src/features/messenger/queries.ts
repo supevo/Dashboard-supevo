@@ -549,7 +549,7 @@ export async function getChannel(channelId: string): Promise<ChatChannel | null>
 export async function listChannelMessages(
   channelId: string,
   currentUserId: string,
-  limit = 200,
+  limit = 20,
 ): Promise<ChannelMessage[]> {
   const service = createSupabaseServiceClient();
   const { data: chan } = await service
@@ -572,9 +572,9 @@ export async function listChannelMessages(
       .from('chat_channel_messages')
       .select(MESSAGE_COLUMNS)
       .eq('channel_id', channelId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false })
       .limit(limit);
-    return mapMessages((data ?? []) as RawMessage[], currentUserId);
+    return mapMessages(newestFirstToOldest(data), currentUserId);
   }
 
   // Alle anderen Kanäle: unveränderter RLS-Pfad (öffentliche/private/Kunden-Kanäle).
@@ -583,9 +583,20 @@ export async function listChannelMessages(
     .from('chat_channel_messages')
     .select(MESSAGE_COLUMNS)
     .eq('channel_id', channelId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(limit);
-  return mapMessages((data ?? []) as RawMessage[], currentUserId);
+  return mapMessages(newestFirstToOldest(data), currentUserId);
+}
+
+/**
+ * WICHTIG: Wir holen die NEUESTEN `limit` Nachrichten (absteigend) und drehen sie
+ * dann für die Anzeige wieder aufsteigend. Würde man aufsteigend + limit lesen,
+ * bekäme man die ÄLTESTEN `limit` – dann „verschwinden" neue Nachrichten, sobald
+ * ein Chat mehr als `limit` Einträge hat (genau der Bug: ab Nachricht 201 kam bei
+ * einem aktiven DM nichts mehr an, ohne Fehler).
+ */
+function newestFirstToOldest(rows: unknown): RawMessage[] {
+  return ((rows ?? []) as RawMessage[]).slice().reverse();
 }
 
 export interface ChannelRead {

@@ -231,6 +231,11 @@ function ConversationView({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Nur die neuesten `limit` Nachrichten laden (wie bei WhatsApp/Slack). „Ältere
+  // laden" erhöht das Fenster. Spart massiv Übertragung (Egress) statt jedes Mal
+  // Hunderte Nachrichten zu ziehen.
+  const [limit, setLimit] = useState(20);
+  const [hasMore, setHasMore] = useState(false);
 
   function insertEmoji(emoji: string) {
     const el = inputRef.current;
@@ -245,9 +250,10 @@ function ConversationView({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/chat/channels/${channelId}/messages`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(
+        `/api/chat/channels/${channelId}/messages?limit=${limit}`,
+        { cache: 'no-store' },
+      );
       if (!res.ok) {
         setLoadError(`Nachrichten konnten nicht geladen werden (Fehler ${res.status}).`);
         return;
@@ -255,14 +261,16 @@ function ConversationView({
       const data = (await res.json()) as {
         messages: ChannelMessage[];
         reads?: { userId: string; lastReadAt: string }[];
+        hasMore?: boolean;
       };
       setLoadError(null);
       setMessages(data.messages);
       setReads(data.reads ?? []);
+      setHasMore(Boolean(data.hasMore));
     } catch {
       /* transient — next poll retries */
     }
-  }, [channelId]);
+  }, [channelId, limit]);
   loadRef.current = load;
 
   useEffect(() => {
@@ -376,6 +384,20 @@ function ConversationView({
         }}
         className="flex-1 space-y-3 overflow-y-auto bg-muted/10 p-3"
       >
+        {hasMore && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                stickToBottom.current = false; // Position halten, nicht nach unten springen
+                setLimit((l) => l + 20);
+              }}
+              className="rounded-full border bg-background px-3 py-1 text-xs text-muted-foreground hover:bg-muted"
+            >
+              Ältere Nachrichten laden
+            </button>
+          </div>
+        )}
         {optimisticMessages.length === 0 ? (
           <p className="text-xs text-muted-foreground">{de.messenger.noMessages}</p>
         ) : (
