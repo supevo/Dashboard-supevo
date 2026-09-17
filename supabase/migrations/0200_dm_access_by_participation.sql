@@ -40,12 +40,16 @@ as $$
           )
         )
         -- DMs: zusätzlich für die beiden im dm_key kodierten Teilnehmer,
-        -- unabhängig von einer (evtl. verlorenen) chat_channel_members-Zeile.
+        -- unabhängig von einer (evtl. verlorenen) chat_channel_members-Zeile UND
+        -- unabhängig davon, welche Org die DM-Zeile trägt (Org-Drift: die DM-Zeile
+        -- trägt die Org des Erstellers, die Mitgliedschaft des Partners kann eine
+        -- andere sein). Die Teilnahme am dm_key IST die Berechtigung; sie wird
+        -- serverseitig aus den beiden User-IDs gesetzt. Zugriff bleibt auf
+        -- Agentur-Mitarbeiter beschränkt.
         or (
           c.kind = 'dm'
           and c.dm_key is not null
           and public.is_agency_staff()
-          and c.organization_id in (select public.current_user_org_ids())
           and auth.uid()::text in (
             split_part(c.dm_key, ':', 1),
             split_part(c.dm_key, ':', 2)
