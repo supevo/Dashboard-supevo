@@ -219,7 +219,17 @@ export async function MonthlyBillingOverview({
                       )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right font-medium">
-                      {formatEuroCents(r.grossCents)}
+                      {formatEuroCents(r.periodGrossCents)}
+                      {r.intervalMonths > 1 && (
+                        <div className="text-[11px] font-normal text-muted-foreground">
+                          {formatEuroCents(r.grossCents)}/Monat ·{' '}
+                          {r.intervalMonths === 12
+                            ? 'jährlich'
+                            : r.intervalMonths === 3
+                              ? 'quartalsweise'
+                              : `alle ${r.intervalMonths} Monate`}
+                        </div>
+                      )}
                     </td>
                     <td className={`whitespace-nowrap px-3 py-2 ${r.invoice ? statusTone(r.invoice.status) : 'text-muted-foreground'}`}>
                       {r.invoice

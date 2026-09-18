@@ -15,6 +15,10 @@ export interface BillingOverviewRow {
   sepaMandateMissing: boolean;
   /** Effektiver Monatspreis inkl. USt (Custom-Preis gewinnt). */
   grossCents: number;
+  /** Abrechnungsintervall in Monaten (1 = monatlich, 3 = quartal, 12 = jährlich). */
+  intervalMonths: number;
+  /** Tatsächlicher Rechnungsbetrag je Abrechnung inkl. USt = grossCents × Intervall. */
+  periodGrossCents: number;
   membershipStatus: string;
   /** SEPA-Mandat-Details (für „Mandat anzeigen"). */
   mandateReference: string | null;
@@ -51,7 +55,7 @@ export async function getMonthlyBillingOverview(
   const { data: memberships } = await supabase
     .from('client_memberships')
     .select(
-      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, mandate_date, status',
+      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, mandate_date, status, interval_months',
     )
     .eq('organization_id', orgId);
   if (!memberships || memberships.length === 0) return [];
@@ -150,6 +154,8 @@ export async function getMonthlyBillingOverview(
           !m.mandate_reference &&
           !m.debtor_iban,
         grossCents: gross,
+        intervalMonths: m.interval_months ?? 1,
+        periodGrossCents: gross * (m.interval_months ?? 1),
         membershipStatus: m.status,
         mandateReference: m.mandate_reference ?? null,
         debtorIban: m.debtor_iban ?? null,
