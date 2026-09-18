@@ -122,8 +122,17 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
 
-  const activeIsEmpty =
-    !existing || normalizeSelections(existing.modules).length === 0;
+  // „Erst-Einrichtung" (→ sofort aktiv) nur, wenn WIRKLICH noch kein aktives
+  // Paket existiert. supevo-Stufen-Kunden haben leere `modules` (das Paket steckt
+  // in stage/Preis), sind aber trotzdem aktiv – erkennbar an einer bereits
+  // laufenden Abrechnung (next_invoice_date). Ohne diese Zusatzprüfung würde jede
+  // Stufenänderung fälschlich SOFORT greifen statt zum Folgemonat geplant zu
+  // werden (und es entstünde kein „geplant"-Hinweis für Kunde/Agentur).
+  const hasActivePackage =
+    !!existing &&
+    (normalizeSelections(existing.modules).length > 0 ||
+      !!existing.next_invoice_date);
+  const activeIsEmpty = !hasActivePackage;
 
   // Sofort aktiv, wenn es die erste Einrichtung ist ODER der Haken „sofort gültig"
   // gesetzt wurde. Ansonsten → zum Folgemonat planen (Standard).
