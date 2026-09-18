@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Alert } from '@/components/ui/alert';
 
 /**
- * Super-Admin: erzeugt/rotiert einen Backup-Portalzugang für diesen Kunden und
- * zeigt die Zugangsdaten EINMALIG. Damit kann man sich als echter Kunde einloggen
- * (Ansichten vergleichen, Bugs testen) – alle Rechte greifen wie beim Kunden.
+ * Agentur-Mitarbeiter: erzeugt/rotiert einen Backup-Portalzugang für diesen
+ * Kunden und zeigt die Zugangsdaten EINMALIG. Damit kann man sich als echter
+ * Kunde einloggen (Ansichten vergleichen, Bugs testen) – alle Rechte greifen wie
+ * beim Kunden. Jede Erzeugung wird protokolliert.
  */
 export function BackupLoginCard({ clientCompanyId }: { clientCompanyId: string }) {
   const [busy, start] = useTransition();

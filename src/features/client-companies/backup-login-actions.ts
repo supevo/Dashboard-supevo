@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { requireUser } from '@/lib/authz/authorize';
-import { isSuperAdmin } from '@/lib/authz/policies';
+import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
 import {
@@ -57,7 +57,6 @@ export async function createBackupLoginAction(
     return errorResult(de.errors.VALIDATION);
   }
   const user = await requireUser();
-  if (!isSuperAdmin(user)) return errorResult(de.errors.FORBIDDEN);
 
   const service = createSupabaseServiceClient();
   const { data: company } = await service
@@ -66,6 +65,13 @@ export async function createBackupLoginAction(
     .eq('id', clientCompanyId)
     .maybeSingle();
   if (!company) return errorResult(de.errors.NOT_FOUND);
+
+  // Agentur-Mitarbeiter der zuständigen Organisation dürfen den Backup-Zugang
+  // erzeugen/rotieren (nicht mehr nur Super-Admins) – z. B. um bei Anzeige-
+  // Problemen die Kundenansicht zu testen. Jede Erzeugung wird protokolliert.
+  if (!isAgencyStaffInOrg(user, company.organization_id)) {
+    return errorResult(de.errors.FORBIDDEN);
+  }
 
   const email = backupEmail(clientCompanyId);
   const password = generatePassword();

@@ -595,13 +595,14 @@ export default async function ClientDetailPage({
       icon: '🔑',
       content: (
         <>
-          {isSuperAdmin(user) && (
+          {(isAgencyStaffInOrg(user, orgId) || isSuperAdmin(user)) && (
             <Card>
               <CardHeader>
                 <CardTitle>🔐 Backup-Login (als Kunde einloggen)</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Nur Super-Admin: ein eigener Portal-Zugang für diesen Kunden zum
-                  Testen und Ansichten-Vergleichen.
+                  Ein eigener Portal-Zugang für diesen Kunden zum Testen und
+                  Ansichten-Vergleichen – z. B. wenn der Kunde in seiner Ansicht
+                  ein Problem meldet. Jede Erzeugung wird protokolliert.
                 </p>
               </CardHeader>
               <CardContent>
