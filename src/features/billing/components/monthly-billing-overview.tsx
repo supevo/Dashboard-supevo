@@ -185,7 +185,18 @@ export async function MonthlyBillingOverview({
                         {r.billingEntityName}
                       </td>
                     )}
-                    <td className="px-3 py-2">{r.packageLabel}</td>
+                    <td className="px-3 py-2">
+                      {r.packageLabel}
+                      {r.pendingEffectiveDate && r.pendingLabel && (
+                        <div className="mt-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                          → ab {r.pendingEffectiveDate.split('-').reverse().join('.')}:{' '}
+                          {r.pendingLabel}
+                          {r.pendingPeriodGrossCents != null && (
+                            <> ({formatEuroCents(r.pendingPeriodGrossCents)})</>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {r.paymentMethod === 'transfer' ? (
                         'Überweisung'

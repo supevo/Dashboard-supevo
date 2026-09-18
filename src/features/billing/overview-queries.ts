@@ -29,6 +29,26 @@ export interface BillingOverviewRow {
   billingEntityName: string;
   /** Rechnung, deren Leistungszeitraum im gewählten Monat startet (oder null). */
   invoice: InvoiceRow | null;
+  /** Geplante Paketänderung (ab pendingEffectiveDate) – sonst null. */
+  pendingLabel: string | null;
+  pendingEffectiveDate: string | null;
+  /** Betrag der geplanten Änderung je Abrechnung inkl. USt (× Intervall). */
+  pendingPeriodGrossCents: number | null;
+}
+
+/** Liest Name/Netto/Stage aus dem gespeicherten pending_modules-JSON. */
+function parsePending(
+  raw: unknown,
+): { name: string | null; netCents: number | null; stage: number | null } {
+  if (!raw || typeof raw !== 'object') {
+    return { name: null, netCents: null, stage: null };
+  }
+  const p = raw as Record<string, unknown>;
+  return {
+    name: typeof p.name === 'string' ? p.name : null,
+    netCents: typeof p.netCents === 'number' ? p.netCents : null,
+    stage: typeof p.stage === 'number' ? p.stage : null,
+  };
 }
 
 /** Erster/letzter Tag eines Monats als ISO (YYYY-MM-DD). */
@@ -55,7 +75,7 @@ export async function getMonthlyBillingOverview(
   const { data: memberships } = await supabase
     .from('client_memberships')
     .select(
-      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, mandate_date, status, interval_months',
+      'client_company_id, stage, custom_name, custom_net_cents, redeemed_promotions, payment_method, mandate_reference, debtor_iban, mandate_date, status, interval_months, pending_modules, pending_effective_date',
     )
     .eq('organization_id', orgId);
   if (!memberships || memberships.length === 0) return [];
@@ -140,6 +160,29 @@ export async function getMonthlyBillingOverview(
       // Effektiver Rechnungssteller: explizit zugeordnet, sonst der Standard.
       const entityId =
         entityIdByClient.get(m.client_company_id) ?? defaultEntityId;
+
+      // Geplante Paketänderung (ab Folgemonat) für die Anzeige aufbereiten.
+      const interval = m.interval_months ?? 1;
+      const pending = parsePending(m.pending_modules);
+      const hasPending = !!m.pending_effective_date && pending.netCents != null;
+      let pendingLabel: string | null = null;
+      let pendingPeriodGrossCents: number | null = null;
+      if (hasPending) {
+        const pBase = pending.netCents ?? 0;
+        const pNet = Math.max(
+          0,
+          pBase - promoDiscountCents(pBase, promoRules, redeemed),
+        );
+        const pGross = Math.round((pNet * (100 + taxRate)) / 100);
+        pendingPeriodGrossCents = pGross * interval;
+        pendingLabel = legacyById.get(m.client_company_id)
+          ? SUPEVO_SMART_LABEL
+          : pending.name && pending.name !== 'Individuell'
+            ? pending.name
+            : pending.stage === 2
+              ? stage2Name
+              : stage1Name;
+      }
       return {
         clientCompanyId: m.client_company_id,
         clientName: nameById.get(m.client_company_id) ?? '—',
@@ -161,6 +204,9 @@ export async function getMonthlyBillingOverview(
         debtorIban: m.debtor_iban ?? null,
         mandateDate: m.mandate_date ?? null,
         invoice: invoiceByClient.get(m.client_company_id) ?? null,
+        pendingLabel,
+        pendingEffectiveDate: hasPending ? m.pending_effective_date : null,
+        pendingPeriodGrossCents,
       };
     })
     .sort((a, b) => a.clientName.localeCompare(b.clientName, 'de'));
