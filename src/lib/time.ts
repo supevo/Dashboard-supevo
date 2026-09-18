@@ -129,6 +129,48 @@ export function nextBillingDate(day: number, now: Date = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Nächster Abrechnungstermin (YYYY-MM-DD) unter Berücksichtigung von Startdatum
+ * UND Intervall. Anders als `nextBillingDate` (immer nächster Monats-Tag)
+ * verankert dies den Rhythmus am `startDate`-Monat und rückt in ganzen
+ * `intervalMonths`-Schritten vor, bis der Termin >= heute liegt. So kommt eine
+ * jährliche Abrechnung mit Start 01.10. auch wirklich einmal im Oktober – und
+ * nicht jeden Monat. Der Tag im Monat ist der Abrechnungstag (`billingDay`,
+ * auf 28 begrenzt). Ohne gültiges Startdatum wird der aktuelle Monat als Anker
+ * genommen.
+ */
+export function nextInvoiceDate(
+  startDateIso: string | null | undefined,
+  intervalMonths: number,
+  billingDay: number,
+  now: Date = new Date(),
+): string {
+  const day = Math.min(Math.max(1, Math.trunc(billingDay) || 1), 28);
+  const step = Math.max(1, Math.trunc(intervalMonths) || 1);
+  const todayIso = now.toISOString().slice(0, 10);
+
+  let year: number;
+  let month: number;
+  if (startDateIso && /^\d{4}-\d{2}-\d{2}/.test(startDateIso)) {
+    year = Number(startDateIso.slice(0, 4));
+    month = Number(startDateIso.slice(5, 7)) - 1;
+  } else {
+    year = now.getUTCFullYear();
+    month = now.getUTCMonth();
+  }
+
+  const iso = (m: number): string =>
+    new Date(Date.UTC(year, m, day)).toISOString().slice(0, 10);
+
+  let candidate = iso(month);
+  // In ganzen Intervallschritten vorrücken, bis der Termin heute oder später ist.
+  for (let guard = 0; candidate < todayIso && guard < 1200; guard++) {
+    month += step;
+    candidate = iso(month);
+  }
+  return candidate;
+}
+
 /** Europe/Berlin UTC offset (minutes) for a given instant. */
 function berlinOffsetMinutes(date: Date): number {
   const tzDate = new Date(

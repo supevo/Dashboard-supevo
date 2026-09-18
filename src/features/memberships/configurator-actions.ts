@@ -8,7 +8,7 @@ import { requireUser, authorize } from '@/lib/authz/authorize';
 import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { getCurrentUser } from '@/features/auth/session';
 import { de } from '@/lib/i18n/de';
-import { nextBillingDate } from '@/lib/time';
+import { nextBillingDate, nextInvoiceDate } from '@/lib/time';
 import {
   type ActionResult,
   errorResult,
@@ -118,7 +118,7 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
 
   const { data: existing } = await supabase
     .from('client_memberships')
-    .select('id, modules, next_invoice_date, billing_day')
+    .select('id, modules, next_invoice_date, billing_day, interval_months, start_date')
     .eq('client_company_id', clientCompanyId)
     .maybeSingle();
 
@@ -152,7 +152,13 @@ export async function saveMembershipConfigAction(input: unknown): Promise<Action
     if (existing) {
       const fill =
         billable && !existing.next_invoice_date
-          ? { next_invoice_date: nextBillingDate(existing.billing_day ?? 15) }
+          ? {
+              next_invoice_date: nextInvoiceDate(
+                existing.start_date,
+                existing.interval_months ?? 1,
+                existing.billing_day ?? 15,
+              ),
+            }
           : {};
       const { error } = await supabase
         .from('client_memberships')

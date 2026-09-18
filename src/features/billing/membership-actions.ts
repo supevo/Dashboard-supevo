@@ -8,7 +8,7 @@ import { requireUser, authorize } from '@/lib/authz/authorize';
 import { isAgencyStaffInOrg } from '@/lib/authz/policies';
 import { logActivity } from '@/lib/audit';
 import { de } from '@/lib/i18n/de';
-import { nextBillingDate } from '@/lib/time';
+import { nextInvoiceDate } from '@/lib/time';
 import {
   type ActionResult,
   errorResult,
@@ -85,7 +85,7 @@ export async function upsertMembershipAction(
     term_months: d.term_months ?? null,
     notice_period_months: d.notice_period_months ?? null,
     auto_renew: d.auto_renew,
-    next_invoice_date: nextBillingDate(d.billing_day),
+    next_invoice_date: nextInvoiceDate(d.start_date, d.interval_months, d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,
     mandate_date: d.mandate_date || null,
@@ -189,7 +189,7 @@ export async function saveMembershipBillingAction(
     term_months: d.term_months ?? null,
     notice_period_months: d.notice_period_months ?? null,
     auto_renew: d.auto_renew,
-    next_invoice_date: nextBillingDate(d.billing_day),
+    next_invoice_date: nextInvoiceDate(d.start_date, d.interval_months, d.billing_day),
     auto_send: d.auto_send,
     mandate_reference: d.mandate_reference || null,
     mandate_date: d.mandate_date || null,
