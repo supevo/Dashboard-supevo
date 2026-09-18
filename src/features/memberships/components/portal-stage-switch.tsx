@@ -90,8 +90,8 @@ export function PortalStageSwitch({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span>
               📅 Geplant: Wechsel auf <strong>Stage {pending.stage}</strong> (
-              {formatEuroCents(pending.netCents)} netto) ab {pending.effectiveDate}
-              .
+              {formatEuroCents(pending.netCents)} netto) ab{' '}
+              <strong>{pending.effectiveDate.split('-').reverse().join('.')}</strong>.
             </span>
             <Button
               type="button"

@@ -401,8 +401,16 @@ export function MembershipConfigurator({
       {pending && (
         <Alert className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span>
-            📅 Geplante Änderung: <strong>{formatEuroCents(pending.netCents)}</strong>{' '}
-            netto ab {pending.effectiveDate}.
+            📅 Geplante Änderung ab{' '}
+            <strong>{pending.effectiveDate.split('-').reverse().join('.')}</strong>
+            {pending.name ? (
+              <>
+                : <strong>{pending.name}</strong> –{' '}
+              </>
+            ) : (
+              ': '
+            )}
+            {formatEuroCents(pending.netCents)} netto.
           </span>
           {mode === 'agency' && (
             <button
