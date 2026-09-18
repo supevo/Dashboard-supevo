@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import { getCurrentUser } from '@/features/auth/session';
+import { hasAgencyAccess } from '@/features/auth/access';
 import { FILES_BUCKET } from '@/lib/files/storage';
 import {
   resolveInvoiceEntity,
@@ -97,6 +98,12 @@ export async function GET(
     .eq('id', invoiceId)
     .maybeSingle();
   if (!invoice) return new NextResponse(null, { status: 404 });
+
+  // Stornierte Rechnungen sind für Kunden nicht mehr abrufbar (auch nicht per
+  // direktem Link) – nur Agentur-Mitarbeiter sehen sie noch als Beleg.
+  if (invoice.status === 'void' && !hasAgencyAccess(user)) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   // Entwurf (noch kein gespeichertes PDF) → Live-Vorschau rendern.
   if (!invoice.pdf_path) {

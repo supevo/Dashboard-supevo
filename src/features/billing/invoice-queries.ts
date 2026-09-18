@@ -27,7 +27,8 @@ export async function listPortalInvoices(): Promise<InvoiceRow[]> {
   const { data } = await supabase
     .from('invoices')
     .select('*')
-    .neq('status', 'draft')
+    // Entwürfe und stornierte Rechnungen sieht der Kunde nicht.
+    .not('status', 'in', '("draft","void")')
     .order('issue_date', { ascending: false })
     .limit(120);
   return data ?? [];
